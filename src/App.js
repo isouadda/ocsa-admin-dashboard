@@ -87,7 +87,7 @@ export default function AdminDashboard() {
 
 function LoginForm({ onLogin, loading }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
-  return (<><div style={{ marginBottom: 16 }}><Lbl>Phone</Lbl><Inp value={ph} onChange={e => setPh(e.target.value)} placeholder="215-000-0000" onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
+  return (<><div style={{ marginBottom: 16 }}><Lbl>Phone or Email</Lbl><Inp value={ph} onChange={e => setPh(e.target.value)} placeholder="2150000000 or name@email.com" onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <div style={{ marginBottom: 24 }}><Lbl>PIN</Lbl><Inp value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "14px", borderRadius: 10, border: "none", background: `linear-gradient(135deg,${GO},${GL})`, color: N, fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.6 : 1 }}>{loading ? "Signing in..." : "Sign In"}</button>
     <div style={{ marginTop: 32, padding: 14, borderRadius: 10, background: "rgba(200,168,78,0.06)", border: "1px solid rgba(200,168,78,0.15)" }}>
@@ -127,17 +127,20 @@ function OverviewPage({ af, showToast, setPage }) {
 function StaffPage({ af, showToast }) {
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [detail, setDetail] = useState(null); const [sites, setSites] = useState([]); const [assignForm, setAssignForm] = useState(null);
+  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState("");
   const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); af("/api/sites").then(setSites).catch(() => {}); };
   useEffect(() => { load(); }, []);
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast("Approved"); load(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone) { showToast("Name and phone required", "error"); return; } try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast("Added. Temp PIN: " + d.tempPin); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast("Name, phone, and email required", "error"); return; } try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast("Added. Temp PIN: " + d.tempPin); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); } };
   const viewDetail = async id => { try { const d = await af("/api/users/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); } };
   const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); } };
   const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); viewDetail(assignForm.userId); } catch (e) { showToast(e.message, "error"); } };
   const unassign = async (uid, sid) => { try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); viewDetail(uid); } catch (e) { showToast(e.message, "error"); } };
+  const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast("PIN must be 4 digits", "error"); return; } try { const d = await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(d.message); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: { firstName: editForm.firstName, lastName: editForm.lastName, phone: editForm.phone, email: editForm.email, role: editForm.role, hourlyRate: editForm.hourlyRate } }); showToast("User updated"); setEditForm(null); load(); if (detail) viewDetail(editForm.id); } catch (e) { showToast(e.message, "error"); } };
   return (<div>
-    <SecT action="Add Staff" onAction={() => setAddForm({ firstName: "", lastName: "", phone: "", role: "custodial_laborer" })}>Staff Management</SecT>
+    <SecT action="Add Staff" onAction={() => setAddForm({ firstName: "", lastName: "", phone: "", email: "", role: "custodial_laborer" })}>Staff Management</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{["all", "active", "pending", "inactive"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? GD : "transparent", color: filter === f ? GO : GY, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", textTransform: "capitalize", border: filter === f ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{f}</button>)}</div>
     {filtered.map(s => <Crd key={s.id} style={{ marginBottom: 8, padding: 12 }} onClick={() => viewDetail(s.id)}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Ini name={s.name} sz={36} color={s.status === "pending" ? OR : GO} /><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</span><Bdg l={s.status} c={s.status === "active" ? GR : s.status === "pending" ? OR : RD} /></div><div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{RL[s.role] || s.role} | {s.phone}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>{s.sites?.length > 0 ? s.sites.map(x => x.siteName).join(", ") : "No sites"}</div></div>
@@ -146,25 +149,48 @@ function StaffPage({ af, showToast }) {
     {addForm && <Mdl onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add New Staff</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>First Name *</Lbl><Inp value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Phone *</Lbl><Inp value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder="215-555-0000" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Phone *</Lbl><Inp value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder="2155550000 (no dashes needed)" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Email *</Lbl><Inp value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder="name@email.com" type="email" /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Role</Lbl><Sel value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={[{ v: "custodial_laborer", l: "Custodial Laborer" }, { v: "custodial_lead", l: "Custodial Lead" }, { v: "day_porter", l: "Day Porter" }, { v: "supervisor", l: "Supervisor" }]} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn onClick={submitAdd}>Add Staff</Btn></div></div></Mdl>}
     {detail && <Mdl onClose={() => setDetail(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><Ini name={detail.user.firstName + " " + detail.user.lastName} sz={48} /><div><div style={{ fontSize: 18, fontWeight: 700 }}>{detail.user.firstName} {detail.user.lastName}</div><div style={{ fontSize: 12, color: GO }}>{RL[detail.user.role]}</div></div></div><button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
         <div style={{ fontSize: 11, color: GY }}>Phone<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{detail.user.phone}</div></div>
+        <div style={{ fontSize: 11, color: GY }}>Email<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{detail.user.email || "Not set"}</div></div>
         <div style={{ fontSize: 11, color: GY }}>Status<div style={{ marginTop: 2 }}><Bdg l={detail.user.status} c={detail.user.status === "active" ? GR : OR} /></div></div>
+        <div style={{ fontSize: 11, color: GY }}>Role<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{RL[detail.user.role]}</div></div>
       </div>
       {detail.certifications?.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Certifications</div><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{detail.certifications.map((c, i) => <span key={i} style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(46,204,113,0.08)", border: "1px solid rgba(46,204,113,0.2)", fontSize: 11, color: GR }}>{c.cert_name}</span>)}</div></div>}
       <div style={{ marginBottom: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div><button onClick={() => setAssignForm({ userId: detail.user.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Assign</button></div>
         {detail.assignments?.filter(a => a.is_active).map((a, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: 6, marginBottom: 4 }}><div><div style={{ fontSize: 12, fontWeight: 600 }}>{a.site_name || "Site"}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>{a.role_at_site || "No role"} | {a.shift_name || "No shift"}</div></div><button onClick={() => unassign(detail.user.id, a.site_id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button></div>)}
         {(!detail.assignments || detail.assignments.filter(a => a.is_active).length === 0) && <div style={{ fontSize: 11, color: GY }}>No sites assigned</div>}
       </div>
-      <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.user.id, firstName: detail.user.firstName, lastName: detail.user.lastName, phone: detail.user.phone, email: detail.user.email, role: detail.user.role, hourlyRate: detail.user.hourlyRate || "" })}>Edit Info</Btn>
+        <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setResetPin(detail.user.id); setNewPin(""); }}>Reset PIN</Btn>
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
         {detail.user.status === "active" && <Btn v="danger" style={{ flex: 1 }} onClick={() => updateStatus(detail.user.id, "inactive")}>Deactivate</Btn>}
         {detail.user.status === "inactive" && <Btn style={{ flex: 1 }} onClick={() => updateStatus(detail.user.id, "active")}>Reactivate</Btn>}
         {detail.user.status === "pending" && <Btn style={{ flex: 1 }} onClick={() => { approve(detail.user.id); setDetail(null); }}>Approve</Btn>}
       </div></div></Mdl>}
+    {resetPin && <Mdl onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Reset PIN</div>
+      <div style={{ fontSize: 12, color: GYL, marginBottom: 12 }}>Enter a new 4-digit PIN for this staff member. Share it with them directly or send it to their email.</div>
+      <div style={{ marginBottom: 16 }}><Lbl>New PIN (4 digits)</Lbl><Inp value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setResetPin(null)}>Cancel</Btn><Btn onClick={() => submitResetPin(resetPin)}>Reset PIN</Btn></div>
+    </div></Mdl>}
+    {editForm && <Mdl onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Staff Info</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      <div style={{ marginBottom: 12 }}><Lbl>First Name</Lbl><Inp value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Phone</Lbl><Inp value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Email</Lbl><Inp value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Role</Lbl><Sel value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={[{ v: "custodial_laborer", l: "Custodial Laborer" }, { v: "custodial_lead", l: "Custodial Lead" }, { v: "day_porter", l: "Day Porter" }, { v: "supervisor", l: "Supervisor" }, { v: "admin", l: "Admin" }]} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>Hourly Rate</Lbl><Inp value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn onClick={submitEdit}>Save Changes</Btn></div>
+    </div></Mdl>}
     {assignForm && <Mdl onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
       <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Assign to Site</div>
       <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: "Select..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -236,11 +262,13 @@ function OpsPage({ af }) {
 
 function IssuesPage({ af, showToast }) {
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
+  const [staffList, setStaffList] = useState([]); const [assignTask, setAssignTask] = useState(null);
   const load = () => af("/api/issues").then(setIssues).catch(e => showToast(e.message, "error"));
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: GY };
   const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
+  const submitAssignTask = async () => { if (!assignTask.userId) { showToast("Select a staff member", "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT>Issue Tracker</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? GD : "transparent", color: filter === f ? GO : GY, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
     {filtered.map(iss => <Crd key={iss.id} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || GY) }} onClick={() => setSel(iss)}>
@@ -261,11 +289,18 @@ function IssuesPage({ af, showToast }) {
         <div style={{ fontSize: 11, color: GY }}>Reported At<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
       </div>
       {sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + NL }} /></div>}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
         {sel.status === "in_progress" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
+        {(sel.status === "open" || sel.status === "in_progress") && <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "" }); setSel(null); }}>Assign as Task</Btn>}
         <Btn v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
       </div></div></Mdl>}
+    {assignTask && <Mdl onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Assign Issue as Task</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      <div style={{ fontSize: 12, color: GYL, marginBottom: 16, lineHeight: 1.5 }}>This will create a new task from this issue and assign it to a staff member. The task will appear in their checklist the next time they clock in at the relevant site.</div>
+      <div style={{ marginBottom: 16 }}><Lbl>Assign To *</Lbl><Sel value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAssignTask(null)}>Cancel</Btn><Btn onClick={submitAssignTask}>Assign Task</Btn></div>
+    </div></Mdl>}
   </div>);
 }
 
