@@ -61,7 +61,8 @@ export default function AdminDashboard() {
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}input::placeholder{color:${GY}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
-  const nav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI }, { id: "sites", l: "Sites", i: MpI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
+  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
+  const nav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI }, { id: "sites", l: "Sites", i: MpI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
   return (<div style={{ width: "100%", maxWidth: 960, margin: "0 auto", minHeight: "100vh", background: N, fontFamily: "'DM Sans',sans-serif", color: W }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
     <div style={{ background: NM, padding: "12px 20px", borderBottom: "1px solid " + BD, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -77,6 +78,7 @@ export default function AdminDashboard() {
       {page === "sites" && <SitesPage af={af} showToast={showToast} />}
       {page === "operations" && <OpsPage af={af} />}
       {page === "issues" && <IssuesPage af={af} showToast={showToast} />}
+      {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} />}
       {page === "chat" && <ChatPage af={af} user={user} />}
       {page === "reports" && <ReportsPage af={af} showToast={showToast} />}
     </div>
@@ -327,6 +329,153 @@ function IssuesPage({ af, showToast }) {
       <div style={{ marginBottom: 12 }}><Lbl>Assign To *</Lbl><Sel value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>Note to previous assignee (optional)</Lbl><textarea value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder="Explain why this is being reassigned..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAssignTask(null)}>Cancel</Btn><Btn onClick={submitAssignTask}>{assignTask.isReassign ? "Reassign" : "Assign Task"}</Btn></div>
+    </div></Mdl>}
+  </div>);
+}
+
+// ============================================================
+// SUPPLIES ADMIN PAGE
+// ============================================================
+function SuppliesAdminPage({ af, showToast }) {
+  const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
+  const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
+  const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
+
+  const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
+  const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
+  useEffect(() => { loadSupplies(); loadRequests(); }, []);
+
+  const submitAdd = async () => {
+    if (!addForm.name || !addForm.category || !addForm.unit) { showToast("Name, category, and unit required", "error"); return; }
+    try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const submitEdit = async () => {
+    try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Supply updated"); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const deactivate = async (id) => {
+    try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast("Supply removed"); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const submitHandleReq = async () => {
+    try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast("Request " + handleReq.status); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(code);
+  const cats = [{ v: "chemical", l: "Chemical" }, { v: "paper", l: "Paper Product" }, { v: "trash", l: "Trash/Liner" }, { v: "equipment", l: "Equipment" }, { v: "ppe", l: "PPE" }, { v: "other", l: "Other" }];
+  const units = [{ v: "each", l: "Each" }, { v: "gallon", l: "Gallon" }, { v: "case", l: "Case" }, { v: "box", l: "Box" }, { v: "roll", l: "Roll" }, { v: "pair", l: "Pair" }];
+  const reqColor = { pending: OR, approved: BL, denied: RD, fulfilled: GR };
+  const pendingCount = requests.filter(r => r.status === "pending").length;
+
+  return (<div>
+    <SecT action="Add Supply" onAction={() => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" })}>Supplies and Inventory</SecT>
+
+    <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+      <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? GD : "transparent", color: tab === "inventory" ? GO : GY, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>Inventory ({supplies.length})</button>
+      <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? GD : "transparent", color: tab === "requests" ? GO : GY, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>Requests {pendingCount > 0 ? "(" + pendingCount + " pending)" : ""}</button>
+    </div>
+
+    {tab === "inventory" && supplies.map(s => (
+      <Crd key={s.id} style={{ marginBottom: 8, padding: 14 }} onClick={() => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code })}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 8, background: GD, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <img src={qrUrl(s.qr_code)} alt="QR" style={{ width: 36, height: 36, borderRadius: 4 }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</span>
+              {s.is_green_certified && <Bdg l="Green" c={GR} />}
+            </div>
+            <div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{s.category} | {s.unit} | Stock: {s.current_stock}</div>
+            <div style={{ fontSize: 10, color: GY, marginTop: 2 }}>QR: {s.qr_code}{s.manufacturer ? " | " + s.manufacturer : ""}</div>
+          </div>
+          {s.current_stock <= (s.low_threshold || 0) && <Bdg l="Low Stock" c={RD} />}
+        </div>
+      </Crd>
+    ))}
+    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No supplies configured. Click "Add Supply" to start.</div>}
+
+    {tab === "requests" && requests.map(r => (
+      <Crd key={r.id} style={{ marginBottom: 8, padding: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>{r.request_type === "refill" ? "Refill Request" : r.request_type === "damage_report" ? "Damage Report" : r.request_type === "new_gear" ? "New Gear Request" : "New Supply Request"}</div>
+            <div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{r.item_name || r.supply_name || "General"} {r.site_name ? "at " + r.site_name : ""}</div>
+            {r.description && <div style={{ fontSize: 11, color: GY, marginTop: 4 }}>{r.description}</div>}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+            <Bdg l={r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : GY} />
+            <Bdg l={r.status} c={reqColor[r.status] || GY} />
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontSize: 10, color: GY }}>{r.requested_by_name} | {fd(r.created_at)}</div>
+          {r.status === "pending" && <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Approve</button>
+            <button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Deny</button>
+          </div>}
+        </div>
+      </Crd>
+    ))}
+    {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No supply requests yet.</div>}
+
+    {addForm && <Mdl onClose={() => setAddForm(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.15)", fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div>
+      <div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Category *</Lbl><Sel value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div>
+        <div><Lbl>Unit *</Lbl><Sel value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Stock</Lbl><Inp type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div>
+        <div><Lbl>Low Threshold</Lbl><Inp type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>
+        <div><Lbl>Cost/Unit</Lbl><Inp type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>EPA Reg #</Lbl><Inp value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div>
+        <div><Lbl>Green Cert Type</Lbl><Inp value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div>
+      </div>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} />
+        <span style={{ fontSize: 12, color: GYL }}>Green Certified Product</span>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn onClick={submitAdd}>Add Supply</Btn></div>
+    </div></Mdl>}
+
+    {editForm && <Mdl onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      {editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: GO, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}
+      <div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Category</Lbl><Sel value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div>
+        <div><Lbl>Unit</Lbl><Sel value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Stock</Lbl><Inp type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div>
+        <div><Lbl>Low Threshold</Lbl><Inp type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>
+        <div><Lbl>Cost/Unit</Lbl><Inp type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>EPA Reg #</Lbl><Inp value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div>
+        <div><Lbl>Green Cert Type</Lbl><Inp value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div>
+      </div>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+        <input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} />
+        <span style={{ fontSize: 12, color: GYL }}>Green Certified Product</span>
+      </div>
+      <div style={{ display: "flex", gap: 10 }}>
+        <Btn v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn>
+        <div style={{ flex: 1 }} />
+        <Btn v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn>
+        <Btn onClick={submitEdit}>Save</Btn>
+      </div>
+    </div></Mdl>}
+
+    {handleReq && <Mdl onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div>
+      <div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div>
     </div></Mdl>}
   </div>);
 }
