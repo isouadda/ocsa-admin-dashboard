@@ -127,7 +127,7 @@ function OverviewPage({ af, showToast, setPage }) {
 function StaffPage({ af, showToast }) {
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [detail, setDetail] = useState(null); const [sites, setSites] = useState([]); const [assignForm, setAssignForm] = useState(null);
-  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState("");
+  const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
   const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); af("/api/sites").then(setSites).catch(() => {}); };
   useEffect(() => { load(); }, []);
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
@@ -161,7 +161,17 @@ function StaffPage({ af, showToast }) {
         <div style={{ fontSize: 11, color: GY }}>Status<div style={{ marginTop: 2 }}><Bdg l={detail.user.status} c={detail.user.status === "active" ? GR : OR} /></div></div>
         <div style={{ fontSize: 11, color: GY }}>Role<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{RL[detail.user.role]}</div></div>
       </div>
-      {detail.certifications?.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Certifications</div><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{detail.certifications.map((c, i) => <span key={i} style={{ padding: "4px 10px", borderRadius: 6, background: "rgba(46,204,113,0.08)", border: "1px solid rgba(46,204,113,0.2)", fontSize: 11, color: GR }}>{c.cert_name}</span>)}</div></div>}
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Certifications</div>
+          <button onClick={() => setAddCert({ userId: detail.user.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button>
+        </div>
+        {(!detail.certifications || detail.certifications.length === 0) && <div style={{ fontSize: 11, color: GY }}>No certifications on file</div>}
+        {detail.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: "rgba(46,204,113,0.04)", borderRadius: 6, marginBottom: 3, border: "1px solid rgba(46,204,113,0.1)" }}>
+          <div><span style={{ fontSize: 11, color: GR, fontWeight: 500 }}>{c.cert_name}</span>{c.expiry_date && <span style={{ fontSize: 9, color: GY, marginLeft: 8 }}>Exp: {fd(c.expiry_date)}</span>}</div>
+          <button onClick={async () => { try { await af("/api/users/" + detail.user.id + "/certifications/" + c.id, { method: "DELETE" }); showToast("Removed"); viewDetail(detail.user.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button>
+        </div>)}
+      </div>
       <div style={{ marginBottom: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div><button onClick={() => setAssignForm({ userId: detail.user.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Assign</button></div>
         {detail.assignments?.filter(a => a.is_active).map((a, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", background: "rgba(255,255,255,0.02)", borderRadius: 6, marginBottom: 4 }}><div><div style={{ fontSize: 12, fontWeight: 600 }}>{a.site_name || "Site"}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>{a.role_at_site || "No role"} | {a.shift_name || "No shift"}</div></div><button onClick={() => unassign(detail.user.id, a.site_id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button></div>)}
         {(!detail.assignments || detail.assignments.filter(a => a.is_active).length === 0) && <div style={{ fontSize: 11, color: GY }}>No sites assigned</div>}
@@ -198,6 +208,17 @@ function StaffPage({ af, showToast }) {
       <div style={{ marginBottom: 12 }}><Lbl>Shift</Lbl><Inp value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} placeholder="e.g. Night" /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Start</Lbl><Inp type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>End</Lbl><Inp type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAssignForm(null)}>Cancel</Btn><Btn onClick={assignSite}>Assign</Btn></div></div></Mdl>}
+    {addCert && <Mdl onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Certification</div><button onClick={() => setAddCert(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Certification Name *</Lbl><Inp value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder="e.g. Green Cleaning Fundamentals" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={[{ v: "certification", l: "Certification" }, { v: "training", l: "Training" }, { v: "license", l: "License" }, { v: "orientation", l: "Orientation" }]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Issuing Body</Lbl><Inp value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder="e.g. ISSA, OSHA" /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div><Lbl>Issued Date</Lbl><Inp type="date" value={addCert.issuedDate} onChange={e => setAddCert({ ...addCert, issuedDate: e.target.value })} /></div>
+        <div><Lbl>Expiry Date</Lbl><Inp type="date" value={addCert.expiryDate} onChange={e => setAddCert({ ...addCert, expiryDate: e.target.value })} /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddCert(null)}>Cancel</Btn><Btn onClick={async () => { if (!addCert.certName) { showToast("Name required", "error"); return; } try { await af("/api/users/" + addCert.userId + "/certifications", { method: "POST", body: addCert }); showToast("Certification added"); setAddCert(null); viewDetail(addCert.userId); } catch (e) { showToast(e.message, "error"); } }}>Add Certification</Btn></div>
+    </div></Mdl>}
   </div>);
 }
 
@@ -268,7 +289,7 @@ function IssuesPage({ af, showToast }) {
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: GY };
   const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
-  const submitAssignTask = async () => { if (!assignTask.userId) { showToast("Select a staff member", "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const submitAssignTask = async () => { if (!assignTask.userId) { showToast("Select a staff member", "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT>Issue Tracker</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? GD : "transparent", color: filter === f ? GO : GY, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
     {filtered.map(iss => <Crd key={iss.id} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || GY) }} onClick={() => setSel(iss)}>
@@ -276,6 +297,7 @@ function IssuesPage({ af, showToast }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: GY }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
         <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Start</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Resolve</button>}</div></div>
       {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>Photo attached</div>}
+      {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>Assigned to: {iss.assigned_to_name}</div>}
     </Crd>)}
     {sel && <Mdl onClose={() => setSel(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Issue Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
@@ -287,19 +309,24 @@ function IssuesPage({ af, showToast }) {
         <div style={{ fontSize: 11, color: GY }}>Zone<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.zone || "General"}</div></div>
         <div style={{ fontSize: 11, color: GY }}>Reported By<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.reported_by_name}</div></div>
         <div style={{ fontSize: 11, color: GY }}>Reported At<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
+        {sel.assigned_to_name && <div style={{ fontSize: 11, color: GY }}>Assigned To<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name}</div></div>}
+        {sel.resolved_at && <div style={{ fontSize: 11, color: GY }}>Resolved At<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
+      {sel.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(52,152,219,0.06)", border: "1px solid rgba(52,152,219,0.15)", fontSize: 11, color: BL, marginBottom: 12 }}>{sel.assignment_note}</div>}
       {sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + NL }} /></div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
         {sel.status === "in_progress" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
-        {(sel.status === "open" || sel.status === "in_progress") && <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "" }); setSel(null); }}>Assign as Task</Btn>}
+        {(sel.status === "open" || sel.status === "in_progress") && <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? "Reassign" : "Assign as Task"}</Btn>}
         <Btn v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
       </div></div></Mdl>}
     {assignTask && <Mdl onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Assign Issue as Task</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
-      <div style={{ fontSize: 12, color: GYL, marginBottom: 16, lineHeight: 1.5 }}>This will create a new task from this issue and assign it to a staff member. The task will appear in their checklist the next time they clock in at the relevant site.</div>
-      <div style={{ marginBottom: 16 }}><Lbl>Assign To *</Lbl><Sel value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAssignTask(null)}>Cancel</Btn><Btn onClick={submitAssignTask}>Assign Task</Btn></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>{assignTask.isReassign ? "Reassign Issue" : "Assign Issue as Task"}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(243,156,18,0.06)", border: "1px solid rgba(243,156,18,0.15)", fontSize: 11, color: OR, marginBottom: 12 }}>This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.</div>}
+      <div style={{ fontSize: 12, color: GYL, marginBottom: 16, lineHeight: 1.5 }}>The task will appear in the staff member's "Assigned" tab where they can mark it as in progress, resolved, or unable to resolve.</div>
+      <div style={{ marginBottom: 12 }}><Lbl>Assign To *</Lbl><Sel value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>Note to previous assignee (optional)</Lbl><textarea value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder="Explain why this is being reassigned..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAssignTask(null)}>Cancel</Btn><Btn onClick={submitAssignTask}>{assignTask.isReassign ? "Reassign" : "Assign Task"}</Btn></div>
     </div></Mdl>}
   </div>);
 }
@@ -335,26 +362,126 @@ function ChatPage({ af, user }) {
 
 function ReportsPage({ af, showToast }) {
   const [hours, setHours] = useState(null); const [tasks, setTasks] = useState(null); const [issS, setIssS] = useState(null); const [exp, setExp] = useState(false);
-  useEffect(() => { af("/api/reports/hours?group_by=user").then(setHours).catch(() => {}); af("/api/reports/task-completion").then(setTasks).catch(() => {}); af("/api/reports/issues").then(setIssS).catch(() => {}); }, []);
+  const [staffList, setStaffList] = useState([]); const [sites, setSites] = useState([]);
+  const [clockHistory, setClockHistory] = useState([]); const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
+  const [manualEntry, setManualEntry] = useState(null); const [editShift, setEditShift] = useState(null);
+
+  useEffect(() => {
+    af("/api/reports/hours?group_by=user").then(setHours).catch(() => {});
+    af("/api/reports/task-completion").then(setTasks).catch(() => {});
+    af("/api/reports/issues").then(setIssS).catch(() => {});
+    af("/api/users?status=active").then(setStaffList).catch(() => {});
+    af("/api/sites").then(setSites).catch(() => {});
+  }, []);
+
+  const loadHistory = async (filters) => {
+    const params = new URLSearchParams();
+    if (filters?.userId) params.set("user_id", filters.userId);
+    if (filters?.siteId) params.set("site_id", filters.siteId);
+    params.set("limit", "50");
+    try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitManual = async () => {
+    if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; }
+    try {
+      const d = await af("/api/clock/manual-entry", { method: "POST", body: { userId: manualEntry.userId, siteId: manualEntry.siteId, clockInTime: manualEntry.clockIn, clockOutTime: manualEntry.clockOut || undefined, notes: manualEntry.notes || undefined } });
+      showToast(d.message); setManualEntry(null); loadHistory(histFilter);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitEditShift = async () => {
+    try {
+      await af("/api/clock/shifts/" + editShift.id, { method: "PATCH", body: { clockInTime: editShift.clockIn, clockOutTime: editShift.clockOut || undefined } });
+      showToast("Shift updated"); setEditShift(null); loadHistory(histFilter);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
   const expHrs = async () => { setExp(true); try { const d = await af("/api/reports/hours"); dlCSV("ocsa-hours.csv", ["Staff", "Role", "Site", "Clock In", "Clock Out", "Duration (min)"], d.data.map(r => [r.staff_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
-  return (<div><SecT>Reports</SecT>
+
+  const fmtDt = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Active";
+  const fmtInput = (d) => d ? new Date(d).toISOString().slice(0, 16) : "";
+
+  return (<div><SecT>Reports and Time Management</SecT>
+
+    {/* Clock History */}
+    <Crd style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>Clock History</div>
+        <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: N, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={N} /> Manual Entry</button>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <Sel value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
+        <Sel value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
+        {clockHistory.length === 0 && <button onClick={() => loadHistory(histFilter)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load History</button>}
+      </div>
+      {clockHistory.length > 0 && <div style={{ maxHeight: 300, overflowY: "auto" }}>
+        {clockHistory.map(sh => (
+          <div key={sh.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginBottom: 3, background: "rgba(255,255,255,0.02)", borderRadius: 6, fontSize: 11 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600 }}>{sh.staff_name}</div>
+              <div style={{ color: GY, marginTop: 2 }}>{sh.site_name}</div>
+            </div>
+            <div style={{ textAlign: "right", marginRight: 10 }}>
+              <div style={{ color: GYL }}>{fmtDt(sh.clock_in_time)}</div>
+              <div style={{ color: sh.clock_out_time ? GYL : OR }}>{sh.clock_out_time ? fmtDt(sh.clock_out_time) : "Still clocked in"}</div>
+            </div>
+            <div style={{ textAlign: "right", marginRight: 10, minWidth: 40 }}>
+              <div style={{ fontWeight: 600, color: GO }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div>
+            </div>
+            <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 9, cursor: "pointer" }}>Edit</button>
+          </div>
+        ))}
+      </div>}
+      {clockHistory.length === 0 && <div style={{ fontSize: 11, color: GY }}>Select filters and click "Load History" to view clock records.</div>}
+    </Crd>
+
+    {/* Hours by Staff */}
     <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Hours by Staff (Last 7 Days)</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>
       {hours?.data?.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ flex: 1, height: 8, borderRadius: 4, background: NL, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${GO},${GL})`, width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} /></div><span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span></div>)}
       {(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+
     <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Task Completion (Last 30 Days)</div>
       {tasks?.sites?.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + BD }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, fontWeight: 600 }}>{s.siteName}</span><span style={{ fontSize: 12, color: GO, fontWeight: 600 }}>{s.completedTasks} done</span></div></div>)}
       {(!tasks?.sites || tasks.sites.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+
     <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Issues (Last 30 Days)</div>
       {issS?.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700 }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: GY }}>Total</div></div>
         <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: GY }}>Open</div></div>
         <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: GY }}>Resolved</div></div>
       </div> : <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+
     <Crd><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Export Reports</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Download CSV files for payroll, audits, and clients.</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage (CIMS)", a: expChem }].map(r => <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 11, cursor: "pointer" }} onMouseEnter={e => { e.target.style.borderColor = GO; e.target.style.color = GO; }} onMouseLeave={e => { e.target.style.borderColor = NL; e.target.style.color = GYL; }}><DlI sz={14} c="currentColor" />{r.l}</button>)}
       </div></Crd>
+
+    {/* Manual Entry Modal */}
+    {manualEntry && <Mdl onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(52,152,219,0.06)", border: "1px solid rgba(52,152,219,0.15)", fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div>
+      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel value={manualEntry.userId} onChange={e => setManualEntry({ ...manualEntry, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel value={manualEntry.siteId} onChange={e => setManualEntry({ ...manualEntry, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Clock In *</Lbl><Inp type="datetime-local" value={manualEntry.clockIn} onChange={e => setManualEntry({ ...manualEntry, clockIn: e.target.value })} /></div>
+        <div><Lbl>Clock Out</Lbl><Inp type="datetime-local" value={manualEntry.clockOut} onChange={e => setManualEntry({ ...manualEntry, clockOut: e.target.value })} /></div>
+      </div>
+      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp value={manualEntry.notes} onChange={e => setManualEntry({ ...manualEntry, notes: e.target.value })} placeholder="Reason for manual entry" /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn onClick={submitManual}>Add Entry</Btn></div>
+    </div></Mdl>}
+
+    {/* Edit Shift Modal */}
+    {editShift && <Mdl onClose={() => setEditShift(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
+      <div style={{ fontSize: 12, color: GYL, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: W }}>{editShift.name}</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div><Lbl>Clock In</Lbl><Inp type="datetime-local" value={editShift.clockIn} onChange={e => setEditShift({ ...editShift, clockIn: e.target.value })} /></div>
+        <div><Lbl>Clock Out</Lbl><Inp type="datetime-local" value={editShift.clockOut} onChange={e => setEditShift({ ...editShift, clockOut: e.target.value })} /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn onClick={submitEditShift}>Save Changes</Btn></div>
+    </div></Mdl>}
   </div>);
 }
