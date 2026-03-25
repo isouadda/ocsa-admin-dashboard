@@ -359,7 +359,7 @@ function SuppliesAdminPage({ af, showToast }) {
     try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast("Request " + handleReq.status); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(code);
+  const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(API + "/qr/" + code);
   const cats = [{ v: "chemical", l: "Chemical" }, { v: "paper", l: "Paper Product" }, { v: "trash", l: "Trash/Liner" }, { v: "equipment", l: "Equipment" }, { v: "ppe", l: "PPE" }, { v: "other", l: "Other" }];
   const units = [{ v: "each", l: "Each" }, { v: "gallon", l: "Gallon" }, { v: "case", l: "Case" }, { v: "box", l: "Box" }, { v: "roll", l: "Roll" }, { v: "pair", l: "Pair" }];
   const reqColor = { pending: OR, approved: BL, denied: RD, fulfilled: GR };
