@@ -286,15 +286,17 @@ function OpsPage({ af }) {
 function IssuesPage({ af, showToast }) {
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
   const [staffList, setStaffList] = useState([]); const [assignTask, setAssignTask] = useState(null);
+  const [activity, setActivity] = useState([]);
   const load = () => af("/api/issues").then(setIssues).catch(e => showToast(e.message, "error"));
   useEffect(() => { load(); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
+  const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
-  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: GY };
+  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: GY, escalated: "#9B59B6" };
   const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast("Select a staff member", "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT>Issue Tracker</SecT>
-    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? GD : "transparent", color: filter === f ? GO : GY, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
-    {filtered.map(iss => <Crd key={iss.id} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || GY) }} onClick={() => setSel(iss)}>
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? GD : "transparent", color: filter === f ? GO : GY, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
+    {filtered.map(iss => <Crd key={iss.id} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || GY) }} onClick={() => openIssue(iss)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600 }}>{iss.title}</div><div style={{ fontSize: 11, color: GYL, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={iss.severity} c={sC[iss.severity]} /><Bdg l={iss.status?.replace("_", " ")} c={stC[iss.status] || GY} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: GY }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
         <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Start</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Resolve</button>}</div></div>
@@ -316,10 +318,36 @@ function IssuesPage({ af, showToast }) {
       </div>
       {sel.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(52,152,219,0.06)", border: "1px solid rgba(52,152,219,0.15)", fontSize: 11, color: BL, marginBottom: 12 }}>{sel.assignment_note}</div>}
       {sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + NL }} /></div>}
+
+      {activity.length > 0 && <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
+        {activity.map((a, i) => {
+          const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? GYL : a.action === "photo_added" ? BL : GY;
+          const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "photo_added" ? "Photo Added" : a.action;
+          const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+          return (
+            <div key={i} style={{ display: "flex", gap: 10, marginBottom: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: actColor, marginTop: 4 }} />
+                {i < activity.length - 1 && <div style={{ width: 1, flex: 1, background: NL, minHeight: 20 }} />}
+              </div>
+              <div style={{ flex: 1, paddingBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: GY, marginLeft: 8 }}>by {a.user_name}</span></div>
+                  <span style={{ fontSize: 9, color: GY, flexShrink: 0 }}>{timeStr}</span>
+                </div>
+                {a.details && <div style={{ fontSize: 11, color: GYL, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>}
+
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
         {sel.status === "in_progress" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
-        {(sel.status === "open" || sel.status === "in_progress") && <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? "Reassign" : "Assign as Task"}</Btn>}
+        {sel.status === "escalated" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
+        {(sel.status === "open" || sel.status === "in_progress" || sel.status === "escalated") && <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? "Reassign" : "Assign as Task"}</Btn>}
         <Btn v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
       </div></div></Mdl>}
     {assignTask && <Mdl onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
