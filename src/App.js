@@ -43,6 +43,7 @@ const XI = p => <Ic d="M18 6L6 18M6 6l12 12" {...p} />;
 const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />;
+const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter" };
 const Tst = ({ t }) => <div style={{ position: "fixed", top: 20, right: 20, background: t.t === "error" ? RD : GR, color: W, padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>{t.m}</div>;
 const Crd = ({ children, style, onClick: oc }) => <div onClick={oc} style={{ background: NM, border: "1px solid " + BD, borderRadius: 12, padding: 16, cursor: oc ? "pointer" : "default", ...style }}>{children}</div>;
@@ -75,7 +76,7 @@ export default function AdminDashboard() {
     <style>{`*{box-sizing:border-box}input::placeholder{color:${GY}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
-  const allNav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI, adminOnly: true }, { id: "sites", l: "Sites", i: MpI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
+  const allNav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI, adminOnly: true }, { id: "sites", l: "Sites", i: MpI }, { id: "assigned", l: "Assigned", i: WkI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
   const nav = allNav.filter(n => !n.adminOnly || isAdmin);
   return (<div style={{ width: "100%", maxWidth: 960, margin: "0 auto", minHeight: "100vh", background: N, fontFamily: "'DM Sans',sans-serif", color: W }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
@@ -90,6 +91,7 @@ export default function AdminDashboard() {
       {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} />}
       {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} />}
       {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} />}
+      {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} />}
       {page === "operations" && <OpsPage af={af} />}
       {page === "issues" && <IssuesPage af={af} showToast={showToast} />}
       {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} />}
@@ -299,7 +301,6 @@ function SitesPage({ af, showToast, isAdmin }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Due Date</Lbl><Inp type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
       <div style={{ marginBottom: 16 }}><Lbl>Assign To</Lbl><Sel value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: "Select (optional)" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddTask(null)}>Cancel</Btn><Btn onClick={submitTask}>Create</Btn></div></div></Mdl>}
-
     {editTask && <Mdl onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>Task Name</Lbl><Inp value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
@@ -307,19 +308,13 @@ function SitesPage({ af, showToast, isAdmin }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div><div><Lbl>Task Type</Lbl><Sel value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><textarea value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Inp value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} />
-        </div>
-        <div style={{ marginTop: 6 }}>
-          <input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: GYL }} />
-          <div style={{ fontSize: 9, color: GY, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div>
-        </div>
+        <div style={{ display: "flex", gap: 8 }}><Inp value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: GYL }} /><div style={{ fontSize: 9, color: GY, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
       </div>
       {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>YouTube link attached</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt="Task reference" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setEditTask(null)}>Cancel</Btn><Btn onClick={submitEditTask}>Save Changes</Btn></div>
     </div></Mdl>}
-
     {deleteConfirm && <Mdl onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
       <div style={{ fontSize: 16, fontWeight: 700, color: RD, marginBottom: 12 }}>Permanently Delete Site</div>
       <div style={{ fontSize: 13, color: GYL, marginBottom: 8, lineHeight: 1.5 }}>This will permanently remove <span style={{ fontWeight: 700, color: W }}>{deleteConfirm.name}</span> and all associated tasks, assignments, and data. This action cannot be undone.</div>
@@ -440,143 +435,31 @@ function SuppliesAdminPage({ af, showToast, isAdmin }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
-
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
   const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
   useEffect(() => { loadSupplies(); loadRequests(); }, []);
-
-  const submitAdd = async () => {
-    if (!addForm.name || !addForm.category || !addForm.unit) { showToast("Name, category, and unit required", "error"); return; }
-    try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
-  };
-  const submitEdit = async () => {
-    try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Supply updated"); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
-  };
-  const deactivate = async (id) => {
-    try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast("Supply removed"); loadSupplies(); } catch (e) { showToast(e.message, "error"); }
-  };
-  const submitHandleReq = async () => {
-    try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast("Request " + handleReq.status); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); }
-  };
-
+  const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast("Name, category, and unit required", "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Supply updated"); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast("Supply removed"); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast("Request " + handleReq.status); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
   const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(API + "/qr/" + code);
   const cats = [{ v: "chemical", l: "Chemical" }, { v: "paper", l: "Paper Product" }, { v: "trash", l: "Trash/Liner" }, { v: "equipment", l: "Equipment" }, { v: "ppe", l: "PPE" }, { v: "other", l: "Other" }];
   const units = [{ v: "each", l: "Each" }, { v: "gallon", l: "Gallon" }, { v: "case", l: "Case" }, { v: "box", l: "Box" }, { v: "roll", l: "Roll" }, { v: "pair", l: "Pair" }];
   const reqColor = { pending: OR, approved: BL, denied: RD, fulfilled: GR };
   const pendingCount = requests.filter(r => r.status === "pending").length;
-
   return (<div>
     <SecT action={isAdmin ? "Add Supply" : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>Supplies and Inventory</SecT>
-
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
       <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? GD : "transparent", color: tab === "inventory" ? GO : GY, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>Inventory ({supplies.length})</button>
       <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? GD : "transparent", color: tab === "requests" ? GO : GY, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>Requests {pendingCount > 0 ? "(" + pendingCount + " pending)" : ""}</button>
     </div>
-
-    {tab === "inventory" && supplies.map(s => (
-      <Crd key={s.id} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 8, background: GD, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <img src={qrUrl(s.qr_code)} alt="QR" style={{ width: 36, height: 36, borderRadius: 4 }} />
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</span>
-              {s.is_green_certified && <Bdg l="Green" c={GR} />}
-            </div>
-            <div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{s.category} | {s.unit} | Stock: {s.current_stock}</div>
-            <div style={{ fontSize: 10, color: GY, marginTop: 2 }}>QR: {s.qr_code}{s.manufacturer ? " | " + s.manufacturer : ""}</div>
-          </div>
-          {s.current_stock <= (s.low_threshold || 0) && <Bdg l="Low Stock" c={RD} />}
-        </div>
-      </Crd>
-    ))}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: GD, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt="QR" style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</span>{s.is_green_certified && <Bdg l="Green" c={GR} />}</div><div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{s.category} | {s.unit} | Stock: {s.current_stock}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>QR: {s.qr_code}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l="Low Stock" c={RD} />}</div></Crd>))}
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No supplies configured.{isAdmin ? ' Click "Add Supply" to start.' : ""}</div>}
-
-    {tab === "requests" && requests.map(r => (
-      <Crd key={r.id} style={{ marginBottom: 8, padding: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{r.request_type === "refill" ? "Refill Request" : r.request_type === "damage_report" ? "Damage Report" : r.request_type === "new_gear" ? "New Gear Request" : "New Supply Request"}</div>
-            <div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{r.item_name || r.supply_name || "General"} {r.site_name ? "at " + r.site_name : ""}</div>
-            {r.description && <div style={{ fontSize: 11, color: GY, marginTop: 4 }}>{r.description}</div>}
-          </div>
-          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-            <Bdg l={r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : GY} />
-            <Bdg l={r.status} c={reqColor[r.status] || GY} />
-          </div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ fontSize: 10, color: GY }}>{r.requested_by_name} | {fd(r.created_at)}</div>
-          {r.status === "pending" && <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Approve</button>
-            <button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Deny</button>
-          </div>}
-        </div>
-      </Crd>
-    ))}
+    {tab === "requests" && requests.map(r => (<Crd key={r.id} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600 }}>{r.request_type === "refill" ? "Refill Request" : r.request_type === "damage_report" ? "Damage Report" : r.request_type === "new_gear" ? "New Gear Request" : "New Supply Request"}</div><div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{r.item_name || r.supply_name || "General"} {r.site_name ? "at " + r.site_name : ""}</div>{r.description && <div style={{ fontSize: 11, color: GY, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : GY} /><Bdg l={r.status} c={reqColor[r.status] || GY} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: GY }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Approve</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Deny</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No supply requests yet.</div>}
-
-    {addForm && <Mdl onClose={() => setAddForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
-      <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.15)", fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Category *</Lbl><Sel value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div>
-        <div><Lbl>Unit *</Lbl><Sel value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Stock</Lbl><Inp type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div>
-        <div><Lbl>Low Threshold</Lbl><Inp type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div>
-        <div><Lbl>Cost/Unit</Lbl><Inp type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div>
-      </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>EPA Reg #</Lbl><Inp value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div>
-        <div><Lbl>Green Cert Type</Lbl><Inp value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div>
-      </div>
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-        <input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} />
-        <span style={{ fontSize: 12, color: GYL }}>Green Certified Product</span>
-      </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn onClick={submitAdd}>Add Supply</Btn></div>
-    </div></Mdl>}
-
-    {editForm && <Mdl onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
-      {editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: GO, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}
-      <div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Category</Lbl><Sel value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div>
-        <div><Lbl>Unit</Lbl><Sel value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Stock</Lbl><Inp type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div>
-        <div><Lbl>Low Threshold</Lbl><Inp type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div>
-        <div><Lbl>Cost/Unit</Lbl><Inp type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div>
-      </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>EPA Reg #</Lbl><Inp value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div>
-        <div><Lbl>Green Cert Type</Lbl><Inp value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div>
-      </div>
-      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
-        <input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} />
-        <span style={{ fontSize: 12, color: GYL }}>Green Certified Product</span>
-      </div>
-      <div style={{ display: "flex", gap: 10 }}>
-        <Btn v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn>
-        <div style={{ flex: 1 }} />
-        <Btn v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn>
-        <Btn onClick={submitEdit}>Save</Btn>
-      </div>
-    </div></Mdl>}
-
-    {handleReq && <Mdl onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div>
-      <div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div>
-    </div></Mdl>}
+    {addForm && <Mdl onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.15)", fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div><div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category *</Lbl><Sel value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit *</Lbl><Sel value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: GYL }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn onClick={submitAdd}>Add Supply</Btn></div></div></Mdl>}
+    {editForm && <Mdl onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: GO, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: GY, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}<div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category</Lbl><Sel value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit</Lbl><Sel value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: GYL }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10 }}><Btn v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn><div style={{ flex: 1 }} /><Btn v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn onClick={submitEdit}>Save</Btn></div></div></Mdl>}
+    {handleReq && <Mdl onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div><div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div></div></Mdl>}
   </div>);
 }
 
@@ -614,119 +497,255 @@ function ReportsPage({ af, showToast, isAdmin }) {
   const [staffList, setStaffList] = useState([]); const [sites, setSites] = useState([]);
   const [clockHistory, setClockHistory] = useState([]); const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
   const [manualEntry, setManualEntry] = useState(null); const [editShift, setEditShift] = useState(null);
-
-  useEffect(() => {
-    af("/api/reports/hours?group_by=user").then(setHours).catch(() => {});
-    af("/api/reports/task-completion").then(setTasks).catch(() => {});
-    af("/api/reports/issues").then(setIssS).catch(() => {});
-    af("/api/users?status=active").then(setStaffList).catch(() => {});
-    af("/api/sites").then(setSites).catch(() => {});
-  }, []);
-
-  const loadHistory = async (filters) => {
-    const params = new URLSearchParams();
-    if (filters?.userId) params.set("user_id", filters.userId);
-    if (filters?.siteId) params.set("site_id", filters.siteId);
-    params.set("limit", "50");
-    try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const submitManual = async () => {
-    if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; }
-    try {
-      const d = await af("/api/clock/manual-entry", { method: "POST", body: { userId: manualEntry.userId, siteId: manualEntry.siteId, clockInTime: manualEntry.clockIn, clockOutTime: manualEntry.clockOut || undefined, notes: manualEntry.notes || undefined } });
-      showToast(d.message); setManualEntry(null); loadHistory(histFilter);
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const submitEditShift = async () => {
-    try {
-      await af("/api/clock/shifts/" + editShift.id, { method: "PATCH", body: { clockInTime: editShift.clockIn, clockOutTime: editShift.clockOut || undefined } });
-      showToast("Shift updated"); setEditShift(null); loadHistory(histFilter);
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
+  useEffect(() => { af("/api/reports/hours?group_by=user").then(setHours).catch(() => {}); af("/api/reports/task-completion").then(setTasks).catch(() => {}); af("/api/reports/issues").then(setIssS).catch(() => {}); af("/api/users?status=active").then(setStaffList).catch(() => {}); af("/api/sites").then(setSites).catch(() => {}); }, []);
+  const loadHistory = async (filters) => { const params = new URLSearchParams(); if (filters?.userId) params.set("user_id", filters.userId); if (filters?.siteId) params.set("site_id", filters.siteId); params.set("limit", "50"); try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); } };
+  const submitManual = async () => { if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; } try { const d = await af("/api/clock/manual-entry", { method: "POST", body: { userId: manualEntry.userId, siteId: manualEntry.siteId, clockInTime: manualEntry.clockIn, clockOutTime: manualEntry.clockOut || undefined, notes: manualEntry.notes || undefined } }); showToast(d.message); setManualEntry(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); } };
+  const submitEditShift = async () => { try { await af("/api/clock/shifts/" + editShift.id, { method: "PATCH", body: { clockInTime: editShift.clockIn, clockOutTime: editShift.clockOut || undefined } }); showToast("Shift updated"); setEditShift(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); } };
   const expHrs = async () => { setExp(true); try { const d = await af("/api/reports/hours"); dlCSV("ocsa-hours.csv", ["Staff", "Role", "Site", "Clock In", "Clock Out", "Duration (min)"], d.data.map(r => [r.staff_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
-
   const fmtDt = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Active";
   const fmtInput = (d) => d ? new Date(d).toISOString().slice(0, 16) : "";
-
   return (<div><SecT>Reports and Time Management</SecT>
-
-    <Crd style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>Clock History</div>
-        {isAdmin && <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: N, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={N} /> Manual Entry</button>}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <Sel value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
-        <Sel value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
-        {clockHistory.length === 0 && <button onClick={() => loadHistory(histFilter)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load History</button>}
-      </div>
-      {clockHistory.length > 0 && <div style={{ maxHeight: 300, overflowY: "auto" }}>
-        {clockHistory.map(sh => (
-          <div key={sh.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginBottom: 3, background: "rgba(255,255,255,0.02)", borderRadius: 6, fontSize: 11 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600 }}>{sh.staff_name}</div>
-              <div style={{ color: GY, marginTop: 2 }}>{sh.site_name}</div>
-            </div>
-            <div style={{ textAlign: "right", marginRight: 10 }}>
-              <div style={{ color: GYL }}>{fmtDt(sh.clock_in_time)}</div>
-              <div style={{ color: sh.clock_out_time ? GYL : OR }}>{sh.clock_out_time ? fmtDt(sh.clock_out_time) : "Still clocked in"}</div>
-            </div>
-            <div style={{ textAlign: "right", marginRight: 10, minWidth: 40 }}>
-              <div style={{ fontWeight: 600, color: GO }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div>
-            </div>
-            {isAdmin && <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 9, cursor: "pointer" }}>Edit</button>}
-          </div>
-        ))}
-      </div>}
+    <Crd style={{ marginBottom: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontSize: 13, fontWeight: 700 }}>Clock History</div>{isAdmin && <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: N, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={N} /> Manual Entry</button>}</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}><Sel value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} /><Sel value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />{clockHistory.length === 0 && <button onClick={() => loadHistory(histFilter)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load History</button>}</div>
+      {clockHistory.length > 0 && <div style={{ maxHeight: 300, overflowY: "auto" }}>{clockHistory.map(sh => (<div key={sh.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginBottom: 3, background: "rgba(255,255,255,0.02)", borderRadius: 6, fontSize: 11 }}><div style={{ flex: 1 }}><div style={{ fontWeight: 600 }}>{sh.staff_name}</div><div style={{ color: GY, marginTop: 2 }}>{sh.site_name}</div></div><div style={{ textAlign: "right", marginRight: 10 }}><div style={{ color: GYL }}>{fmtDt(sh.clock_in_time)}</div><div style={{ color: sh.clock_out_time ? GYL : OR }}>{sh.clock_out_time ? fmtDt(sh.clock_out_time) : "Still clocked in"}</div></div><div style={{ textAlign: "right", marginRight: 10, minWidth: 40 }}><div style={{ fontWeight: 600, color: GO }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div></div>{isAdmin && <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 9, cursor: "pointer" }}>Edit</button>}</div>))}</div>}
       {clockHistory.length === 0 && <div style={{ fontSize: 11, color: GY }}>Select filters and click "Load History" to view clock records.</div>}
     </Crd>
+    <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Hours by Staff (Last 7 Days)</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>{hours?.data?.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ flex: 1, height: 8, borderRadius: 4, background: NL, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${GO},${GL})`, width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} /></div><span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span></div>)}{(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+    <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Task Completion (Last 30 Days)</div>{tasks?.sites?.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + BD }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, fontWeight: 600 }}>{s.siteName}</span><span style={{ fontSize: 12, color: GO, fontWeight: 600 }}>{s.completedTasks} done</span></div></div>)}{(!tasks?.sites || tasks.sites.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+    <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Issues (Last 30 Days)</div>{issS?.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700 }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: GY }}>Total</div></div><div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: GY }}>Open</div></div><div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: GY }}>Resolved</div></div></div> : <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+    <Crd><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Export Reports</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Download CSV files for payroll, audits, and clients.</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage (CIMS)", a: expChem }].map(r => <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 11, cursor: "pointer" }} onMouseEnter={e => { e.target.style.borderColor = GO; e.target.style.color = GO; }} onMouseLeave={e => { e.target.style.borderColor = NL; e.target.style.color = GYL; }}><DlI sz={14} c="currentColor" />{r.l}</button>)}</div></Crd>
+    {manualEntry && <Mdl onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(52,152,219,0.06)", border: "1px solid rgba(52,152,219,0.15)", fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div><div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel value={manualEntry.userId} onChange={e => setManualEntry({ ...manualEntry, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div><div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel value={manualEntry.siteId} onChange={e => setManualEntry({ ...manualEntry, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Clock In *</Lbl><Inp type="datetime-local" value={manualEntry.clockIn} onChange={e => setManualEntry({ ...manualEntry, clockIn: e.target.value })} /></div><div><Lbl>Clock Out</Lbl><Inp type="datetime-local" value={manualEntry.clockOut} onChange={e => setManualEntry({ ...manualEntry, clockOut: e.target.value })} /></div></div><div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp value={manualEntry.notes} onChange={e => setManualEntry({ ...manualEntry, notes: e.target.value })} placeholder="Reason for manual entry" /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn onClick={submitManual}>Add Entry</Btn></div></div></Mdl>}
+    {editShift && <Mdl onClose={() => setEditShift(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div><div style={{ fontSize: 12, color: GYL, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: W }}>{editShift.name}</span></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Clock In</Lbl><Inp type="datetime-local" value={editShift.clockIn} onChange={e => setEditShift({ ...editShift, clockIn: e.target.value })} /></div><div><Lbl>Clock Out</Lbl><Inp type="datetime-local" value={editShift.clockOut} onChange={e => setEditShift({ ...editShift, clockOut: e.target.value })} /></div></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn onClick={submitEditShift}>Save Changes</Btn></div></div></Mdl>}
+  </div>);
+}
 
-    <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Hours by Staff (Last 7 Days)</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>
-      {hours?.data?.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ flex: 1, height: 8, borderRadius: 4, background: NL, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${GO},${GL})`, width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} /></div><span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span></div>)}
-      {(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+function AssignedTasksAdminPage({ af, showToast, isAdmin }) {
+  const [tasks, setTasks] = useState([]);
+  const [filters, setFilters] = useState({ site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" });
+  const [sites, setSites] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [sel, setSel] = useState(null);
+  const [activity, setActivity] = useState([]);
+  const [reassignForm, setReassignForm] = useState(null);
+  const [createForm, setCreateForm] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-    <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Task Completion (Last 30 Days)</div>
-      {tasks?.sites?.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + BD }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, fontWeight: 600 }}>{s.siteName}</span><span style={{ fontSize: 12, color: GO, fontWeight: 600 }}>{s.completedTasks} done</span></div></div>)}
-      {(!tasks?.sites || tasks.sites.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+  const load = async (f) => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      const ff = f || filters;
+      if (ff.site_id) params.set("site_id", ff.site_id);
+      if (ff.building_name) params.set("building_name", ff.building_name);
+      if (ff.floor_number) params.set("floor_number", ff.floor_number);
+      if (ff.zone) params.set("zone", ff.zone);
+      if (ff.user_id) params.set("user_id", ff.user_id);
+      if (ff.status) params.set("status", ff.status);
+      const d = await af("/api/clock/tasks/assigned-all?" + params.toString());
+      setTasks(d);
+    } catch (e) { showToast(e.message, "error"); }
+    setLoading(false);
+  };
 
-    <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12 }}>Issues (Last 30 Days)</div>
-      {issS?.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-        <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700 }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: GY }}>Total</div></div>
-        <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: GY }}>Open</div></div>
-        <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: GY }}>Resolved</div></div>
-      </div> : <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
+  useEffect(() => {
+    load();
+    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/users?status=active").then(setStaffList).catch(() => {});
+  }, []);
 
-    <Crd><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Export Reports</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Download CSV files for payroll, audits, and clients.</div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage (CIMS)", a: expChem }].map(r => <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 11, cursor: "pointer" }} onMouseEnter={e => { e.target.style.borderColor = GO; e.target.style.color = GO; }} onMouseLeave={e => { e.target.style.borderColor = NL; e.target.style.color = GYL; }}><DlI sz={14} c="currentColor" />{r.l}</button>)}
-      </div></Crd>
+  const updateFilter = (key, val) => {
+    const nf = { ...filters, [key]: val };
+    setFilters(nf);
+    load(nf);
+  };
 
-    {manualEntry && <Mdl onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
-      <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(52,152,219,0.06)", border: "1px solid rgba(52,152,219,0.15)", fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel value={manualEntry.userId} onChange={e => setManualEntry({ ...manualEntry, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel value={manualEntry.siteId} onChange={e => setManualEntry({ ...manualEntry, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Clock In *</Lbl><Inp type="datetime-local" value={manualEntry.clockIn} onChange={e => setManualEntry({ ...manualEntry, clockIn: e.target.value })} /></div>
-        <div><Lbl>Clock Out</Lbl><Inp type="datetime-local" value={manualEntry.clockOut} onChange={e => setManualEntry({ ...manualEntry, clockOut: e.target.value })} /></div>
+  const clearFilters = () => {
+    const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" };
+    setFilters(nf);
+    load(nf);
+  };
+
+  const openDetail = async (task) => {
+    setSel(task);
+    try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); }
+  };
+
+  const submitReassign = async () => {
+    if (!reassignForm.userId) { showToast("Select a staff member", "error"); return; }
+    if (!reassignForm.note?.trim()) { showToast("A reason for reassignment is required", "error"); return; }
+    try {
+      await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } });
+      showToast("Task reassigned");
+      setReassignForm(null);
+      setSel(null);
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitCreate = async () => {
+    if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast("Site, description, zone, and assignee are required", "error"); return; }
+    try {
+      await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } });
+      showToast("Task created and assigned");
+      setCreateForm(null);
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const buildings = [...new Set(tasks.map(t => t.building_name).filter(Boolean))];
+  const floors = [...new Set(tasks.map(t => t.floor_number).filter(Boolean))];
+  const zones = [...new Set(tasks.map(t => t.zone).filter(Boolean))];
+  const stC = { pending: OR, in_progress: BL, resolved: GR, unable_to_resolve: RD };
+  const priC = { critical: RD, high: OR, standard: GO };
+  const hasFilters = Object.values(filters).some(v => v);
+
+  return (<div>
+    <SecT action="Create Task" onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", dueDate: "", dueTime: "", building: "", floor: "" })}>Assigned Tasks</SecT>
+
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      <Sel value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: "All Buildings" }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
+      <Sel value={filters.floor_number} onChange={e => updateFilter("floor_number", e.target.value)} options={[{ v: "", l: "All Floors" }, ...floors.map(f => ({ v: f, l: "Floor " + f }))]} style={{ flex: 1, minWidth: 90 }} />
+      <Sel value={filters.zone} onChange={e => updateFilter("zone", e.target.value)} options={[{ v: "", l: "All Zones" }, ...zones.map(z => ({ v: z, l: z }))]} style={{ flex: 1, minWidth: 100 }} />
+      <Sel value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel value={filters.status} onChange={e => updateFilter("status", e.target.value)} options={[{ v: "", l: "All Status" }, { v: "pending", l: "Pending" }, { v: "in_progress", l: "In Progress" }, { v: "resolved", l: "Resolved" }, { v: "unable_to_resolve", l: "Unable to Resolve" }]} style={{ flex: 1, minWidth: 110 }} />
+      {hasFilters && <button onClick={clearFilters} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>View All</button>}
+    </div>
+
+    {loading && <div style={{ padding: 40, textAlign: "center", color: GY }}>Loading...</div>}
+
+    {!loading && tasks.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No assigned tasks found.{hasFilters ? " Try clearing filters." : ' Click "Create Task" to assign one.'}</div>}
+
+    {!loading && tasks.map(task => {
+      const isIssue = !!task.source_issue_id;
+      const title = isIssue ? (task.issue_title || task.label) : task.label;
+      const borderColor = isIssue ? (stC[task.resolution_status] || OR) : (priC[task.priority] || GO);
+      const locParts = [task.site_name]; if (task.building_name) locParts.push(task.building_name); if (task.floor_number) locParts.push("Fl " + task.floor_number); if (task.zone) locParts.push(task.zone);
+      return (
+        <Crd key={task.task_id} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + borderColor }} onClick={() => openDetail(task)}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{title}</div>
+              <div style={{ fontSize: 10, color: GYL, marginTop: 3 }}>{locParts.join(" > ")}</div>
+            </div>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+              {isIssue && <Bdg l="Issue" c={RD} />}
+              {task.priority && task.priority !== "standard" && <Bdg l={task.priority} c={priC[task.priority] || GO} />}
+              <Bdg l={task.resolution_status ? task.resolution_status.replace(/_/g, " ") : "pending"} c={stC[task.resolution_status] || OR} />
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 10, fontSize: 10, color: GY }}>
+              {task.assigned_to_name && <span>Assigned to: <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span></span>}
+              <span>By: {task.created_by_name}</span>
+              <span>{fd(task.task_created_at)}</span>
+            </div>
+            {task.due_date && <span style={{ fontSize: 10, color: OR }}>Due: {fd(task.due_date)}</span>}
+          </div>
+        </Crd>
+      );
+    })}
+
+    {sel && <Mdl onClose={() => setSel(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>Task Detail</div>
+        <button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button>
       </div>
-      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp value={manualEntry.notes} onChange={e => setManualEntry({ ...manualEntry, notes: e.target.value })} placeholder="Reason for manual entry" /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn onClick={submitManual}>Add Entry</Btn></div>
+
+      <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{sel.source_issue_id ? (sel.issue_title || sel.label) : sel.label}</div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {sel.source_issue_id && <Bdg l="Issue" c={RD} />}
+        {sel.priority && sel.priority !== "standard" && <Bdg l={sel.priority} c={priC[sel.priority] || GO} />}
+        <Bdg l={sel.resolution_status ? sel.resolution_status.replace(/_/g, " ") : "pending"} c={stC[sel.resolution_status] || OR} />
+      </div>
+
+      {sel.description && <div style={{ fontSize: 13, color: GYL, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+        <div style={{ fontSize: 11, color: GY }}>Site<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
+        <div style={{ fontSize: 11, color: GY }}>Zone<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.zone || "General"}</div></div>
+        {sel.building_name && <div style={{ fontSize: 11, color: GY }}>Building<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.building_name}</div></div>}
+        {sel.floor_number && <div style={{ fontSize: 11, color: GY }}>Floor<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.floor_number}</div></div>}
+        <div style={{ fontSize: 11, color: GY }}>Assigned To<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name || "Unassigned"}</div></div>
+        <div style={{ fontSize: 11, color: GY }}>Created By<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{sel.created_by_name}</div></div>
+        <div style={{ fontSize: 11, color: GY }}>Created<div style={{ color: W, fontWeight: 500, marginTop: 2 }}>{ff(sel.task_created_at)}</div></div>
+        {sel.due_date && <div style={{ fontSize: 11, color: GY }}>Due Date<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fd(sel.due_date)}{sel.due_time ? " " + sel.due_time : ""}</div></div>}
+        {sel.resolved_at && <div style={{ fontSize: 11, color: GY }}>Resolved At<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
+      </div>
+
+      {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.15)", fontSize: 11, color: GR, marginBottom: 12 }}>Resolution: {sel.resolution_note}</div>}
+
+      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div>
+        <img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + NL }} />
+      </div>}
+
+      {activity.length > 0 && <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
+        {activity.map((a, i) => {
+          const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : GY;
+          const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action;
+          const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+          return (
+            <div key={i} style={{ display: "flex", gap: 10 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 20, flexShrink: 0 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: actColor, marginTop: 4 }} />
+                {i < activity.length - 1 && <div style={{ width: 1, flex: 1, background: NL, minHeight: 20 }} />}
+              </div>
+              <div style={{ flex: 1, paddingBottom: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: GY, marginLeft: 8 }}>by {a.user_name}</span></div>
+                  <span style={{ fontSize: 9, color: GY, flexShrink: 0 }}>{timeStr}</span>
+                </div>
+                {a.details && <div style={{ fontSize: 11, color: GYL, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>}
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {(sel.resolution_status !== "resolved") && <Btn v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>Reassign</Btn>}
+        <Btn v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
+      </div>
     </div></Mdl>}
 
-    {editShift && <Mdl onClose={() => setEditShift(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
-      <div style={{ fontSize: 12, color: GYL, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: W }}>{editShift.name}</span></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        <div><Lbl>Clock In</Lbl><Inp type="datetime-local" value={editShift.clockIn} onChange={e => setEditShift({ ...editShift, clockIn: e.target.value })} /></div>
-        <div><Lbl>Clock Out</Lbl><Inp type="datetime-local" value={editShift.clockOut} onChange={e => setEditShift({ ...editShift, clockOut: e.target.value })} /></div>
+    {reassignForm && <Mdl onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>Reassign Task</div>
+        <button onClick={() => setReassignForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button>
       </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn onClick={submitEditShift}>Save Changes</Btn></div>
+      {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(243,156,18,0.06)", border: "1px solid rgba(243,156,18,0.15)", fontSize: 11, color: OR, marginBottom: 12 }}>Currently assigned to: <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>. They will be notified of the change.</div>}
+      <div style={{ marginBottom: 12 }}><Lbl>Reassign To *</Lbl><Sel value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>Reason for Reassignment *</Lbl><textarea value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder="Explain why this task is being reassigned..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setReassignForm(null)}>Cancel</Btn><Btn onClick={submitReassign}>Reassign</Btn></div>
+    </div></Mdl>}
+
+    {createForm && <Mdl onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700 }}>Create Assigned Task</div>
+        <button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Task Description *</Lbl><Inp value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder="e.g. Clean window blinds in conference room" /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Building</Lbl><Inp value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder="e.g. Main" /></div>
+        <div><Lbl>Floor</Lbl><Inp value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder="e.g. 1" /></div>
+        <div><Lbl>Zone *</Lbl><Inp value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder="e.g. Offices" /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Priority</Lbl><Sel value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div>
+        <div><Lbl>Assign To *</Lbl><Sel value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><textarea value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder="Step-by-step instructions or notes..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div><Lbl>Due Date</Lbl><Inp type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div>
+        <div><Lbl>Due Time</Lbl><Inp type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn><Btn onClick={submitCreate}>Create and Assign</Btn></div>
     </div></Mdl>}
   </div>);
 }
