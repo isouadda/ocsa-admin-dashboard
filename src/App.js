@@ -551,7 +551,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin }) {
 
   useEffect(() => {
     load();
-    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/sites").then(d => { const seen = new Set(); setSites(d.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; })); }).catch(() => {});
     af("/api/users?status=active").then(setStaffList).catch(() => {});
   }, []);
 
@@ -587,7 +587,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin }) {
   const submitCreate = async () => {
     if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast("Site, description, zone, and assignee are required", "error"); return; }
     try {
-      await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } });
+      await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } });
       showToast("Task created and assigned");
       setCreateForm(null);
       load();
@@ -602,7 +602,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin }) {
   const hasFilters = Object.values(filters).some(v => v);
 
   return (<div>
-    <SecT action="Create Task" onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", dueDate: "", dueTime: "", building: "", floor: "" })}>Assigned Tasks</SecT>
+    <SecT action="Create Task" onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" })}>Assigned Tasks</SecT>
 
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
       <Sel value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
@@ -678,6 +678,11 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin }) {
 
       {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(46,204,113,0.06)", border: "1px solid rgba(46,204,113,0.15)", fontSize: 11, color: GR, marginBottom: 12 }}>Resolution: {sel.resolution_note}</div>}
 
+      {sel.media_url && <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Attached {sel.media_type === "video" ? "Video" : "Photo"}</div>
+        {sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt="Task" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + NL }} />}
+      </div>}
+
       {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div>
         <img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + NL }} />
@@ -741,6 +746,11 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin }) {
         <div><Lbl>Assign To *</Lbl><Sel value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><textarea value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder="Step-by-step instructions or notes..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
+        <div style={{ display: "flex", gap: 8 }}><Inp value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: GYL }} /><div style={{ fontSize: 9, color: GY, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+        {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt="Attached" style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
         <div><Lbl>Due Date</Lbl><Inp type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div>
         <div><Lbl>Due Time</Lbl><Inp type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div>
