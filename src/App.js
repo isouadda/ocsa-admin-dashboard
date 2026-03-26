@@ -61,6 +61,7 @@ export default function AdminDashboard() {
   const [page, setPage] = useState("overview"); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
   const showToast = useCallback((m, t = "success") => { setToast({ m, t }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
+  const isAdmin = user?.role === "admin";
   const handleLogin = async (phone, pin) => {
     setLoading(true);
     try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
@@ -74,25 +75,26 @@ export default function AdminDashboard() {
     <style>{`*{box-sizing:border-box}input::placeholder{color:${GY}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
-  const nav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI }, { id: "sites", l: "Sites", i: MpI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
+  const allNav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI, adminOnly: true }, { id: "sites", l: "Sites", i: MpI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
+  const nav = allNav.filter(n => !n.adminOnly || isAdmin);
   return (<div style={{ width: "100%", maxWidth: 960, margin: "0 auto", minHeight: "100vh", background: N, fontFamily: "'DM Sans',sans-serif", color: W }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
     <div style={{ background: NM, padding: "12px 20px", borderBottom: "1px solid " + BD, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: GO }}>OCSA</span><div style={{ width: 1, height: 24, background: NL }} /><span style={{ fontSize: 13, color: GYL }}>Admin Dashboard</span><span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.1)", padding: "2px 8px", borderRadius: 10 }}>LIVE</span></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: GO }}>OCSA</span><div style={{ width: 1, height: 24, background: NL }} /><span style={{ fontSize: 13, color: GYL }}>{isAdmin ? "Admin Dashboard" : "Supervisor Dashboard"}</span><span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.1)", padding: "2px 8px", borderRadius: 10 }}>LIVE</span></div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 12, color: GY }}>{user?.firstName}</span><button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer" }}><LoI sz={16} c={GY} /></button></div>
     </div>
     <div style={{ display: "flex", gap: 2, padding: "8px 12px", background: N, borderBottom: "1px solid " + BD, overflowX: "auto" }}>
       {nav.map(n => { const a = page === n.id; const NI = n.i; return <button key={n.id} onClick={() => setPage(n.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, background: a ? GD : "transparent", color: a ? GO : GY, fontSize: 12, fontWeight: a ? 700 : 500, cursor: "pointer", border: a ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent", whiteSpace: "nowrap" }}><NI sz={15} c={a ? GO : GY} />{n.l}</button>; })}
     </div>
     <div style={{ padding: "16px 16px 40px" }}>
-      {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} />}
-      {page === "staff" && <StaffPage af={af} showToast={showToast} />}
-      {page === "sites" && <SitesPage af={af} showToast={showToast} />}
+      {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} />}
+      {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} />}
+      {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} />}
       {page === "operations" && <OpsPage af={af} />}
       {page === "issues" && <IssuesPage af={af} showToast={showToast} />}
-      {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} />}
+      {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} />}
       {page === "chat" && <ChatPage af={af} user={user} />}
-      {page === "reports" && <ReportsPage af={af} showToast={showToast} />}
+      {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} />}
     </div>
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${GY}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${NL};border-radius:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
@@ -109,17 +111,17 @@ function LoginForm({ onLogin, loading }) {
     </div></>);
 }
 
-function OverviewPage({ af, showToast, setPage }) {
+function OverviewPage({ af, showToast, setPage, user, isAdmin }) {
   const [stats, setStats] = useState(null); const [active, setActive] = useState([]);
   useEffect(() => { af("/api/reports/overview").then(setStats).catch(e => showToast(e.message, "error")); af("/api/clock/active").then(setActive).catch(() => {}); }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: GY }}>Loading...</div>;
   return (<div>
-    <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Welcome back, Ibrahim</div>
+    <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Welcome back, {user?.firstName || "Admin"}</div>
     <div style={{ fontSize: 13, color: GYL, marginBottom: 20 }}>Operations overview.</div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
       <SC label="On Site" value={stats.clockedInNow} sub={"of " + stats.activeStaff + " active"} color={GR} icon={CkI} />
       <SC label="Open Issues" value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
-      <SC label="Pending" value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />
+      {isAdmin && <SC label="Pending" value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
       <SC label="Week Hours" value={stats.weekHoursTotal + "h"} color={GO} icon={BrI} />
     </div>
     <SecT>Live Operations</SecT>
@@ -131,8 +133,8 @@ function OverviewPage({ af, showToast, setPage }) {
           <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{h}h {m}m</div><div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: NL, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: GY }}>{s.tasksCompleted}/{s.tasksTotal}</span></div></div>
         </div>); })}
     </Crd>
-    {(stats.pendingStaff > 0 || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      {stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(243,156,18,0.08)", border: "1px solid rgba(243,156,18,0.2)", color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{stats.pendingStaff} pending</button>}
+    {((isAdmin && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {isAdmin && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(243,156,18,0.08)", border: "1px solid rgba(243,156,18,0.2)", color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{stats.pendingStaff} pending</button>}
       {stats.openIssues > 0 && <button onClick={() => setPage("issues")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: "rgba(231,76,60,0.08)", border: "1px solid rgba(231,76,60,0.2)", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><AlI sz={16} c={RD} />{stats.openIssues} open issues</button>}
     </div>}
   </div>);
@@ -236,7 +238,7 @@ function StaffPage({ af, showToast }) {
   </div>);
 }
 
-function SitesPage({ af, showToast }) {
+function SitesPage({ af, showToast, isAdmin }) {
   const [sites, setSites] = useState([]); const [exp, setExp] = useState(null); const [sd, setSd] = useState(null); const [st, setSt] = useState([]);
   const [addSite, setAddSite] = useState(null); const [addTask, setAddTask] = useState(null); const [staffList, setStaffList] = useState([]); const [editTask, setEditTask] = useState(null);
   const [showInactive, setShowInactive] = useState(false); const [deleteConfirm, setDeleteConfirm] = useState(null); const [deleteText, setDeleteText] = useState("");
@@ -244,16 +246,16 @@ function SitesPage({ af, showToast }) {
   useEffect(() => { load(); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
   const expand = async id => { if (exp === id) { setExp(null); return; } setExp(id); try { const d = await af("/api/sites/" + id); setSd(d); const t = await af("/api/sites/" + id + "/tasks"); setSt(t); } catch (e) { showToast(e.message, "error"); } };
   const submitSite = async () => { if (!addSite.name || !addSite.address) { showToast("Name and address required", "error"); return; } try { await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || "Philadelphia", state: addSite.state || "PA", zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } }); showToast("Site created"); setAddSite(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  const submitTask = async () => { if (!addTask.label || !addTask.zone) { showToast("Label and zone required", "error"); return; } try { await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined } }); showToast("Task created"); setAddTask(null); expand(addTask.siteId); } catch (e) { showToast(e.message, "error"); } };
-  const submitEditTask = async () => { try { await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime } }); showToast("Task updated"); setEditTask(null); expand(editTask.siteId); } catch (e) { showToast(e.message, "error"); } };
+  const submitTask = async () => { if (!addTask.label || !addTask.zone) { showToast("Label and zone required", "error"); return; } try { await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } }); showToast("Task created"); setAddTask(null); expand(addTask.siteId); } catch (e) { showToast(e.message, "error"); } };
+  const submitEditTask = async () => { try { await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } }); showToast("Task updated"); setEditTask(null); expand(editTask.siteId); } catch (e) { showToast(e.message, "error"); } };
   const delTask = async (sid, tid) => { try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast("Removed"); expand(sid); } catch (e) { showToast(e.message, "error"); } };
   const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast("Site deactivated"); setExp(null); load(); } catch (e) { showToast(e.message, "error"); } };
   const deleteSite = async (id) => { try { await af("/api/sites/" + id, { method: "DELETE" }); showToast("Site permanently deleted"); setDeleteConfirm(null); setDeleteText(""); load(); } catch (e) { showToast(e.message, "error"); } };
   const visibleSites = showInactive ? sites : sites.filter(s => s.status === "active");
   const inactiveCount = sites.filter(s => s.status !== "active").length;
   return (<div>
-    <SecT action="Add Site" onAction={() => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" })}>Sites and Tasks</SecT>
-    {inactiveCount > 0 && <div style={{ marginBottom: 12 }}><button onClick={() => setShowInactive(!showInactive)} style={{ padding: "5px 12px", borderRadius: 6, background: showInactive ? GD : "transparent", color: showInactive ? GO : GY, fontSize: 11, fontWeight: 500, cursor: "pointer", border: showInactive ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{showInactive ? "Hide" : "Show"} inactive ({inactiveCount})</button></div>}
+    <SecT action={isAdmin ? "Add Site" : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>Sites and Tasks</SecT>
+    {isAdmin && inactiveCount > 0 && <div style={{ marginBottom: 12 }}><button onClick={() => setShowInactive(!showInactive)} style={{ padding: "5px 12px", borderRadius: 6, background: showInactive ? GD : "transparent", color: showInactive ? GO : GY, fontSize: 11, fontWeight: 500, cursor: "pointer", border: showInactive ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{showInactive ? "Hide" : "Show"} inactive ({inactiveCount})</button></div>}
     {visibleSites.map(site => { const isO = exp === site.id; return <Crd key={site.id} style={{ marginBottom: 12, padding: 0 }}>
       <button onClick={() => expand(site.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", color: W, cursor: "pointer", textAlign: "left" }}>
         <MpI sz={20} c={GO} /><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{site.name}</div><div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{site.address_line1}</div><div style={{ display: "flex", gap: 10, marginTop: 4, fontSize: 10, color: GY }}>{site.staff_count != null && <span>{site.staff_count} staff</span>}{site.task_count != null && <span>{site.task_count} tasks</span>}</div></div>
@@ -267,15 +269,15 @@ function SitesPage({ af, showToast }) {
         </div>
         {sd.zones?.length > 0 && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Zones</div><div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{sd.zones.map(z => <span key={z} style={{ padding: "3px 8px", borderRadius: 4, background: N, border: "1px solid " + BD, fontSize: 10, color: GYL }}>{z}</span>)}</div></div>}
         {sd.staff?.length > 0 && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Staff</div>{sd.staff.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 6, marginBottom: 3 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Ini name={s.first_name + " " + s.last_name} sz={24} /><span style={{ fontSize: 12 }}>{s.first_name} {s.last_name}</span></div><span style={{ fontSize: 10, color: GY }}>{s.role_at_site || RL[s.role]}</span></div>)}</div>}
-        <div style={{ marginBottom: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Tasks ({st.length})</div><button onClick={() => setAddTask({ siteId: site.id, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button></div>
-          {st.map((t, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4, marginBottom: 2 }}><div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: t.id, siteId: site.id, label: t.label, zone: t.zone, pri: t.priority, cims: t.cims_category, desc: t.description || "", mediaUrl: t.media_url || "", mediaType: t.media_type || "", dueDate: t.due_date || "", dueTime: t.due_time || "" })}><div style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>{t.label}{t.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL, flexShrink: 0 }} title="Has details" />}</div><div style={{ fontSize: 9, color: GY, marginTop: 2 }}>{t.zone} | {t.cims_category} | {t.priority}{t.due_date ? " | Due: " + fd(t.due_date) : ""}{t.assigned_to?.length > 0 ? " | " + t.assigned_to.map(a => a.name).join(", ") : ""}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}><button onClick={() => setEditTask({ id: t.id, siteId: site.id, label: t.label, zone: t.zone, pri: t.priority, cims: t.cims_category, desc: t.description || "", mediaUrl: t.media_url || "", mediaType: t.media_type || "", dueDate: t.due_date || "", dueTime: t.due_time || "" })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button><button onClick={() => delTask(site.id, t.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button></div></div>)}
+        <div style={{ marginBottom: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Tasks ({st.length})</div><button onClick={() => setAddTask({ siteId: site.id, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button></div>
+          {st.map((t, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4, marginBottom: 2 }}><div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: t.id, siteId: site.id, label: t.label, zone: t.zone, pri: t.priority, cims: t.cims_category, desc: t.description || "", mediaUrl: t.media_url || "", mediaType: t.media_type || "", dueDate: t.due_date || "", dueTime: t.due_time || "", building: t.building_name || "", floor: t.floor_number || "", taskType: t.task_type || "standard" })}><div style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>{t.label}{t.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL, flexShrink: 0 }} title="Has details" />}{t.task_type === "assigned" && <Bdg l="assigned" c={BL} />}</div><div style={{ fontSize: 9, color: GY, marginTop: 2 }}>{t.building_name ? t.building_name + " | " : ""}{t.floor_number ? "Fl " + t.floor_number + " | " : ""}{t.zone} | {t.cims_category} | {t.priority}{t.due_date ? " | Due: " + fd(t.due_date) : ""}{t.assigned_to?.length > 0 ? " | " + t.assigned_to.map(a => a.name).join(", ") : ""}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}><button onClick={() => setEditTask({ id: t.id, siteId: site.id, label: t.label, zone: t.zone, pri: t.priority, cims: t.cims_category, desc: t.description || "", mediaUrl: t.media_url || "", mediaType: t.media_type || "", dueDate: t.due_date || "", dueTime: t.due_time || "", building: t.building_name || "", floor: t.floor_number || "", taskType: t.task_type || "standard" })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button><button onClick={() => delTask(site.id, t.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button></div></div>)}
           {st.length === 0 && <div style={{ fontSize: 11, color: GY }}>No tasks</div>}
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        {isAdmin && <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
           {site.status === "active" && <button onClick={() => { if (window.confirm("Deactivate this site? Staff will no longer see it.")) deactivateSite(site.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>Deactivate</button>}
           {site.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + site.id, { method: "PATCH", body: { status: "active" } }); showToast("Site reactivated"); setExp(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>Reactivate</button>}
           <button onClick={() => { setDeleteConfirm(site); setDeleteText(""); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>Permanently Delete</button>
-        </div>
+        </div>}
       </div>}
     </Crd>; })}
     {addSite && <Mdl onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Site</div><button onClick={() => setAddSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
@@ -287,8 +289,8 @@ function SitesPage({ af, showToast }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddSite(null)}>Cancel</Btn><Btn onClick={submitSite}>Create</Btn></div></div></Mdl>}
     {addTask && <Mdl onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Task</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>Description *</Lbl><Inp value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder="e.g. Vacuum carpets" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Zone *</Lbl><Inp value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Main Floor" /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone *</Lbl><Inp value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Restrooms" /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div><div><Lbl>Task Type</Lbl><Sel value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions (optional)</Lbl><textarea value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes for the cleaner..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
@@ -301,8 +303,8 @@ function SitesPage({ af, showToast }) {
     {editTask && <Mdl onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>Task Name</Lbl><Inp value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Zone</Lbl><Inp value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone</Lbl><Inp value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div><div><Lbl>Task Type</Lbl><Sel value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><textarea value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
         <div style={{ display: "flex", gap: 8 }}>
@@ -354,10 +356,7 @@ function IssuesPage({ af, showToast }) {
   const openIssue = async (iss) => {
     setSel(iss);
     try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); }
-    try {
-      const p = await af("/api/issues/" + iss.id + "/photos");
-      setAllPhotos(p);
-    } catch (e) { setAllPhotos([]); }
+    try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); }
   };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: GY, escalated: "#9B59B6" };
@@ -396,7 +395,6 @@ function IssuesPage({ af, showToast }) {
         </div>
       </div>}
       {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + NL }} /></div>}
-
       {activity.length > 0 && <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
         {activity.map((a, i) => {
@@ -420,7 +418,6 @@ function IssuesPage({ af, showToast }) {
           );
         })}
       </div>}
-
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
         {sel.status === "in_progress" && <Btn style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
@@ -431,7 +428,7 @@ function IssuesPage({ af, showToast }) {
     {assignTask && <Mdl onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>{assignTask.isReassign ? "Reassign Issue" : "Assign Issue as Task"}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(243,156,18,0.06)", border: "1px solid rgba(243,156,18,0.15)", fontSize: 11, color: OR, marginBottom: 12 }}>This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.</div>}
-      <div style={{ fontSize: 12, color: GYL, marginBottom: 16, lineHeight: 1.5 }}>The task will appear in the staff member's "Assigned" tab where they can mark it as in progress, resolved, or unable to resolve.</div>
+      <div style={{ fontSize: 12, color: GYL, marginBottom: 16, lineHeight: 1.5 }}>The task will appear in the staff member's "Assigned Tasks" tab where they can mark it as in progress, resolved, or unable to resolve.</div>
       <div style={{ marginBottom: 12 }}><Lbl>Assign To *</Lbl><Sel value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>Note to previous assignee (optional)</Lbl><textarea value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder="Explain why this is being reassigned..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAssignTask(null)}>Cancel</Btn><Btn onClick={submitAssignTask}>{assignTask.isReassign ? "Reassign" : "Assign Task"}</Btn></div>
@@ -439,10 +436,7 @@ function IssuesPage({ af, showToast }) {
   </div>);
 }
 
-// ============================================================
-// SUPPLIES ADMIN PAGE
-// ============================================================
-function SuppliesAdminPage({ af, showToast }) {
+function SuppliesAdminPage({ af, showToast, isAdmin }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
@@ -472,7 +466,7 @@ function SuppliesAdminPage({ af, showToast }) {
   const pendingCount = requests.filter(r => r.status === "pending").length;
 
   return (<div>
-    <SecT action="Add Supply" onAction={() => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" })}>Supplies and Inventory</SecT>
+    <SecT action={isAdmin ? "Add Supply" : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>Supplies and Inventory</SecT>
 
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
       <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? GD : "transparent", color: tab === "inventory" ? GO : GY, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>Inventory ({supplies.length})</button>
@@ -480,7 +474,7 @@ function SuppliesAdminPage({ af, showToast }) {
     </div>
 
     {tab === "inventory" && supplies.map(s => (
-      <Crd key={s.id} style={{ marginBottom: 8, padding: 14 }} onClick={() => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code })}>
+      <Crd key={s.id} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: 8, background: GD, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <img src={qrUrl(s.qr_code)} alt="QR" style={{ width: 36, height: 36, borderRadius: 4 }} />
@@ -497,7 +491,7 @@ function SuppliesAdminPage({ af, showToast }) {
         </div>
       </Crd>
     ))}
-    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No supplies configured. Click "Add Supply" to start.</div>}
+    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: GY }}>No supplies configured.{isAdmin ? ' Click "Add Supply" to start.' : ""}</div>}
 
     {tab === "requests" && requests.map(r => (
       <Crd key={r.id} style={{ marginBottom: 8, padding: 14 }}>
@@ -615,7 +609,7 @@ function ChatPage({ af, user }) {
   </div>);
 }
 
-function ReportsPage({ af, showToast }) {
+function ReportsPage({ af, showToast, isAdmin }) {
   const [hours, setHours] = useState(null); const [tasks, setTasks] = useState(null); const [issS, setIssS] = useState(null); const [exp, setExp] = useState(false);
   const [staffList, setStaffList] = useState([]); const [sites, setSites] = useState([]);
   const [clockHistory, setClockHistory] = useState([]); const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
@@ -661,11 +655,10 @@ function ReportsPage({ af, showToast }) {
 
   return (<div><SecT>Reports and Time Management</SecT>
 
-    {/* Clock History */}
     <Crd style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>Clock History</div>
-        <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: N, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={N} /> Manual Entry</button>
+        {isAdmin && <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: N, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={N} /> Manual Entry</button>}
       </div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <Sel value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
@@ -686,14 +679,13 @@ function ReportsPage({ af, showToast }) {
             <div style={{ textAlign: "right", marginRight: 10, minWidth: 40 }}>
               <div style={{ fontWeight: 600, color: GO }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div>
             </div>
-            <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 9, cursor: "pointer" }}>Edit</button>
+            {isAdmin && <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 9, cursor: "pointer" }}>Edit</button>}
           </div>
         ))}
       </div>}
       {clockHistory.length === 0 && <div style={{ fontSize: 11, color: GY }}>Select filters and click "Load History" to view clock records.</div>}
     </Crd>
 
-    {/* Hours by Staff */}
     <Crd style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Hours by Staff (Last 7 Days)</div><div style={{ fontSize: 11, color: GY, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>
       {hours?.data?.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.name}</div><div style={{ flex: 1, height: 8, borderRadius: 4, background: NL, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${GO},${GL})`, width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} /></div><span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span></div>)}
       {(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: GY }}>No data yet.</div>}</Crd>
@@ -714,7 +706,6 @@ function ReportsPage({ af, showToast }) {
         {[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage (CIMS)", a: expChem }].map(r => <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + NL, background: "transparent", color: GYL, fontSize: 11, cursor: "pointer" }} onMouseEnter={e => { e.target.style.borderColor = GO; e.target.style.color = GO; }} onMouseLeave={e => { e.target.style.borderColor = NL; e.target.style.color = GYL; }}><DlI sz={14} c="currentColor" />{r.l}</button>)}
       </div></Crd>
 
-    {/* Manual Entry Modal */}
     {manualEntry && <Mdl onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: "rgba(52,152,219,0.06)", border: "1px solid rgba(52,152,219,0.15)", fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div>
@@ -728,7 +719,6 @@ function ReportsPage({ af, showToast }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn onClick={submitManual}>Add Entry</Btn></div>
     </div></Mdl>}
 
-    {/* Edit Shift Modal */}
     {editShift && <Mdl onClose={() => setEditShift(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
       <div style={{ fontSize: 12, color: GYL, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: W }}>{editShift.name}</span></div>
