@@ -1,5 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
+const SUPA_URL = "https://gcgswxyxkbummtgzgusk.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjZ3N3eHl4a2J1bW10Z3pndXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NjY0NTcsImV4cCI6MjA5MDA0MjQ1N30.Vbe7ueRmQ6MPZX2sqa0XHIlJD22_J7sDJ65OoQ50LaM";
+async function uploadTaskMedia(file) {
+  const ext = file.name.split(".").pop().toLowerCase();
+  const isVideo = ["mp4", "mov", "webm", "avi"].includes(ext);
+  const fileName = "task-" + Date.now() + "-" + Math.random().toString(36).substring(2, 8) + "." + ext;
+  const res = await fetch(SUPA_URL + "/storage/v1/object/task-media/" + fileName, {
+    method: "POST", headers: { "Authorization": "Bearer " + SUPA_KEY, "apikey": SUPA_KEY, "Content-Type": file.type }, body: file,
+  });
+  if (!res.ok) throw new Error("Upload failed");
+  return { url: SUPA_URL + "/storage/v1/object/public/task-media/" + fileName, type: isVideo ? "video" : "image" };
+}
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
@@ -227,6 +239,7 @@ function StaffPage({ af, showToast }) {
 function SitesPage({ af, showToast }) {
   const [sites, setSites] = useState([]); const [exp, setExp] = useState(null); const [sd, setSd] = useState(null); const [st, setSt] = useState([]);
   const [addSite, setAddSite] = useState(null); const [addTask, setAddTask] = useState(null); const [staffList, setStaffList] = useState([]); const [editTask, setEditTask] = useState(null);
+  const [showInactive, setShowInactive] = useState(false); const [deleteConfirm, setDeleteConfirm] = useState(null); const [deleteText, setDeleteText] = useState("");
   const load = () => af("/api/sites").then(setSites).catch(e => showToast(e.message, "error"));
   useEffect(() => { load(); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
   const expand = async id => { if (exp === id) { setExp(null); return; } setExp(id); try { const d = await af("/api/sites/" + id); setSd(d); const t = await af("/api/sites/" + id + "/tasks"); setSt(t); } catch (e) { showToast(e.message, "error"); } };
@@ -235,9 +248,13 @@ function SitesPage({ af, showToast }) {
   const submitEditTask = async () => { try { await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime } }); showToast("Task updated"); setEditTask(null); expand(editTask.siteId); } catch (e) { showToast(e.message, "error"); } };
   const delTask = async (sid, tid) => { try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast("Removed"); expand(sid); } catch (e) { showToast(e.message, "error"); } };
   const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast("Site deactivated"); setExp(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteSite = async (id) => { try { await af("/api/sites/" + id, { method: "DELETE" }); showToast("Site permanently deleted"); setDeleteConfirm(null); setDeleteText(""); load(); } catch (e) { showToast(e.message, "error"); } };
+  const visibleSites = showInactive ? sites : sites.filter(s => s.status === "active");
+  const inactiveCount = sites.filter(s => s.status !== "active").length;
   return (<div>
     <SecT action="Add Site" onAction={() => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" })}>Sites and Tasks</SecT>
-    {sites.map(site => { const isO = exp === site.id; return <Crd key={site.id} style={{ marginBottom: 12, padding: 0 }}>
+    {inactiveCount > 0 && <div style={{ marginBottom: 12 }}><button onClick={() => setShowInactive(!showInactive)} style={{ padding: "5px 12px", borderRadius: 6, background: showInactive ? GD : "transparent", color: showInactive ? GO : GY, fontSize: 11, fontWeight: 500, cursor: "pointer", border: showInactive ? "1px solid rgba(200,168,78,0.25)" : "1px solid transparent" }}>{showInactive ? "Hide" : "Show"} inactive ({inactiveCount})</button></div>}
+    {visibleSites.map(site => { const isO = exp === site.id; return <Crd key={site.id} style={{ marginBottom: 12, padding: 0 }}>
       <button onClick={() => expand(site.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", color: W, cursor: "pointer", textAlign: "left" }}>
         <MpI sz={20} c={GO} /><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{site.name}</div><div style={{ fontSize: 11, color: GYL, marginTop: 2 }}>{site.address_line1}</div><div style={{ display: "flex", gap: 10, marginTop: 4, fontSize: 10, color: GY }}>{site.staff_count != null && <span>{site.staff_count} staff</span>}{site.task_count != null && <span>{site.task_count} tasks</span>}</div></div>
         <Bdg l={site.status} c={GR} /><Ic d={isO ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} sz={16} c={GY} />
@@ -254,7 +271,11 @@ function SitesPage({ af, showToast }) {
           {st.map((t, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "rgba(255,255,255,0.02)", borderRadius: 4, marginBottom: 2 }}><div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: t.id, siteId: site.id, label: t.label, zone: t.zone, pri: t.priority, cims: t.cims_category, desc: t.description || "", mediaUrl: t.media_url || "", mediaType: t.media_type || "", dueDate: t.due_date || "", dueTime: t.due_time || "" })}><div style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4 }}>{t.label}{t.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL, flexShrink: 0 }} title="Has details" />}</div><div style={{ fontSize: 9, color: GY, marginTop: 2 }}>{t.zone} | {t.cims_category} | {t.priority}{t.due_date ? " | Due: " + fd(t.due_date) : ""}{t.assigned_to?.length > 0 ? " | " + t.assigned_to.map(a => a.name).join(", ") : ""}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}><button onClick={() => setEditTask({ id: t.id, siteId: site.id, label: t.label, zone: t.zone, pri: t.priority, cims: t.cims_category, desc: t.description || "", mediaUrl: t.media_url || "", mediaType: t.media_type || "", dueDate: t.due_date || "", dueTime: t.due_time || "" })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button><button onClick={() => delTask(site.id, t.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button></div></div>)}
           {st.length === 0 && <div style={{ fontSize: 11, color: GY }}>No tasks</div>}
         </div>
-        <button onClick={() => { if (window.confirm("Deactivate this site? It will be hidden from staff and the site list.")) deactivateSite(site.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", marginTop: 8 }}>Deactivate Site</button>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          {site.status === "active" && <button onClick={() => { if (window.confirm("Deactivate this site? Staff will no longer see it.")) deactivateSite(site.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>Deactivate</button>}
+          {site.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + site.id, { method: "PATCH", body: { status: "active" } }); showToast("Site reactivated"); setExp(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>Reactivate</button>}
+          <button onClick={() => { setDeleteConfirm(site); setDeleteText(""); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>Permanently Delete</button>
+        </div>
       </div>}
     </Crd>; })}
     {addSite && <Mdl onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700 }}>Add Site</div><button onClick={() => setAddSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={GY} /></button></div>
@@ -269,7 +290,10 @@ function SitesPage({ af, showToast }) {
       <div style={{ marginBottom: 12 }}><Lbl>Zone *</Lbl><Inp value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Main Floor" /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions (optional)</Lbl><textarea value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes for the cleaner..." rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video URL (optional)</Lbl><Inp value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm)/i) ? "video" : "image") : "" })} placeholder="Paste a link to a photo or video showing how it should look" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
+        <div style={{ display: "flex", gap: 8 }}><Inp value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: GYL }} /><div style={{ fontSize: 9, color: GY, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Due Date</Lbl><Inp type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
       <div style={{ marginBottom: 16 }}><Lbl>Assign To</Lbl><Sel value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: "Select (optional)" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setAddTask(null)}>Cancel</Btn><Btn onClick={submitTask}>Create</Btn></div></div></Mdl>}
@@ -280,10 +304,29 @@ function SitesPage({ af, showToast }) {
       <div style={{ marginBottom: 12 }}><Lbl>Zone</Lbl><Inp value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={[{ v: "SD", l: "Service Delivery" }, { v: "HSE", l: "Health Safety" }, { v: "QS", l: "Quality Systems" }]} /></div><div><Lbl>Priority</Lbl><Sel value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={[{ v: "standard", l: "Standard" }, { v: "high", l: "High" }, { v: "critical", l: "Critical" }]} /></div></div>
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><textarea value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + NL, background: "rgba(255,255,255,0.04)", color: W, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video URL</Lbl><Inp value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm)/i) ? "video" : "image") : "" })} placeholder="Link to photo or video showing expected result" /></div>
-      {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt="Task reference" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
+      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Inp value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} />
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: GYL }} />
+          <div style={{ fontSize: 9, color: GY, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div>
+        </div>
+      </div>
+      {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>YouTube link attached</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt="Task reference" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn v="ghost" onClick={() => setEditTask(null)}>Cancel</Btn><Btn onClick={submitEditTask}>Save Changes</Btn></div>
+    </div></Mdl>}
+
+    {deleteConfirm && <Mdl onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: RD, marginBottom: 12 }}>Permanently Delete Site</div>
+      <div style={{ fontSize: 13, color: GYL, marginBottom: 8, lineHeight: 1.5 }}>This will permanently remove <span style={{ fontWeight: 700, color: W }}>{deleteConfirm.name}</span> and all associated tasks, assignments, and data. This action cannot be undone.</div>
+      <div style={{ padding: "10px 12px", borderRadius: 8, background: "rgba(231,76,60,0.06)", border: "1px solid rgba(231,76,60,0.2)", fontSize: 12, color: RD, marginBottom: 14 }}>Type <span style={{ fontWeight: 700 }}>DELETE</span> to confirm.</div>
+      <div style={{ marginBottom: 16 }}><Inp value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="Type DELETE here" style={{ textTransform: "uppercase", textAlign: "center", fontSize: 16, letterSpacing: "4px", border: deleteText === "DELETE" ? "1px solid " + RD : "1px solid " + NL }} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <Btn v="ghost" onClick={() => { setDeleteConfirm(null); setDeleteText(""); }}>Cancel</Btn>
+        <Btn v="danger" onClick={() => { if (deleteText === "DELETE") deleteSite(deleteConfirm.id); else showToast("Type DELETE to confirm", "error"); }}>Delete Permanently</Btn>
+      </div>
     </div></Mdl>}
   </div>);
 }
