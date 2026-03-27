@@ -100,11 +100,13 @@ export default function AdminDashboard() {
     try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
-  if (!token) return (<div style={{ maxWidth: 420, margin: "0 auto", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", padding: "0 24px" }}>
+  if (!token) return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "0 24px" }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
-    <div style={{ textAlign: "center", marginBottom: 40 }}><div style={{ fontFamily: "'Playfair Display',serif", fontSize: 36, fontWeight: 700, color: GO }}>OCSA</div><div style={{ fontSize: 12, color: t.textSec, letterSpacing: "3px", textTransform: "uppercase", marginTop: 4 }}>Admin Dashboard</div><div style={{ fontSize: 10, color: GR, marginTop: 12 }}>Connected to Live API</div></div>
-    <LoginForm onLogin={handleLogin} loading={loading} t={t} />
-    <div style={{ textAlign: "center", marginTop: 20 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11 }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
+    <div style={{ width: "100%", maxWidth: 420 }}>
+      <div style={{ textAlign: "center", marginBottom: 40 }}><div style={{ fontFamily: "'Playfair Display',serif", fontSize: 36, fontWeight: 700, color: GO }}>OCSA</div><div style={{ fontSize: 12, color: t.textSec, letterSpacing: "3px", textTransform: "uppercase", marginTop: 4 }}>Admin Dashboard</div><div style={{ fontSize: 10, color: GR, marginTop: 12 }}>Connected to Live API</div></div>
+      <LoginForm onLogin={handleLogin} loading={loading} t={t} />
+      <div style={{ textAlign: "center", marginTop: 20 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11 }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
+    </div>
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
