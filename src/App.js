@@ -68,7 +68,7 @@ const CkI = p => <Ic d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0v10l4 4" {..
 const XI = p => <Ic d="M18 6L6 18M6 6l12 12" {...p} />;
 const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
-const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />;
+const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
@@ -129,11 +129,11 @@ export default function AdminDashboard() {
       { id: "assigned", l: "Assigned Tasks", i: WkI },
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }] },
-    { label: "Time", items: [{ id: "reports", l: "Reports", i: BrI }] },
+    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "reports", l: "Reports", i: BrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", chat: "Messages", reports: "Reports & Time" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", chat: "Messages", reports: "Reports & Time" };
   const SB_W = 220;
   const SB_BG = "#0F1D32";
   const SB_HOVER = "rgba(255,255,255,0.04)";
@@ -205,7 +205,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}       {page === "timesheets" && <TimesheetsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "operations" && <OpsPage af={af} t={t} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
@@ -689,4 +689,149 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>Create and Assign</Btn></div>
     </div></Mdl>}
   </div>);
-}
+// ============================================================
+// OCSA Cleaning - Timesheet Approval Routes
+// Phase 2D Session 3
+// File: routes/timesheets.js
+// ============================================================
+
+const express = require("express");
+const router = express.Router();
+const { pool } = require("../db");
+const { authenticate, managementOnly, adminOnly } = require("../middleware/auth");
+
+// ---- GET /api/timesheets ----
+router.get("/", authenticate, managementOnly, async (req, res) => {
+  try {
+    const { week_start, user_id, site_id, status } = req.query;
+    let startDate;
+    if (week_start) {
+      startDate = new Date(week_start);
+    } else {
+      const now = new Date();
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1;
+      startDate = new Date(now);
+      startDate.setDate(now.getDate() - diff);
+    }
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 7);
+
+    let query = `
+      SELECT s.id, s.user_id, s.site_id, s.clock_in_time, s.clock_out_time, s.duration_minutes,
+        s.approval_status, s.approved_by, s.approved_at, s.rejection_reason,
+        s.is_manual_entry, s.manual_entry_notes, s.clock_in_lat, s.clock_in_lng,
+        u.first_name || ' ' || u.last_name AS staff_name, u.role, u.hourly_rate,
+        st.name AS site_name
+      FROM shift_records s
+      JOIN users u ON s.user_id = u.id
+      JOIN sites st ON s.site_id = st.id
+      WHERE s.clock_in_time >= $1 AND s.clock_in_time < $2`;
+    const params = [startDate.toISOString(), endDate.toISOString()];
+    let paramIdx = 3;
+    if (user_id) { query += ` AND s.user_id = $${paramIdx}`; params.push(user_id); paramIdx++; }
+    if (site_id) { query += ` AND s.site_id = $${paramIdx}`; params.push(site_id); paramIdx++; }
+    if (status) { query += ` AND s.approval_status = $${paramIdx}`; params.push(status); paramIdx++; }
+    query += ` ORDER BY u.last_name, u.first_name, s.clock_in_time`;
+
+    const result = await pool.query(query, params);
+    const shifts = result.rows;
+    const userMap = {};
+    shifts.forEach(s => {
+      if (!userMap[s.user_id]) {
+        userMap[s.user_id] = { userId: s.user_id, staffName: s.staff_name, role: s.role, hourlyRate: s.hourly_rate || 0, shifts: [], totalMinutes: 0, totalApproved: 0, totalPending: 0, totalRejected: 0, exceptions: [] };
+      }
+      const user = userMap[s.user_id];
+      const dur = s.duration_minutes || 0;
+      user.totalMinutes += dur;
+      if (s.approval_status === "approved" || s.approval_status === "exported") user.totalApproved++;
+      else if (s.approval_status === "rejected") user.totalRejected++;
+      else user.totalPending++;
+      const exceptions = [];
+      if (!s.clock_out_time) exceptions.push("missed_clockout");
+      if (dur > 480) exceptions.push("overtime_shift");
+      if (dur > 0 && dur < 120) exceptions.push("short_shift");
+      user.shifts.push({ id: s.id, siteId: s.site_id, siteName: s.site_name, clockInTime: s.clock_in_time, clockOutTime: s.clock_out_time, durationMinutes: dur, approvalStatus: s.approval_status, approvedBy: s.approved_by, approvedAt: s.approved_at, rejectionReason: s.rejection_reason, isManualEntry: s.is_manual_entry, manualEntryNotes: s.manual_entry_notes, hourlyRate: s.hourly_rate || 0, exceptions });
+      exceptions.forEach(ex => { if (!user.exceptions.includes(ex)) user.exceptions.push(ex); });
+    });
+    Object.values(userMap).forEach(user => { if (user.totalMinutes > 2400 && !user.exceptions.includes("overtime_weekly")) user.exceptions.push("overtime_weekly"); });
+    const users = Object.values(userMap);
+    const summary = { weekStart: startDate.toISOString(), weekEnd: endDate.toISOString(), totalShifts: shifts.length, totalStaff: users.length, totalMinutes: shifts.reduce((sum, s) => sum + (s.duration_minutes || 0), 0), pendingCount: shifts.filter(s => s.approval_status === "pending").length, approvedCount: shifts.filter(s => s.approval_status === "approved" || s.approval_status === "exported").length, rejectedCount: shifts.filter(s => s.approval_status === "rejected").length, exceptionsCount: shifts.filter(s => { const dur = s.duration_minutes || 0; return !s.clock_out_time || dur > 480 || (dur > 0 && dur < 120); }).length };
+    res.json({ summary, users });
+  } catch (err) { console.error("GET /api/timesheets error:", err); res.status(500).json({ error: "Failed to load timesheets" }); }
+});
+
+// ---- PATCH /api/timesheets/:shiftId/approve ----
+router.patch("/:shiftId/approve", authenticate, managementOnly, async (req, res) => {
+  try {
+    const result = await pool.query(`UPDATE shift_records SET approval_status = 'approved', approved_by = $1, approved_at = NOW() WHERE id = $2 AND approval_status IN ('pending', 'rejected') RETURNING id, approval_status, approved_at`, [req.user.id, req.params.shiftId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Shift not found or already approved/exported" });
+    res.json({ message: "Shift approved", shift: result.rows[0] });
+  } catch (err) { console.error("approve error:", err); res.status(500).json({ error: "Failed to approve shift" }); }
+});
+
+// ---- PATCH /api/timesheets/:shiftId/reject ----
+router.patch("/:shiftId/reject", authenticate, managementOnly, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || !reason.trim()) return res.status(400).json({ error: "Rejection reason is required" });
+    const result = await pool.query(`UPDATE shift_records SET approval_status = 'rejected', approved_by = $1, approved_at = NOW(), rejection_reason = $2 WHERE id = $3 AND approval_status IN ('pending', 'approved') RETURNING id, approval_status, rejection_reason`, [req.user.id, reason.trim(), req.params.shiftId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Shift not found or already exported" });
+    res.json({ message: "Shift rejected", shift: result.rows[0] });
+  } catch (err) { console.error("reject error:", err); res.status(500).json({ error: "Failed to reject shift" }); }
+});
+
+// ---- POST /api/timesheets/bulk-approve ----
+router.post("/bulk-approve", authenticate, managementOnly, async (req, res) => {
+  try {
+    const { shiftIds } = req.body;
+    if (!shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) return res.status(400).json({ error: "Provide an array of shift IDs" });
+    const params = [req.user.id];
+    const phArr = shiftIds.map((id, i) => { params.push(id); return `$${i + 2}`; });
+    const result = await pool.query(`UPDATE shift_records SET approval_status = 'approved', approved_by = $1, approved_at = NOW() WHERE id IN (${phArr.join(", ")}) AND approval_status IN ('pending', 'rejected') RETURNING id`, params);
+    res.json({ message: `${result.rows.length} shift(s) approved`, approvedCount: result.rows.length, approvedIds: result.rows.map(r => r.id) });
+  } catch (err) { console.error("bulk-approve error:", err); res.status(500).json({ error: "Failed to bulk approve" }); }
+});
+
+// ---- POST /api/timesheets/bulk-reject ----
+router.post("/bulk-reject", authenticate, managementOnly, async (req, res) => {
+  try {
+    const { shiftIds, reason } = req.body;
+    if (!shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) return res.status(400).json({ error: "Provide an array of shift IDs" });
+    if (!reason || !reason.trim()) return res.status(400).json({ error: "Rejection reason is required" });
+    const params = [req.user.id, reason.trim()];
+    const phArr = shiftIds.map((id, i) => { params.push(id); return `$${i + 3}`; });
+    const result = await pool.query(`UPDATE shift_records SET approval_status = 'rejected', approved_by = $1, approved_at = NOW(), rejection_reason = $2 WHERE id IN (${phArr.join(", ")}) AND approval_status IN ('pending', 'approved') RETURNING id`, params);
+    res.json({ message: `${result.rows.length} shift(s) rejected`, rejectedCount: result.rows.length });
+  } catch (err) { console.error("bulk-reject error:", err); res.status(500).json({ error: "Failed to bulk reject" }); }
+});
+
+// ---- PATCH /api/timesheets/:shiftId/reset ----
+router.patch("/:shiftId/reset", authenticate, managementOnly, async (req, res) => {
+  try {
+    const result = await pool.query(`UPDATE shift_records SET approval_status = 'pending', approved_by = NULL, approved_at = NULL, rejection_reason = NULL WHERE id = $1 AND approval_status IN ('approved', 'rejected') RETURNING id, approval_status`, [req.params.shiftId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Shift not found or cannot be reset" });
+    res.json({ message: "Shift reset to pending", shift: result.rows[0] });
+  } catch (err) { console.error("reset error:", err); res.status(500).json({ error: "Failed to reset shift" }); }
+});
+
+// ---- POST /api/timesheets/export ----
+router.post("/export", authenticate, adminOnly, async (req, res) => {
+  try {
+    const { week_start } = req.body;
+    if (!week_start) return res.status(400).json({ error: "week_start is required" });
+    const startDate = new Date(week_start); startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 7);
+    const result = await pool.query(`SELECT s.id, u.first_name, u.last_name, u.first_name || ' ' || u.last_name AS staff_name, u.role, u.phone, u.email, u.hourly_rate, st.name AS site_name, s.clock_in_time, s.clock_out_time, s.duration_minutes, s.is_manual_entry FROM shift_records s JOIN users u ON s.user_id = u.id JOIN sites st ON s.site_id = st.id WHERE s.clock_in_time >= $1 AND s.clock_in_time < $2 AND s.approval_status = 'approved' ORDER BY u.last_name, u.first_name, s.clock_in_time`, [startDate.toISOString(), endDate.toISOString()]);
+    if (result.rows.length === 0) return res.status(400).json({ error: "No approved shifts to export for this week" });
+    const shiftIds = result.rows.map(r => r.id);
+    const phArr = shiftIds.map((_, i) => `$${i + 1}`);
+    await pool.query(`UPDATE shift_records SET approval_status = 'exported' WHERE id IN (${phArr.join(", ")})`, shiftIds);
+    const exportData = result.rows.map(r => ({ firstName: r.first_name, lastName: r.last_name, staffName: r.staff_name, role: r.role, phone: r.phone, email: r.email, siteName: r.site_name, clockIn: r.clock_in_time, clockOut: r.clock_out_time, durationMinutes: r.duration_minutes, durationHours: r.duration_minutes ? (r.duration_minutes / 60).toFixed(2) : "0.00", hourlyRate: r.hourly_rate || 0, grossPay: r.duration_minutes && r.hourly_rate ? ((r.duration_minutes / 60) * r.hourly_rate).toFixed(2) : "0.00", isManualEntry: r.is_manual_entry }));
+    const weekLabel = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " - " + new Date(endDate.getTime() - 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    res.json({ message: `${shiftIds.length} shift(s) exported`, weekLabel, exportedCount: shiftIds.length, data: exportData });
+  } catch (err) { console.error("export error:", err); res.status(500).json({ error: "Failed to export timesheets" }); }
+});
+
+module.exports = router;}
