@@ -183,7 +183,7 @@ export default function AdminDashboard() {
                 <div key={gi} style={{ marginBottom: 2 }}>
                   <button
                     title={group.label}
-                    onClick={() => { toggleSidebar(); setPage(firstItem.id); }}
+                    onClick={() => { toggleSidebar(); setPage(firstItem.id); setCollapsedGroups(prev => { const next = new Set(prev); next.delete(group.label); return next; }); }}
                     style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? GO : SB_TEXT} />}
                   </button>
