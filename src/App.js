@@ -303,7 +303,12 @@ function LoginForm({ onLogin, loading, t }) {
 
 function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   const [stats, setStats] = useState(null); const [active, setActive] = useState([]);
-  useEffect(() => { af("/api/reports/overview").then(setStats).catch(e => showToast(e.message, "error")); af("/api/clock/active").then(setActive).catch(() => {}); }, []);
+  const [inspSummary, setInspSummary] = useState([]);
+  useEffect(() => {
+    af("/api/reports/overview").then(setStats).catch(e => showToast(e.message, "error"));
+    af("/api/clock/active").then(setActive).catch(() => {});
+    af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(() => {});
+  }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
   return (<div>
     <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back, {user?.firstName || "Admin"}</div>
@@ -323,6 +328,32 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
           <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{h}h {m}m</div><div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{s.tasksCompleted}/{s.tasksTotal}</span></div></div>
         </div>); })}
     </Crd>
+    {inspSummary.length > 0 && (<div style={{ marginBottom: 20 }}>
+      <SecT t={t} action="View All" onAction={() => setPage("inspections")}>Recent Inspections</SecT>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        {inspSummary.map(is => {
+          const sc = Number(is.score_pct);
+          const sColor = sc >= 80 ? GR : sc >= 60 ? OR : RD;
+          return (
+            <Crd key={is.site_id} t={t} onClick={() => setPage("inspections")} style={{ cursor: "pointer", flex: "1 1 200px", minWidth: 180 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 2 }}>{is.site_name}</div>
+                  <div style={{ fontSize: 10, color: t.textMut }}>{fd(is.scheduled_date)}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: sColor, lineHeight: 1 }}>{sc}%</div>
+                  <div style={{ fontSize: 9, color: t.textMut }}>{is.total_score}/{is.max_possible_score}</div>
+                </div>
+              </div>
+              <div style={{ marginTop: 8, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 2, background: sColor, width: sc + "%", transition: "width 0.5s ease" }} />
+              </div>
+            </Crd>
+          );
+        })}
+      </div>
+    </div>)}
     {((isAdmin && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
       {isAdmin && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{stats.pendingStaff} pending</button>}
       {stats.openIssues > 0 && <button onClick={() => setPage("issues")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.redSubtle, border: "1px solid " + t.redBorder, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><AlI sz={16} c={RD} />{stats.openIssues} open issues</button>}
@@ -1647,6 +1678,14 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const [scheduled, setScheduled] = useState([]);
   const [completed, setCompleted] = useState([]);
   const [sites, setSites] = useState([]);
+  // Analytics state
+  const [analyticsDays, setAnalyticsDays] = useState(90);
+  const [analyticsSite, setAnalyticsSite] = useState("");
+  const [scoreTrend, setScoreTrend] = useState([]);
+  const [siteComp, setSiteComp] = useState([]);
+  const [catBreakdown, setCatBreakdown] = useState([]);
+  const [lowestItems, setLowestItems] = useState([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
@@ -1669,11 +1708,30 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
     } catch (e) { showToast(e.message, "error"); }
   }, [af]);
 
+  const loadAnalytics = useCallback(async (days, siteId) => {
+    setAnalyticsLoading(true);
+    try {
+      const q = "?days=" + days + (siteId ? "&site_id=" + siteId : "");
+      const [trend, comp, cats, low] = await Promise.all([
+        af("/api/inspections/analytics/scores-over-time" + q),
+        af("/api/inspections/analytics/site-comparison" + q),
+        af("/api/inspections/analytics/category-breakdown" + q),
+        af("/api/inspections/analytics/lowest-items" + q),
+      ]);
+      setScoreTrend(trend); setSiteComp(comp); setCatBreakdown(cats); setLowestItems(low);
+    } catch (e) { showToast("Failed to load analytics: " + e.message, "error"); }
+    setAnalyticsLoading(false);
+  }, [af]);
+
   useEffect(() => {
     loadTemplates(); loadScheduled();
     af("/api/sites").then(setSites).catch(() => {});
     af("/api/users?role=supervisor").then(setSupervisors).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (tab === "reports") loadAnalytics(analyticsDays, analyticsSite);
+  }, [tab, analyticsDays, analyticsSite]);
 
   const openTemplate = async (id) => {
     try { const d = await af("/api/inspections/templates/" + id); setSelectedTemplate(d); } catch (e) { showToast(e.message, "error"); }
@@ -1961,7 +2019,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
     <div>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
-        {[["templates", "Templates"], ["scheduled", "Scheduled"], ["completed", "Completed"]].map(([tb, lbl]) => (
+        {[["templates", "Templates"], ["scheduled", "Scheduled"], ["completed", "Completed"], ["reports", "Reports"]].map(([tb, lbl]) => (
           <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? GO : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
         ))}
       </div>
@@ -2095,6 +2153,188 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
             })}
             {completed.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No completed inspections yet.</div>}
           </div>
+        </div>
+      )}
+
+      {/* REPORTS TAB */}
+      {tab === "reports" && (
+        <div>
+          {/* Filters */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Time Range</div>
+            {[30, 60, 90].map(d => (
+              <button key={d} onClick={() => setAnalyticsDays(d)} style={{ padding: "5px 12px", borderRadius: 6, background: analyticsDays === d ? t.goldBg : "transparent", color: analyticsDays === d ? GO : t.textMut, fontSize: 11, fontWeight: analyticsDays === d ? 700 : 500, cursor: "pointer", border: analyticsDays === d ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{d} days</button>
+            ))}
+            <div style={{ marginLeft: 12 }}>
+              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
+            </div>
+            <button onClick={() => {
+              const q = "?days=" + analyticsDays + (analyticsSite ? "&site_id=" + analyticsSite : "");
+              af("/api/inspections/analytics/export" + q).then(rows => {
+                if (!rows.length) { showToast("No data to export", "error"); return; }
+                const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
+                const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (CIMS_LABELS[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+                dlCSV("inspection-analytics-" + analyticsDays + "d.csv", hdr, csvRows);
+                showToast("Exported " + rows.length + " rows");
+              }).catch(e => showToast(e.message, "error"));
+            }} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={GO} /> Export CSV</button>
+          </div>
+
+          {analyticsLoading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading analytics...</div>}
+
+          {!analyticsLoading && (
+            <div>
+              {/* SITE COMPARISON BARS */}
+              {siteComp.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Site Comparison</div>
+                  <Crd t={t}>
+                    {siteComp.map((sc, i) => {
+                      const pct = Number(sc.latest_score_pct);
+                      const avg = Number(sc.avg_score_pct);
+                      const barColor = pct >= 80 ? GR : pct >= 60 ? OR : RD;
+                      return (
+                        <div key={sc.site_id} style={{ padding: "12px 0", borderBottom: i < siteComp.length - 1 ? "1px solid " + t.border : "none" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{sc.site_name}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ fontSize: 10, color: t.textMut }}>{sc.inspection_count} inspections, avg {avg}%</span>
+                              <span style={{ fontSize: 18, fontWeight: 700, color: barColor }}>{pct}%</span>
+                            </div>
+                          </div>
+                          <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 4, background: barColor, width: pct + "%", transition: "width 0.5s ease" }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Latest: {fmtDate(sc.latest_date)}</div>
+                        </div>
+                      );
+                    })}
+                  </Crd>
+                </div>
+              )}
+
+              {/* SCORE TREND CHART */}
+              {scoreTrend.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Score Trend</div>
+                  <Crd t={t}>
+                    <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 160, padding: "0 4px" }}>
+                      {scoreTrend.map((pt, i) => {
+                        const pct = Number(pt.score_pct);
+                        const barColor = pct >= 80 ? GR : pct >= 60 ? OR : RD;
+                        const barH = Math.max(8, (pct / 100) * 140);
+                        return (
+                          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={pt.site_name + ": " + pct + "% on " + fmtDate(pt.scheduled_date)}>
+                            <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2, writingMode: scoreTrend.length > 12 ? "vertical-rl" : "horizontal-tb", whiteSpace: "nowrap" }}>{pct}%</div>
+                            <div style={{ width: "100%", maxWidth: 28, height: barH, borderRadius: 3, background: barColor, minWidth: 6, transition: "height 0.4s ease" }} />
+                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {/* Legend: site colors */}
+                    {(() => {
+                      const uniqueSites = [...new Set(scoreTrend.map(p => p.site_name))];
+                      if (uniqueSites.length <= 1) return null;
+                      return (
+                        <div style={{ display: "flex", gap: 12, marginTop: 10, paddingTop: 8, borderTop: "1px solid " + t.border }}>
+                          {uniqueSites.map(sn => (
+                            <div key={sn} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: t.textSec }}>
+                              <div style={{ width: 8, height: 8, borderRadius: 2, background: GO }} />
+                              {sn}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </Crd>
+                </div>
+              )}
+
+              {/* CIMS CATEGORY BREAKDOWN */}
+              {catBreakdown.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Score by CIMS Category</div>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {catBreakdown.map(cat => {
+                      const pct = Number(cat.avg_score_pct);
+                      const catColor = CIMS_C[cat.cims_category] || BL;
+                      return (
+                        <Crd key={cat.cims_category} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{CIMS_LABELS[cat.cims_category] || cat.cims_category}</span>
+                            <span style={{ fontSize: 20, fontWeight: 700, color: pct >= 80 ? GR : pct >= 60 ? OR : RD }}>{pct}%</span>
+                          </div>
+                          <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
+                            <div style={{ height: "100%", borderRadius: 3, background: catColor, width: pct + "%" }} />
+                          </div>
+                          <div style={{ fontSize: 10, color: t.textMut, marginTop: 6 }}>{cat.total_items} items scored, {cat.total_score}/{cat.total_max} pts</div>
+                        </Crd>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* LOWEST SCORING ITEMS */}
+              {lowestItems.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Lowest Scoring Items</div>
+                  <Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ background: t.cardAlt }}>
+                          <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Item</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Zone</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Category</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Avg Score</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Times Scored</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lowestItems.map((li, i) => {
+                          const lPct = Number(li.avg_score_pct);
+                          const lColor = lPct >= 80 ? GR : lPct >= 60 ? OR : RD;
+                          return (
+                            <tr key={i} style={{ borderBottom: "1px solid " + t.border }}>
+                              <td style={{ padding: "10px 12px", fontWeight: 600, color: t.text }}>{li.label}</td>
+                              <td style={{ padding: "10px 8px", color: t.textSec }}>{li.zone}</td>
+                              <td style={{ padding: "10px 8px" }}>
+                                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{CIMS_LABELS[li.cims_category] || li.cims_category}</span>
+                              </td>
+                              <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700, color: lColor }}>{lPct}%</td>
+                              <td style={{ padding: "10px 8px", textAlign: "center", color: t.textMut }}>{li.occurrences}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </Crd>
+                </div>
+              )}
+
+              {/* Print Report */}
+              {siteComp.length > 0 && (
+                <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+                  <button onClick={() => {
+                    const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
+                    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${CIMS_LABELS[c.cims_category] || c.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
+                    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${l.label}</td><td style="padding:8px">${l.zone}</td><td style="padding:8px">${CIMS_LABELS[l.cims_category] || l.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
+                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:#0F1D32;color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid #C8A84E"><div><div style="font-size:22px;font-weight:700;color:#0F1D32">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsDays} days${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">OCSA Cleaning Inc.</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by OCSA Cleaning Operations Platform</div></body></html>`;
+                    const w = window.open("", "_blank");
+                    w.document.write(html); w.document.close();
+                    setTimeout(() => w.print(), 600);
+                  }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 16px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 12, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c="#0A1628" /> Print Report</button>
+                </div>
+              )}
+
+              {scoreTrend.length === 0 && siteComp.length === 0 && (
+                <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>
+                  No completed inspections in the last {analyticsDays} days. Complete some inspections to see analytics here.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
