@@ -113,31 +113,107 @@ export default function AdminDashboard() {
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
-  const allNav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI, adminOnly: true }, { id: "sites", l: "Sites", i: MpI }, { id: "assigned", l: "Assigned", i: WkI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
-  const nav = allNav.filter(n => !n.adminOnly || isAdmin);
-  return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text }}>
+  const GearI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
+
+  const sidebarGroups = [
+    { label: null, items: [{ id: "overview", l: "Dashboard", i: HmI }] },
+    { label: "Operations", items: [
+      { id: "operations", l: "Live Ops", i: ClI },
+      { id: "sites", l: "Sites", i: MpI },
+    ]},
+    { label: "Staff", items: [
+      ...(isAdmin ? [{ id: "staff", l: "Staff Management", i: UsI }] : []),
+    ]},
+    { label: "Quality", items: [
+      { id: "issues", l: "Issues", i: AlI },
+      { id: "assigned", l: "Assigned Tasks", i: WkI },
+    ]},
+    { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }] },
+    { label: "Time", items: [{ id: "reports", l: "Reports", i: BrI }] },
+    { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
+  ].filter(g => g.items.length > 0);
+
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", chat: "Messages", reports: "Reports & Time" };
+  const SB_W = 220;
+  const SB_BG = "#0F1D32";
+  const SB_HOVER = "rgba(255,255,255,0.04)";
+  const SB_ACTIVE = "rgba(200,168,78,0.1)";
+  const SB_BORDER = "rgba(255,255,255,0.06)";
+  const SB_TEXT = "#8899AA";
+  const SB_TEXT_ACTIVE = GOLD;
+
+  return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text, display: "flex" }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
-    <div style={{ background: t.headerBg, padding: "12px 28px", borderBottom: "1px solid " + (themeMode === "dark" ? t.border : "rgba(255,255,255,0.08)"), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt="OCSA Cleaning" style={{ height: 30 }} /></div><div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.15)" }} /><span style={{ fontSize: 13, color: "#A8B8C8" }}>{isAdmin ? "Admin Dashboard" : "Supervisor Dashboard"}</span><span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.1)", padding: "2px 8px", borderRadius: 10 }}>LIVE</span></div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={toggleTheme} title={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{themeMode === "dark" ? <SunI sz={15} c="#A8B8C8" /> : <MoonI sz={15} c="#A8B8C8" />}</button>
-        <span style={{ fontSize: 12, color: "#8899AA" }}>{user?.firstName}</span><button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer" }}><LoI sz={16} c="#8899AA" /></button>
+
+    {/* ===== SIDEBAR ===== */}
+    <div style={{ width: SB_W, minHeight: "100vh", background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50 }}>
+      {/* Logo */}
+      <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid " + SB_BORDER }}>
+        <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt="OCSA Cleaning" style={{ height: 28 }} /></div>
+      </div>
+
+      {/* Nav Groups */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+        {sidebarGroups.map((group, gi) => (
+          <div key={gi} style={{ marginBottom: 4 }}>
+            {group.label && <div style={{ fontSize: 9, color: SB_TEXT, textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, padding: "12px 16px 4px" }}>{group.label}</div>}
+            {group.items.map(item => {
+              const active = page === item.id;
+              const NavI = item.i;
+              return (
+                <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GOLD : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease" }}>
+                  <NavI sz={17} c={active ? GOLD : SB_TEXT} />
+                  {item.l}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom section: user + theme + logout */}
+      <div style={{ borderTop: "1px solid " + SB_BORDER, padding: "12px 16px" }}>
+        <button onClick={toggleTheme} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
+          {themeMode === "dark" ? <SunI sz={14} c={SB_TEXT} /> : <MoonI sz={14} c={SB_TEXT} />}
+          {themeMode === "dark" ? "Light Mode" : "Dark Mode"}
+        </button>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(200,168,78,0.12)", border: "1px solid " + GOLD, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: GOLD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
+            <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
+          </div>
+          <button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
+        </div>
       </div>
     </div>
-    <div style={{ display: "flex", gap: 2, padding: "8px 28px", background: t.navBg, borderBottom: "1px solid " + t.border, overflowX: "auto" }}>
-      {nav.map(n => { const a = page === n.id; const NI = n.i; return <button key={n.id} onClick={() => setPage(n.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, background: a ? t.goldBg : "transparent", color: a ? GO : t.textMut, fontSize: 12, fontWeight: a ? 700 : 500, cursor: "pointer", border: a ? "1px solid " + t.goldBorder : "1px solid transparent", whiteSpace: "nowrap" }}><NI sz={15} c={a ? GO : t.textMut} />{n.l}</button>; })}
+
+    {/* ===== MAIN CONTENT ===== */}
+    <div style={{ flex: 1, marginLeft: SB_W, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Top Bar */}
+      <div style={{ background: t.bg, borderBottom: "1px solid " + t.border, padding: "14px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40 }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{pageLabels[page] || "Dashboard"}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? "OCSA Cleaning Admin" : "OCSA Cleaning Supervisor"}</div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.1)", padding: "3px 10px", borderRadius: 10, fontWeight: 600 }}>LIVE</span>
+        </div>
+      </div>
+
+      {/* Page Content */}
+      <div style={{ flex: 1, padding: "20px 28px 40px", maxWidth: 1400 }}>
+        {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
+        {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
+        {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "operations" && <OpsPage af={af} t={t} />}
+        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
+        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "chat" && <ChatPage af={af} user={user} t={t} />}
+        {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+      </div>
     </div>
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "20px 28px 40px" }}>
-      {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
-      {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
-      {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-      {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-      {page === "operations" && <OpsPage af={af} t={t} />}
-      {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
-      {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-      {page === "chat" && <ChatPage af={af} user={user} t={t} />}
-      {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-    </div>
+
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
