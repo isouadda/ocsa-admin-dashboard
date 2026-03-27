@@ -1639,10 +1639,12 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const CIMS_CATS = ["SD", "HSE", "GB", "QS", "HR", "MC"];
   const STATUS_C = { scheduled: "#3498DB", in_progress: "#F39C12", completed: "#2ECC71" };
   const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+  const fmtDT = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 
   const [tab, setTab] = useState("templates");
   const [templates, setTemplates] = useState([]);
   const [scheduled, setScheduled] = useState([]);
+  const [completed, setCompleted] = useState([]);
   const [sites, setSites] = useState([]);
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -1651,14 +1653,19 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
-  const [detailModal, setDetailModal] = useState(null);
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [detailView, setDetailView] = useState(null);
+  const [expandedItems, setExpandedItems] = useState(new Set());
 
   const loadTemplates = useCallback(async () => {
     try { const d = await af("/api/inspections/templates"); setTemplates(d); } catch (e) { showToast(e.message, "error"); }
   }, [af]);
+
   const loadScheduled = useCallback(async () => {
-    try { const d = await af("/api/inspections/scheduled"); setScheduled(d); } catch (e) { showToast(e.message, "error"); }
+    try {
+      const all = await af("/api/inspections/scheduled");
+      setScheduled(all.filter(s => s.status !== "completed"));
+      setCompleted(all.filter(s => s.status === "completed"));
+    } catch (e) { showToast(e.message, "error"); }
   }, [af]);
 
   useEffect(() => {
@@ -1709,22 +1716,236 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   };
 
   const openDetail = async (id) => {
-    try { const d = await af("/api/inspections/scheduled/" + id); setDetailModal(d); } catch (e) { showToast(e.message, "error"); }
+    try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
   };
 
   const deleteScheduled = async (id) => {
-    if (!window.confirm("Delete this scheduled inspection?")) return;
+    if (!window.confirm("Delete this inspection?")) return;
     try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast("Deleted"); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const filteredScheduled = filterStatus === "all" ? scheduled : scheduled.filter(s => s.status === filterStatus);
+  const toggleExpand = (id) => {
+    setExpandedItems(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const exportCSV = (d) => {
+    const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
+    const hdr = ["Item", "Zone", "CIMS Category", "Score", "Max Score", "Percent", "Notes", "Photo URL"];
+    const rows = (d.items || []).map(item => {
+      const sr = (d.scores || []).find(s => s.template_item_id === item.id);
+      const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
+      return [item.label, item.zone, item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
+    });
+    rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
+    dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
+  };
+
+  const exportPrint = (d) => {
+    const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
+    const scoreColor = pct >= 80 ? "#2ECC71" : pct >= 60 ? "#F39C12" : "#E74C3C";
+    const itemRows = (d.items || []).map(item => {
+      const sr = (d.scores || []).find(s => s.template_item_id === item.id);
+      const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) : 0;
+      const iColor = iPct >= 80 ? "#2ECC71" : iPct >= 60 ? "#F39C12" : "#E74C3C";
+      const barW = Math.round((iPct / 100) * 200);
+      return `
+        <tr style="border-bottom:1px solid #eee">
+          <td style="padding:10px 8px;font-size:13px;font-weight:600">${item.label}</td>
+          <td style="padding:10px 8px;font-size:12px;color:#666">${item.zone}</td>
+          <td style="padding:10px 8px;text-align:center">
+            <span style="background:${(CIMS_C[item.cims_category] || "#3498DB") + "22"};color:${CIMS_C[item.cims_category] || "#3498DB"};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${item.cims_category}</span>
+          </td>
+          <td style="padding:10px 8px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="background:#eee;border-radius:4px;height:8px;width:200px;overflow:hidden">
+                <div style="background:${iColor};height:100%;width:${barW}px;border-radius:4px"></div>
+              </div>
+              <span style="font-weight:700;color:${iColor};font-size:13px">${sr ? sr.score : "--"}<span style="color:#999;font-weight:400;font-size:11px">/${item.max_score}</span></span>
+            </div>
+          </td>
+          <td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">${sr?.notes || ""}</td>
+          <td style="padding:10px 8px;text-align:center">${sr?.photo_url ? `<img src="${sr.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />` : ""}</td>
+        </tr>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html><html><head><title>Inspection Report</title>
+      <style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}
+      table{width:100%;border-collapse:collapse}th{background:#0F1D32;color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}
+      @media print{body{padding:16px}}</style></head>
+      <body>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid #C8A84E">
+          <div>
+            <div style="font-size:22px;font-weight:700;color:#0F1D32">Inspection Report</div>
+            <div style="font-size:14px;color:#555;margin-top:4px">${d.template_name}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">OCSA Cleaning Inc.</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Site</div>
+            <div style="font-size:14px;font-weight:600">${d.site_name}</div>
+          </div>
+          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Scheduled Date</div>
+            <div style="font-size:14px;font-weight:600">${fmtDate(d.scheduled_date)}</div>
+          </div>
+          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Completed</div>
+            <div style="font-size:14px;font-weight:600">${fmtDT(d.result.completed_at)}</div>
+          </div>
+          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Completed By</div>
+            <div style="font-size:14px;font-weight:600">${d.result.completed_by_name || "--"}</div>
+          </div>
+          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Overall Score</div>
+            <div style="font-size:24px;font-weight:700;color:${scoreColor}">${pct}% <span style="font-size:13px;color:#888;font-weight:400">${d.result.total_score}/${d.result.max_possible_score} pts</span></div>
+          </div>
+          ${d.result.overall_notes ? `<div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Notes</div><div style="font-size:13px;color:#333">${d.result.overall_notes}</div></div>` : ""}
+        </div>
+        <table>
+          <thead><tr><th>Item</th><th>Zone</th><th>Category</th><th>Score</th><th>Notes</th><th>Photo</th></tr></thead>
+          <tbody>${itemRows}</tbody>
+        </table>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by OCSA Cleaning Operations Platform</div>
+      </body></html>`;
+
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => w.print(), 600);
+  };
+
+  // DETAIL FULL PAGE VIEW
+  if (detailView) {
+    const d = detailView;
+    const isComplete = !!d.result;
+    const pct = isComplete && d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : null;
+    const scoreColor = pct === null ? t.textMut : pct >= 80 ? GR : pct >= 60 ? OR : RD;
+
+    return (
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <button onClick={() => setDetailView(null)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
+            <Ic d="M15 18l-6-6 6-6" sz={14} c={t.textSec} /> Back
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{d.template_name}</div>
+            <div style={{ fontSize: 12, color: t.textSec }}>{d.site_name}</div>
+          </div>
+          {isComplete && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => exportCSV(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
+                CSV
+              </button>
+              <button onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                Export PDF
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 20 }}>
+          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Scheduled Date</div><div style={{ fontWeight: 700, color: t.text }}>{fmtDate(d.scheduled_date)}</div></Crd>
+          {d.assigned_name && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Assigned To</div><div style={{ fontWeight: 700, color: t.text }}>{d.assigned_name}</div></Crd>}
+          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Status</div><Bdg l={d.status.replace("_", " ")} c={STATUS_C[d.status] || BL} /></Crd>
+          {isComplete && <>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed At</div><div style={{ fontWeight: 700, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed By</div><div style={{ fontWeight: 700, color: t.text }}>{d.result.completed_by_name}</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Overall Score</div><div style={{ fontSize: 26, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{d.result.total_score}/{d.result.max_possible_score} pts</div></Crd>
+          </>}
+        </div>
+
+        {isComplete && d.result.overall_notes && (
+          <Crd t={t} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Overall Notes</div>
+            <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5 }}>{d.result.overall_notes}</div>
+          </Crd>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {(d.items || []).map(item => {
+            const sr = isComplete ? (d.scores || []).find(s => s.template_item_id === item.id) : null;
+            const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) : null;
+            const iColor = iPct === null ? t.textMut : iPct >= 80 ? GR : iPct >= 60 ? OR : RD;
+            const isExp = expandedItems.has(item.id);
+
+            return (
+              <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
+                <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }}>{item.cims_category}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{item.label}</div>
+                    <div style={{ fontSize: 11, color: t.textMut }}>{item.zone}</div>
+                  </div>
+                  {sr && (
+                    <div style={{ textAlign: "right", marginRight: 8 }}>
+                      <span style={{ fontWeight: 700, color: iColor, fontSize: 18 }}>{sr.score}</span>
+                      <span style={{ fontSize: 11, color: t.textMut }}>/{item.max_score}</span>
+                    </div>
+                  )}
+                  {sr && (
+                    <div style={{ width: 80, height: 6, background: t.border, borderRadius: 3, overflow: "hidden", marginRight: 8 }}>
+                      <div style={{ height: "100%", width: iPct + "%", background: iColor, borderRadius: 3 }} />
+                    </div>
+                  )}
+                  <Ic d={isExp ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} sz={14} c={t.textMut} />
+                </button>
+
+                {isExp && (
+                  <div style={{ borderTop: "1px solid " + t.border, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+                    {sr ? (
+                      <>
+                        <div style={{ display: "flex", gap: 12 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Score</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ flex: 1, height: 8, background: t.border, borderRadius: 4, overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: iPct + "%", background: iColor, borderRadius: 4 }} />
+                              </div>
+                              <span style={{ fontWeight: 700, color: iColor }}>{sr.score}/{item.max_score} ({iPct}%)</span>
+                            </div>
+                          </div>
+                        </div>
+                        {sr.notes && (
+                          <div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Notes</div>
+                            <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, padding: "8px 12px", background: t.cardAlt, borderRadius: 8 }}>{sr.notes}</div>
+                          </div>
+                        )}
+                        {sr.photo_url ? (
+                          <div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Attached Photo</div>
+                            <a href={sr.photo_url} target="_blank" rel="noreferrer">
+                              <img src={sr.photo_url} alt="Inspection photo" style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
+                            </a>
+                            <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Click photo to open full size</div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>No photo attached for this item.</div>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ fontSize: 12, color: t.textMut }}>This item was not scored (inspection not yet completed).</div>
+                    )}
+                  </div>
+                )}
+              </Crd>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
-        {[["templates", "Templates"], ["scheduled", "Scheduled"]].map(([tb, lbl]) => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? GO : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+        {[["templates", "Templates"], ["scheduled", "Scheduled"], ["completed", "Completed"]].map(([tb, lbl]) => (
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? GO : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
         ))}
       </div>
 
@@ -1754,14 +1975,13 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
                 <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{selectedTemplate.name}</div>
                 <button onClick={() => setSelectedTemplate(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={16} c={t.textMut} /></button>
               </div>
-
               <div style={{ marginBottom: 14 }}>
                 {(selectedTemplate.items || []).map(item => (
                   <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, background: t.cardAlt, marginBottom: 6 }}>
                     <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }}>{item.cims_category}</div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
-                      <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} &bull; max {item.max_score} pts</div>
+                      <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - max {item.max_score} pts</div>
                     </div>
                     <button onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
                   </div>
@@ -1770,7 +1990,6 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
                   <div style={{ fontSize: 11, color: t.textMut, padding: "8px 0" }}>No items yet. Add your first line item below.</div>
                 )}
               </div>
-
               <Crd t={t} style={{ padding: 14 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
                 <div style={{ marginBottom: 8 }}><Lbl>Item Label *</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder="e.g. Toilets scrubbed and sanitized" onKeyDown={e => e.key === "Enter" && addItem()} /></div>
@@ -1789,34 +2008,49 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
       {/* SCHEDULED TAB */}
       {tab === "scheduled" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[["all", "All"], ["scheduled", "Scheduled"], ["in_progress", "In Progress"], ["completed", "Completed"]].map(([val, lbl]) => (
-                <button key={val} onClick={() => setFilterStatus(val)} style={{ padding: "5px 12px", borderRadius: 20, border: "none", background: filterStatus === val ? GO : t.cardAlt, color: filterStatus === val ? "#0A1628" : t.textSec, fontSize: 11, fontWeight: filterStatus === val ? 700 : 400, cursor: "pointer" }}>{lbl}</button>
-              ))}
-            </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
             <Btn t={t} onClick={() => setScheduleModal(true)}>Schedule Inspection</Btn>
           </div>
-
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filteredScheduled.map(si => {
+            {scheduled.map(si => (
+              <Crd key={si.id} t={t} onClick={() => openDetail(si.id)} style={{ cursor: "pointer" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <div style={{ fontWeight: 700, color: t.text, fontSize: 14 }}>{si.template_name}</div>
+                      <Bdg l={si.status.replace("_", " ")} c={STATUS_C[si.status] || BL} />
+                    </div>
+                    <div style={{ fontSize: 12, color: t.textSec }}>{si.site_name}</div>
+                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{fmtDate(si.scheduled_date)}{si.assigned_name ? " - " + si.assigned_name : " - Unassigned"}</div>
+                  </div>
+                  {isAdmin && <button onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><XI sz={14} c={t.textMut} /></button>}
+                </div>
+              </Crd>
+            ))}
+            {scheduled.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No pending inspections.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* COMPLETED TAB */}
+      {tab === "completed" && (
+        <div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {completed.map(si => {
               const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null;
               const scoreColor = pct === null ? t.textMut : pct >= 80 ? GR : pct >= 60 ? OR : RD;
               return (
                 <Crd key={si.id} t={t} onClick={() => openDetail(si.id)} style={{ cursor: "pointer" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                        <div style={{ fontWeight: 700, color: t.text, fontSize: 14 }}>{si.template_name}</div>
-                        <Bdg l={si.status.replace("_", " ")} c={STATUS_C[si.status] || BL} />
-                      </div>
+                      <div style={{ fontWeight: 700, color: t.text, fontSize: 14, marginBottom: 4 }}>{si.template_name}</div>
                       <div style={{ fontSize: 12, color: t.textSec }}>{si.site_name}</div>
-                      <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{fmtDate(si.scheduled_date)}{si.assigned_name ? " - " + si.assigned_name : ""}</div>
+                      <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>Scheduled {fmtDate(si.scheduled_date)}{si.assigned_name ? " - " + si.assigned_name : ""}</div>
                     </div>
                     {pct !== null && (
-                      <div style={{ textAlign: "center", minWidth: 60 }}>
-                        <div style={{ fontSize: 22, fontWeight: 700, color: scoreColor }}>{pct}%</div>
-                        <div style={{ fontSize: 9, color: t.textMut }}>{si.total_score}/{si.max_possible_score} pts</div>
+                      <div style={{ textAlign: "center", minWidth: 70 }}>
+                        <div style={{ fontSize: 26, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{pct}%</div>
+                        <div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{si.total_score}/{si.max_possible_score} pts</div>
                       </div>
                     )}
                     {isAdmin && <button onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><XI sz={14} c={t.textMut} /></button>}
@@ -1824,7 +2058,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
                 </Crd>
               );
             })}
-            {filteredScheduled.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No inspections found for this filter.</div>}
+            {completed.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No completed inspections yet.</div>}
           </div>
         </div>
       )}
@@ -1845,59 +2079,6 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>Cancel</Btn><Btn t={t} onClick={scheduleInspection}>Schedule</Btn></div>
-      </div></Mdl>}
-
-      {/* DETAIL MODAL */}
-      {detailModal && <Mdl t={t} onClose={() => setDetailModal(null)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <div><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{detailModal.template_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{detailModal.site_name} - {fmtDate(detailModal.scheduled_date)}</div></div>
-          <button onClick={() => setDetailModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
-        </div>
-
-        {detailModal.result ? (() => {
-          const pct = detailModal.result.max_possible_score > 0 ? Math.round((detailModal.result.total_score / detailModal.result.max_possible_score) * 100) : 0;
-          const scoreColor = pct >= 80 ? GR : pct >= 60 ? OR : RD;
-          return (
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderRadius: 10, background: t.cardAlt, marginBottom: 16 }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 34, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{pct}%</div>
-                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{detailModal.result.total_score}/{detailModal.result.max_possible_score} pts</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: t.textSec }}>Completed by <span style={{ fontWeight: 600, color: t.text }}>{detailModal.result.completed_by_name}</span></div>
-                  {detailModal.result.overall_notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic" }}>{detailModal.result.overall_notes}</div>}
-                </div>
-              </div>
-              <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
-                {(detailModal.items || []).map(item => {
-                  const sr = (detailModal.scores || []).find(s => s.template_item_id === item.id);
-                  const iPct = sr ? Math.round((sr.score / item.max_score) * 100) : 0;
-                  const iColor = iPct >= 80 ? GR : iPct >= 60 ? OR : RD;
-                  return (
-                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, background: t.cardAlt }}>
-                      <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }}>{item.cims_category}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
-                        <div style={{ fontSize: 10, color: t.textMut }}>{item.zone}{sr?.notes ? " - " + sr.notes : ""}</div>
-                      </div>
-                      <div style={{ textAlign: "right", minWidth: 52 }}>
-                        <span style={{ fontWeight: 700, color: sr ? iColor : t.textMut, fontSize: 14 }}>{sr ? sr.score : "--"}</span>
-                        <span style={{ fontSize: 10, color: t.textMut }}>/{item.max_score}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })() : (
-          <div style={{ padding: "30px 0", textAlign: "center" }}>
-            <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>This inspection has not been completed yet.</div>
-            <Bdg l={detailModal.status.replace("_", " ")} c={STATUS_C[detailModal.status] || BL} />
-            {detailModal.assigned_name && <div style={{ fontSize: 11, color: t.textSec, marginTop: 12 }}>Assigned to {detailModal.assigned_name}</div>}
-          </div>
-        )}
       </div></Mdl>}
     </div>
   );
