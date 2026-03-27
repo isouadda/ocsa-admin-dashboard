@@ -113,6 +113,7 @@ export default function AdminDashboard() {
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div>);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
+  const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const GearI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
 
   const sidebarGroups = [
@@ -128,12 +129,12 @@ export default function AdminDashboard() {
       { id: "issues", l: "Issues", i: AlI },
       { id: "assigned", l: "Assigned Tasks", i: WkI },
     ]},
-    { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }] },
+    { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "reports", l: "Reports", i: BrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", chat: "Messages", reports: "Reports & Time" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", chat: "Messages", reports: "Reports & Time" };
   const SB_W = 220;
   const SB_BG = "#0F1D32";
   const SB_HOVER = "rgba(255,255,255,0.04)";
@@ -209,6 +210,7 @@ export default function AdminDashboard() {
         {page === "operations" && <OpsPage af={af} t={t} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
       </div>
@@ -1015,6 +1017,240 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
           <Btn t={t} v="ghost" onClick={() => setBulkRejectForm(false)}>Cancel</Btn>
           <Btn t={t} v="danger" onClick={bulkReject}>Reject All</Btn>
         </div>
+      </div>
+    </Mdl>}
+  </div>);
+}
+
+function VendorsPage({ af, showToast, isAdmin, t }) {
+  const [vendors, setVendors] = useState([]);
+  const [supplies, setSupplies] = useState([]);
+  const [filter, setFilter] = useState("all");
+  const [addForm, setAddForm] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [addEval, setAddEval] = useState(null);
+  const [linkSupply, setLinkSupply] = useState(null);
+
+  const load = () => af("/api/vendors").then(setVendors).catch(e => showToast(e.message, "error"));
+  useEffect(() => { load(); af("/api/supplies").then(setSupplies).catch(() => {}); }, []);
+
+  const loadDetail = async id => {
+    try { const d = await af("/api/vendors/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const filtered = filter === "all" ? vendors : vendors.filter(v => v.approval_status === filter);
+
+  const submitAdd = async () => {
+    if (!addForm.name) { showToast("Vendor name required", "error"); return; }
+    try { await af("/api/vendors", { method: "POST", body: addForm }); showToast("Vendor added"); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitEdit = async () => {
+    try { await af("/api/vendors/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Vendor updated"); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deactivate = async id => {
+    try { await af("/api/vendors/" + id, { method: "DELETE" }); showToast("Vendor removed"); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitEval = async () => {
+    if (!addEval.rating) { showToast("Rating required", "error"); return; }
+    try { await af("/api/vendors/" + addEval.vendorId + "/evaluate", { method: "POST", body: { rating: parseInt(addEval.rating), notes: addEval.notes } }); showToast("Evaluation saved"); setAddEval(null); loadDetail(addEval.vendorId); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitLinkSupply = async () => {
+    if (!linkSupply.supplyId) { showToast("Select a supply", "error"); return; }
+    try { await af("/api/vendors/" + linkSupply.vendorId + "/link-supply", { method: "POST", body: { supplyId: linkSupply.supplyId, isPreferred: linkSupply.isPreferred, unitCost: linkSupply.unitCost || null, leadTimeDays: linkSupply.leadTime || null, notes: linkSupply.notes } }); showToast("Supply linked"); setLinkSupply(null); loadDetail(linkSupply.vendorId); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const unlinkSupply = async (vendorId, supplyId) => {
+    try { await af("/api/vendors/" + vendorId + "/supply/" + supplyId, { method: "DELETE" }); showToast("Supply unlinked"); loadDetail(vendorId); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const exportAVL = () => {
+    const approved = vendors.filter(v => v.approval_status === "approved");
+    if (approved.length === 0) { showToast("No approved vendors to export", "error"); return; }
+    dlCSV("OCSA_Approved_Vendor_List_" + new Date().toISOString().slice(0, 10) + ".csv",
+      ["Vendor Name", "Contact Name", "Phone", "Email", "Address", "Products / Services", "Certification Status", "Contract Terms", "Last Review Date", "Approval Status"],
+      approved.map(v => [v.name, v.contact_name || "", v.contact_phone || "", v.contact_email || "",
+        [v.address_line1, v.city, v.state, v.zip_code].filter(Boolean).join(", "),
+        v.products_services || "", v.certification_status || "", v.contract_terms || "",
+        v.last_review_date ? fd(v.last_review_date) : "", v.approval_status])
+    );
+    showToast("Approved Vendor List exported");
+  };
+
+  const statusColor = { approved: GR, pending: OR, probation: BL, inactive: "#8899AA" };
+  const emptyForm = { name: "", contactName: "", contactPhone: "", contactEmail: "", website: "", addressLine1: "", city: "", state: "", zipCode: "", productsServices: "", certificationStatus: "", contractTerms: "", approvalStatus: "pending", lastReviewDate: "" };
+
+  const renderFormFields = (form, setForm) => (<>
+    <div style={{ marginBottom: 12 }}><Lbl>Vendor Name *</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Spartan Chemical Company" /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>Contact Name</Lbl><Inp t={t} value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></div>
+      <div><Lbl>Contact Phone</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder="2155550000" /></div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>Contact Email</Lbl><Inp t={t} value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} type="email" /></div>
+      <div><Lbl>Website</Lbl><Inp t={t} value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="https://..." /></div>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>Address</Lbl><Inp t={t} value={form.addressLine1} onChange={e => setForm({ ...form, addressLine1: e.target.value })} placeholder="Street address" /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+      <div><Lbl>City</Lbl><Inp t={t} value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /></div>
+      <div><Lbl>State</Lbl><Inp t={t} value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} /></div>
+      <div><Lbl>ZIP</Lbl><Inp t={t} value={form.zipCode} onChange={e => setForm({ ...form, zipCode: e.target.value })} /></div>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>Products / Services</Lbl><TArea t={t} value={form.productsServices} onChange={e => setForm({ ...form, productsServices: e.target.value })} rows={2} placeholder="Describe what this vendor supplies..." /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>Certification Status</Lbl><Inp t={t} value={form.certificationStatus} onChange={e => setForm({ ...form, certificationStatus: e.target.value })} placeholder="e.g. Green Seal Partner, EPA Safer Choice" /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>Contract Terms</Lbl><TArea t={t} value={form.contractTerms} onChange={e => setForm({ ...form, contractTerms: e.target.value })} rows={2} placeholder="Payment terms, minimum order, pricing structure..." /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+      <div><Lbl>Approval Status</Lbl><Sel t={t} value={form.approvalStatus} onChange={e => setForm({ ...form, approvalStatus: e.target.value })} options={[{ v: "pending", l: "Pending Review" }, { v: "approved", l: "Approved" }, { v: "probation", l: "On Probation" }, { v: "inactive", l: "Inactive" }]} /></div>
+      <div><Lbl>Last Review Date</Lbl><Inp t={t} type="date" value={form.lastReviewDate} onChange={e => setForm({ ...form, lastReviewDate: e.target.value })} /></div>
+    </div>
+  </>);
+
+  return (<div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Vendor Registry</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={GO} /> Export AVL</button>
+        {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c="#0A1628" /> Add Vendor</button>}
+      </div>
+    </div>
+
+    <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+      {["all", "approved", "pending", "probation", "inactive"].map(f => (
+        <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? GO : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", textTransform: "capitalize", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>
+          {f === "all" ? "All (" + vendors.length + ")" : f}
+        </button>
+      ))}
+    </div>
+
+    {filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{vendors.length === 0 ? 'No vendors yet. Click "Add Vendor" to start.' : "No vendors match this filter."}</div>}
+
+    {filtered.map(v => (
+      <Crd key={v.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={() => loadDetail(v.id)}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: GO, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{v.name}</span>
+              <Bdg l={v.approval_status} c={statusColor[v.approval_status] || t.textMut} />
+            </div>
+            <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>
+              {v.contact_name && <span>{v.contact_name}</span>}
+              {v.contact_phone && <span style={{ marginLeft: 8 }}>{v.contact_phone}</span>}
+              {v.contact_email && <span style={{ marginLeft: 8 }}>{v.contact_email}</span>}
+            </div>
+            {v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.products_services}</div>}
+            <div style={{ display: "flex", gap: 10, marginTop: 5, flexWrap: "wrap" }}>
+              {v.last_review_date && <span style={{ fontSize: 9, color: t.textMut }}>Reviewed: {fd(v.last_review_date)}</span>}
+              {v.avg_rating && <span style={{ fontSize: 9, color: GO }}>{"★".repeat(Math.round(parseFloat(v.avg_rating)))} ({parseFloat(v.avg_rating).toFixed(1)})</span>}
+              {v.linked_supply_count > 0 && <span style={{ fontSize: 9, color: t.textSec }}>{v.linked_supply_count} supplies linked</span>}
+            </div>
+          </div>
+        </div>
+      </Crd>
+    ))}
+
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Vendor</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        {renderFormFields(addForm, setAddForm)}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Vendor</Btn></div>
+      </div>
+    </Mdl>}
+
+    {detail && <Mdl t={t} onClose={() => setDetail(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+          <div><div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
+          <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
+          {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>Contact<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
+          {detail.vendor.contact_phone && <div style={{ fontSize: 11, color: t.textMut }}>Phone<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_phone}</div></div>}
+          {detail.vendor.contact_email && <div style={{ fontSize: 11, color: t.textMut }}>Email<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_email}</div></div>}
+          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>Website<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontSize: 11 }}>View Site</a></div></div>}
+          {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>Address<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
+        </div>
+        {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Products and Services</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
+        {detail.vendor.certification_status && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Certifications</div><div style={{ fontSize: 12, color: t.textSec }}>{detail.vendor.certification_status}</div></div>}
+        {detail.vendor.contract_terms && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Contract Terms</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.contract_terms}</div></div>}
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Linked Supplies</div>
+            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Link Supply</button>}
+          </div>
+          {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No supplies linked yet</div>}
+          {detail.linkedSupplies?.map((ls, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
+              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? "$" + parseFloat(ls.unit_cost).toFixed(2) + "/unit" : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + ls.lead_time_days + "d lead" : ""}{ls.is_preferred ? <span style={{ color: GO, marginLeft: 6 }}>Preferred</span> : null}</div></div>
+              {isAdmin && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Unlink</button>}
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Evaluations</div>
+            <button onClick={() => setAddEval({ vendorId: detail.vendor.id, rating: 0, notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button>
+          </div>
+          {(!detail.evaluations || detail.evaluations.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No evaluations on file</div>}
+          {detail.evaluations?.map((ev, i) => (
+            <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 14, color: GO, letterSpacing: 2 }}>{"★".repeat(ev.rating)}{"☆".repeat(5 - ev.rating)}</span>
+                <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
+              </div>
+              {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
+              {ev.evaluator_name && <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>By {ev.evaluator_name}</div>}
+            </div>
+          ))}
+        </div>
+
+        {isAdmin && <div style={{ display: "flex", gap: 8 }}>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.vendor.id, name: detail.vendor.name, contactName: detail.vendor.contact_name || "", contactPhone: detail.vendor.contact_phone || "", contactEmail: detail.vendor.contact_email || "", website: detail.vendor.website || "", addressLine1: detail.vendor.address_line1 || "", city: detail.vendor.city || "", state: detail.vendor.state || "", zipCode: detail.vendor.zip_code || "", productsServices: detail.vendor.products_services || "", certificationStatus: detail.vendor.certification_status || "", contractTerms: detail.vendor.contract_terms || "", approvalStatus: detail.vendor.approval_status, lastReviewDate: detail.vendor.last_review_date ? detail.vendor.last_review_date.slice(0, 10) : "" })}>Edit</Btn>
+          <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm("Remove this vendor?")) deactivate(detail.vendor.id); }}>Remove</Btn>
+        </div>}
+      </div>
+    </Mdl>}
+
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Vendor</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        {renderFormFields(editForm, setEditForm)}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
+      </div>
+    </Mdl>}
+
+    {addEval && <Mdl t={t} onClose={() => setAddEval(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Add Evaluation</div>
+        <div style={{ marginBottom: 14 }}><Lbl>Rating *</Lbl>
+          <div style={{ display: "flex", gap: 8 }}>
+            {[1,2,3,4,5].map(r => (
+              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? GO : t.textMut, fontSize: 20, cursor: "pointer" }}>★</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><TArea t={t} value={addEval.notes} onChange={e => setAddEval({ ...addEval, notes: e.target.value })} rows={3} placeholder="Performance notes, delivery quality, responsiveness..." /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddEval(null)}>Cancel</Btn><Btn t={t} onClick={submitEval}>Save Evaluation</Btn></div>
+      </div>
+    </Mdl>}
+
+    {linkSupply && <Mdl t={t} onClose={() => setLinkSupply(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Link Supply to Vendor</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Supply *</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: "Select a supply..." }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Unit Cost</Lbl><Inp t={t} type="number" value={linkSupply.unitCost} onChange={e => setLinkSupply({ ...linkSupply, unitCost: e.target.value })} placeholder="$0.00" /></div>
+          <div><Lbl>Lead Time (days)</Lbl><Inp t={t} type="number" value={linkSupply.leadTime} onChange={e => setLinkSupply({ ...linkSupply, leadTime: e.target.value })} /></div>
+        </div>
+        <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={linkSupply.notes} onChange={e => setLinkSupply({ ...linkSupply, notes: e.target.value })} placeholder="Min order, availability notes..." /></div>
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={linkSupply.isPreferred} onChange={e => setLinkSupply({ ...linkSupply, isPreferred: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Mark as preferred vendor for this supply</span></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSupply(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSupply}>Link Supply</Btn></div>
       </div>
     </Mdl>}
   </div>);
