@@ -111,19 +111,19 @@ export default function AdminDashboard() {
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const allNav = [{ id: "overview", l: "Overview", i: HmI }, { id: "staff", l: "Staff", i: UsI, adminOnly: true }, { id: "sites", l: "Sites", i: MpI }, { id: "assigned", l: "Assigned", i: WkI }, { id: "operations", l: "Live Ops", i: ClI }, { id: "issues", l: "Issues", i: AlI }, { id: "supplies", l: "Supplies", i: BxI }, { id: "chat", l: "Messages", i: ChI }, { id: "reports", l: "Reports", i: BrI }];
   const nav = allNav.filter(n => !n.adminOnly || isAdmin);
-  return (<div style={{ width: "100%", maxWidth: 960, margin: "0 auto", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text }}>
+  return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
-    <div style={{ background: t.headerBg, padding: "12px 20px", borderBottom: "1px solid " + (themeMode === "dark" ? t.border : "rgba(255,255,255,0.08)"), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ background: t.headerBg, padding: "12px 28px", borderBottom: "1px solid " + (themeMode === "dark" ? t.border : "rgba(255,255,255,0.08)"), display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}><span style={{ fontFamily: "'Playfair Display',serif", fontSize: 22, fontWeight: 700, color: GO }}>OCSA</span><div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.15)" }} /><span style={{ fontSize: 13, color: "#A8B8C8" }}>{isAdmin ? "Admin Dashboard" : "Supervisor Dashboard"}</span><span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.1)", padding: "2px 8px", borderRadius: 10 }}>LIVE</span></div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button onClick={toggleTheme} title={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"} style={{ background: "rgba(255,255,255,0.08)", border: "none", borderRadius: 6, padding: "5px 8px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>{themeMode === "dark" ? <SunI sz={15} c="#A8B8C8" /> : <MoonI sz={15} c="#A8B8C8" />}</button>
         <span style={{ fontSize: 12, color: "#8899AA" }}>{user?.firstName}</span><button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer" }}><LoI sz={16} c="#8899AA" /></button>
       </div>
     </div>
-    <div style={{ display: "flex", gap: 2, padding: "8px 12px", background: t.navBg, borderBottom: "1px solid " + t.border, overflowX: "auto" }}>
+    <div style={{ display: "flex", gap: 2, padding: "8px 28px", background: t.navBg, borderBottom: "1px solid " + t.border, overflowX: "auto" }}>
       {nav.map(n => { const a = page === n.id; const NI = n.i; return <button key={n.id} onClick={() => setPage(n.id)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, background: a ? t.goldBg : "transparent", color: a ? GO : t.textMut, fontSize: 12, fontWeight: a ? 700 : 500, cursor: "pointer", border: a ? "1px solid " + t.goldBorder : "1px solid transparent", whiteSpace: "nowrap" }}><NI sz={15} c={a ? GO : t.textMut} />{n.l}</button>; })}
     </div>
-    <div style={{ padding: "16px 16px 40px" }}>
+    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "20px 28px 40px" }}>
       {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
       {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
       {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
