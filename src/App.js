@@ -114,6 +114,7 @@ export default function AdminDashboard() {
   </div>);
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
+  const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
   const GearI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
 
   const sidebarGroups = [
@@ -130,11 +131,12 @@ export default function AdminDashboard() {
       { id: "assigned", l: "Assigned Tasks", i: WkI },
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
+    { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
     { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "reports", l: "Reports", i: BrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", chat: "Messages", reports: "Reports & Time" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports & Time" };
   const SB_W = 220;
   const SB_BG = "#0F1D32";
   const SB_HOVER = "rgba(255,255,255,0.04)";
@@ -211,6 +213,7 @@ export default function AdminDashboard() {
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
       </div>
@@ -1251,6 +1254,188 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={linkSupply.notes} onChange={e => setLinkSupply({ ...linkSupply, notes: e.target.value })} placeholder="Min order, availability notes..." /></div>
         <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={linkSupply.isPreferred} onChange={e => setLinkSupply({ ...linkSupply, isPreferred: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Mark as preferred vendor for this supply</span></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSupply(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSupply}>Link Supply</Btn></div>
+      </div>
+    </Mdl>}
+  </div>);
+}
+function ServicesPage({ af, showToast, isAdmin, t }) {
+  const [services, setServices] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [detail, setDetail] = useState(null);
+  const [addForm, setAddForm] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [linkSite, setLinkSite] = useState(null);
+
+  const load = () => af("/api/services").then(setServices).catch(e => showToast(e.message, "error"));
+  useEffect(() => { load(); af("/api/sites").then(setSites).catch(() => {}); }, []);
+
+  const loadDetail = async id => {
+    try { const d = await af("/api/services/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitAdd = async () => {
+    if (!addForm.name) { showToast("Service name required", "error"); return; }
+    try { await af("/api/services", { method: "POST", body: addForm }); showToast("Service added"); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitEdit = async () => {
+    try { await af("/api/services/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Service updated"); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deactivate = async id => {
+    try { await af("/api/services/" + id, { method: "DELETE" }); showToast("Service removed"); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitLinkSite = async () => {
+    if (!linkSite.siteId) { showToast("Select a site", "error"); return; }
+    try { await af("/api/services/" + linkSite.serviceId + "/link-site", { method: "POST", body: { siteId: linkSite.siteId, notes: linkSite.notes } }); showToast("Site linked"); setLinkSite(null); loadDetail(linkSite.serviceId); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const unlinkSite = async (serviceId, siteId) => {
+    try { await af("/api/services/" + serviceId + "/site/" + siteId, { method: "DELETE" }); showToast("Site unlinked"); loadDetail(serviceId); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const exportCatalog = () => {
+    if (services.length === 0) { showToast("No services to export", "error"); return; }
+    dlCSV("OCSA_Service_Catalog_" + new Date().toISOString().slice(0, 10) + ".csv",
+      ["Service Name", "Description", "Rate Structure", "Required Certifications", "CIMS Category", "Active Sites"],
+      services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", s.cims_category || "", s.linked_site_count || 0])
+    );
+    showToast("Service catalog exported");
+  };
+
+  const cimsLabel = { SD: "Service Delivery", HSE: "Health Safety Env.", GB: "Green Buildings", QS: "Quality System", HR: "Human Resources", MC: "Management" };
+  const cimsColor = { SD: BL, HSE: OR, GB: GR, QS: GO, HR: "#9B59B6", MC: "#1ABC9C" };
+
+  const serviceIcons = {
+    "office-cleaning": "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",
+    "laboratory-cleaning": "M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v11m0 0H5a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2h-4m-6 0h6",
+    "industrial-cleaning": "M2 20h20M6 20V10l6-6 6 6v10M10 20v-5h4v5",
+    "biohazard-cleaning": "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0v20M2 12h20",
+    "post-construction-cleaning": "M2 20h20M4 20V10l8-8 8 8v10M9 20v-6h6v6",
+    "disinfection-services": "M12 2L2 22h20L12 2zm0 7v5m0 3h.01",
+    "landscaping": "M12 22V12M12 12C12 7 7 3 2 3c0 5 4 9 10 9zm0 0c0-5 5-9 10-9-1 5-5 9-10 9",
+    "green-cleaning": "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zM2 12h20M12 2c-4 6-4 14 0 20M12 2c4 6 4 14 0 20",
+  };
+
+  const formFields = (form, setForm) => (<>
+    <div style={{ marginBottom: 12 }}><Lbl>Service Name *</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Office Cleaning" /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><TArea t={t} value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Describe what this service covers..." /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>Rate Structure</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder="How is this service priced?" /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>Required Certifications</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder="Certifications staff must hold..." /></div>
+    <div style={{ marginBottom: 16 }}><Lbl>CIMS Category</Lbl>
+      <Sel t={t} value={form.cimsCategory || form.cims_category || "SD"} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
+        options={[{ v: "SD", l: "SD - Service Delivery" }, { v: "HSE", l: "HSE - Health Safety Environmental" }, { v: "GB", l: "GB - Green Buildings" }, { v: "QS", l: "QS - Quality System" }, { v: "HR", l: "HR - Human Resources" }, { v: "MC", l: "MC - Management Commitment" }]} />
+    </div>
+  </>);
+
+  return (<div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Service Catalog</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={GO} /> Export</button>
+        {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c="#0A1628" /> Add Service</button>}
+      </div>
+    </div>
+
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 12 }}>
+      {services.map(s => (
+        <Crd key={s.id} t={t} style={{ padding: 16, cursor: "pointer" }} onClick={() => loadDetail(s.id)}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[s.cims_category] || GO) + "18", border: "1px solid " + (cimsColor[s.cims_category] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[s.cims_category] || GO} />
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
+            </div>
+            <Bdg l={s.cims_category} c={cimsColor[s.cims_category] || GO} />
+          </div>
+          {s.description && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.description}</div>}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid " + t.border }}>
+            <span style={{ fontSize: 10, color: t.textMut }}>{cimsLabel[s.cims_category] || s.cims_category}</span>
+            {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{s.linked_site_count} site{s.linked_site_count !== 1 ? "s" : ""}</span>}
+          </div>
+        </Crd>
+      ))}
+      {services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>No services yet.</div>}
+    </div>
+
+    {detail && <Mdl t={t} onClose={() => setDetail(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{detail.service.name}</div>
+            <div style={{ marginTop: 6 }}><Bdg l={detail.service.cims_category} c={cimsColor[detail.service.cims_category] || GO} /><span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{cimsLabel[detail.service.cims_category]}</span></div>
+          </div>
+          <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+        </div>
+
+        {detail.service.description && <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Description</div>
+          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.description}</div>
+        </div>}
+
+        {detail.service.rate_structure && <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Rate Structure</div>
+          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.rate_structure}</div>
+        </div>}
+
+        {detail.service.required_certifications && <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Required Certifications</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+            {detail.service.required_certifications.split(",").map((c, i) => (
+              <span key={i} style={{ padding: "3px 8px", borderRadius: 4, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR }}>{c.trim()}</span>
+            ))}
+          </div>
+        </div>}
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Active Sites</div>
+            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Link Site</button>}
+          </div>
+          {(!detail.linkedSites || detail.linkedSites.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No sites linked yet</div>}
+          {detail.linkedSites?.map((ls, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{ls.site_name}</div>
+                {ls.city && <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.city}, {ls.state}</div>}
+                {ls.notes && <div style={{ fontSize: 10, color: t.textSec, marginTop: 2 }}>{ls.notes}</div>}
+              </div>
+              {isAdmin && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Unlink</button>}
+            </div>
+          ))}
+        </div>
+
+        {isAdmin && <div style={{ display: "flex", gap: 8 }}>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>Edit</Btn>
+          <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm("Remove this service?")) deactivate(detail.service.id); }}>Remove</Btn>
+        </div>}
+      </div>
+    </Mdl>}
+
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Service</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        {formFields(addForm, setAddForm)}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Service</Btn></div>
+      </div>
+    </Mdl>}
+
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Service</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        {formFields(editForm, setEditForm)}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
+      </div>
+    </Mdl>}
+
+    {linkSite && <Mdl t={t} onClose={() => setLinkSite(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Link Site to Service</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={linkSite.notes} onChange={e => setLinkSite({ ...linkSite, notes: e.target.value })} placeholder="e.g. Green cleaning only, monthly frequency" /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSite(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSite}>Link Site</Btn></div>
       </div>
     </Mdl>}
   </div>);
