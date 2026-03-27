@@ -140,7 +140,7 @@ export default function AdminDashboard() {
   const SB_ACTIVE = "rgba(200,168,78,0.1)";
   const SB_BORDER = "rgba(255,255,255,0.06)";
   const SB_TEXT = "#8899AA";
-  const SB_TEXT_ACTIVE = GOLD;
+  const SB_TEXT_ACTIVE = GO;
 
   return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: "'DM Sans',sans-serif", color: t.text, display: "flex" }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
@@ -161,8 +161,8 @@ export default function AdminDashboard() {
               const active = page === item.id;
               const NavI = item.i;
               return (
-                <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GOLD : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease" }}>
-                  <NavI sz={17} c={active ? GOLD : SB_TEXT} />
+                <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease" }}>
+                  <NavI sz={17} c={active ? GO : SB_TEXT} />
                   {item.l}
                 </button>
               );
@@ -179,7 +179,7 @@ export default function AdminDashboard() {
         </button>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(200,168,78,0.12)", border: "1px solid " + GOLD, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: GOLD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
+            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(200,168,78,0.12)", border: "1px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: GO }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
             <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
           </div>
           <button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
