@@ -689,149 +689,333 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>Create and Assign</Btn></div>
     </div></Mdl>}
   </div>);
-// ============================================================
-// OCSA Cleaning - Timesheet Approval Routes
-// Phase 2D Session 3
-// File: routes/timesheets.js
-// ============================================================
+}
 
-const express = require("express");
-const router = express.Router();
-const { pool } = require("../db");
-const { authenticate, managementOnly, adminOnly } = require("../middleware/auth");
+function TimesheetsPage({ af, showToast, isAdmin, t }) {
+  const [data, setData] = useState(null);
+  const [weekStart, setWeekStart] = useState(() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    monday.setHours(0, 0, 0, 0);
+    return monday.toISOString().split("T")[0];
+  });
+  const [filterUser, setFilterUser] = useState("");
+  const [filterSite, setFilterSite] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [expandedUser, setExpandedUser] = useState(null);
+  const [selectedShifts, setSelectedShifts] = useState(new Set());
+  const [rejectForm, setRejectForm] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [bulkRejectForm, setBulkRejectForm] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [sites, setSites] = useState([]);
+  const [staff, setStaff] = useState([]);
 
-// ---- GET /api/timesheets ----
-router.get("/", authenticate, managementOnly, async (req, res) => {
-  try {
-    const { week_start, user_id, site_id, status } = req.query;
-    let startDate;
-    if (week_start) {
-      startDate = new Date(week_start);
-    } else {
-      const now = new Date();
-      const day = now.getDay();
-      const diff = day === 0 ? 6 : day - 1;
-      startDate = new Date(now);
-      startDate.setDate(now.getDate() - diff);
+  const load = async (ws) => {
+    setLoading(true);
+    try {
+      let url = "/api/timesheets?week_start=" + (ws || weekStart);
+      if (filterUser) url += "&user_id=" + filterUser;
+      if (filterSite) url += "&site_id=" + filterSite;
+      if (filterStatus) url += "&status=" + filterStatus;
+      const d = await af(url);
+      setData(d);
+      setSelectedShifts(new Set());
+    } catch (e) {
+      showToast(e.message, "error");
     }
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 7);
+    setLoading(false);
+  };
 
-    let query = `
-      SELECT s.id, s.user_id, s.site_id, s.clock_in_time, s.clock_out_time, s.duration_minutes,
-        s.approval_status, s.approved_by, s.approved_at, s.rejection_reason,
-        s.is_manual_entry, s.manual_entry_notes, s.clock_in_lat, s.clock_in_lng,
-        u.first_name || ' ' || u.last_name AS staff_name, u.role, u.hourly_rate,
-        st.name AS site_name
-      FROM shift_records s
-      JOIN users u ON s.user_id = u.id
-      JOIN sites st ON s.site_id = st.id
-      WHERE s.clock_in_time >= $1 AND s.clock_in_time < $2`;
-    const params = [startDate.toISOString(), endDate.toISOString()];
-    let paramIdx = 3;
-    if (user_id) { query += ` AND s.user_id = $${paramIdx}`; params.push(user_id); paramIdx++; }
-    if (site_id) { query += ` AND s.site_id = $${paramIdx}`; params.push(site_id); paramIdx++; }
-    if (status) { query += ` AND s.approval_status = $${paramIdx}`; params.push(status); paramIdx++; }
-    query += ` ORDER BY u.last_name, u.first_name, s.clock_in_time`;
+  useEffect(() => {
+    load();
+    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/users?status=active").then(setStaff).catch(() => {});
+  }, []);
 
-    const result = await pool.query(query, params);
-    const shifts = result.rows;
-    const userMap = {};
-    shifts.forEach(s => {
-      if (!userMap[s.user_id]) {
-        userMap[s.user_id] = { userId: s.user_id, staffName: s.staff_name, role: s.role, hourlyRate: s.hourly_rate || 0, shifts: [], totalMinutes: 0, totalApproved: 0, totalPending: 0, totalRejected: 0, exceptions: [] };
-      }
-      const user = userMap[s.user_id];
-      const dur = s.duration_minutes || 0;
-      user.totalMinutes += dur;
-      if (s.approval_status === "approved" || s.approval_status === "exported") user.totalApproved++;
-      else if (s.approval_status === "rejected") user.totalRejected++;
-      else user.totalPending++;
-      const exceptions = [];
-      if (!s.clock_out_time) exceptions.push("missed_clockout");
-      if (dur > 480) exceptions.push("overtime_shift");
-      if (dur > 0 && dur < 120) exceptions.push("short_shift");
-      user.shifts.push({ id: s.id, siteId: s.site_id, siteName: s.site_name, clockInTime: s.clock_in_time, clockOutTime: s.clock_out_time, durationMinutes: dur, approvalStatus: s.approval_status, approvedBy: s.approved_by, approvedAt: s.approved_at, rejectionReason: s.rejection_reason, isManualEntry: s.is_manual_entry, manualEntryNotes: s.manual_entry_notes, hourlyRate: s.hourly_rate || 0, exceptions });
-      exceptions.forEach(ex => { if (!user.exceptions.includes(ex)) user.exceptions.push(ex); });
+  useEffect(() => { load(); }, [weekStart, filterUser, filterSite, filterStatus]);
+
+  const navigateWeek = (dir) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + (dir * 7));
+    setWeekStart(d.toISOString().split("T")[0]);
+  };
+
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const weekLabel = new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " - " +
+    weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  const isCurrentWeek = (() => {
+    const now = new Date();
+    const day = now.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    return weekStart === monday.toISOString().split("T")[0];
+  })();
+
+  const approveShift = async (shiftId) => {
+    try {
+      await af("/api/timesheets/" + shiftId + "/approve", { method: "PATCH" });
+      showToast("Shift approved");
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const rejectShift = async () => {
+    if (!rejectReason.trim()) { showToast("Reason is required", "error"); return; }
+    try {
+      await af("/api/timesheets/" + rejectForm + "/reject", { method: "PATCH", body: { reason: rejectReason.trim() } });
+      showToast("Shift rejected");
+      setRejectForm(null);
+      setRejectReason("");
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const resetShift = async (shiftId) => {
+    try {
+      await af("/api/timesheets/" + shiftId + "/reset", { method: "PATCH" });
+      showToast("Shift reset to pending");
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const bulkApprove = async () => {
+    if (selectedShifts.size === 0) { showToast("Select shifts first", "error"); return; }
+    try {
+      const d = await af("/api/timesheets/bulk-approve", { method: "POST", body: { shiftIds: [...selectedShifts] } });
+      showToast(d.message);
+      setSelectedShifts(new Set());
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const bulkReject = async () => {
+    if (selectedShifts.size === 0) { showToast("Select shifts first", "error"); return; }
+    if (!bulkRejectReason.trim()) { showToast("Reason is required", "error"); return; }
+    try {
+      const d = await af("/api/timesheets/bulk-reject", { method: "POST", body: { shiftIds: [...selectedShifts], reason: bulkRejectReason.trim() } });
+      showToast(d.message);
+      setSelectedShifts(new Set());
+      setBulkRejectForm(false);
+      setBulkRejectReason("");
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const exportTimesheets = async () => {
+    setExporting(true);
+    try {
+      const d = await af("/api/timesheets/export", { method: "POST", body: { week_start: weekStart } });
+      showToast(d.message);
+      // Download CSV
+      const headers = ["Last Name", "First Name", "Role", "Phone", "Email", "Site", "Clock In", "Clock Out", "Hours", "Rate", "Gross Pay", "Manual Entry"];
+      const rows = d.data.map(r => [r.lastName, r.firstName, r.role, r.phone, r.email, r.siteName, r.clockIn, r.clockOut, r.durationHours, r.hourlyRate, r.grossPay, r.isManualEntry ? "Yes" : "No"]);
+      dlCSV("ocsa-timesheets-" + weekStart + ".csv", headers, rows);
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+    setExporting(false);
+  };
+
+  const toggleShiftSelect = (shiftId) => {
+    setSelectedShifts(prev => {
+      const n = new Set(prev);
+      if (n.has(shiftId)) n.delete(shiftId); else n.add(shiftId);
+      return n;
     });
-    Object.values(userMap).forEach(user => { if (user.totalMinutes > 2400 && !user.exceptions.includes("overtime_weekly")) user.exceptions.push("overtime_weekly"); });
-    const users = Object.values(userMap);
-    const summary = { weekStart: startDate.toISOString(), weekEnd: endDate.toISOString(), totalShifts: shifts.length, totalStaff: users.length, totalMinutes: shifts.reduce((sum, s) => sum + (s.duration_minutes || 0), 0), pendingCount: shifts.filter(s => s.approval_status === "pending").length, approvedCount: shifts.filter(s => s.approval_status === "approved" || s.approval_status === "exported").length, rejectedCount: shifts.filter(s => s.approval_status === "rejected").length, exceptionsCount: shifts.filter(s => { const dur = s.duration_minutes || 0; return !s.clock_out_time || dur > 480 || (dur > 0 && dur < 120); }).length };
-    res.json({ summary, users });
-  } catch (err) { console.error("GET /api/timesheets error:", err); res.status(500).json({ error: "Failed to load timesheets" }); }
-});
+  };
 
-// ---- PATCH /api/timesheets/:shiftId/approve ----
-router.patch("/:shiftId/approve", authenticate, managementOnly, async (req, res) => {
-  try {
-    const result = await pool.query(`UPDATE shift_records SET approval_status = 'approved', approved_by = $1, approved_at = NOW() WHERE id = $2 AND approval_status IN ('pending', 'rejected') RETURNING id, approval_status, approved_at`, [req.user.id, req.params.shiftId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Shift not found or already approved/exported" });
-    res.json({ message: "Shift approved", shift: result.rows[0] });
-  } catch (err) { console.error("approve error:", err); res.status(500).json({ error: "Failed to approve shift" }); }
-});
+  const selectAllPending = () => {
+    if (!data) return;
+    const pendingIds = [];
+    data.users.forEach(u => u.shifts.forEach(s => { if (s.approvalStatus === "pending") pendingIds.push(s.id); }));
+    setSelectedShifts(new Set(pendingIds));
+  };
 
-// ---- PATCH /api/timesheets/:shiftId/reject ----
-router.patch("/:shiftId/reject", authenticate, managementOnly, async (req, res) => {
-  try {
-    const { reason } = req.body;
-    if (!reason || !reason.trim()) return res.status(400).json({ error: "Rejection reason is required" });
-    const result = await pool.query(`UPDATE shift_records SET approval_status = 'rejected', approved_by = $1, approved_at = NOW(), rejection_reason = $2 WHERE id = $3 AND approval_status IN ('pending', 'approved') RETURNING id, approval_status, rejection_reason`, [req.user.id, reason.trim(), req.params.shiftId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Shift not found or already exported" });
-    res.json({ message: "Shift rejected", shift: result.rows[0] });
-  } catch (err) { console.error("reject error:", err); res.status(500).json({ error: "Failed to reject shift" }); }
-});
+  const selectAllForUser = (userId) => {
+    if (!data) return;
+    const user = data.users.find(u => u.userId === userId);
+    if (!user) return;
+    const pendingIds = user.shifts.filter(s => s.approvalStatus === "pending").map(s => s.id);
+    setSelectedShifts(prev => {
+      const n = new Set(prev);
+      const allSelected = pendingIds.every(id => n.has(id));
+      if (allSelected) { pendingIds.forEach(id => n.delete(id)); }
+      else { pendingIds.forEach(id => n.add(id)); }
+      return n;
+    });
+  };
 
-// ---- POST /api/timesheets/bulk-approve ----
-router.post("/bulk-approve", authenticate, managementOnly, async (req, res) => {
-  try {
-    const { shiftIds } = req.body;
-    if (!shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) return res.status(400).json({ error: "Provide an array of shift IDs" });
-    const params = [req.user.id];
-    const phArr = shiftIds.map((id, i) => { params.push(id); return `$${i + 2}`; });
-    const result = await pool.query(`UPDATE shift_records SET approval_status = 'approved', approved_by = $1, approved_at = NOW() WHERE id IN (${phArr.join(", ")}) AND approval_status IN ('pending', 'rejected') RETURNING id`, params);
-    res.json({ message: `${result.rows.length} shift(s) approved`, approvedCount: result.rows.length, approvedIds: result.rows.map(r => r.id) });
-  } catch (err) { console.error("bulk-approve error:", err); res.status(500).json({ error: "Failed to bulk approve" }); }
-});
+  const fmtDt = (d) => d ? new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "";
+  const fmtTm = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "---";
+  const fmtDur = (min) => { if (!min) return "---"; const h = Math.floor(min / 60); const m = min % 60; return h + "h " + m + "m"; };
 
-// ---- POST /api/timesheets/bulk-reject ----
-router.post("/bulk-reject", authenticate, managementOnly, async (req, res) => {
-  try {
-    const { shiftIds, reason } = req.body;
-    if (!shiftIds || !Array.isArray(shiftIds) || shiftIds.length === 0) return res.status(400).json({ error: "Provide an array of shift IDs" });
-    if (!reason || !reason.trim()) return res.status(400).json({ error: "Rejection reason is required" });
-    const params = [req.user.id, reason.trim()];
-    const phArr = shiftIds.map((id, i) => { params.push(id); return `$${i + 3}`; });
-    const result = await pool.query(`UPDATE shift_records SET approval_status = 'rejected', approved_by = $1, approved_at = NOW(), rejection_reason = $2 WHERE id IN (${phArr.join(", ")}) AND approval_status IN ('pending', 'approved') RETURNING id`, params);
-    res.json({ message: `${result.rows.length} shift(s) rejected`, rejectedCount: result.rows.length });
-  } catch (err) { console.error("bulk-reject error:", err); res.status(500).json({ error: "Failed to bulk reject" }); }
-});
+  const statusColor = { pending: OR, approved: GR, rejected: RD, exported: BL };
+  const exColor = { missed_clockout: RD, overtime_shift: OR, short_shift: OR, overtime_weekly: "#9B59B6" };
+  const exLabel = { missed_clockout: "No Clock-Out", overtime_shift: ">8hr Shift", short_shift: "<2hr Shift", overtime_weekly: ">40hr Week" };
 
-// ---- PATCH /api/timesheets/:shiftId/reset ----
-router.patch("/:shiftId/reset", authenticate, managementOnly, async (req, res) => {
-  try {
-    const result = await pool.query(`UPDATE shift_records SET approval_status = 'pending', approved_by = NULL, approved_at = NULL, rejection_reason = NULL WHERE id = $1 AND approval_status IN ('approved', 'rejected') RETURNING id, approval_status`, [req.params.shiftId]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Shift not found or cannot be reset" });
-    res.json({ message: "Shift reset to pending", shift: result.rows[0] });
-  } catch (err) { console.error("reset error:", err); res.status(500).json({ error: "Failed to reset shift" }); }
-});
+  const summary = data?.summary;
+  const users = data?.users || [];
 
-// ---- POST /api/timesheets/export ----
-router.post("/export", authenticate, adminOnly, async (req, res) => {
-  try {
-    const { week_start } = req.body;
-    if (!week_start) return res.status(400).json({ error: "week_start is required" });
-    const startDate = new Date(week_start); startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 7);
-    const result = await pool.query(`SELECT s.id, u.first_name, u.last_name, u.first_name || ' ' || u.last_name AS staff_name, u.role, u.phone, u.email, u.hourly_rate, st.name AS site_name, s.clock_in_time, s.clock_out_time, s.duration_minutes, s.is_manual_entry FROM shift_records s JOIN users u ON s.user_id = u.id JOIN sites st ON s.site_id = st.id WHERE s.clock_in_time >= $1 AND s.clock_in_time < $2 AND s.approval_status = 'approved' ORDER BY u.last_name, u.first_name, s.clock_in_time`, [startDate.toISOString(), endDate.toISOString()]);
-    if (result.rows.length === 0) return res.status(400).json({ error: "No approved shifts to export for this week" });
-    const shiftIds = result.rows.map(r => r.id);
-    const phArr = shiftIds.map((_, i) => `$${i + 1}`);
-    await pool.query(`UPDATE shift_records SET approval_status = 'exported' WHERE id IN (${phArr.join(", ")})`, shiftIds);
-    const exportData = result.rows.map(r => ({ firstName: r.first_name, lastName: r.last_name, staffName: r.staff_name, role: r.role, phone: r.phone, email: r.email, siteName: r.site_name, clockIn: r.clock_in_time, clockOut: r.clock_out_time, durationMinutes: r.duration_minutes, durationHours: r.duration_minutes ? (r.duration_minutes / 60).toFixed(2) : "0.00", hourlyRate: r.hourly_rate || 0, grossPay: r.duration_minutes && r.hourly_rate ? ((r.duration_minutes / 60) * r.hourly_rate).toFixed(2) : "0.00", isManualEntry: r.is_manual_entry }));
-    const weekLabel = startDate.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " - " + new Date(endDate.getTime() - 86400000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    res.json({ message: `${shiftIds.length} shift(s) exported`, weekLabel, exportedCount: shiftIds.length, data: exportData });
-  } catch (err) { console.error("export error:", err); res.status(500).json({ error: "Failed to export timesheets" }); }
-});
+  return (<div>
+    {/* Week Navigation */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={() => navigateWeek(-1)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, cursor: "pointer", fontSize: 14 }}>&larr;</button>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{weekLabel}</div>
+          {isCurrentWeek && <span style={{ fontSize: 9, color: GR, fontWeight: 600 }}>CURRENT WEEK</span>}
+        </div>
+        <button onClick={() => navigateWeek(1)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, cursor: "pointer", fontSize: 14 }}>&rarr;</button>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        {isAdmin && <Btn t={t} onClick={exportTimesheets} style={{ opacity: exporting ? 0.6 : 1 }}><DlI sz={13} c="#0A1628" /> {exporting ? "Exporting..." : "Export for ADP"}</Btn>}
+      </div>
+    </div>
 
-module.exports = router;}
+    {/* Filters */}
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      <Sel t={t} value={filterUser} onChange={e => setFilterUser(e.target.value)} options={[{ v: "", l: "All Staff" }, ...staff.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel t={t} value={filterSite} onChange={e => setFilterSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel t={t} value={filterStatus} onChange={e => setFilterStatus(e.target.value)} options={[{ v: "", l: "All Status" }, { v: "pending", l: "Pending" }, { v: "approved", l: "Approved" }, { v: "rejected", l: "Rejected" }, { v: "exported", l: "Exported" }]} style={{ flex: 1, minWidth: 110 }} />
+    </div>
+
+    {/* Summary Cards */}
+    {summary && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+      <SC t={t} label="Shifts" value={summary.totalShifts} sub={summary.totalStaff + " staff"} color={GO} icon={CkI} />
+      <SC t={t} label="Pending" value={summary.pendingCount} color={summary.pendingCount > 0 ? OR : GR} icon={CkI} />
+      <SC t={t} label="Approved" value={summary.approvedCount} color={GR} icon={CkI} />
+      <SC t={t} label="Exceptions" value={summary.exceptionsCount} color={summary.exceptionsCount > 0 ? RD : GR} icon={AlI} />
+    </div>}
+
+    {/* Bulk Actions */}
+    {selectedShifts.size > 0 && <Crd t={t} style={{ marginBottom: 14, padding: 12, border: "1px solid " + GO }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: GO }}>{selectedShifts.size} shift{selectedShifts.size !== 1 ? "s" : ""} selected</div>
+        <div style={{ display: "flex", gap: 6 }}>
+          <Btn t={t} onClick={bulkApprove} style={{ padding: "6px 14px", fontSize: 11, background: GR, color: "#F8F7F4" }}>Approve All</Btn>
+          <Btn t={t} v="ghost" onClick={() => setBulkRejectForm(true)} style={{ padding: "6px 14px", fontSize: 11, border: "1px solid " + RD, color: RD }}>Reject All</Btn>
+          <Btn t={t} v="ghost" onClick={() => setSelectedShifts(new Set())} style={{ padding: "6px 14px", fontSize: 11 }}>Clear</Btn>
+        </div>
+      </div>
+    </Crd>}
+
+    {/* Quick Actions */}
+    {summary && summary.pendingCount > 0 && selectedShifts.size === 0 && (
+      <div style={{ marginBottom: 14 }}>
+        <button onClick={selectAllPending} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + t.goldBorder, background: t.goldBg, color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Select All Pending ({summary.pendingCount})</button>
+      </div>
+    )}
+
+    {/* Loading */}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading timesheets...</div>}
+
+    {/* Empty State */}
+    {!loading && users.length === 0 && <Crd t={t} style={{ padding: 40, textAlign: "center" }}><CkI sz={32} c={t.textMut} /><div style={{ fontSize: 14, color: t.textMut, marginTop: 12 }}>No shifts found for this week.</div></Crd>}
+
+    {/* Staff Groups */}
+    {!loading && users.map(user => {
+      const isExpanded = expandedUser === user.userId;
+      const totalHours = (user.totalMinutes / 60).toFixed(1);
+      const hasExceptions = user.exceptions.length > 0;
+      const userPendingIds = user.shifts.filter(s => s.approvalStatus === "pending").map(s => s.id);
+      const allUserSelected = userPendingIds.length > 0 && userPendingIds.every(id => selectedShifts.has(id));
+
+      return (<Crd key={user.userId} t={t} style={{ marginBottom: 10, padding: 0 }}>
+        <button onClick={() => setExpandedUser(isExpanded ? null : user.userId)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", cursor: "pointer", color: t.text, textAlign: "left" }}>
+          {userPendingIds.length > 0 && <div onClick={e => { e.stopPropagation(); selectAllForUser(user.userId); }} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (allUserSelected ? GO : t.textMut), background: allUserSelected ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>{allUserSelected && <ChkI sz={10} c="#0A1628" />}</div>}
+          <Ini name={user.staffName} sz={36} />
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{user.staffName}</span>
+              {user.exceptions.map(ex => <span key={ex} style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: (exColor[ex] || OR) + "18", color: exColor[ex] || OR }}>{exLabel[ex] || ex}</span>)}
+            </div>
+            <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{user.shifts.length} shift{user.shifts.length !== 1 ? "s" : ""} | {totalHours}h total{user.hourlyRate > 0 ? " | $" + (user.totalMinutes / 60 * user.hourlyRate).toFixed(2) : ""}</div>
+            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+              {user.totalPending > 0 && <span style={{ fontSize: 9, color: OR }}>{user.totalPending} pending</span>}
+              {user.totalApproved > 0 && <span style={{ fontSize: 9, color: GR }}>{user.totalApproved} approved</span>}
+              {user.totalRejected > 0 && <span style={{ fontSize: 9, color: RD }}>{user.totalRejected} rejected</span>}
+            </div>
+          </div>
+          <Ic d={isExpanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} sz={16} c={t.textMut} />
+        </button>
+
+        {isExpanded && <div style={{ borderTop: "1px solid " + t.border, padding: "0 16px 16px" }}>
+          {user.shifts.map(shift => {
+            const isSelected = selectedShifts.has(shift.id);
+            const isPending = shift.approvalStatus === "pending";
+            const hasEx = shift.exceptions.length > 0;
+
+            return (<div key={shift.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
+              {isPending && <div onClick={() => toggleShiftSelect(shift.id)} style={{ width: 16, height: 16, borderRadius: 3, border: "2px solid " + (isSelected ? GO : t.textMut), background: isSelected ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: 2 }}>{isSelected && <ChkI sz={8} c="#0A1628" />}</div>}
+              {!isPending && <div style={{ width: 16, flexShrink: 0 }} />}
+
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{fmtDt(shift.clockInTime)}</span>
+                  <span style={{ fontSize: 11, color: t.textSec }}>{fmtTm(shift.clockInTime)} - {fmtTm(shift.clockOutTime)}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: GO }}>{fmtDur(shift.durationMinutes)}</span>
+                  <Bdg l={shift.approvalStatus} c={statusColor[shift.approvalStatus] || t.textMut} />
+                  {shift.isManualEntry && <Bdg l="Manual" c={BL} />}
+                  {shift.exceptions.map(ex => <span key={ex} style={{ fontSize: 7, fontWeight: 700, padding: "1px 4px", borderRadius: 2, background: (exColor[ex] || OR) + "18", color: exColor[ex] || OR }}>{exLabel[ex]}</span>)}
+                </div>
+                <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{shift.siteName}{shift.hourlyRate > 0 ? " | $" + shift.hourlyRate + "/hr" : ""}{shift.durationMinutes && shift.hourlyRate ? " | $" + (shift.durationMinutes / 60 * shift.hourlyRate).toFixed(2) : ""}</div>
+                {shift.rejectionReason && <div style={{ fontSize: 10, color: RD, marginTop: 3, fontStyle: "italic" }}>Rejected: {shift.rejectionReason}</div>}
+                {shift.manualEntryNotes && <div style={{ fontSize: 10, color: BL, marginTop: 3 }}>Note: {shift.manualEntryNotes}</div>}
+              </div>
+
+              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                {isPending && <button onClick={() => approveShift(shift.id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, fontWeight: 600, cursor: "pointer" }}>Approve</button>}
+                {isPending && <button onClick={() => { setRejectForm(shift.id); setRejectReason(""); }} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, fontWeight: 600, cursor: "pointer" }}>Reject</button>}
+                {(shift.approvalStatus === "approved" || shift.approvalStatus === "rejected") && <button onClick={() => resetShift(shift.id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textMut, fontSize: 9, cursor: "pointer" }}>Reset</button>}
+              </div>
+            </div>);
+          })}
+
+          {/* User-level quick approve */}
+          {user.totalPending > 0 && <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
+            <button onClick={() => {
+              const pendingIds = user.shifts.filter(s => s.approvalStatus === "pending").map(s => s.id);
+              af("/api/timesheets/bulk-approve", { method: "POST", body: { shiftIds: pendingIds } })
+                .then(d => { showToast(d.message); load(); })
+                .catch(e => showToast(e.message, "error"));
+            }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve All for {user.staffName.split(" ")[0]}</button>
+          </div>}
+        </div>}
+      </Crd>);
+    })}
+
+    {/* Reject Modal */}
+    {rejectForm && <Mdl t={t} onClose={() => setRejectForm(null)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 12 }}>Reject Shift</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Provide a reason for rejecting this timesheet entry. The staff member may need to re-submit or correct their clock times.</div>
+        <div style={{ marginBottom: 16 }}><Lbl>Reason *</Lbl><TArea t={t} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Incorrect clock-out time, please verify" rows={3} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <Btn t={t} v="ghost" onClick={() => setRejectForm(null)}>Cancel</Btn>
+          <Btn t={t} v="danger" onClick={rejectShift}>Reject Shift</Btn>
+        </div>
+      </div>
+    </Mdl>}
+
+    {/* Bulk Reject Modal */}
+    {bulkRejectForm && <Mdl t={t} onClose={() => setBulkRejectForm(false)}>
+      <div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 12 }}>Reject {selectedShifts.size} Shifts</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Provide a reason that will apply to all {selectedShifts.size} selected shifts.</div>
+        <div style={{ marginBottom: 16 }}><Lbl>Reason *</Lbl><TArea t={t} value={bulkRejectReason} onChange={e => setBulkRejectReason(e.target.value)} placeholder="Reason for rejection..." rows={3} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <Btn t={t} v="ghost" onClick={() => setBulkRejectForm(false)}>Cancel</Btn>
+          <Btn t={t} v="danger" onClick={bulkReject}>Reject All</Btn>
+        </div>
+      </div>
+    </Mdl>}
+  </div>);
+}
