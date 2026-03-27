@@ -171,22 +171,59 @@ export default function AdminDashboard() {
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 0" }}>
         {sidebarGroups.map((group, gi) => {
           const isGroupCollapsed = group.label && collapsedGroups.has(group.label);
+          const firstItem = group.items[0];
+          const GroupIcon = firstItem?.i;
+          const isAnyItemActive = group.items.some(item => page === item.id);
+
+          // COLLAPSED SIDEBAR: show one icon per group, individual icons for label-less items
+          if (sidebarCollapsed) {
+            if (group.label) {
+              // One representative icon for the whole group
+              return (
+                <div key={gi} style={{ marginBottom: 2 }}>
+                  <button
+                    title={group.label}
+                    onClick={() => { toggleSidebar(); setPage(firstItem.id); }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                    {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? GO : SB_TEXT} />}
+                  </button>
+                </div>
+              );
+            } else {
+              // No label: show each item icon individually
+              return (
+                <div key={gi} style={{ marginBottom: 2 }}>
+                  {group.items.map(item => {
+                    const active = page === item.id;
+                    const NavI = item.i;
+                    return (
+                      <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
+                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                        <NavI sz={18} c={active ? GO : SB_TEXT} />
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            }
+          }
+
+          // EXPANDED SIDEBAR: full labels + collapsible groups
           return (
             <div key={gi} style={{ marginBottom: 2 }}>
-              {group.label && !sidebarCollapsed && (
+              {group.label && (
                 <button onClick={() => toggleGroup(group.label)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px 4px", background: "none", border: "none", cursor: "pointer", color: SB_TEXT }}>
                   <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>{group.label}</span>
                   <Ic d={isGroupCollapsed ? "M6 9l6 6 6-6" : "M18 15l-6-6-6 6"} sz={12} c={SB_TEXT} />
                 </button>
               )}
-              {group.label && sidebarCollapsed && <div style={{ height: 8 }} />}
               {!isGroupCollapsed && group.items.map(item => {
                 const active = page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} onClick={() => setPage(item.id)} title={sidebarCollapsed ? item.l : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: sidebarCollapsed ? 0 : 10, padding: sidebarCollapsed ? "10px 0" : "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
-                    <NavI sz={18} c={active ? GO : SB_TEXT} />
-                    {!sidebarCollapsed && <span>{item.l}</span>}
+                  <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                    <NavI sz={17} c={active ? GO : SB_TEXT} />
+                    <span>{item.l}</span>
                   </button>
                 );
               })}
