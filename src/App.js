@@ -92,6 +92,10 @@ export default function AdminDashboard() {
   const [token, setToken] = useState(null); const [user, setUser] = useState(null);
   const [page, setPage] = useState("overview"); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
   const [themeMode, setThemeMode] = useState(() => { try { return localStorage.getItem("ocsa-theme") || "dark"; } catch { return "dark"; } });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
+  const [collapsedGroups, setCollapsedGroups] = useState(new Set());
+  const toggleSidebar = () => { const next = !sidebarCollapsed; setSidebarCollapsed(next); try { localStorage.setItem("ocsa-sb-collapsed", next); } catch {} };
+  const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
@@ -133,12 +137,15 @@ export default function AdminDashboard() {
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
-    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "clockhistory", l: "Clock History", i: HsI }, { id: "reports", l: "Reports", i: BrI }] },
+    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
+    { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports & Time" };
-  const SB_W = 220;
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports" };
+  const SB_W_EXPANDED = 220;
+  const SB_W_COLLAPSED = 64;
+  const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
   const SB_BG = "#0F1D32";
   const SB_HOVER = "rgba(255,255,255,0.04)";
   const SB_ACTIVE = "rgba(200,168,78,0.1)";
@@ -150,49 +157,66 @@ export default function AdminDashboard() {
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
 
     {/* ===== SIDEBAR ===== */}
-    <div style={{ width: SB_W, minHeight: "100vh", background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50 }}>
-      {/* Logo */}
-      <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid " + SB_BORDER }}>
-        <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 10px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt="OCSA Cleaning" style={{ height: 28 }} /></div>
+    <div style={{ width: SB_W, minHeight: "100vh", background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
+
+      {/* Logo + collapse toggle */}
+      <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid " + SB_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
+        {!sidebarCollapsed && <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 8px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt="OCSA Cleaning" style={{ height: 26 }} /></div>}
+        <button onClick={toggleSidebar} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: SB_TEXT, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Ic d={sidebarCollapsed ? "M13 17l5-5-5-5M6 17l5-5-5-5" : "M11 17l-5-5 5-5M18 17l-5-5 5-5"} sz={16} c={SB_TEXT} />
+        </button>
       </div>
 
       {/* Nav Groups */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-        {sidebarGroups.map((group, gi) => (
-          <div key={gi} style={{ marginBottom: 4 }}>
-            {group.label && <div style={{ fontSize: 9, color: SB_TEXT, textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600, padding: "12px 16px 4px" }}>{group.label}</div>}
-            {group.items.map(item => {
-              const active = page === item.id;
-              const NavI = item.i;
-              return (
-                <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease" }}>
-                  <NavI sz={17} c={active ? GO : SB_TEXT} />
-                  {item.l}
+      <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 0" }}>
+        {sidebarGroups.map((group, gi) => {
+          const isGroupCollapsed = group.label && collapsedGroups.has(group.label);
+          return (
+            <div key={gi} style={{ marginBottom: 2 }}>
+              {group.label && !sidebarCollapsed && (
+                <button onClick={() => toggleGroup(group.label)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px 4px", background: "none", border: "none", cursor: "pointer", color: SB_TEXT }}>
+                  <span style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "1.5px", fontWeight: 600 }}>{group.label}</span>
+                  <Ic d={isGroupCollapsed ? "M6 9l6 6 6-6" : "M18 15l-6-6-6 6"} sz={12} c={SB_TEXT} />
                 </button>
-              );
-            })}
-          </div>
-        ))}
+              )}
+              {group.label && sidebarCollapsed && <div style={{ height: 8 }} />}
+              {!isGroupCollapsed && group.items.map(item => {
+                const active = page === item.id;
+                const NavI = item.i;
+                return (
+                  <button key={item.id} onClick={() => setPage(item.id)} title={sidebarCollapsed ? item.l : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: sidebarCollapsed ? 0 : 10, padding: sidebarCollapsed ? "10px 0" : "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                    <NavI sz={18} c={active ? GO : SB_TEXT} />
+                    {!sidebarCollapsed && <span>{item.l}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
       </div>
 
-      {/* Bottom section: user + theme + logout */}
-      <div style={{ borderTop: "1px solid " + SB_BORDER, padding: "12px 16px" }}>
-        <button onClick={toggleTheme} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
-          {themeMode === "dark" ? <SunI sz={14} c={SB_TEXT} /> : <MoonI sz={14} c={SB_TEXT} />}
-          {themeMode === "dark" ? "Light Mode" : "Dark Mode"}
+      {/* Bottom: user + theme + logout */}
+      <div style={{ borderTop: "1px solid " + SB_BORDER, padding: sidebarCollapsed ? "10px 0" : "10px 14px" }}>
+        <button onClick={toggleTheme} title={sidebarCollapsed ? (themeMode === "dark" ? "Light Mode" : "Dark Mode") : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: 8, padding: sidebarCollapsed ? "7px 0" : "6px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
+          {themeMode === "dark" ? <SunI sz={15} c={SB_TEXT} /> : <MoonI sz={15} c={SB_TEXT} />}
+          {!sidebarCollapsed && (themeMode === "dark" ? "Light Mode" : "Dark Mode")}
         </button>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(200,168,78,0.12)", border: "1px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: GO }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
-            <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
+        {!sidebarCollapsed ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(200,168,78,0.12)", border: "1px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
+              <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
+            </div>
+            <button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
           </div>
-          <button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
-        </div>
+        ) : (
+          <button onClick={() => { setToken(null); setUser(null); }} title="Logout" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
+        )}
       </div>
     </div>
 
     {/* ===== MAIN CONTENT ===== */}
-    <div style={{ flex: 1, marginLeft: SB_W, minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ flex: 1, marginLeft: SB_W, minHeight: "100vh", display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease" }}>
       {/* Top Bar */}
       <div style={{ background: t.bg, borderBottom: "1px solid " + t.border, padding: "14px 28px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40 }}>
         <div>
