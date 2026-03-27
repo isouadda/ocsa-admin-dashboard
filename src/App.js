@@ -115,6 +115,7 @@ export default function AdminDashboard() {
   const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
+  const HsI = p => <Ic d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8" {...p} />;
   const GearI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
 
   const sidebarGroups = [
@@ -132,11 +133,11 @@ export default function AdminDashboard() {
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
-    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "reports", l: "Reports", i: BrI }] },
+    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "clockhistory", l: "Clock History", i: HsI }, { id: "reports", l: "Reports", i: BrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports & Time" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports & Time" };
   const SB_W = 220;
   const SB_BG = "#0F1D32";
   const SB_HOVER = "rgba(255,255,255,0.04)";
@@ -214,6 +215,7 @@ export default function AdminDashboard() {
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
       </div>
@@ -580,31 +582,47 @@ function ChatPage({ af, user, t }) {
 }
 
 function ReportsPage({ af, showToast, isAdmin, t }) {
-  const [hours, setHours] = useState(null); const [tasks, setTasks] = useState(null); const [issS, setIssS] = useState(null); const [exp, setExp] = useState(false);
-  const [staffList, setStaffList] = useState([]); const [sites, setSites] = useState([]);
-  const [clockHistory, setClockHistory] = useState([]); const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
-  const [manualEntry, setManualEntry] = useState(null); const [editShift, setEditShift] = useState(null);
-  useEffect(() => { af("/api/reports/hours?group_by=user").then(setHours).catch(() => {}); af("/api/reports/task-completion").then(setTasks).catch(() => {}); af("/api/reports/issues").then(setIssS).catch(() => {}); af("/api/users?status=active").then(setStaffList).catch(() => {}); af("/api/sites").then(setSites).catch(() => {}); }, []);
-  const loadHistory = async (filters) => { const params = new URLSearchParams(); if (filters?.userId) params.set("user_id", filters.userId); if (filters?.siteId) params.set("site_id", filters.siteId); params.set("limit", "50"); try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); } };
-  const submitManual = async () => { if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; } try { const d = await af("/api/clock/manual-entry", { method: "POST", body: { userId: manualEntry.userId, siteId: manualEntry.siteId, clockInTime: manualEntry.clockIn, clockOutTime: manualEntry.clockOut || undefined, notes: manualEntry.notes || undefined } }); showToast(d.message); setManualEntry(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); } };
-  const submitEditShift = async () => { try { await af("/api/clock/shifts/" + editShift.id, { method: "PATCH", body: { clockInTime: editShift.clockIn, clockOutTime: editShift.clockOut || undefined } }); showToast("Shift updated"); setEditShift(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); } };
+  const [tasks, setTasks] = useState(null);
+  const [issS, setIssS] = useState(null);
+  const [exp, setExp] = useState(false);
+  useEffect(() => {
+    af("/api/reports/task-completion").then(setTasks).catch(() => {});
+    af("/api/reports/issues").then(setIssS).catch(() => {});
+  }, []);
   const expHrs = async () => { setExp(true); try { const d = await af("/api/reports/hours"); dlCSV("ocsa-hours.csv", ["Staff", "Role", "Site", "Clock In", "Clock Out", "Duration (min)"], d.data.map(r => [r.staff_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
-  const fmtDt = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Active";
-  const fmtInput = (d) => d ? new Date(d).toISOString().slice(0, 16) : "";
-  return (<div><SecT t={t}>Reports and Time Management</SecT>
-    <Crd t={t} style={{ marginBottom: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Clock History</div>{isAdmin && <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c="#0A1628" /> Manual Entry</button>}</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}><Sel t={t} value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} /><Sel t={t} value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />{clockHistory.length === 0 && <button onClick={() => loadHistory(histFilter)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load History</button>}</div>
-      {clockHistory.length > 0 && <div style={{ maxHeight: 300, overflowY: "auto" }}>{clockHistory.map(sh => (<div key={sh.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginBottom: 3, background: t.hover, borderRadius: 6, fontSize: 11 }}><div style={{ flex: 1 }}><div style={{ fontWeight: 600, color: t.text }}>{sh.staff_name}</div><div style={{ color: t.textMut, marginTop: 2 }}>{sh.site_name}</div></div><div style={{ textAlign: "right", marginRight: 10 }}><div style={{ color: t.textSec }}>{fmtDt(sh.clock_in_time)}</div><div style={{ color: sh.clock_out_time ? t.textSec : OR }}>{sh.clock_out_time ? fmtDt(sh.clock_out_time) : "Still clocked in"}</div></div><div style={{ textAlign: "right", marginRight: 10, minWidth: 40 }}><div style={{ fontWeight: 600, color: GO }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div></div>{isAdmin && <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 9, cursor: "pointer" }}>Edit</button>}</div>))}</div>}
-      {clockHistory.length === 0 && <div style={{ fontSize: 11, color: t.textMut }}>Select filters and click "Load History" to view clock records.</div>}
+  return (<div>
+    <SecT t={t}>Reports</SecT>
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Task Completion (Last 30 Days)</div>
+      {tasks?.sites?.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
+          <span style={{ fontSize: 12, color: GO, fontWeight: 600 }}>{s.completedTasks} done</span>
+        </div>
+      </div>)}
+      {(!tasks?.sites || tasks.sites.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
     </Crd>
-    <Crd t={t} style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: t.text }}>Hours by Staff (Last 7 Days)</div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>{hours?.data?.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}><div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: t.text }}>{s.name}</div><div style={{ flex: 1, height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg," + GO + "," + GL + ")", width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} /></div><span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span></div>)}{(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}</Crd>
-    <Crd t={t} style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Task Completion (Last 30 Days)</div>{tasks?.sites?.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}><div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span><span style={{ fontSize: 12, color: GO, fontWeight: 600 }}>{s.completedTasks} done</span></div></div>)}{(!tasks?.sites || tasks.sites.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}</Crd>
-    <Crd t={t} style={{ marginBottom: 16 }}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Issues (Last 30 Days)</div>{issS?.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}><div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div><div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div><div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>Resolved</div></div></div> : <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}</Crd>
-    <Crd t={t}><div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: t.text }}>Export Reports</div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for payroll, audits, and clients.</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage (CIMS)", a: expChem }].map(r => <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}><DlI sz={14} c="currentColor" />{r.l}</button>)}</div></Crd>
-    {manualEntry && <Mdl t={t} onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div><div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel t={t} value={manualEntry.userId} onChange={e => setManualEntry({ ...manualEntry, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div><div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={manualEntry.siteId} onChange={e => setManualEntry({ ...manualEntry, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Clock In *</Lbl><Inp t={t} type="datetime-local" value={manualEntry.clockIn} onChange={e => setManualEntry({ ...manualEntry, clockIn: e.target.value })} /></div><div><Lbl>Clock Out</Lbl><Inp t={t} type="datetime-local" value={manualEntry.clockOut} onChange={e => setManualEntry({ ...manualEntry, clockOut: e.target.value })} /></div></div><div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={manualEntry.notes} onChange={e => setManualEntry({ ...manualEntry, notes: e.target.value })} placeholder="Reason for manual entry" /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn t={t} onClick={submitManual}>Add Entry</Btn></div></div></Mdl>}
-    {editShift && <Mdl t={t} onClose={() => setEditShift(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: t.text }}>{editShift.name}</span></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Clock In</Lbl><Inp t={t} type="datetime-local" value={editShift.clockIn} onChange={e => setEditShift({ ...editShift, clockIn: e.target.value })} /></div><div><Lbl>Clock Out</Lbl><Inp t={t} type="datetime-local" value={editShift.clockOut} onChange={e => setEditShift({ ...editShift, clockOut: e.target.value })} /></div></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn t={t} onClick={submitEditShift}>Save Changes</Btn></div></div></Mdl>}
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Issues (Last 30 Days)</div>
+      {issS?.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+        <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div>
+        <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div>
+        <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>Resolved</div></div>
+      </div> : <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
+    </Crd>
+    <Crd t={t}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: t.text }}>Export Reports</div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for payroll, audits, and clients.</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage (CIMS)", a: expChem }].map(r => (
+          <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}>
+            <DlI sz={14} c="currentColor" />{r.l}
+          </button>
+        ))}
+      </div>
+    </Crd>
   </div>);
 }
 
@@ -1438,5 +1456,115 @@ function ServicesPage({ af, showToast, isAdmin, t }) {
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSite(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSite}>Link Site</Btn></div>
       </div>
     </Mdl>}
+  </div>);
+}
+function ClockHistoryPage({ af, showToast, isAdmin, t }) {
+  const [hours, setHours] = useState(null);
+  const [staffList, setStaffList] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [clockHistory, setClockHistory] = useState([]);
+  const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
+  const [manualEntry, setManualEntry] = useState(null);
+  const [editShift, setEditShift] = useState(null);
+
+  useEffect(() => {
+    af("/api/reports/hours?group_by=user").then(setHours).catch(() => {});
+    af("/api/users?status=active").then(setStaffList).catch(() => {});
+    af("/api/sites").then(setSites).catch(() => {});
+  }, []);
+
+  const loadHistory = async (filters) => {
+    const params = new URLSearchParams();
+    if (filters?.userId) params.set("user_id", filters.userId);
+    if (filters?.siteId) params.set("site_id", filters.siteId);
+    params.set("limit", "50");
+    try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitManual = async () => {
+    if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; }
+    try { const d = await af("/api/clock/manual-entry", { method: "POST", body: { userId: manualEntry.userId, siteId: manualEntry.siteId, clockInTime: manualEntry.clockIn, clockOutTime: manualEntry.clockOut || undefined, notes: manualEntry.notes || undefined } }); showToast(d.message); setManualEntry(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitEditShift = async () => {
+    try { await af("/api/clock/shifts/" + editShift.id, { method: "PATCH", body: { clockInTime: editShift.clockIn, clockOutTime: editShift.clockOut || undefined } }); showToast("Shift updated"); setEditShift(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const fmtDt = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Active";
+  const fmtInput = (d) => d ? new Date(d).toISOString().slice(0, 16) : "";
+
+  return (<div>
+    <SecT t={t}>Clock History</SecT>
+
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Hours by Staff (Last 7 Days)</div>
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>
+      {hours?.data?.map((s, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: t.text }}>{s.name}</div>
+          <div style={{ flex: 1, height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
+            <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg," + GO + "," + GL + ")", width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} />
+          </div>
+          <span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span>
+        </div>
+      ))}
+      {(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
+    </Crd>
+
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Clock Records</div>
+        {isAdmin && <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c="#0A1628" /> Manual Entry</button>}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+        <Sel t={t} value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
+        <Sel t={t} value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
+        {clockHistory.length === 0 && <button onClick={() => loadHistory(histFilter)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load History</button>}
+      </div>
+      {clockHistory.length > 0 && <div style={{ maxHeight: 320, overflowY: "auto" }}>
+        {clockHistory.map(sh => (
+          <div key={sh.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", marginBottom: 3, background: t.hover, borderRadius: 6, fontSize: 11 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, color: t.text }}>{sh.staff_name}</div>
+              <div style={{ color: t.textMut, marginTop: 2 }}>{sh.site_name}</div>
+            </div>
+            <div style={{ textAlign: "right", marginRight: 10 }}>
+              <div style={{ color: t.textSec }}>{fmtDt(sh.clock_in_time)}</div>
+              <div style={{ color: sh.clock_out_time ? t.textSec : OR }}>{sh.clock_out_time ? fmtDt(sh.clock_out_time) : "Still clocked in"}</div>
+            </div>
+            <div style={{ textAlign: "right", marginRight: 10, minWidth: 40 }}>
+              <div style={{ fontWeight: 600, color: GO }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div>
+            </div>
+            {isAdmin && <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 9, cursor: "pointer" }}>Edit</button>}
+          </div>
+        ))}
+      </div>}
+      {clockHistory.length === 0 && <div style={{ fontSize: 11, color: t.textMut }}>Select filters and click "Load History" to view clock records.</div>}
+    </Crd>
+
+    {manualEntry && <Mdl t={t} onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div>
+      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel t={t} value={manualEntry.userId} onChange={e => setManualEntry({ ...manualEntry, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={manualEntry.siteId} onChange={e => setManualEntry({ ...manualEntry, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Clock In *</Lbl><Inp t={t} type="datetime-local" value={manualEntry.clockIn} onChange={e => setManualEntry({ ...manualEntry, clockIn: e.target.value })} /></div>
+        <div><Lbl>Clock Out</Lbl><Inp t={t} type="datetime-local" value={manualEntry.clockOut} onChange={e => setManualEntry({ ...manualEntry, clockOut: e.target.value })} /></div>
+      </div>
+      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={manualEntry.notes} onChange={e => setManualEntry({ ...manualEntry, notes: e.target.value })} placeholder="Reason for manual entry" /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn t={t} onClick={submitManual}>Add Entry</Btn></div>
+    </div></Mdl>}
+
+    {editShift && <Mdl t={t} onClose={() => setEditShift(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: t.text }}>{editShift.name}</span></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+        <div><Lbl>Clock In</Lbl><Inp t={t} type="datetime-local" value={editShift.clockIn} onChange={e => setEditShift({ ...editShift, clockIn: e.target.value })} /></div>
+        <div><Lbl>Clock Out</Lbl><Inp t={t} type="datetime-local" value={editShift.clockOut} onChange={e => setEditShift({ ...editShift, clockOut: e.target.value })} /></div>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn t={t} onClick={submitEditShift}>Save Changes</Btn></div>
+    </div></Mdl>}
   </div>);
 }
