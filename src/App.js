@@ -121,6 +121,7 @@ export default function AdminDashboard() {
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
   const HsI = p => <Ic d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8" {...p} />;
   const GearI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
+  const ClpI = p => <Ic d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 12l2 2 4-4" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: "Dashboard", i: HmI }] },
@@ -134,6 +135,7 @@ export default function AdminDashboard() {
     { label: "Quality", items: [
       { id: "issues", l: "Issues", i: AlI },
       { id: "assigned", l: "Assigned Tasks", i: WkI },
+      { id: "inspections", l: "Inspections", i: ClpI },
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
@@ -142,7 +144,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections" };
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
   const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
@@ -275,6 +277,7 @@ export default function AdminDashboard() {
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
@@ -1628,4 +1631,274 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn t={t} onClick={submitEditShift}>Save Changes</Btn></div>
     </div></Mdl>}
   </div>);
+}
+
+function InspectionsPage({ af, showToast, isAdmin, t }) {
+  const CIMS_C = { SD: "#3498DB", HSE: "#F39C12", GB: "#2ECC71", QS: "#C8A84E", HR: "#9B59B6", MC: "#2C3E50" };
+  const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
+  const CIMS_CATS = ["SD", "HSE", "GB", "QS", "HR", "MC"];
+  const STATUS_C = { scheduled: "#3498DB", in_progress: "#F39C12", completed: "#2ECC71" };
+  const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+
+  const [tab, setTab] = useState("templates");
+  const [templates, setTemplates] = useState([]);
+  const [scheduled, setScheduled] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [newTplModal, setNewTplModal] = useState(false);
+  const [newTplForm, setNewTplForm] = useState({ name: "", description: "" });
+  const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
+  const [scheduleModal, setScheduleModal] = useState(false);
+  const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
+  const [detailModal, setDetailModal] = useState(null);
+  const [filterStatus, setFilterStatus] = useState("all");
+
+  const loadTemplates = useCallback(async () => {
+    try { const d = await af("/api/inspections/templates"); setTemplates(d); } catch (e) { showToast(e.message, "error"); }
+  }, [af]);
+  const loadScheduled = useCallback(async () => {
+    try { const d = await af("/api/inspections/scheduled"); setScheduled(d); } catch (e) { showToast(e.message, "error"); }
+  }, [af]);
+
+  useEffect(() => {
+    loadTemplates(); loadScheduled();
+    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/users?role=supervisor").then(setSupervisors).catch(() => {});
+  }, []);
+
+  const openTemplate = async (id) => {
+    try { const d = await af("/api/inspections/templates/" + id); setSelectedTemplate(d); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const createTemplate = async () => {
+    if (!newTplForm.name.trim()) { showToast("Name required", "error"); return; }
+    try {
+      await af("/api/inspections/templates", { method: "POST", body: newTplForm });
+      showToast("Template created"); setNewTplModal(false); setNewTplForm({ name: "", description: "" }); loadTemplates();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const addItem = async () => {
+    if (!addItemForm.label.trim() || !selectedTemplate) return;
+    try {
+      await af("/api/inspections/templates/" + selectedTemplate.id + "/items", { method: "POST", body: addItemForm });
+      showToast("Item added"); setAddItemForm({ label: "", zone: "General", cims_category: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deleteItem = async (itemId) => {
+    if (!window.confirm("Remove this line item?")) return;
+    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast("Item removed"); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deleteTemplate = async (id) => {
+    if (!window.confirm("Delete this template? All scheduled inspections using it will also be removed.")) return;
+    try {
+      await af("/api/inspections/templates/" + id, { method: "DELETE" });
+      showToast("Template deleted"); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const scheduleInspection = async () => {
+    if (!scheduleForm.template_id || !scheduleForm.site_id || !scheduleForm.scheduled_date) { showToast("Template, site, and date are required", "error"); return; }
+    try {
+      await af("/api/inspections/scheduled", { method: "POST", body: scheduleForm });
+      showToast("Inspection scheduled"); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" }); loadScheduled();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const openDetail = async (id) => {
+    try { const d = await af("/api/inspections/scheduled/" + id); setDetailModal(d); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deleteScheduled = async (id) => {
+    if (!window.confirm("Delete this scheduled inspection?")) return;
+    try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast("Deleted"); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const filteredScheduled = filterStatus === "all" ? scheduled : scheduled.filter(s => s.status === filterStatus);
+
+  return (
+    <div>
+      {/* Tab bar */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
+        {[["templates", "Templates"], ["scheduled", "Scheduled"]].map(([tb, lbl]) => (
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? GO : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}</button>
+        ))}
+      </div>
+
+      {/* TEMPLATES TAB */}
+      {tab === "templates" && (
+        <div style={{ display: "flex", gap: 20 }}>
+          <div style={{ flex: 1 }}>
+            <SecT t={t} action="New Template" onAction={() => setNewTplModal(true)}>Inspection Templates</SecT>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+              {templates.map(tp => (
+                <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+                    <div style={{ fontWeight: 700, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
+                    {isAdmin && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
+                  </div>
+                  {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
+                  <div style={{ fontSize: 10, color: t.textMut }}>{tp.item_count} line items</div>
+                </Crd>
+              ))}
+              {templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No templates yet. Create one to get started.</div>}
+            </div>
+          </div>
+
+          {selectedTemplate && (
+            <div style={{ width: 380, flexShrink: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{selectedTemplate.name}</div>
+                <button onClick={() => setSelectedTemplate(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={16} c={t.textMut} /></button>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                {(selectedTemplate.items || []).map(item => (
+                  <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, background: t.cardAlt, marginBottom: 6 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }}>{item.cims_category}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
+                      <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} &bull; max {item.max_score} pts</div>
+                    </div>
+                    <button onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
+                  </div>
+                ))}
+                {(!selectedTemplate.items || selectedTemplate.items.length === 0) && (
+                  <div style={{ fontSize: 11, color: t.textMut, padding: "8px 0" }}>No items yet. Add your first line item below.</div>
+                )}
+              </div>
+
+              <Crd t={t} style={{ padding: 14 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
+                <div style={{ marginBottom: 8 }}><Lbl>Item Label *</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder="e.g. Toilets scrubbed and sanitized" onKeyDown={e => e.key === "Enter" && addItem()} /></div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                  <div><Lbl>Zone</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: z }))} /></div>
+                  <div><Lbl>CIMS Category</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={CIMS_CATS.map(c => ({ v: c, l: c }))} /></div>
+                </div>
+                <div style={{ marginBottom: 10 }}><Lbl>Max Score (points)</Lbl><Inp t={t} type="number" min="1" max="100" value={addItemForm.max_score} onChange={e => setAddItemForm({ ...addItemForm, max_score: parseInt(e.target.value) || 10 })} /></div>
+                <Btn t={t} onClick={addItem} style={{ width: "100%" }}>Add Item</Btn>
+              </Crd>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* SCHEDULED TAB */}
+      {tab === "scheduled" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["all", "All"], ["scheduled", "Scheduled"], ["in_progress", "In Progress"], ["completed", "Completed"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setFilterStatus(val)} style={{ padding: "5px 12px", borderRadius: 20, border: "none", background: filterStatus === val ? GO : t.cardAlt, color: filterStatus === val ? "#0A1628" : t.textSec, fontSize: 11, fontWeight: filterStatus === val ? 700 : 400, cursor: "pointer" }}>{lbl}</button>
+              ))}
+            </div>
+            <Btn t={t} onClick={() => setScheduleModal(true)}>Schedule Inspection</Btn>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {filteredScheduled.map(si => {
+              const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null;
+              const scoreColor = pct === null ? t.textMut : pct >= 80 ? GR : pct >= 60 ? OR : RD;
+              return (
+                <Crd key={si.id} t={t} onClick={() => openDetail(si.id)} style={{ cursor: "pointer" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                        <div style={{ fontWeight: 700, color: t.text, fontSize: 14 }}>{si.template_name}</div>
+                        <Bdg l={si.status.replace("_", " ")} c={STATUS_C[si.status] || BL} />
+                      </div>
+                      <div style={{ fontSize: 12, color: t.textSec }}>{si.site_name}</div>
+                      <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{fmtDate(si.scheduled_date)}{si.assigned_name ? " - " + si.assigned_name : ""}</div>
+                    </div>
+                    {pct !== null && (
+                      <div style={{ textAlign: "center", minWidth: 60 }}>
+                        <div style={{ fontSize: 22, fontWeight: 700, color: scoreColor }}>{pct}%</div>
+                        <div style={{ fontSize: 9, color: t.textMut }}>{si.total_score}/{si.max_possible_score} pts</div>
+                      </div>
+                    )}
+                    {isAdmin && <button onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><XI sz={14} c={t.textMut} /></button>}
+                  </div>
+                </Crd>
+              );
+            })}
+            {filteredScheduled.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No inspections found for this filter.</div>}
+          </div>
+        </div>
+      )}
+
+      {/* NEW TEMPLATE MODAL */}
+      {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>New Inspection Template</div><button onClick={() => setNewTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Template Name *</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder="e.g. Standard Office Cleaning" /></div>
+        <div style={{ marginBottom: 20 }}><Lbl>Description</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder="Optional: describe what this template covers" /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>Cancel</Btn><Btn t={t} onClick={createTemplate}>Create Template</Btn></div>
+      </div></Mdl>}
+
+      {/* SCHEDULE MODAL */}
+      {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Inspection</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>Cancel</Btn><Btn t={t} onClick={scheduleInspection}>Schedule</Btn></div>
+      </div></Mdl>}
+
+      {/* DETAIL MODAL */}
+      {detailModal && <Mdl t={t} onClose={() => setDetailModal(null)}><div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+          <div><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{detailModal.template_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{detailModal.site_name} - {fmtDate(detailModal.scheduled_date)}</div></div>
+          <button onClick={() => setDetailModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+        </div>
+
+        {detailModal.result ? (() => {
+          const pct = detailModal.result.max_possible_score > 0 ? Math.round((detailModal.result.total_score / detailModal.result.max_possible_score) * 100) : 0;
+          const scoreColor = pct >= 80 ? GR : pct >= 60 ? OR : RD;
+          return (
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 16px", borderRadius: 10, background: t.cardAlt, marginBottom: 16 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 34, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{pct}%</div>
+                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{detailModal.result.total_score}/{detailModal.result.max_possible_score} pts</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: t.textSec }}>Completed by <span style={{ fontWeight: 600, color: t.text }}>{detailModal.result.completed_by_name}</span></div>
+                  {detailModal.result.overall_notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic" }}>{detailModal.result.overall_notes}</div>}
+                </div>
+              </div>
+              <div style={{ maxHeight: 360, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
+                {(detailModal.items || []).map(item => {
+                  const sr = (detailModal.scores || []).find(s => s.template_item_id === item.id);
+                  const iPct = sr ? Math.round((sr.score / item.max_score) * 100) : 0;
+                  const iColor = iPct >= 80 ? GR : iPct >= 60 ? OR : RD;
+                  return (
+                    <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 8, background: t.cardAlt }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }}>{item.cims_category}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
+                        <div style={{ fontSize: 10, color: t.textMut }}>{item.zone}{sr?.notes ? " - " + sr.notes : ""}</div>
+                      </div>
+                      <div style={{ textAlign: "right", minWidth: 52 }}>
+                        <span style={{ fontWeight: 700, color: sr ? iColor : t.textMut, fontSize: 14 }}>{sr ? sr.score : "--"}</span>
+                        <span style={{ fontSize: 10, color: t.textMut }}>/{item.max_score}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })() : (
+          <div style={{ padding: "30px 0", textAlign: "center" }}>
+            <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>This inspection has not been completed yet.</div>
+            <Bdg l={detailModal.status.replace("_", " ")} c={STATUS_C[detailModal.status] || BL} />
+            {detailModal.assigned_name && <div style={{ fontSize: 11, color: t.textSec, marginTop: 12 }}>Assigned to {detailModal.assigned_name}</div>}
+          </div>
+        )}
+      </div></Mdl>}
+    </div>
+  );
 }
