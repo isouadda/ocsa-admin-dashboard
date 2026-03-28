@@ -2236,6 +2236,14 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     } catch (e) { showToast(e.message, "error"); }
   };
   const deleteShift = async (id) => { try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  const [convertPickup, setConvertPickup] = useState(null);
+  const submitConvertPickup = async () => {
+    try {
+      await af("/api/pickups/convert/" + convertPickup.id, { method: "POST", body: { origin: convertPickup.origin, notes: convertPickup.notes } });
+      showToast("Shift converted to open pickup");
+      setConvertPickup(null); setEditModal(null); loadCalendar();
+    } catch (e) { showToast(e.message, "error"); }
+  };
 
   const openInspModal = (insp) => {
     setInspForm({ assigned_to: insp.assigned_to || "", scheduled_date: insp.scheduled_date ? insp.scheduled_date.slice(0, 10) : "" });
@@ -2400,8 +2408,27 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={editModal.serviceCategory} onChange={e => setEditModal({ ...editModal, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={editModal.notes || ""} onChange={e => setEditModal({ ...editModal, notes: e.target.value })} placeholder="Notes" /></div>
+
+      {convertPickup && convertPickup.id === editModal.id && (
+        <div style={{ padding: 12, borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: OR, marginBottom: 8 }}>Convert to Open Pickup</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+            <div><Lbl>Reason</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={[{ v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "extra_coverage", l: "Extra Coverage" }]} /></div>
+            <div><Lbl>Notes</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder="e.g. Marcus called out" /></div>
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <Btn t={t} v="ghost" onClick={() => setConvertPickup(null)} style={{ fontSize: 11, padding: "6px 12px" }}>Cancel</Btn>
+            <Btn t={t} v="danger" onClick={submitConvertPickup} style={{ fontSize: 11, padding: "6px 12px" }}>Confirm Convert</Btn>
+          </div>
+        </div>
+      )}
+
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-        <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
+        <div style={{ display: "flex", gap: 6 }}>
+          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
+          {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />Pickup</button>}
+        </div>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div>
       </div>
     </div></Mdl>}
@@ -2574,7 +2601,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
     setConvertModal(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const r = await af("/api/schedule?start_date=" + today + "&end_date=" + dateRange.end);
+      const future = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+      const r = await af("/api/schedule?start_date=" + today + "&end_date=" + future);
       setSchedShifts(r.filter(s => s.status === "scheduled"));
     } catch { setSchedShifts([]); }
   };
