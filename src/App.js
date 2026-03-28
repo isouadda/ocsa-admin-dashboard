@@ -72,6 +72,7 @@ const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
+const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter" };
@@ -200,11 +201,11 @@ export default function AdminDashboard() {
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
     { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "schedule", l: "Schedule", i: CalI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
-    { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
+    { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }, { id: "labor", l: "Labor Reports", i: DlrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections", labor: "Labor Reports" };
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
   const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
@@ -343,6 +344,7 @@ export default function AdminDashboard() {
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
       </div>
     </div>
 
@@ -364,10 +366,12 @@ function LoginForm({ onLogin, loading, t }) {
 function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   const [stats, setStats] = useState(null); const [active, setActive] = useState([]);
   const [inspSummary, setInspSummary] = useState([]);
+  const [laborDash, setLaborDash] = useState(null);
   useEffect(() => {
     af("/api/reports/overview").then(setStats).catch(e => showToast(e.message, "error"));
     af("/api/clock/active").then(setActive).catch(() => {});
     af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(() => {});
+    af("/api/labor/dashboard").then(setLaborDash).catch(() => {});
   }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
   return (<div>
@@ -378,6 +382,7 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
       <SC t={t} label="Open Issues" value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
       {isAdmin && <SC t={t} label="Pending" value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
       <SC t={t} label="Week Hours" value={stats.weekHoursTotal + "h"} color={GO} icon={BrI} />
+      {laborDash && <SC t={t} label="Week Cost" value={"$" + Number(laborDash.current_week.total_cost).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} sub={laborDash.cost_change_pct !== 0 ? (laborDash.cost_change_pct > 0 ? "+" : "") + laborDash.cost_change_pct + "% vs last week" : "same as last week"} color={GO} icon={DlrI} />}
     </div>
     <SecT t={t}>Live Operations</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
@@ -793,6 +798,375 @@ function ReportsPage({ af, showToast, isAdmin, t }) {
         ))}
       </div>
     </Crd>
+  </div>);
+}
+
+function LaborReportsPage({ af, showToast, isAdmin, t }) {
+  const [dateRange, setDateRange] = useState(() => PRESETS.last30());
+  const [tab, setTab] = useState("overview");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [sites, setSites] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [bySite, setBySite] = useState([]);
+  const [byStaff, setByStaff] = useState([]);
+  const [overtime, setOvertime] = useState(null);
+  const [byRole, setByRole] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const fmtHrs = (mins) => { const h = Math.floor(mins / 60); const m = mins % 60; return h + "h " + (m > 0 ? m + "m" : ""); };
+  const fmtMoney = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtDt = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtTm = (d) => new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
+
+  const load = async (range) => {
+    setLoading(true);
+    const r = range || dateRange;
+    const q = "?start_date=" + r.start + "&end_date=" + r.end;
+    const sq = q + (siteFilter ? "&site_id=" + siteFilter : "");
+    try {
+      const [sum, siteData, staffData, otData, roleData] = await Promise.all([
+        af("/api/labor/summary" + q),
+        af("/api/labor/by-site" + q),
+        af("/api/labor/by-staff" + sq),
+        af("/api/labor/overtime" + q),
+        af("/api/labor/by-role" + q)
+      ]);
+      setSummary(sum);
+      setBySite(siteData);
+      setByStaff(staffData);
+      setOvertime(otData);
+      setByRole(roleData);
+    } catch (e) {
+      showToast(e.message, "error");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    af("/api/sites").then(setSites).catch(() => {});
+    load();
+  }, []);
+  useEffect(() => { load(); }, [dateRange, siteFilter]);
+
+  const exportCSV = async () => {
+    setExporting(true);
+    try {
+      const d = await af("/api/labor/export?start_date=" + dateRange.start + "&end_date=" + dateRange.end);
+      dlCSV("ocsa-labor-report-" + dateRange.start + ".csv",
+        ["Last Name", "First Name", "Role", "Site", "Clock In", "Clock Out", "Total Min", "Rate", "Regular Pay", "OT Min", "OT Pay", "Total Pay", "Status", "Manual"],
+        d.data.map(r => [r.last_name, r.first_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes, r.hourly_rate, r.regular_pay, r.ot_minutes, r.ot_pay, r.total_pay, r.approval_status, r.is_manual_entry ? "Yes" : "No"])
+      );
+      showToast("Labor report downloaded");
+    } catch (e) { showToast(e.message, "error"); }
+    setExporting(false);
+  };
+
+  const printReport = () => {
+    const w = window.open("", "_blank");
+    if (!w) { showToast("Please allow popups", "error"); return; }
+    let html = '<html><head><title>OCSA Labor Report</title><style>body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:#0A1628}h1{color:#0A1628;border-bottom:3px solid #C8A84E;padding-bottom:8px;font-size:22px}h2{color:#0A1628;font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #ddd;padding:6px 10px;font-size:12px;text-align:left}th{background:#0A1628;color:#C8A84E;font-weight:600}tr:nth-child(even){background:#f9f9f9}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.summary-card{background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}.summary-card .val{font-size:24px;font-weight:700;color:#0A1628}.summary-card .lbl{font-size:10px;color:#888;text-transform:uppercase;margin-top:4px}.footer{margin-top:30px;border-top:2px solid #C8A84E;padding-top:8px;font-size:10px;color:#888;text-align:center}@media print{body{margin:15px}}</style></head><body>';
+    html += '<h1>OCSA Cleaning Inc. - Labor Report</h1>';
+    html += '<p style="font-size:12px;color:#666">Period: ' + dateRange.start + ' to ' + dateRange.end + ' | Generated: ' + new Date().toLocaleDateString() + '</p>';
+    if (summary) {
+      html += '<div class="summary-grid">';
+      html += '<div class="summary-card"><div class="val">' + fmtHrs(summary.total_minutes) + '</div><div class="lbl">Total Hours</div></div>';
+      html += '<div class="summary-card"><div class="val">' + fmtMoney(summary.total_cost) + '</div><div class="lbl">Total Cost</div></div>';
+      html += '<div class="summary-card"><div class="val">' + summary.total_shifts + '</div><div class="lbl">Shifts</div></div>';
+      html += '<div class="summary-card"><div class="val">' + summary.unique_staff + '</div><div class="lbl">Staff</div></div>';
+      html += '</div>';
+    }
+    if (bySite.length > 0) {
+      html += '<h2>Cost by Site</h2><table><tr><th>Site</th><th>Hours</th><th>Shifts</th><th>Staff</th><th>Cost</th><th>OT Hours</th></tr>';
+      bySite.forEach(s => { html += '<tr><td>' + s.site_name + '</td><td>' + fmtHrs(s.total_minutes) + '</td><td>' + s.shift_count + '</td><td>' + s.staff_count + '</td><td>' + fmtMoney(s.total_cost) + '</td><td>' + fmtHrs(s.ot_minutes) + '</td></tr>'; });
+      html += '</table>';
+    }
+    if (byStaff.length > 0) {
+      html += '<h2>Cost by Staff</h2><table><tr><th>Name</th><th>Role</th><th>Rate</th><th>Hours</th><th>Shifts</th><th>Cost</th><th>OT Hours</th></tr>';
+      byStaff.forEach(s => { html += '<tr><td>' + s.staff_name + '</td><td>' + (RL[s.role] || s.role) + '</td><td>' + fmtMoney(s.hourly_rate) + '/hr</td><td>' + fmtHrs(s.total_minutes) + '</td><td>' + s.shift_count + '</td><td>' + fmtMoney(s.total_cost) + '</td><td>' + fmtHrs(s.ot_minutes) + '</td></tr>'; });
+      html += '</table>';
+    }
+    if (overtime && (overtime.perShiftCount > 0 || overtime.weeklyCount > 0)) {
+      html += '<h2>Overtime Analysis</h2>';
+      if (overtime.weeklyCount > 0) {
+        html += '<h3 style="font-size:13px;color:#666">Weekly Overtime (>40 hours)</h3><table><tr><th>Staff</th><th>Week Of</th><th>Total Hours</th><th>OT Hours</th><th>OT Premium</th></tr>';
+        overtime.weekly.forEach(w => { html += '<tr><td>' + w.staff_name + '</td><td>' + w.week_start + '</td><td>' + fmtHrs(w.week_minutes) + '</td><td>' + fmtHrs(w.ot_minutes) + '</td><td>' + fmtMoney(w.ot_premium) + '</td></tr>'; });
+        html += '</table>';
+      }
+      if (overtime.perShiftCount > 0) {
+        html += '<h3 style="font-size:13px;color:#666">Per-Shift Overtime (>8 hours)</h3><table><tr><th>Staff</th><th>Date</th><th>Site</th><th>Duration</th><th>OT</th><th>Premium</th></tr>';
+        overtime.perShift.forEach(s => { html += '<tr><td>' + s.staff_name + '</td><td>' + fmtDt(s.clock_in_time) + '</td><td>' + s.site_name + '</td><td>' + fmtHrs(s.duration_minutes) + '</td><td>' + fmtHrs(s.ot_minutes) + '</td><td>' + fmtMoney(s.ot_premium) + '</td></tr>'; });
+        html += '</table>';
+      }
+    }
+    html += '<div class="footer">OCSA Cleaning Inc. | Labor Report | Confidential</div></body></html>';
+    w.document.write(html);
+    w.document.close();
+    w.print();
+  };
+
+  const tabs = [
+    { id: "overview", l: "Overview" },
+    { id: "site", l: "By Site" },
+    { id: "staff", l: "By Staff" },
+    { id: "overtime", l: "Overtime" },
+    { id: "role", l: "By Role" },
+  ];
+
+  return (<div>
+    <SecT t={t}>Labor Reports</SecT>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
+      { key: "thisWeek", label: "This Week" },
+      { key: "lastWeek", label: "Last Week" },
+      { key: "thisMonth", label: "This Month" },
+      { key: "last30", label: "Last 30 Days" },
+      { key: "last90", label: "Last 90 Days" },
+    ]} />
+
+    {/* Filters and actions row */}
+    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+      <div style={{ flex: "0 0 200px" }}>
+        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+      </div>
+      <div style={{ flex: 1 }} />
+      <button onClick={exportCSV} disabled={exporting} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}>
+        <DlI sz={14} c="currentColor" />{exporting ? "Exporting..." : "Export CSV"}
+      </button>
+      <button onClick={printReport} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+        Print Report
+      </button>
+    </div>
+
+    {/* Summary cards */}
+    {summary && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+      <SC t={t} label="Total Hours" value={fmtHrs(summary.total_minutes)} color={GO} icon={CkI} />
+      <SC t={t} label="Total Cost" value={fmtMoney(summary.total_cost)} color={GR} icon={DlrI} />
+      <SC t={t} label="Shifts" value={summary.total_shifts} sub={summary.approved_shifts + " approved, " + summary.pending_shifts + " pending"} color={BL} icon={ClI} />
+      <SC t={t} label="Staff" value={summary.unique_staff} sub={"Avg " + fmtHrs(summary.avg_shift_minutes) + "/shift"} color={OR} icon={UsI} />
+    </div>}
+
+    {/* OT callout */}
+    {summary && summary.total_ot_minutes > 0 && (
+      <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+        <AlI sz={16} c={OR} />
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: OR }}>Overtime Detected: {fmtHrs(summary.total_ot_minutes)}</div>
+          <div style={{ fontSize: 10, color: t.textMut }}>Per-shift overtime premium: {fmtMoney(summary.total_ot_premium)}</div>
+        </div>
+      </div>
+    )}
+
+    {/* Tab buttons */}
+    <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 2 }}>
+      {tabs.map(tb => (
+        <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+          padding: "8px 16px", borderRadius: "8px 8px 0 0", border: "none",
+          background: tab === tb.id ? t.goldBg : "transparent",
+          color: tab === tb.id ? GO : t.textMut,
+          fontSize: 12, fontWeight: tab === tb.id ? 700 : 500, cursor: "pointer",
+          borderBottom: tab === tb.id ? "2px solid " + GO : "2px solid transparent"
+        }}>{tb.l}</button>
+      ))}
+    </div>
+
+    {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading...</div>}
+
+    {/* OVERVIEW TAB */}
+    {!loading && tab === "overview" && summary && (
+      <div>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Approval Status</div>
+          <div style={{ display: "flex", gap: 20 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: GR }}>Approved</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: GR }}>{summary.approved_shifts}</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 3, background: GR, width: (summary.total_shifts > 0 ? (summary.approved_shifts / summary.total_shifts * 100) : 0) + "%" }} />
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: OR }}>Pending</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: OR }}>{summary.pending_shifts}</span>
+              </div>
+              <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 3, background: OR, width: (summary.total_shifts > 0 ? (summary.pending_shifts / summary.total_shifts * 100) : 0) + "%" }} />
+              </div>
+            </div>
+          </div>
+        </Crd>
+
+        {bySite.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Cost by Site</div>
+          {bySite.map((s, i) => {
+            const maxCost = Math.max(...bySite.map(x => Number(x.total_cost)));
+            const pct = maxCost > 0 ? (Number(s.total_cost) / maxCost * 100) : 0;
+            return (
+              <div key={s.site_id} style={{ marginBottom: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.site_name}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: GO }}>{fmtMoney(s.total_cost)}</span>
+                </div>
+                <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
+                  <div style={{ height: "100%", borderRadius: 4, background: GO, width: pct + "%", transition: "width 0.4s ease" }} />
+                </div>
+                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{fmtHrs(s.total_minutes)} across {s.shift_count} shifts with {s.staff_count} staff</div>
+              </div>
+            );
+          })}
+        </Crd>}
+      </div>
+    )}
+
+    {/* BY SITE TAB */}
+    {!loading && tab === "site" && (
+      <div>
+        {bySite.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>No shift data for this period.</div>}
+        {bySite.map(s => (
+          <Crd key={s.site_id} t={t} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{s.site_name}</div>
+                <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{s.staff_count} staff, {s.shift_count} shifts</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: GO }}>{fmtMoney(s.total_cost)}</div>
+                <div style={{ fontSize: 11, color: t.textMut }}>{fmtHrs(s.total_minutes)}</div>
+              </div>
+            </div>
+            {s.ot_minutes > 0 && (
+              <div style={{ marginTop: 8, padding: "6px 10px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+                <span style={{ fontSize: 10, color: OR, fontWeight: 600 }}>OT: {fmtHrs(s.ot_minutes)} (+{fmtMoney(s.ot_premium)} premium)</span>
+              </div>
+            )}
+          </Crd>
+        ))}
+      </div>
+    )}
+
+    {/* BY STAFF TAB */}
+    {!loading && tab === "staff" && (
+      <div>
+        {byStaff.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>No shift data for this period.</div>}
+        {byStaff.map(s => (
+          <Crd key={s.user_id} t={t} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <Ini name={s.staff_name} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.staff_name}</div>
+                <div style={{ display: "flex", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
+                  <Bdg l={RL[s.role] || s.role} c={GO} />
+                  {s.hourly_rate > 0 && <span style={{ fontSize: 10, color: t.textMut }}>{fmtMoney(s.hourly_rate)}/hr</span>}
+                  <span style={{ fontSize: 10, color: t.textMut }}>{s.shift_count} shifts</span>
+                </div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 18, fontWeight: 700, color: GO }}>{fmtMoney(s.total_cost)}</div>
+                <div style={{ fontSize: 11, color: t.textSec }}>{fmtHrs(s.total_minutes)}</div>
+              </div>
+            </div>
+            {s.ot_minutes > 0 && (
+              <div style={{ marginTop: 8, padding: "6px 10px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+                <span style={{ fontSize: 10, color: OR, fontWeight: 600 }}>OT: {fmtHrs(s.ot_minutes)} (+{fmtMoney(s.ot_premium)} premium)</span>
+              </div>
+            )}
+          </Crd>
+        ))}
+      </div>
+    )}
+
+    {/* OVERTIME TAB */}
+    {!loading && tab === "overtime" && overtime && (
+      <div>
+        {overtime.weeklyCount === 0 && overtime.perShiftCount === 0 && (
+          <Crd t={t}><div style={{ padding: 20, textAlign: "center", color: t.textMut }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: GR, marginBottom: 4 }}>No Overtime</div>
+            <div style={{ fontSize: 12 }}>No overtime was recorded during this period.</div>
+          </div></Crd>
+        )}
+
+        {overtime.weeklyCount > 0 && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              <AlI sz={14} c={OR} /> Weekly Overtime (&gt;40 hours)
+              <Bdg l={overtime.weeklyCount + " instance" + (overtime.weeklyCount !== 1 ? "s" : "")} c={OR} />
+            </div>
+            {overtime.weekly.map((w, i) => (
+              <Crd key={i} t={t} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{w.staff_name}</div>
+                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Week of {fmtDt(w.week_start)} | {w.shift_count} shifts</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{fmtHrs(w.week_minutes)} total</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: OR }}>{fmtHrs(w.ot_minutes)} OT (+{fmtMoney(w.ot_premium)})</div>
+                  </div>
+                </div>
+              </Crd>
+            ))}
+          </div>
+        )}
+
+        {overtime.perShiftCount > 0 && (
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+              <CkI sz={14} c={RD} /> Per-Shift Overtime (&gt;8 hours)
+              <Bdg l={overtime.perShiftCount + " shift" + (overtime.perShiftCount !== 1 ? "s" : "")} c={RD} />
+            </div>
+            {overtime.perShift.map((s, i) => (
+              <Crd key={i} t={t} style={{ marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.staff_name}</div>
+                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{fmtDt(s.clock_in_time)} | {s.site_name}</div>
+                    <div style={{ fontSize: 10, color: t.textSec, marginTop: 1 }}>{fmtTm(s.clock_in_time)} to {fmtTm(s.clock_out_time)}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{fmtHrs(s.duration_minutes)} total</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: RD }}>{fmtHrs(s.ot_minutes)} OT (+{fmtMoney(s.ot_premium)})</div>
+                  </div>
+                </div>
+              </Crd>
+            ))}
+          </div>
+        )}
+      </div>
+    )}
+
+    {/* BY ROLE TAB */}
+    {!loading && tab === "role" && (
+      <div>
+        {byRole.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>No shift data for this period.</div>}
+        {byRole.map((r, i) => {
+          const maxCost = Math.max(...byRole.map(x => Number(x.total_cost)));
+          const pct = maxCost > 0 ? (Number(r.total_cost) / maxCost * 100) : 0;
+          return (
+            <Crd key={i} t={t} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{RL[r.role] || r.role}</div>
+                  <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{r.staff_count} staff, {r.shift_count} shifts</div>
+                  {r.avg_rate > 0 && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Avg rate: {fmtMoney(r.avg_rate)}/hr</div>}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: GO }}>{fmtMoney(r.total_cost)}</div>
+                  <div style={{ fontSize: 11, color: t.textMut }}>{fmtHrs(r.total_minutes)}</div>
+                </div>
+              </div>
+              <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 4, background: GO, width: pct + "%", transition: "width 0.4s ease" }} />
+              </div>
+              {r.ot_minutes > 0 && (
+                <div style={{ marginTop: 6, fontSize: 10, color: OR, fontWeight: 600 }}>Includes {fmtHrs(r.ot_minutes)} overtime</div>
+              )}
+            </Crd>
+          );
+        })}
+      </div>
+    )}
   </div>);
 }
 
