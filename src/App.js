@@ -2128,10 +2128,10 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       </div>
     </div></Mdl>}
 
-    {/* ACTUAL SHIFT DETAIL MODAL (read-only) */}
+    {/* ACTUAL SHIFT DETAIL MODAL */}
     {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details {isAdmin && <span style={{ fontSize: 10, color: GO, marginLeft: 8 }}>EDITABLE</span>}</div>
         <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
