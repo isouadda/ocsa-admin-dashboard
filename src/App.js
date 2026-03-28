@@ -89,6 +89,63 @@ const Ini = ({ name: n, sz = 36, color: c = GO }) => <div style={{ width: sz, he
 const SC = ({ label, value, sub, color: c = GO, icon: I, t }) => <Crd t={t} style={{ flex: 1, minWidth: 140 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{label}</div><div style={{ fontSize: 28, fontWeight: 700, color: c, marginTop: 4 }}>{value}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{sub}</div>}</div>{I && <I sz={20} c={c} style={{ opacity: 0.5 }} />}</div></Crd>;
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", resize: "vertical", fontFamily: "'DM Sans',sans-serif", ...p.style }} />;
 
+// ===== DATE RANGE PICKER (shared component) =====
+function getMonday(d) { const dt = new Date(d); const day = dt.getDay(); const diff = day === 0 ? 6 : day - 1; dt.setDate(dt.getDate() - diff); dt.setHours(0,0,0,0); return dt; }
+function fmtRange(s, e) {
+  const sd = new Date(s + "T00:00:00"), ed = new Date(e + "T00:00:00");
+  const sm = sd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const em = ed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return sm + " - " + em;
+}
+function toISO(d) { return d.toISOString().split("T")[0]; }
+
+const PRESETS = {
+  thisWeek: () => { const m = getMonday(new Date()); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
+  lastWeek: () => { const m = getMonday(new Date()); m.setDate(m.getDate() - 7); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
+  thisMonth: () => { const n = new Date(); return { start: n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-01", end: toISO(n) }; },
+  last7: () => { const n = new Date(); const p = new Date(n); p.setDate(p.getDate() - 6); return { start: toISO(p), end: toISO(n) }; },
+  last30: () => { const n = new Date(); const p = new Date(n); p.setDate(p.getDate() - 29); return { start: toISO(p), end: toISO(n) }; },
+  last60: () => { const n = new Date(); const p = new Date(n); p.setDate(p.getDate() - 59); return { start: toISO(p), end: toISO(n) }; },
+  last90: () => { const n = new Date(); const p = new Date(n); p.setDate(p.getDate() - 89); return { start: toISO(p), end: toISO(n) }; },
+};
+
+function DateRangePicker({ value, onChange, t, presets }) {
+  const [showCustom, setShowCustom] = useState(false);
+  const [activePreset, setActivePreset] = useState(null);
+  const pills = presets || [
+    { key: "thisWeek", label: "This Week" },
+    { key: "lastWeek", label: "Last Week" },
+    { key: "thisMonth", label: "This Month" },
+    { key: "last30", label: "Last 30 Days" },
+    { key: "last90", label: "Last 90 Days" },
+  ];
+  const pickPreset = (key) => {
+    if (PRESETS[key]) { onChange(PRESETS[key]()); setActivePreset(key); setShowCustom(false); }
+  };
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: t.text, minWidth: 160, cursor: "pointer" }} onClick={() => setShowCustom(!showCustom)}>
+          {fmtRange(value.start, value.end)}
+          <span style={{ fontSize: 10, color: GO, marginLeft: 6 }}>&#9662;</span>
+        </div>
+        {pills.map(p => (
+          <button key={p.key} onClick={() => pickPreset(p.key)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: activePreset === p.key ? 700 : 500, cursor: "pointer", background: activePreset === p.key ? t.goldBg : "transparent", color: activePreset === p.key ? GO : t.textMut, border: activePreset === p.key ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{p.label}</button>
+        ))}
+        <button onClick={() => setShowCustom(!showCustom)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? GO : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Custom</button>
+        <button onClick={() => { const r = PRESETS.thisWeek(); onChange(r); setActivePreset("thisWeek"); setShowCustom(false); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 500, cursor: "pointer", background: "transparent", color: BL, border: "1px solid " + t.border }}>Today</button>
+      </div>
+      {showCustom && (
+        <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+          <input type="date" value={value.start} onChange={e => { onChange({ ...value, start: e.target.value }); setActivePreset(null); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+          <span style={{ fontSize: 11, color: t.textMut }}>to</span>
+          <input type="date" value={value.end} onChange={e => { onChange({ ...value, end: e.target.value }); setActivePreset(null); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: "'DM Sans',sans-serif" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const [token, setToken] = useState(null); const [user, setUser] = useState(null);
   const [page, setPage] = useState("overview"); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
@@ -123,6 +180,7 @@ export default function AdminDashboard() {
   const HsI = p => <Ic d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8" {...p} />;
   const GearI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
   const ClpI = p => <Ic d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 12l2 2 4-4" {...p} />;
+  const CalI = p => <Ic d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: "Dashboard", i: HmI }] },
@@ -140,12 +198,12 @@ export default function AdminDashboard() {
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
-    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
+    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "schedule", l: "Schedule", i: CalI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
     { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections" };
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
   const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
@@ -281,6 +339,7 @@ export default function AdminDashboard() {
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
       </div>
@@ -681,17 +740,31 @@ function ReportsPage({ af, showToast, isAdmin, t }) {
   const [tasks, setTasks] = useState(null);
   const [issS, setIssS] = useState(null);
   const [exp, setExp] = useState(false);
-  useEffect(() => {
-    af("/api/reports/task-completion").then(setTasks).catch(() => {});
-    af("/api/reports/issues").then(setIssS).catch(() => {});
-  }, []);
-  const expHrs = async () => { setExp(true); try { const d = await af("/api/reports/hours"); dlCSV("ocsa-hours.csv", ["Staff", "Role", "Site", "Clock In", "Clock Out", "Duration (min)"], d.data.map(r => [r.staff_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
+  const [dateRange, setDateRange] = useState(() => PRESETS.last30());
+
+  const loadReports = (range) => {
+    const r = range || dateRange;
+    const q = "?start_date=" + r.start + "&end_date=" + r.end;
+    af("/api/reports/task-completion" + q).then(setTasks).catch(() => {});
+    af("/api/reports/issues" + q).then(setIssS).catch(() => {});
+  };
+
+  useEffect(() => { loadReports(); }, []);
+  useEffect(() => { loadReports(); }, [dateRange]);
+
+  const expHrs = async () => { setExp(true); try { const d = await af("/api/reports/hours?start_date=" + dateRange.start + "&end_date=" + dateRange.end); dlCSV("ocsa-hours.csv", ["Staff", "Role", "Site", "Clock In", "Clock Out", "Duration (min)"], d.data.map(r => [r.staff_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   return (<div>
     <SecT t={t}>Reports</SecT>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
+      { key: "last30", label: "Last 30 Days" },
+      { key: "last60", label: "Last 60 Days" },
+      { key: "last90", label: "Last 90 Days" },
+      { key: "thisMonth", label: "This Month" },
+    ]} />
     <Crd t={t} style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Task Completion (Last 30 Days)</div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Task Completion</div>
       {tasks?.sites?.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
@@ -701,7 +774,7 @@ function ReportsPage({ af, showToast, isAdmin, t }) {
       {(!tasks?.sites || tasks.sites.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
     </Crd>
     <Crd t={t} style={{ marginBottom: 16 }}>
-      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Issues (Last 30 Days)</div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Issues Summary</div>
       {issS?.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
         <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div>
         <div style={{ textAlign: "center" }}><div style={{ fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div>
@@ -812,15 +885,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t }) {
 
 function TimesheetsPage({ af, showToast, isAdmin, t }) {
   const [data, setData] = useState(null);
-  const [weekStart, setWeekStart] = useState(() => {
-    const now = new Date();
-    const day = now.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - diff);
-    monday.setHours(0, 0, 0, 0);
-    return monday.toISOString().split("T")[0];
-  });
+  const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterUser, setFilterUser] = useState("");
   const [filterSite, setFilterSite] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -835,10 +900,11 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
   const [sites, setSites] = useState([]);
   const [staff, setStaff] = useState([]);
 
-  const load = async (ws) => {
+  const load = async (range) => {
     setLoading(true);
     try {
-      let url = "/api/timesheets?week_start=" + (ws || weekStart);
+      const r = range || dateRange;
+      let url = "/api/timesheets?start_date=" + r.start + "&end_date=" + r.end;
       if (filterUser) url += "&user_id=" + filterUser;
       if (filterSite) url += "&site_id=" + filterSite;
       if (filterStatus) url += "&status=" + filterStatus;
@@ -857,27 +923,7 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
     af("/api/users?status=active").then(setStaff).catch(() => {});
   }, []);
 
-  useEffect(() => { load(); }, [weekStart, filterUser, filterSite, filterStatus]);
-
-  const navigateWeek = (dir) => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + (dir * 7));
-    setWeekStart(d.toISOString().split("T")[0]);
-  };
-
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 6);
-  const weekLabel = new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " - " +
-    weekEnd.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-
-  const isCurrentWeek = (() => {
-    const now = new Date();
-    const day = now.getDay();
-    const diff = day === 0 ? 6 : day - 1;
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - diff);
-    return weekStart === monday.toISOString().split("T")[0];
-  })();
+  useEffect(() => { load(); }, [dateRange, filterUser, filterSite, filterStatus]);
 
   const approveShift = async (shiftId) => {
     try {
@@ -932,12 +978,11 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
   const exportTimesheets = async () => {
     setExporting(true);
     try {
-      const d = await af("/api/timesheets/export", { method: "POST", body: { week_start: weekStart } });
+      const d = await af("/api/timesheets/export", { method: "POST", body: { start_date: dateRange.start, end_date: dateRange.end } });
       showToast(d.message);
-      // Download CSV
       const headers = ["Last Name", "First Name", "Role", "Phone", "Email", "Site", "Clock In", "Clock Out", "Hours", "Rate", "Gross Pay", "Manual Entry"];
       const rows = d.data.map(r => [r.lastName, r.firstName, r.role, r.phone, r.email, r.siteName, r.clockIn, r.clockOut, r.durationHours, r.hourlyRate, r.grossPay, r.isManualEntry ? "Yes" : "No"]);
-      dlCSV("ocsa-timesheets-" + weekStart + ".csv", headers, rows);
+      dlCSV("ocsa-timesheets-" + dateRange.start + ".csv", headers, rows);
       load();
     } catch (e) { showToast(e.message, "error"); }
     setExporting(false);
@@ -984,16 +1029,14 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
   const users = data?.users || [];
 
   return (<div>
-    {/* Week Navigation */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button onClick={() => navigateWeek(-1)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, cursor: "pointer", fontSize: 14 }}>&larr;</button>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{weekLabel}</div>
-          {isCurrentWeek && <span style={{ fontSize: 9, color: GR, fontWeight: 600 }}>CURRENT WEEK</span>}
-        </div>
-        <button onClick={() => navigateWeek(1)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, cursor: "pointer", fontSize: 14 }}>&rarr;</button>
-      </div>
+    {/* Date Range */}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
+      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
+        { key: "thisWeek", label: "This Week" },
+        { key: "lastWeek", label: "Last Week" },
+        { key: "thisMonth", label: "This Month" },
+        { key: "last30", label: "Last 30 Days" },
+      ]} />
       <div style={{ display: "flex", gap: 6 }}>
         {isAdmin && <Btn t={t} onClick={exportTimesheets} style={{ opacity: exporting ? 0.6 : 1 }}><DlI sz={13} c="#0A1628" /> {exporting ? "Exporting..." : "Export for ADP"}</Btn>}
       </div>
@@ -1562,20 +1605,33 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
   const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
   const [manualEntry, setManualEntry] = useState(null);
   const [editShift, setEditShift] = useState(null);
+  const [dateRange, setDateRange] = useState(() => PRESETS.last7());
+
+  const loadHours = (range) => {
+    const r = range || dateRange;
+    af("/api/reports/hours?group_by=user&start_date=" + r.start + "&end_date=" + r.end).then(setHours).catch(() => {});
+  };
+
+  const loadHistory = async (filters, range) => {
+    const r = range || dateRange;
+    const params = new URLSearchParams();
+    if (filters?.userId) params.set("user_id", filters.userId);
+    if (filters?.siteId) params.set("site_id", filters.siteId);
+    params.set("start_date", r.start);
+    params.set("end_date", r.end);
+    params.set("limit", "100");
+    try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); }
+  };
 
   useEffect(() => {
-    af("/api/reports/hours?group_by=user").then(setHours).catch(() => {});
+    loadHours(); loadHistory(histFilter);
     af("/api/users?status=active").then(setStaffList).catch(() => {});
     af("/api/sites").then(setSites).catch(() => {});
   }, []);
 
-  const loadHistory = async (filters) => {
-    const params = new URLSearchParams();
-    if (filters?.userId) params.set("user_id", filters.userId);
-    if (filters?.siteId) params.set("site_id", filters.siteId);
-    params.set("limit", "50");
-    try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); }
-  };
+  useEffect(() => { loadHours(); loadHistory(histFilter); }, [dateRange]);
+
+  const onDateChange = (r) => { setDateRange(r); };
 
   const submitManual = async () => {
     if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; }
@@ -1591,10 +1647,16 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
 
   return (<div>
     <SecT t={t}>Clock History</SecT>
+    <DateRangePicker value={dateRange} onChange={onDateChange} t={t} presets={[
+      { key: "last7", label: "Last 7 Days" },
+      { key: "thisWeek", label: "This Week" },
+      { key: "lastWeek", label: "Last Week" },
+      { key: "last30", label: "Last 30 Days" },
+    ]} />
 
     <Crd t={t} style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Hours by Staff (Last 7 Days)</div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Hours by Staff</div>
       </div>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>
       {hours?.data?.map((s, i) => (
@@ -1617,7 +1679,6 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <Sel t={t} value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
         <Sel t={t} value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
-        {clockHistory.length === 0 && <button onClick={() => loadHistory(histFilter)} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load History</button>}
       </div>
       {clockHistory.length > 0 && <div style={{ maxHeight: 320, overflowY: "auto" }}>
         {clockHistory.map(sh => (
@@ -1637,7 +1698,7 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
           </div>
         ))}
       </div>}
-      {clockHistory.length === 0 && <div style={{ fontSize: 11, color: t.textMut }}>Select filters and click "Load History" to view clock records.</div>}
+      {clockHistory.length === 0 && <div style={{ fontSize: 11, color: t.textMut }}>No clock records found for the selected date range.</div>}
     </Crd>
 
     {manualEntry && <Mdl t={t} onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}>
@@ -1665,6 +1726,360 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
+// ===== SCHEDULE PAGE =====
+function SchedulePage({ af, showToast, isAdmin, t }) {
+  const [view, setView] = useState("week"); // week or month
+  const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
+  const [filterSite, setFilterSite] = useState("");
+  const [sites, setSites] = useState([]);
+  const [staffList, setStaffList] = useState([]);
+  const [calData, setCalData] = useState({ scheduled_shifts: [], actual_shifts: [], inspections: [] });
+  const [loading, setLoading] = useState(false);
+  const [createModal, setCreateModal] = useState(null); // { date, userId }
+  const [editModal, setEditModal] = useState(null);
+  const [createForm, setCreateForm] = useState({ userId: "", siteId: "", startTime: "08:00", endTime: "16:00", notes: "", repeat: false, repeatDays: [], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+
+  const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const DAY_MAP = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
+
+  const loadCalendar = async (range) => {
+    setLoading(true);
+    try {
+      const r = range || dateRange;
+      let url = "/api/schedule/calendar?start_date=" + r.start + "&end_date=" + r.end;
+      if (filterSite) url += "&site_id=" + filterSite;
+      const d = await af(url);
+      setCalData(d);
+    } catch (e) { showToast(e.message, "error"); }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/users?status=active").then(setStaffList).catch(() => {});
+    loadCalendar();
+  }, []);
+
+  useEffect(() => { loadCalendar(); }, [dateRange, filterSite]);
+
+  // Build week days array from dateRange.start
+  const getWeekDays = () => {
+    const days = [];
+    const start = new Date(dateRange.start + "T00:00:00");
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      days.push(toISO(d));
+    }
+    return days;
+  };
+
+  // Build month grid
+  const getMonthDays = () => {
+    const start = new Date(dateRange.start + "T00:00:00");
+    const year = start.getFullYear();
+    const month = start.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Monday offset
+    const days = [];
+    for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) {
+      const d = new Date(year, month, i + 1);
+      days.push(toISO(d));
+    }
+    return days;
+  };
+
+  const getShiftsForDay = (dateStr) => calData.scheduled_shifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
+  const getActualForDay = (dateStr) => calData.actual_shifts.filter(s => s.clock_in_time?.slice(0, 10) === dateStr);
+  const getInspForDay = (dateStr) => calData.inspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
+
+  const staffForSite = filterSite ? staffList.filter(s => s.id) : staffList.filter(s => s.role !== "admin");
+
+  const openCreate = (date, userId) => {
+    const dayOfWeek = new Date(date + "T00:00:00").getDay();
+    setCreateForm({ userId: userId || "", siteId: filterSite || "", startTime: "08:00", endTime: "16:00", notes: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+    setCreateModal({ date, userId });
+  };
+
+  const toggleRepeatDay = (dayNum) => {
+    setCreateForm(prev => {
+      const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum];
+      return { ...prev, repeatDays: days };
+    });
+  };
+
+  const submitCreate = async () => {
+    if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) {
+      showToast("Staff, site, start time, and end time are required", "error"); return;
+    }
+    try {
+      if (createForm.repeat && createForm.repeatDays.length > 0) {
+        const body = {
+          user_id: createForm.userId, site_id: createForm.siteId,
+          start_time: createForm.startTime, end_time: createForm.endTime,
+          notes: createForm.notes || undefined,
+          repeat_days: createForm.repeatDays,
+          start_date: createModal.date,
+        };
+        if (createForm.repeatMode === "until" && createForm.repeatUntil) {
+          body.repeat_until = createForm.repeatUntil;
+        } else {
+          body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
+        }
+        const d = await af("/api/schedule/bulk", { method: "POST", body });
+        showToast(d.message);
+      } else {
+        await af("/api/schedule", { method: "POST", body: {
+          user_id: createForm.userId, site_id: createForm.siteId,
+          scheduled_date: createModal.date, start_time: createForm.startTime,
+          end_time: createForm.endTime, notes: createForm.notes || undefined,
+        }});
+        showToast("Shift scheduled");
+      }
+      setCreateModal(null);
+      loadCalendar();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const openEdit = (shift) => { setEditModal({ ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5) }); };
+
+  const submitEdit = async () => {
+    try {
+      await af("/api/schedule/" + editModal.id, { method: "PATCH", body: {
+        start_time: editModal.startTime, end_time: editModal.endTime,
+        notes: editModal.notes, status: editModal.status,
+      }});
+      showToast("Schedule updated");
+      setEditModal(null);
+      loadCalendar();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deleteShift = async (id) => {
+    try {
+      await af("/api/schedule/" + id, { method: "DELETE" });
+      showToast("Shift removed");
+      setEditModal(null);
+      loadCalendar();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const fmtShortDate = (d) => { const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+  const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
+  const isToday = (d) => d === toISO(new Date());
+
+  const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
+
+  // ===== WEEK VIEW =====
+  const weekDays = getWeekDays();
+
+  const renderWeekView = () => (
+    <div style={{ overflowX: "auto" }}>
+      {/* Column headers */}
+      <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
+        <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
+        {weekDays.map(d => (
+          <div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? GO : t.textMut }}>{fmtDayLabel(d)}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? GO : t.text }}>{new Date(d + "T00:00:00").getDate()}</div>
+          </div>
+        ))}
+      </div>
+      {/* Staff rows */}
+      {staffForSite.map(staff => (
+        <div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
+          <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
+            <Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={24} />
+            <div style={{ fontSize: 11, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>
+          </div>
+          {weekDays.map(d => {
+            const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
+            const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
+            const hasAny = sched.length > 0 || actual.length > 0;
+            return (
+              <div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 4, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
+                {sched.map(s => (
+                  <div key={s.id} onClick={(e) => { e.stopPropagation(); openEdit(s); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+                    {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
+                    {s.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{s.site_name}</div>}
+                  </div>
+                ))}
+                {actual.map(a => (
+                  <div key={a.id} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
+                    {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
+                    {a.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{a.site_name}</div>}
+                  </div>
+                ))}
+                {!hasAny && <div style={{ fontSize: 16, color: t.textMut, opacity: 0.3, textAlign: "center", lineHeight: "40px" }}>+</div>}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      {/* Inspections row */}
+      {calData.inspections.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
+          <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
+          {weekDays.map(d => {
+            const insp = getInspForDay(d);
+            return (
+              <div key={d} style={{ padding: 4 }}>
+                {insp.map(i => (
+                  <div key={i.id} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2 }}>
+                    {i.template_name}
+                    {i.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{i.site_name}</div>}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  // ===== MONTH VIEW =====
+  const renderMonthView = () => {
+    const monthDays = getMonthDays();
+    const startMonth = new Date(dateRange.start + "T00:00:00").getMonth();
+    return (
+      <div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>
+          {DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+          {monthDays.map(d => {
+            const dt = new Date(d + "T00:00:00");
+            const inMonth = dt.getMonth() === startMonth;
+            const sched = getShiftsForDay(d);
+            const actual = getActualForDay(d);
+            const insp = getInspForDay(d);
+            const total = sched.length + actual.length + insp.length;
+            return (
+              <div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 60, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
+                <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
+                {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
+                {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
+                {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  const switchToMonth = () => {
+    const n = new Date(dateRange.start + "T00:00:00");
+    const first = new Date(n.getFullYear(), n.getMonth(), 1);
+    const last = new Date(n.getFullYear(), n.getMonth() + 1, 0);
+    setDateRange({ start: toISO(first), end: toISO(last) });
+    setView("month");
+  };
+
+  return (<div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+      <SecT t={t}>Schedule</SecT>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? GO : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
+        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? GO : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
+        <Btn t={t} onClick={() => openCreate(toISO(new Date()), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c="#0A1628" /> Schedule Shift</Btn>
+      </div>
+    </div>
+
+    {view === "week" && (
+      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
+        { key: "thisWeek", label: "This Week" },
+        { key: "lastWeek", label: "Last Week" },
+      ]} />
+    )}
+
+    <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+      <Sel t={t} value={filterSite} onChange={e => setFilterSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+    </div>
+
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
+
+    {!loading && view === "week" && <Crd t={t} style={{ padding: 12 }}>{renderWeekView()}</Crd>}
+    {!loading && view === "month" && <Crd t={t} style={{ padding: 12 }}>{renderMonthView()}</Crd>}
+
+    {/* CREATE SHIFT MODAL */}
+    {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Shift</div>
+        <button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: GO, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffForSite.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Start Time *</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
+        <div><Lbl>End Time *</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
+
+      {/* REPEAT SECTION */}
+      <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: createForm.repeat ? 12 : 0 }}>
+          <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c="#0A1628" />}</button>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Repeat this shift</span>
+        </div>
+        {createForm.repeat && (<div>
+          <div style={{ marginBottom: 10 }}>
+            <Lbl>Repeat on</Lbl>
+            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              {[{ label: "Sun", val: 0 }, { label: "Mon", val: 1 }, { label: "Tue", val: 2 }, { label: "Wed", val: 3 }, { label: "Thu", val: 4 }, { label: "Fri", val: 5 }, { label: "Sat", val: 6 }].map(d => (
+                <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? "#0A1628" : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? GO : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
+            {createForm.repeatMode === "weeks" && (<>
+              <Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} />
+              <span style={{ fontSize: 11, color: t.textSec }}>weeks</span>
+            </>)}
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? GO : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
+            {createForm.repeatMode === "until" && (
+              <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />
+            )}
+          </div>
+        </div>)}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>Cancel</Btn>
+        <Btn t={t} onClick={submitCreate}>{createForm.repeat ? "Schedule All" : "Schedule Shift"}</Btn>
+      </div>
+    </div></Mdl>}
+
+    {/* EDIT SHIFT MODAL */}
+    {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Shift</div>
+        <button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>
+        <span style={{ fontWeight: 600, color: t.text }}>{editModal.first_name} {editModal.last_name}</span> at <span style={{ fontWeight: 600, color: t.text }}>{editModal.site_name}</span> on {fmtShortDate(editModal.scheduled_date?.slice(0, 10))}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Start Time</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
+        <div><Lbl>End Time</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Status</Lbl><Sel t={t} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })} options={[{ v: "scheduled", l: "Scheduled" }, { v: "completed", l: "Completed" }, { v: "cancelled", l: "Cancelled" }, { v: "no_show", l: "No Show" }]} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={editModal.notes || ""} onChange={e => setEditModal({ ...editModal, notes: e.target.value })} placeholder="Notes" /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+        <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn>
+          <Btn t={t} onClick={submitEdit}>Save</Btn>
+        </div>
+      </div>
+    </div></Mdl>}
+  </div>);
+}
+
 function InspectionsPage({ af, showToast, isAdmin, t }) {
   const CIMS_C = { SD: "#3498DB", HSE: "#F39C12", GB: "#2ECC71", QS: "#C8A84E", HR: "#9B59B6", MC: "#2C3E50" };
   const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
@@ -1679,7 +2094,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const [completed, setCompleted] = useState([]);
   const [sites, setSites] = useState([]);
   // Analytics state
-  const [analyticsDays, setAnalyticsDays] = useState(90);
+  const [analyticsRange, setAnalyticsRange] = useState(() => PRESETS.last90());
   const [analyticsSite, setAnalyticsSite] = useState("");
   const [scoreTrend, setScoreTrend] = useState([]);
   const [siteComp, setSiteComp] = useState([]);
@@ -1708,10 +2123,10 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
     } catch (e) { showToast(e.message, "error"); }
   }, [af]);
 
-  const loadAnalytics = useCallback(async (days, siteId) => {
+  const loadAnalytics = useCallback(async (range, siteId) => {
     setAnalyticsLoading(true);
     try {
-      const q = "?days=" + days + (siteId ? "&site_id=" + siteId : "");
+      const q = "?start_date=" + range.start + "&end_date=" + range.end + (siteId ? "&site_id=" + siteId : "");
       const [trend, comp, cats, low] = await Promise.all([
         af("/api/inspections/analytics/scores-over-time" + q),
         af("/api/inspections/analytics/site-comparison" + q),
@@ -1730,8 +2145,8 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   }, []);
 
   useEffect(() => {
-    if (tab === "reports") loadAnalytics(analyticsDays, analyticsSite);
-  }, [tab, analyticsDays, analyticsSite]);
+    if (tab === "reports") loadAnalytics(analyticsRange, analyticsSite);
+  }, [tab, analyticsRange, analyticsSite]);
 
   const openTemplate = async (id) => {
     try { const d = await af("/api/inspections/templates/" + id); setSelectedTemplate(d); } catch (e) { showToast(e.message, "error"); }
@@ -2160,24 +2575,27 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
       {tab === "reports" && (
         <div>
           {/* Filters */}
-          <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Time Range</div>
-            {[30, 60, 90].map(d => (
-              <button key={d} onClick={() => setAnalyticsDays(d)} style={{ padding: "5px 12px", borderRadius: 6, background: analyticsDays === d ? t.goldBg : "transparent", color: analyticsDays === d ? GO : t.textMut, fontSize: 11, fontWeight: analyticsDays === d ? 700 : 500, cursor: "pointer", border: analyticsDays === d ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{d} days</button>
-            ))}
-            <div style={{ marginLeft: 12 }}>
-              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
+          <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 300 }}>
+              <DateRangePicker value={analyticsRange} onChange={setAnalyticsRange} t={t} presets={[
+                { key: "last30", label: "Last 30 Days" },
+                { key: "last60", label: "Last 60 Days" },
+                { key: "last90", label: "Last 90 Days" },
+              ]} />
             </div>
-            <button onClick={() => {
-              const q = "?days=" + analyticsDays + (analyticsSite ? "&site_id=" + analyticsSite : "");
-              af("/api/inspections/analytics/export" + q).then(rows => {
-                if (!rows.length) { showToast("No data to export", "error"); return; }
-                const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-                const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (CIMS_LABELS[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
-                dlCSV("inspection-analytics-" + analyticsDays + "d.csv", hdr, csvRows);
-                showToast("Exported " + rows.length + " rows");
-              }).catch(e => showToast(e.message, "error"));
-            }} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={GO} /> Export CSV</button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
+              <button onClick={() => {
+                const q = "?start_date=" + analyticsRange.start + "&end_date=" + analyticsRange.end + (analyticsSite ? "&site_id=" + analyticsSite : "");
+                af("/api/inspections/analytics/export" + q).then(rows => {
+                  if (!rows.length) { showToast("No data to export", "error"); return; }
+                  const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
+                  const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (CIMS_LABELS[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+                  dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
+                  showToast("Exported " + rows.length + " rows");
+                }).catch(e => showToast(e.message, "error"));
+              }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={GO} /> Export CSV</button>
+            </div>
           </div>
 
           {analyticsLoading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading analytics...</div>}
@@ -2320,7 +2738,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
                     const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
                     const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${CIMS_LABELS[c.cims_category] || c.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
                     const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${l.label}</td><td style="padding:8px">${l.zone}</td><td style="padding:8px">${CIMS_LABELS[l.cims_category] || l.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
-                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:#0F1D32;color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid #C8A84E"><div><div style="font-size:22px;font-weight:700;color:#0F1D32">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsDays} days${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">OCSA Cleaning Inc.</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by OCSA Cleaning Operations Platform</div></body></html>`;
+                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:#0F1D32;color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid #C8A84E"><div><div style="font-size:22px;font-weight:700;color:#0F1D32">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsRange.start} to ${analyticsRange.end}${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">OCSA Cleaning Inc.</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:#0F1D32;margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by OCSA Cleaning Operations Platform</div></body></html>`;
                     const w = window.open("", "_blank");
                     w.document.write(html); w.document.close();
                     setTimeout(() => w.print(), 600);
@@ -2330,7 +2748,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
 
               {scoreTrend.length === 0 && siteComp.length === 0 && (
                 <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>
-                  No completed inspections in the last {analyticsDays} days. Complete some inspections to see analytics here.
+                  No completed inspections in the selected date range. Complete some inspections to see analytics here.
                 </div>
               )}
             </div>
