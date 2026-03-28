@@ -1729,7 +1729,7 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
 // ===== SCHEDULE PAGE =====
 function SchedulePage({ af, showToast, isAdmin, t }) {
   const SERVICE_CATS = [
-    { v: "", l: "Select service..." },
+    { v: "", l: "No specific service" },
     { v: "Office Cleaning", l: "Office Cleaning" },
     { v: "Laboratory Cleaning", l: "Laboratory Cleaning" },
     { v: "Industrial Cleaning", l: "Industrial Cleaning" },
@@ -1739,22 +1739,48 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     { v: "Landscaping", l: "Landscaping" },
     { v: "Green Cleaning", l: "Green Cleaning" },
   ];
-  const [view, setView] = useState("week"); // week or month
+  const [view, setView] = useState("week");
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
   const [searchStaff, setSearchStaff] = useState("");
-  const [searchBuilding, setSearchBuilding] = useState("");
   const [sites, setSites] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [calData, setCalData] = useState({ scheduled_shifts: [], actual_shifts: [], inspections: [] });
   const [loading, setLoading] = useState(false);
-  const [createModal, setCreateModal] = useState(null); // { date, userId }
+  const [createModal, setCreateModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
-  const [shiftDetail, setShiftDetail] = useState(null); // for viewing actual shifts
+  const [shiftDetail, setShiftDetail] = useState(null);
   const [createForm, setCreateForm] = useState({ userId: "", siteId: "", startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+  const [siteLocations, setSiteLocations] = useState({});
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const DAY_MAP = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
+
+  const loadSiteLocations = async (siteId) => {
+    if (!siteId || siteLocations[siteId]) return;
+    try {
+      const tasks = await af("/api/sites/" + siteId + "/tasks");
+      const bSet = new Set(); const fMap = {};
+      (tasks.templates || tasks || []).forEach(tk => {
+        const b = tk.building_name || tk.buildingName;
+        const f = tk.floor_number || tk.floorNumber;
+        if (b) { bSet.add(b); if (!fMap[b]) fMap[b] = new Set(); if (f) fMap[b].add(String(f)); }
+      });
+      const floors = {};
+      Object.keys(fMap).forEach(b => { floors[b] = [...fMap[b]].sort(); });
+      setSiteLocations(prev => ({ ...prev, [siteId]: { buildings: [...bSet].sort(), floors } }));
+    } catch (e) { console.error("Load site locations error:", e); }
+  };
+
+  const getBuildingOpts = (siteId) => {
+    const loc = siteLocations[siteId];
+    if (!loc || loc.buildings.length === 0) return [{ v: "", l: "No buildings configured" }];
+    return [{ v: "", l: "Select building..." }, ...loc.buildings.map(b => ({ v: b, l: b }))];
+  };
+  const getFloorOpts = (siteId, building) => {
+    const loc = siteLocations[siteId];
+    if (!loc || !building || !loc.floors[building] || loc.floors[building].length === 0) return [{ v: "", l: "Select floor..." }];
+    return [{ v: "", l: "Select floor..." }, ...loc.floors[building].map(f => ({ v: f, l: "Floor " + f }))];
+  };
 
   const loadCalendar = async (range) => {
     setLoading(true);
@@ -1762,47 +1788,20 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       const r = range || dateRange;
       let url = "/api/schedule/calendar?start_date=" + r.start + "&end_date=" + r.end;
       if (filterSite) url += "&site_id=" + filterSite;
-      const d = await af(url);
-      setCalData(d);
+      const d = await af(url); setCalData(d);
     } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
 
   useEffect(() => {
-    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/sites").then(s => { setSites(s); s.forEach(site => loadSiteLocations(site.id)); }).catch(() => {});
     af("/api/users?status=active").then(setStaffList).catch(() => {});
     loadCalendar();
   }, []);
-
   useEffect(() => { loadCalendar(); }, [dateRange, filterSite]);
 
-  // Build week days array from dateRange.start
-  const getWeekDays = () => {
-    const days = [];
-    const start = new Date(dateRange.start + "T00:00:00");
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
-      days.push(toISO(d));
-    }
-    return days;
-  };
-
-  // Build month grid
-  const getMonthDays = () => {
-    const start = new Date(dateRange.start + "T00:00:00");
-    const year = start.getFullYear();
-    const month = start.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; // Monday offset
-    const days = [];
-    for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) {
-      const d = new Date(year, month, i + 1);
-      days.push(toISO(d));
-    }
-    return days;
-  };
+  const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
+  const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
 
   const getShiftsForDay = (dateStr) => calData.scheduled_shifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getActualForDay = (dateStr) => calData.actual_shifts.filter(s => s.clock_in_time?.slice(0, 10) === dateStr);
@@ -1810,211 +1809,97 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
 
   const staffForSite = (() => {
     let list = filterSite ? staffList.filter(s => s.id) : staffList.filter(s => s.role !== "admin");
-    if (searchStaff) {
-      const q = searchStaff.toLowerCase();
-      list = list.filter(s => {
-        const name = (s.name || (s.firstName + " " + s.lastName)).toLowerCase();
-        return name.includes(q);
-      });
-    }
+    if (searchStaff) { const q = searchStaff.toLowerCase(); list = list.filter(s => (s.name || (s.firstName + " " + s.lastName)).toLowerCase().includes(q)); }
     return list;
   })();
 
-  const openActualDetail = (shift) => {
-    setShiftDetail(shift);
-  };
-
   const openCreate = (date, userId) => {
     const dayOfWeek = new Date(date + "T00:00:00").getDay();
-    setCreateForm({ userId: userId || "", siteId: filterSite || "", startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+    const sId = filterSite || "";
+    setCreateForm({ userId: userId || "", siteId: sId, startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+    if (sId) loadSiteLocations(sId);
     setCreateModal({ date, userId });
   };
-
-  const toggleRepeatDay = (dayNum) => {
-    setCreateForm(prev => {
-      const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum];
-      return { ...prev, repeatDays: days };
-    });
-  };
+  const toggleRepeatDay = (dayNum) => { setCreateForm(prev => { const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum]; return { ...prev, repeatDays: days }; }); };
 
   const submitCreate = async () => {
-    if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) {
-      showToast("Staff, site, start time, and end time are required", "error"); return;
-    }
+    if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) { showToast("Staff, site, start time, and end time are required", "error"); return; }
     try {
       if (createForm.repeat && createForm.repeatDays.length > 0) {
-        const body = {
-          user_id: createForm.userId, site_id: createForm.siteId,
-          start_time: createForm.startTime, end_time: createForm.endTime,
-          notes: createForm.notes || undefined,
-          building_name: createForm.buildingName || undefined,
-          floor_number: createForm.floorNumber || undefined,
-          service_category: createForm.serviceCategory || undefined,
-          repeat_days: createForm.repeatDays,
-          start_date: createModal.date,
-        };
-        if (createForm.repeatMode === "until" && createForm.repeatUntil) {
-          body.repeat_until = createForm.repeatUntil;
-        } else {
-          body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
-        }
-        const d = await af("/api/schedule/bulk", { method: "POST", body });
-        showToast(d.message);
+        const body = { user_id: createForm.userId, site_id: createForm.siteId, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined, repeat_days: createForm.repeatDays, start_date: createModal.date };
+        if (createForm.repeatMode === "until" && createForm.repeatUntil) body.repeat_until = createForm.repeatUntil; else body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
+        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(d.message);
       } else {
-        await af("/api/schedule", { method: "POST", body: {
-          user_id: createForm.userId, site_id: createForm.siteId,
-          scheduled_date: createModal.date, start_time: createForm.startTime,
-          end_time: createForm.endTime, notes: createForm.notes || undefined,
-          building_name: createForm.buildingName || undefined,
-          floor_number: createForm.floorNumber || undefined,
-          service_category: createForm.serviceCategory || undefined,
-        }});
+        await af("/api/schedule", { method: "POST", body: { user_id: createForm.userId, site_id: createForm.siteId, scheduled_date: createModal.date, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined }});
         showToast("Shift scheduled");
       }
-      setCreateModal(null);
-      loadCalendar();
+      setCreateModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const openEdit = (shift) => { setEditModal({ ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" }); };
-
+  const openEdit = (shift) => {
+    if (shift.site_id) loadSiteLocations(shift.site_id);
+    setEditModal({ ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" });
+  };
   const submitEdit = async () => {
     try {
-      await af("/api/schedule/" + editModal.id, { method: "PATCH", body: {
-        start_time: editModal.startTime, end_time: editModal.endTime,
-        notes: editModal.notes, status: editModal.status,
-        building_name: editModal.buildingName, floor_number: editModal.floorNumber,
-        service_category: editModal.serviceCategory,
-      }});
-      showToast("Schedule updated");
-      setEditModal(null);
-      loadCalendar();
+      await af("/api/schedule/" + editModal.id, { method: "PATCH", body: { user_id: editModal.user_id, site_id: editModal.site_id, start_time: editModal.startTime, end_time: editModal.endTime, notes: editModal.notes, status: editModal.status, building_name: editModal.buildingName, floor_number: editModal.floorNumber, service_category: editModal.serviceCategory }});
+      showToast("Schedule updated"); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
+  const deleteShift = async (id) => { try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
 
-  const deleteShift = async (id) => {
-    try {
-      await af("/api/schedule/" + id, { method: "DELETE" });
-      showToast("Shift removed");
-      setEditModal(null);
-      loadCalendar();
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const fmtShortDate = (d) => { const dt = new Date(d + "T00:00:00"); return dt.toLocaleDateString("en-US", { month: "short", day: "numeric" }); };
+  const fmtShortDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
   const isToday = (d) => d === toISO(new Date());
-
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
-
-  // ===== WEEK VIEW =====
   const weekDays = getWeekDays();
 
-  const renderWeekView = () => (
-    <div style={{ overflowX: "auto" }}>
-      {/* Column headers */}
-      <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
-        <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
-        {weekDays.map(d => (
-          <div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? GO : t.textMut }}>{fmtDayLabel(d)}</div>
-            <div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? GO : t.text }}>{new Date(d + "T00:00:00").getDate()}</div>
-          </div>
-        ))}
-      </div>
-      {/* Staff rows */}
-      {staffForSite.map(staff => (
-        <div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
-          <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}>
-            <Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={24} />
-            <div style={{ fontSize: 11, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>
-          </div>
-          {weekDays.map(d => {
-            const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
-            const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
-            const hasAny = sched.length > 0 || actual.length > 0;
-            return (
-              <div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 4, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
-                {sched.filter(s => !searchBuilding || (s.building_name || "").toLowerCase().includes(searchBuilding.toLowerCase())).map(s => (
-                  <div key={s.id} onClick={(e) => { e.stopPropagation(); openEdit(s); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
-                    {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
-                    {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
-                    {s.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{s.site_name}</div>}
-                    {s.service_category && <div style={{ fontSize: 7, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
-                  </div>
-                ))}
-                {actual.map(a => (
-                  <div key={a.id} onClick={(e) => { e.stopPropagation(); openActualDetail(a); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
-                    {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
-                    {a.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{a.site_name}</div>}
-                  </div>
-                ))}
-                {!hasAny && <div style={{ fontSize: 16, color: t.textMut, opacity: 0.3, textAlign: "center", lineHeight: "40px" }}>+</div>}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-      {/* Inspections row */}
-      {calData.inspections.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
-          <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
-          {weekDays.map(d => {
-            const insp = getInspForDay(d);
-            return (
-              <div key={d} style={{ padding: 4 }}>
-                {insp.map(i => (
-                  <div key={i.id} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2 }}>
-                    {i.template_name}
-                    {i.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{i.site_name}</div>}
-                  </div>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+  const renderWeekView = () => (<div style={{ overflowX: "auto" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
+      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? GO : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? GO : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
     </div>
-  );
+    {staffForSite.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
+      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={24} /><div style={{ fontSize: 11, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div></div>
+      {weekDays.map(d => {
+        const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
+        const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
+        const hasAny = sched.length > 0 || actual.length > 0;
+        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 4, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
+          {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+            {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
+            {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
+            {s.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{s.site_name}</div>}
+            {s.service_category && <div style={{ fontSize: 7, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
+          </div>))}
+          {actual.map(a => (<div key={a.id} onClick={e => { e.stopPropagation(); setShiftDetail(a); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
+            {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
+            {a.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{a.site_name}</div>}
+          </div>))}
+          {!hasAny && <div style={{ fontSize: 16, color: t.textMut, opacity: 0.3, textAlign: "center", lineHeight: "40px" }}>+</div>}
+        </div>);
+      })}
+    </div>))}
+    {calData.inspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
+      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2 }}>{i.template_name}{i.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{i.site_name}</div>}</div>))}</div>); })}
+    </div>)}
+  </div>);
 
-  // ===== MONTH VIEW =====
-  const renderMonthView = () => {
-    const monthDays = getMonthDays();
-    const startMonth = new Date(dateRange.start + "T00:00:00").getMonth();
-    return (
-      <div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>
-          {DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
-          {monthDays.map(d => {
-            const dt = new Date(d + "T00:00:00");
-            const inMonth = dt.getMonth() === startMonth;
-            const sched = getShiftsForDay(d);
-            const actual = getActualForDay(d);
-            const insp = getInspForDay(d);
-            const total = sched.length + actual.length + insp.length;
-            return (
-              <div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 60, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
-                <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
-                {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
-                {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
-                {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
+  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); return (<div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+      {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const actual = getActualForDay(d); const insp = getInspForDay(d);
+        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 60, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
+          <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
+          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
+          {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
+          {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
+        </div>); })}
+    </div></div>); };
 
-  const switchToMonth = () => {
-    const n = new Date(dateRange.start + "T00:00:00");
-    const first = new Date(n.getFullYear(), n.getMonth(), 1);
-    const last = new Date(n.getFullYear(), n.getMonth() + 1, 0);
-    setDateRange({ start: toISO(first), end: toISO(last) });
-    setView("month");
-  };
+  const switchToMonth = () => { const n = new Date(dateRange.start + "T00:00:00"); const first = new Date(n.getFullYear(), n.getMonth(), 1); const last = new Date(n.getFullYear(), n.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); setView("month"); };
 
   return (<div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
@@ -2025,145 +1910,93 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         <Btn t={t} onClick={() => openCreate(toISO(new Date()), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c="#0A1628" /> Schedule Shift</Btn>
       </div>
     </div>
-
-    {view === "week" && (
-      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
-        { key: "thisWeek", label: "This Week" },
-        { key: "lastWeek", label: "Last Week" },
-      ]} />
-    )}
-
+    {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
       <Sel t={t} value={filterSite} onChange={e => setFilterSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
       <Inp t={t} value={searchStaff} onChange={e => setSearchStaff(e.target.value)} placeholder="Search staff..." style={{ width: 160, fontSize: 12 }} />
-      <Inp t={t} value={searchBuilding} onChange={e => setSearchBuilding(e.target.value)} placeholder="Filter building..." style={{ width: 140, fontSize: 12 }} />
     </div>
-
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
-
     {!loading && view === "week" && <Crd t={t} style={{ padding: 12 }}>{renderWeekView()}</Crd>}
     {!loading && view === "month" && <Crd t={t} style={{ padding: 12 }}>{renderMonthView()}</Crd>}
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Shift</div>
-        <button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
-      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Shift</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: GO, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
       <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffForSite.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>Start Time *</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
         <div><Lbl>End Time *</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Building</Lbl><Inp t={t} value={createForm.buildingName} onChange={e => setCreateForm({ ...createForm, buildingName: e.target.value })} placeholder="e.g. Main Building" /></div>
-        <div><Lbl>Floor</Lbl><Inp t={t} value={createForm.floorNumber} onChange={e => setCreateForm({ ...createForm, floorNumber: e.target.value })} placeholder="e.g. 2" /></div>
+        <div><Lbl>Building</Lbl><Sel t={t} value={createForm.buildingName} onChange={e => setCreateForm({ ...createForm, buildingName: e.target.value, floorNumber: "" })} options={getBuildingOpts(createForm.siteId)} /></div>
+        <div><Lbl>Floor</Lbl><Sel t={t} value={createForm.floorNumber} onChange={e => setCreateForm({ ...createForm, floorNumber: e.target.value })} options={getFloorOpts(createForm.siteId, createForm.buildingName)} /></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={createForm.serviceCategory} onChange={e => setCreateForm({ ...createForm, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
-
-      {/* REPEAT SECTION */}
+      <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: createForm.repeat ? 12 : 0 }}>
           <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c="#0A1628" />}</button>
           <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Repeat this shift</span>
         </div>
         {createForm.repeat && (<div>
-          <div style={{ marginBottom: 10 }}>
-            <Lbl>Repeat on</Lbl>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-              {[{ label: "Sun", val: 0 }, { label: "Mon", val: 1 }, { label: "Tue", val: 2 }, { label: "Wed", val: 3 }, { label: "Thu", val: 4 }, { label: "Fri", val: 5 }, { label: "Sat", val: 6 }].map(d => (
-                <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? "#0A1628" : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
-              ))}
-            </div>
-          </div>
+          <div style={{ marginBottom: 10 }}><Lbl>Repeat on</Lbl><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {[{ label: "Sun", val: 0 }, { label: "Mon", val: 1 }, { label: "Tue", val: 2 }, { label: "Wed", val: 3 }, { label: "Thu", val: 4 }, { label: "Fri", val: 5 }, { label: "Sat", val: 6 }].map(d => (
+              <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? "#0A1628" : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
+            ))}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? GO : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
-            {createForm.repeatMode === "weeks" && (<>
-              <Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} />
-              <span style={{ fontSize: 11, color: t.textSec }}>weeks</span>
-            </>)}
+            {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>weeks</span></>)}
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? GO : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
-            {createForm.repeatMode === "until" && (
-              <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />
-            )}
+            {createForm.repeatMode === "until" && <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />}
           </div>
         </div>)}
       </div>
-
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>Cancel</Btn>
-        <Btn t={t} onClick={submitCreate}>{createForm.repeat ? "Schedule All" : "Schedule Shift"}</Btn>
-      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>{createForm.repeat ? "Schedule All" : "Schedule Shift"}</Btn></div>
     </div></Mdl>}
 
-    {/* EDIT SHIFT MODAL */}
+    {/* EDIT SCHEDULED SHIFT MODAL */}
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Shift</div>
-        <button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
-      </div>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>
-        <span style={{ fontWeight: 600, color: t.text }}>{editModal.first_name} {editModal.last_name}</span> at <span style={{ fontWeight: 600, color: t.text }}>{editModal.site_name}</span> on {fmtShortDate(editModal.scheduled_date?.slice(0, 10))}
-      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Shift</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Staff</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>Start Time</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
         <div><Lbl>End Time</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Status</Lbl><Sel t={t} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })} options={[{ v: "scheduled", l: "Scheduled" }, { v: "completed", l: "Completed" }, { v: "cancelled", l: "Cancelled" }, { v: "no_show", l: "No Show" }]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Building</Lbl><Inp t={t} value={editModal.buildingName} onChange={e => setEditModal({ ...editModal, buildingName: e.target.value })} placeholder="e.g. Main Building" /></div>
-        <div><Lbl>Floor</Lbl><Inp t={t} value={editModal.floorNumber} onChange={e => setEditModal({ ...editModal, floorNumber: e.target.value })} placeholder="e.g. 2" /></div>
+        <div><Lbl>Building</Lbl><Sel t={t} value={editModal.buildingName} onChange={e => setEditModal({ ...editModal, buildingName: e.target.value, floorNumber: "" })} options={getBuildingOpts(editModal.site_id)} /></div>
+        <div><Lbl>Floor</Lbl><Sel t={t} value={editModal.floorNumber} onChange={e => setEditModal({ ...editModal, floorNumber: e.target.value })} options={getFloorOpts(editModal.site_id, editModal.buildingName)} /></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={editModal.serviceCategory} onChange={e => setEditModal({ ...editModal, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={editModal.notes || ""} onChange={e => setEditModal({ ...editModal, notes: e.target.value })} placeholder="Notes" /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn>
-          <Btn t={t} onClick={submitEdit}>Save</Btn>
-        </div>
+        <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div>
       </div>
     </div></Mdl>}
 
     {/* ACTUAL SHIFT DETAIL MODAL */}
     {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details {isAdmin && <span style={{ fontSize: 10, color: GO, marginLeft: 8 }}>EDITABLE</span>}</div>
-        <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
-      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details {isAdmin && <span style={{ fontSize: 10, color: GO, marginLeft: 8 }}>EDITABLE</span>}</div><button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Staff</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.first_name} {shiftDetail.last_name}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock In</div>
-          <div style={{ fontSize: 13, color: t.text }}>{shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "N/A"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock Out</div>
-          <div style={{ fontSize: 13, color: shiftDetail.clock_out_time ? t.text : OR }}>{shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Still clocked in"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Duration</div>
-          <div style={{ fontSize: 13, color: t.text }}>{shiftDetail.duration_minutes ? Math.floor(shiftDetail.duration_minutes / 60) + "h " + (shiftDetail.duration_minutes % 60) + "m" : "In progress"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Approval</div>
-          <div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div>
-        </div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Staff</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.first_name} {shiftDetail.last_name}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock In</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "N/A"}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock Out</div><div style={{ fontSize: 13, color: shiftDetail.clock_out_time ? t.text : OR }}>{shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Still clocked in"}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Duration</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.duration_minutes ? Math.floor(shiftDetail.duration_minutes / 60) + "h " + (shiftDetail.duration_minutes % 60) + "m" : "In progress"}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Approval</div><div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div></div>
       </div>
-     {isAdmin && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Clock In</Lbl><input type="datetime-local" value={shiftDetail.editClockIn || (shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockIn: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
-        <div><Lbl>Clock Out</Lbl><input type="datetime-local" value={shiftDetail.editClockOut || (shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockOut: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
-      </div>}
+      {isAdmin && <>
+        <div style={{ padding: "10px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Admin edit mode. Changes to clock times will recalculate duration automatically.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Clock In</Lbl><input type="datetime-local" value={shiftDetail.editClockIn || (shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockIn: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+          <div><Lbl>Clock Out</Lbl><input type="datetime-local" value={shiftDetail.editClockOut || (shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockOut: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+        </div>
+        <div style={{ marginBottom: 12 }}><Lbl>Approval Status</Lbl><Sel t={t} value={shiftDetail.editApproval || shiftDetail.approval_status || "pending"} onChange={e => setShiftDetail({ ...shiftDetail, editApproval: e.target.value })} options={[{ v: "pending", l: "Pending" }, { v: "approved", l: "Approved" }, { v: "rejected", l: "Rejected" }]} /></div>
+      </>}
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
         <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
         {isAdmin && <Btn t={t} onClick={async () => {
@@ -2171,11 +2004,13 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
             const body = {};
             if (shiftDetail.editClockIn) body.clockInTime = shiftDetail.editClockIn;
             if (shiftDetail.editClockOut) body.clockOutTime = shiftDetail.editClockOut;
-            if (Object.keys(body).length === 0) { showToast("No changes to save"); return; }
-            await af("/api/clock/shifts/" + shiftDetail.id, { method: "PATCH", body });
-            showToast("Shift updated");
-            setShiftDetail(null);
-            loadCalendar();
+            if (shiftDetail.editApproval && shiftDetail.editApproval !== (shiftDetail.approval_status || "pending")) {
+              if (shiftDetail.editApproval === "approved") { await af("/api/timesheets/" + shiftDetail.id + "/approve", { method: "PATCH" }); }
+              else if (shiftDetail.editApproval === "rejected") { await af("/api/timesheets/" + shiftDetail.id + "/reject", { method: "PATCH", body: { reason: "Updated from schedule view" } }); }
+              else if (shiftDetail.editApproval === "pending") { await af("/api/timesheets/" + shiftDetail.id + "/reset", { method: "PATCH" }); }
+            }
+            if (body.clockInTime || body.clockOutTime) { await af("/api/clock/shifts/" + shiftDetail.id, { method: "PATCH", body }); }
+            showToast("Shift updated"); setShiftDetail(null); loadCalendar();
           } catch (e) { showToast(e.message, "error"); }
         }}>Save Changes</Btn>}
       </div>
