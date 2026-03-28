@@ -1728,16 +1728,30 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
 
 // ===== SCHEDULE PAGE =====
 function SchedulePage({ af, showToast, isAdmin, t }) {
+  const SERVICE_CATS = [
+    { v: "", l: "Select service..." },
+    { v: "Office Cleaning", l: "Office Cleaning" },
+    { v: "Laboratory Cleaning", l: "Laboratory Cleaning" },
+    { v: "Industrial Cleaning", l: "Industrial Cleaning" },
+    { v: "Biohazard Cleaning", l: "Biohazard Cleaning" },
+    { v: "Post-Construction", l: "Post-Construction Cleaning" },
+    { v: "Disinfection", l: "Disinfection Services" },
+    { v: "Landscaping", l: "Landscaping" },
+    { v: "Green Cleaning", l: "Green Cleaning" },
+  ];
   const [view, setView] = useState("week"); // week or month
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
+  const [searchStaff, setSearchStaff] = useState("");
+  const [searchBuilding, setSearchBuilding] = useState("");
   const [sites, setSites] = useState([]);
   const [staffList, setStaffList] = useState([]);
   const [calData, setCalData] = useState({ scheduled_shifts: [], actual_shifts: [], inspections: [] });
   const [loading, setLoading] = useState(false);
   const [createModal, setCreateModal] = useState(null); // { date, userId }
   const [editModal, setEditModal] = useState(null);
-  const [createForm, setCreateForm] = useState({ userId: "", siteId: "", startTime: "08:00", endTime: "16:00", notes: "", repeat: false, repeatDays: [], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+  const [shiftDetail, setShiftDetail] = useState(null); // for viewing actual shifts
+  const [createForm, setCreateForm] = useState({ userId: "", siteId: "", startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const DAY_MAP = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
@@ -1794,11 +1808,25 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   const getActualForDay = (dateStr) => calData.actual_shifts.filter(s => s.clock_in_time?.slice(0, 10) === dateStr);
   const getInspForDay = (dateStr) => calData.inspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
 
-  const staffForSite = filterSite ? staffList.filter(s => s.id) : staffList.filter(s => s.role !== "admin");
+  const staffForSite = (() => {
+    let list = filterSite ? staffList.filter(s => s.id) : staffList.filter(s => s.role !== "admin");
+    if (searchStaff) {
+      const q = searchStaff.toLowerCase();
+      list = list.filter(s => {
+        const name = (s.name || (s.firstName + " " + s.lastName)).toLowerCase();
+        return name.includes(q);
+      });
+    }
+    return list;
+  })();
+
+  const openActualDetail = (shift) => {
+    setShiftDetail(shift);
+  };
 
   const openCreate = (date, userId) => {
     const dayOfWeek = new Date(date + "T00:00:00").getDay();
-    setCreateForm({ userId: userId || "", siteId: filterSite || "", startTime: "08:00", endTime: "16:00", notes: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
+    setCreateForm({ userId: userId || "", siteId: filterSite || "", startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
     setCreateModal({ date, userId });
   };
 
@@ -1819,6 +1847,9 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           user_id: createForm.userId, site_id: createForm.siteId,
           start_time: createForm.startTime, end_time: createForm.endTime,
           notes: createForm.notes || undefined,
+          building_name: createForm.buildingName || undefined,
+          floor_number: createForm.floorNumber || undefined,
+          service_category: createForm.serviceCategory || undefined,
           repeat_days: createForm.repeatDays,
           start_date: createModal.date,
         };
@@ -1834,6 +1865,9 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           user_id: createForm.userId, site_id: createForm.siteId,
           scheduled_date: createModal.date, start_time: createForm.startTime,
           end_time: createForm.endTime, notes: createForm.notes || undefined,
+          building_name: createForm.buildingName || undefined,
+          floor_number: createForm.floorNumber || undefined,
+          service_category: createForm.serviceCategory || undefined,
         }});
         showToast("Shift scheduled");
       }
@@ -1842,13 +1876,15 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const openEdit = (shift) => { setEditModal({ ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5) }); };
+  const openEdit = (shift) => { setEditModal({ ...shift, startTime: shift.start_time?.slice(0, 5), endTime: shift.end_time?.slice(0, 5), buildingName: shift.building_name || "", floorNumber: shift.floor_number || "", serviceCategory: shift.service_category || "" }); };
 
   const submitEdit = async () => {
     try {
       await af("/api/schedule/" + editModal.id, { method: "PATCH", body: {
         start_time: editModal.startTime, end_time: editModal.endTime,
         notes: editModal.notes, status: editModal.status,
+        building_name: editModal.buildingName, floor_number: editModal.floorNumber,
+        service_category: editModal.serviceCategory,
       }});
       showToast("Schedule updated");
       setEditModal(null);
@@ -1899,14 +1935,16 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
             const hasAny = sched.length > 0 || actual.length > 0;
             return (
               <div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 4, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
-                {sched.map(s => (
+                {sched.filter(s => !searchBuilding || (s.building_name || "").toLowerCase().includes(searchBuilding.toLowerCase())).map(s => (
                   <div key={s.id} onClick={(e) => { e.stopPropagation(); openEdit(s); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
                     {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
+                    {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
                     {s.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{s.site_name}</div>}
+                    {s.service_category && <div style={{ fontSize: 7, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
                   </div>
                 ))}
                 {actual.map(a => (
-                  <div key={a.id} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
+                  <div key={a.id} onClick={(e) => { e.stopPropagation(); openActualDetail(a); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
                     {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
                     {a.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{a.site_name}</div>}
                   </div>
@@ -1995,8 +2033,10 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       ]} />
     )}
 
-    <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+    <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
       <Sel t={t} value={filterSite} onChange={e => setFilterSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <Inp t={t} value={searchStaff} onChange={e => setSearchStaff(e.target.value)} placeholder="Search staff..." style={{ width: 160, fontSize: 12 }} />
+      <Inp t={t} value={searchBuilding} onChange={e => setSearchBuilding(e.target.value)} placeholder="Filter building..." style={{ width: 140, fontSize: 12 }} />
     </div>
 
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
@@ -2018,6 +2058,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         <div><Lbl>End Time *</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Building</Lbl><Inp t={t} value={createForm.buildingName} onChange={e => setCreateForm({ ...createForm, buildingName: e.target.value })} placeholder="e.g. Main Building" /></div>
+        <div><Lbl>Floor</Lbl><Inp t={t} value={createForm.floorNumber} onChange={e => setCreateForm({ ...createForm, floorNumber: e.target.value })} placeholder="e.g. 2" /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={createForm.serviceCategory} onChange={e => setCreateForm({ ...createForm, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
 
       {/* REPEAT SECTION */}
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
@@ -2068,6 +2113,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         <div><Lbl>End Time</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Status</Lbl><Sel t={t} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })} options={[{ v: "scheduled", l: "Scheduled" }, { v: "completed", l: "Completed" }, { v: "cancelled", l: "Cancelled" }, { v: "no_show", l: "No Show" }]} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Building</Lbl><Inp t={t} value={editModal.buildingName} onChange={e => setEditModal({ ...editModal, buildingName: e.target.value })} placeholder="e.g. Main Building" /></div>
+        <div><Lbl>Floor</Lbl><Inp t={t} value={editModal.floorNumber} onChange={e => setEditModal({ ...editModal, floorNumber: e.target.value })} placeholder="e.g. 2" /></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={editModal.serviceCategory} onChange={e => setEditModal({ ...editModal, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={editModal.notes || ""} onChange={e => setEditModal({ ...editModal, notes: e.target.value })} placeholder="Notes" /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
@@ -2075,6 +2125,43 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           <Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn>
           <Btn t={t} onClick={submitEdit}>Save</Btn>
         </div>
+      </div>
+    </div></Mdl>}
+
+    {/* ACTUAL SHIFT DETAIL MODAL (read-only) */}
+    {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details</div>
+        <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+        <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Staff</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.first_name} {shiftDetail.last_name}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock In</div>
+          <div style={{ fontSize: 13, color: t.text }}>{shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "N/A"}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock Out</div>
+          <div style={{ fontSize: 13, color: shiftDetail.clock_out_time ? t.text : OR }}>{shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Still clocked in"}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Duration</div>
+          <div style={{ fontSize: 13, color: t.text }}>{shiftDetail.duration_minutes ? Math.floor(shiftDetail.duration_minutes / 60) + "h " + (shiftDetail.duration_minutes % 60) + "m" : "In progress"}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Approval</div>
+          <div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
       </div>
     </div></Mdl>}
   </div>);
