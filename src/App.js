@@ -2449,6 +2449,38 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
           {isAdmin && <Btn t={t} onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editClockIn: shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "", editClockOut: shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "", editApproval: shiftDetail.approval_status || "pending", editSite: shiftDetail.site_id || "", editUser: shiftDetail.user_id || "" })}>Edit Shift</Btn>}
         </div>
+        {!shiftDetail.pickupForm && (
+          <div style={{ marginTop: 10, borderTop: "1px solid " + t.border, paddingTop: 10 }}>
+            <button onClick={() => setShiftDetail({ ...shiftDetail, pickupForm: { origin: "callout", urgency: "urgent", date: new Date().toISOString().split("T")[0], startTime: shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "08:00", endTime: shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "16:00", notes: "" } })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer", width: "100%" , justifyContent: "center" }}><SwpI sz={13} c={TL} />Post Coverage Pickup for This Site</button>
+          </div>
+        )}
+        {shiftDetail.pickupForm && (
+          <div style={{ marginTop: 10, padding: 12, borderRadius: 8, background: t.cardAlt, border: "1px solid " + TL + "40" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: TL, marginBottom: 8 }}>Post Open Pickup Shift</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <div><Lbl>Date *</Lbl><Inp t={t} type="date" value={shiftDetail.pickupForm.date} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, date: e.target.value } })} /></div>
+              <div><Lbl>Start</Lbl><Inp t={t} type="time" value={shiftDetail.pickupForm.startTime} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, startTime: e.target.value } })} /></div>
+              <div><Lbl>End</Lbl><Inp t={t} type="time" value={shiftDetail.pickupForm.endTime} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, endTime: e.target.value } })} /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <div><Lbl>Reason</Lbl><Sel t={t} value={shiftDetail.pickupForm.origin} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, origin: e.target.value } })} options={[{ v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "extra_coverage", l: "Extra Coverage" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "new_shift", l: "New Shift" }]} /></div>
+              <div><Lbl>Urgency</Lbl><Sel t={t} value={shiftDetail.pickupForm.urgency} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, urgency: e.target.value } })} options={[{ v: "urgent", l: "Urgent" }, { v: "normal", l: "Normal" }]} /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}><Lbl>Notes</Lbl><Inp t={t} value={shiftDetail.pickupForm.notes} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, notes: e.target.value } })} placeholder="e.g. Need coverage for tomorrow" /></div>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, pickupForm: null })} style={{ fontSize: 11, padding: "6px 12px" }}>Cancel</Btn>
+              <Btn t={t} onClick={async () => {
+                try {
+                  const pf = shiftDetail.pickupForm;
+                  await af("/api/pickups", { method: "POST", body: { site_id: shiftDetail.site_id, scheduled_date: pf.date, start_time: pf.startTime, end_time: pf.endTime, origin: pf.origin, urgency: pf.urgency, notes: pf.notes } });
+                  showToast("Pickup shift posted");
+                  setShiftDetail(null);
+                  loadCalendar();
+                } catch (e) { showToast(e.message, "error"); }
+              }} style={{ fontSize: 11, padding: "6px 12px" }}>Post Pickup</Btn>
+            </div>
+          </div>
+        )}
       </>) : (<>
         <div style={{ padding: "10px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Editing this shift. Changes to clock times will recalculate duration automatically.</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
