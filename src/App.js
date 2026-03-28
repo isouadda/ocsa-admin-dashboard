@@ -1980,40 +1980,49 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
 
     {/* ACTUAL SHIFT DETAIL MODAL */}
     {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details {isAdmin && <span style={{ fontSize: 10, color: GO, marginLeft: 8 }}>EDITABLE</span>}</div><button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Staff</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.first_name} {shiftDetail.last_name}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock In</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "N/A"}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock Out</div><div style={{ fontSize: 13, color: shiftDetail.clock_out_time ? t.text : OR }}>{shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Still clocked in"}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Duration</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.duration_minutes ? Math.floor(shiftDetail.duration_minutes / 60) + "h " + (shiftDetail.duration_minutes % 60) + "m" : "In progress"}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Approval</div><div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div></div>
-      </div>
-      {isAdmin && <>
-        <div style={{ padding: "10px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Admin edit mode. Changes to clock times will recalculate duration automatically.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Clock In</Lbl><input type="datetime-local" value={shiftDetail.editClockIn || (shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockIn: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
-          <div><Lbl>Clock Out</Lbl><input type="datetime-local" value={shiftDetail.editClockOut || (shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockOut: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details</div><button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {!shiftDetail.editing ? (<>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Staff</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.first_name} {shiftDetail.last_name}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock In</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "N/A"}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock Out</div><div style={{ fontSize: 13, color: shiftDetail.clock_out_time ? t.text : OR }}>{shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Still clocked in"}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Duration</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.duration_minutes ? Math.floor(shiftDetail.duration_minutes / 60) + "h " + (shiftDetail.duration_minutes % 60) + "m" : "In progress"}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Approval</div><div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div></div>
         </div>
-        <div style={{ marginBottom: 12 }}><Lbl>Approval Status</Lbl><Sel t={t} value={shiftDetail.editApproval || shiftDetail.approval_status || "pending"} onChange={e => setShiftDetail({ ...shiftDetail, editApproval: e.target.value })} options={[{ v: "pending", l: "Pending" }, { v: "approved", l: "Approved" }, { v: "rejected", l: "Rejected" }]} /></div>
-      </>}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-        <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
-        {isAdmin && <Btn t={t} onClick={async () => {
-          try {
-            const body = {};
-            if (shiftDetail.editClockIn) body.clockInTime = shiftDetail.editClockIn;
-            if (shiftDetail.editClockOut) body.clockOutTime = shiftDetail.editClockOut;
-            if (shiftDetail.editApproval && shiftDetail.editApproval !== (shiftDetail.approval_status || "pending")) {
-              if (shiftDetail.editApproval === "approved") { await af("/api/timesheets/" + shiftDetail.id + "/approve", { method: "PATCH" }); }
-              else if (shiftDetail.editApproval === "rejected") { await af("/api/timesheets/" + shiftDetail.id + "/reject", { method: "PATCH", body: { reason: "Updated from schedule view" } }); }
-              else if (shiftDetail.editApproval === "pending") { await af("/api/timesheets/" + shiftDetail.id + "/reset", { method: "PATCH" }); }
-            }
-            if (body.clockInTime || body.clockOutTime) { await af("/api/clock/shifts/" + shiftDetail.id, { method: "PATCH", body }); }
-            showToast("Shift updated"); setShiftDetail(null); loadCalendar();
-          } catch (e) { showToast(e.message, "error"); }
-        }}>Save Changes</Btn>}
-      </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
+          {isAdmin && <Btn t={t} onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editClockIn: shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "", editClockOut: shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "", editApproval: shiftDetail.approval_status || "pending", editSite: shiftDetail.site_id || "", editUser: shiftDetail.user_id || "" })}>Edit Shift</Btn>}
+        </div>
+      </>) : (<>
+        <div style={{ padding: "10px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Editing this shift. Changes to clock times will recalculate duration automatically.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Staff</Lbl><Sel t={t} value={shiftDetail.editUser} onChange={e => setShiftDetail({ ...shiftDetail, editUser: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <div><Lbl>Site</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => setShiftDetail({ ...shiftDetail, editSite: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Clock In</Lbl><input type="datetime-local" value={shiftDetail.editClockIn} onChange={e => setShiftDetail({ ...shiftDetail, editClockIn: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+          <div><Lbl>Clock Out</Lbl><input type="datetime-local" value={shiftDetail.editClockOut} onChange={e => setShiftDetail({ ...shiftDetail, editClockOut: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+        </div>
+        <div style={{ marginBottom: 12 }}><Lbl>Approval Status</Lbl><Sel t={t} value={shiftDetail.editApproval} onChange={e => setShiftDetail({ ...shiftDetail, editApproval: e.target.value })} options={[{ v: "pending", l: "Pending" }, { v: "approved", l: "Approved" }, { v: "rejected", l: "Rejected" }]} /></div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: false })}>Cancel</Btn>
+          <Btn t={t} onClick={async () => {
+            try {
+              const body = {};
+              if (shiftDetail.editClockIn !== (shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "")) body.clockInTime = shiftDetail.editClockIn;
+              if (shiftDetail.editClockOut !== (shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "")) body.clockOutTime = shiftDetail.editClockOut;
+              if (shiftDetail.editApproval !== (shiftDetail.approval_status || "pending")) {
+                if (shiftDetail.editApproval === "approved") { await af("/api/timesheets/" + shiftDetail.id + "/approve", { method: "PATCH" }); }
+                else if (shiftDetail.editApproval === "rejected") { await af("/api/timesheets/" + shiftDetail.id + "/reject", { method: "PATCH", body: { reason: "Updated from schedule view" } }); }
+                else if (shiftDetail.editApproval === "pending") { await af("/api/timesheets/" + shiftDetail.id + "/reset", { method: "PATCH" }); }
+              }
+              if (body.clockInTime || body.clockOutTime) { await af("/api/clock/shifts/" + shiftDetail.id, { method: "PATCH", body }); }
+              showToast("Shift updated"); setShiftDetail(null); loadCalendar();
+            } catch (e) { showToast(e.message, "error"); }
+          }}>Save Changes</Btn>
+        </div>
+      </>)}
     </div></Mdl>}
   </div>);
 }
