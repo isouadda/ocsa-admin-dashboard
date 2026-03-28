@@ -2160,8 +2160,24 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           <div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+     {isAdmin && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Clock In</Lbl><input type="datetime-local" value={shiftDetail.editClockIn || (shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockIn: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+        <div><Lbl>Clock Out</Lbl><input type="datetime-local" value={shiftDetail.editClockOut || (shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "")} onChange={e => setShiftDetail({ ...shiftDetail, editClockOut: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: "'DM Sans',sans-serif" }} /></div>
+      </div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
         <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
+        {isAdmin && <Btn t={t} onClick={async () => {
+          try {
+            const body = {};
+            if (shiftDetail.editClockIn) body.clockInTime = shiftDetail.editClockIn;
+            if (shiftDetail.editClockOut) body.clockOutTime = shiftDetail.editClockOut;
+            if (Object.keys(body).length === 0) { showToast("No changes to save"); return; }
+            await af("/api/clock/shifts/" + shiftDetail.id, { method: "PATCH", body });
+            showToast("Shift updated");
+            setShiftDetail(null);
+            loadCalendar();
+          } catch (e) { showToast(e.message, "error"); }
+        }}>Save Changes</Btn>}
       </div>
     </div></Mdl>}
   </div>);
