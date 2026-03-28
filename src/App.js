@@ -71,6 +71,7 @@ const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
+const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter" };
@@ -1752,6 +1753,9 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   const [shiftDetail, setShiftDetail] = useState(null);
   const [createForm, setCreateForm] = useState({ userId: "", siteId: "", startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
   const [siteLocations, setSiteLocations] = useState({});
+  const [inspModal, setInspModal] = useState(null);
+  const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
+  const [schedSupervisors, setSchedSupervisors] = useState([]);
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -1796,6 +1800,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   useEffect(() => {
     af("/api/sites").then(s => { setSites(s); s.forEach(site => loadSiteLocations(site.id)); }).catch(() => {});
     af("/api/users?status=active").then(setStaffList).catch(() => {});
+    af("/api/users?role=supervisor").then(setSchedSupervisors).catch(() => {});
     loadCalendar();
   }, []);
   useEffect(() => { loadCalendar(); }, [dateRange, filterSite]);
@@ -1849,6 +1854,25 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   };
   const deleteShift = async (id) => { try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
 
+  const openInspModal = (insp) => {
+    setInspForm({ assigned_to: insp.assigned_to || "", scheduled_date: insp.scheduled_date ? insp.scheduled_date.slice(0, 10) : "" });
+    setInspModal(insp);
+  };
+  const submitInspReschedule = async () => {
+    if (!inspForm.scheduled_date) { showToast("Date is required", "error"); return; }
+    try {
+      await af("/api/inspections/scheduled/" + inspModal.id, { method: "PATCH", body: { assigned_to: inspForm.assigned_to || null, scheduled_date: inspForm.scheduled_date } });
+      showToast("Inspection rescheduled"); setInspModal(null); loadCalendar();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+  const cancelInspFromSchedule = async (id) => {
+    if (!window.confirm("Cancel this inspection?")) return;
+    try {
+      await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
+      showToast("Inspection cancelled"); setInspModal(null); loadCalendar();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
   const fmtShortDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
   const isToday = (d) => d === toISO(new Date());
@@ -1883,7 +1907,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     </div>))}
     {calData.inspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
-      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2 }}>{i.template_name}{i.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{i.site_name}</div>}</div>))}</div>); })}
+      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 7, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
     </div>)}
   </div>);
 
@@ -2024,6 +2048,22 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         </div>
       </>)}
     </div></Mdl>}
+
+    {/* INSPECTION RESCHEDULE MODAL */}
+    {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Inspection Details</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
+        <Bdg l={inspModal.status || "scheduled"} c={inspModal.status === "completed" ? GR : BL} />
+      </div>
+      <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...schedSupervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+      <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+        <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
+        <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setInspModal(null)}>Close</Btn><Btn t={t} onClick={submitInspReschedule}>Reschedule</Btn></div>
+      </div>
+    </div></Mdl>}
   </div>);
 }
 
@@ -2031,8 +2071,8 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const CIMS_C = { SD: "#3498DB", HSE: "#F39C12", GB: "#2ECC71", QS: "#C8A84E", HR: "#9B59B6", MC: "#2C3E50" };
   const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
   const CIMS_CATS = ["SD", "HSE", "GB", "QS", "HR", "MC"];
-  const STATUS_C = { scheduled: "#3498DB", in_progress: "#F39C12", completed: "#2ECC71" };
-  const fmtDate = (d) => d ? new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+  const STATUS_C = { scheduled: "#3498DB", in_progress: "#F39C12", completed: "#2ECC71", cancelled: "#7A8A9A" };
+  const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
   const fmtDT = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 
   const [tab, setTab] = useState("templates");
@@ -2057,6 +2097,8 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
   const [detailView, setDetailView] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
+  const [editInspModal, setEditInspModal] = useState(null);
+  const [editInspForm, setEditInspForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
 
   const loadTemplates = useCallback(async () => {
     try { const d = await af("/api/inspections/templates"); setTemplates(d); } catch (e) { showToast(e.message, "error"); }
@@ -2065,7 +2107,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const loadScheduled = useCallback(async () => {
     try {
       const all = await af("/api/inspections/scheduled");
-      setScheduled(all.filter(s => s.status !== "completed"));
+      setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
       setCompleted(all.filter(s => s.status === "completed"));
     } catch (e) { showToast(e.message, "error"); }
   }, [af]);
@@ -2159,6 +2201,27 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const deleteScheduled = async (id) => {
     if (!window.confirm("Delete this inspection?")) return;
     try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast("Deleted"); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const openEditInspection = (si) => {
+    setEditInspForm({ template_id: si.template_id, site_id: si.site_id, assigned_to: si.assigned_to || "", scheduled_date: si.scheduled_date ? si.scheduled_date.slice(0, 10) : "" });
+    setEditInspModal(si);
+  };
+  const submitEditInspection = async () => {
+    if (!editInspForm.template_id || !editInspForm.site_id || !editInspForm.scheduled_date) { showToast("Template, site, and date are required", "error"); return; }
+    try {
+      await af("/api/inspections/scheduled/" + editInspModal.id, { method: "PATCH", body: { template_id: editInspForm.template_id, site_id: editInspForm.site_id, assigned_to: editInspForm.assigned_to || null, scheduled_date: editInspForm.scheduled_date } });
+      showToast("Inspection updated"); setEditInspModal(null); loadScheduled();
+      if (detailView && detailView.id === editInspModal.id) { openDetail(editInspModal.id); }
+    } catch (e) { showToast(e.message, "error"); }
+  };
+  const cancelInspection = async (id) => {
+    if (!window.confirm("Cancel this inspection?")) return;
+    try {
+      await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
+      showToast("Inspection cancelled"); setEditInspModal(null); loadScheduled();
+      if (detailView && detailView.id === id) setDetailView(null);
+    } catch (e) { showToast(e.message, "error"); }
   };
 
   const toggleExpand = (id) => {
@@ -2279,6 +2342,16 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
               </button>
               <button onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: "#0A1628", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                 Export PDF
+              </button>
+            </div>
+          )}
+          {!isComplete && isAdmin && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => openEditInspection(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
+                <EdI sz={12} c={t.textSec} /> Edit
+              </button>
+              <button onClick={() => cancelInspection(d.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + RD + "40", background: RD + "10", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+                Cancel
               </button>
             </div>
           )}
@@ -2478,7 +2551,10 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
                     <div style={{ fontSize: 12, color: t.textSec }}>{si.site_name}</div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{fmtDate(si.scheduled_date)}{si.assigned_name ? " - " + si.assigned_name : " - Unassigned"}</div>
                   </div>
-                  {isAdmin && <button onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><XI sz={14} c={t.textMut} /></button>}
+                  {isAdmin && <div style={{ display: "flex", gap: 2 }}>
+                    <button onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }} title="Edit"><EdI sz={13} c={t.textMut} /></button>
+                    <button onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }} title="Delete"><XI sz={14} c={t.textMut} /></button>
+                  </div>}
                 </div>
               </Crd>
             ))}
@@ -2592,7 +2668,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
                           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={pt.site_name + ": " + pct + "% on " + fmtDate(pt.scheduled_date)}>
                             <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2, writingMode: scoreTrend.length > 12 ? "vertical-rl" : "horizontal-tb", whiteSpace: "nowrap" }}>{pct}%</div>
                             <div style={{ width: "100%", maxWidth: 28, height: barH, borderRadius: 3, background: barColor, minWidth: 6, transition: "height 0.4s ease" }} />
-                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
                           </div>
                         );
                       })}
@@ -2712,6 +2788,17 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
       </div></Mdl>}
 
       {/* SCHEDULE MODAL */}
+      {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+          <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
+          <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>Close</Btn><Btn t={t} onClick={submitEditInspection}>Save</Btn></div>
+        </div>
+      </div></Mdl>}
       {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Inspection</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
