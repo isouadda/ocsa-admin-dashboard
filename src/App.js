@@ -2446,6 +2446,18 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
             );
           })}
         </div>
+
+        {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+          <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+            <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
+            <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>Close</Btn><Btn t={t} onClick={submitEditInspection}>Save</Btn></div>
+          </div>
+        </div></Mdl>}
       </div>
     );
   }
