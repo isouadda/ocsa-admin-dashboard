@@ -73,9 +73,10 @@ const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 
 const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" {...p} />;
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
 const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
+const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
-const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter" };
+const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
 
 // ===== THEMED SHARED COMPONENTS =====
 const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "10px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 4px 20px rgba(0,0,0,0.4)" }}>{msg.m}</div>;
@@ -200,12 +201,12 @@ export default function AdminDashboard() {
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
-    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "schedule", l: "Schedule", i: CalI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
+    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "schedule", l: "Schedule", i: CalI }, { id: "marketplace", l: "Shift Pickup", i: SwpI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
     { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }, { id: "labor", l: "Labor Reports", i: DlrI }] },
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections", labor: "Labor Reports" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections", labor: "Labor Reports", marketplace: "Shift Pickup" };
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
   const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
@@ -342,6 +343,7 @@ export default function AdminDashboard() {
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
@@ -453,7 +455,7 @@ function StaffPage({ af, showToast, t }) {
       <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Phone *</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder="2155550000 (no dashes needed)" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Email *</Lbl><Inp t={t} value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder="name@email.com" type="email" /></div>
-      <div style={{ marginBottom: 16 }}><Lbl>Role</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={[{ v: "custodial_laborer", l: "Custodial Laborer" }, { v: "custodial_lead", l: "Custodial Lead" }, { v: "day_porter", l: "Day Porter" }, { v: "supervisor", l: "Supervisor" }]} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>Role</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={[{ v: "custodial_laborer", l: "Custodial Laborer" }, { v: "custodial_lead", l: "Custodial Lead" }, { v: "day_porter", l: "Day Porter" }, { v: "contractor", l: "Contractor" }, { v: "supervisor", l: "Supervisor" }]} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Staff</Btn></div></div></Mdl>}
     {detail && <Mdl t={t} onClose={() => setDetail(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><Ini name={detail.user.firstName + " " + detail.user.lastName} sz={48} /><div><div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{detail.user.firstName} {detail.user.lastName}</div><div style={{ fontSize: 12, color: GO }}>{RL[detail.user.role]}</div></div></div><button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
@@ -499,7 +501,7 @@ function StaffPage({ af, showToast, t }) {
       <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Phone</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Email</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Role</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={[{ v: "custodial_laborer", l: "Custodial Laborer" }, { v: "custodial_lead", l: "Custodial Lead" }, { v: "day_porter", l: "Day Porter" }, { v: "supervisor", l: "Supervisor" }, { v: "admin", l: "Admin" }]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Role</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={[{ v: "custodial_laborer", l: "Custodial Laborer" }, { v: "custodial_lead", l: "Custodial Lead" }, { v: "day_porter", l: "Day Porter" }, { v: "contractor", l: "Contractor" }, { v: "supervisor", l: "Supervisor" }, { v: "admin", l: "Admin" }]} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Hourly Rate</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
     </div></Mdl>}
@@ -2436,6 +2438,364 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setInspModal(null)}>Close</Btn><Btn t={t} onClick={submitInspReschedule}>Reschedule</Btn></div>
+      </div>
+    </div></Mdl>}
+  </div>);
+}
+
+function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
+  const [dateRange, setDateRange] = useState(() => PRESETS.last30());
+  const [tab, setTab] = useState("open");
+  const [shifts, setShifts] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [sites, setSites] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [siteFilter, setSiteFilter] = useState("");
+  const [originFilter, setOriginFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [createForm, setCreateForm] = useState(null);
+  const [convertModal, setConvertModal] = useState(false);
+  const [schedShifts, setSchedShifts] = useState([]);
+  const [convertOrigin, setConvertOrigin] = useState("callout");
+  const [convertNotes, setConvertNotes] = useState("");
+  const [siteLocations, setSiteLocations] = useState({});
+
+  const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); };
+  const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + ap; };
+
+  const statusColor = { open: GO, claimed: BL, approved: GR, filled: GR, expired: "#7A8A9A", cancelled: "#7A8A9A" };
+  const originColor = { callout: RD, no_show: RD, extra_coverage: OR, voluntary_drop: BL, new_shift: GO };
+  const originLabel = { callout: "Callout", no_show: "No-Show", extra_coverage: "Extra Coverage", voluntary_drop: "Voluntary Drop", new_shift: "New Shift" };
+  const urgencyBg = { urgent: t.redSubtle, normal: "transparent" };
+  const urgencyBorder = { urgent: t.redBorder, normal: t.border };
+
+  const load = async (range) => {
+    setLoading(true);
+    const r = range || dateRange;
+    let q = "?start_date=" + r.start + "&end_date=" + r.end;
+    if (siteFilter) q += "&site_id=" + siteFilter;
+    if (originFilter) q += "&origin=" + originFilter;
+    if (tab !== "all" && tab !== "analytics") q += "&status=" + (tab === "filled" ? "approved" : tab);
+    try {
+      const [s, a] = await Promise.all([
+        af("/api/pickups" + (tab === "all" ? "?start_date=" + r.start + "&end_date=" + r.end + (siteFilter ? "&site_id=" + siteFilter : "") + (originFilter ? "&origin=" + originFilter : "") : q)),
+        af("/api/pickups/analytics?start_date=" + r.start + "&end_date=" + r.end)
+      ]);
+      setShifts(s);
+      setAnalytics(a);
+    } catch (e) { showToast(e.message, "error"); }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    af("/api/sites").then(setSites).catch(() => {});
+    af("/api/users?status=active").then(setStaff).catch(() => {});
+    load();
+  }, []);
+  useEffect(() => { load(); }, [dateRange, tab, siteFilter, originFilter]);
+
+  const loadSiteLocations = async (siteId) => {
+    if (siteLocations[siteId]) return;
+    try {
+      const tasks = await af("/api/sites/" + siteId + "/tasks");
+      const buildings = [...new Set(tasks.filter(t => t.building_name).map(t => t.building_name))];
+      const floors = {};
+      buildings.forEach(b => { floors[b] = [...new Set(tasks.filter(t => t.building_name === b && t.floor_number).map(t => t.floor_number))]; });
+      setSiteLocations(prev => ({ ...prev, [siteId]: { buildings, floors } }));
+    } catch {}
+  };
+
+  const postShift = async () => {
+    if (!createForm.site_id || !createForm.scheduled_date || !createForm.start_time || !createForm.end_time) {
+      showToast("Site, date, and times are required", "error"); return;
+    }
+    try {
+      await af("/api/pickups", { method: "POST", body: createForm });
+      showToast("Open shift posted");
+      setCreateForm(null);
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const convertShift = async (shiftId) => {
+    try {
+      await af("/api/pickups/convert/" + shiftId, { method: "POST", body: { origin: convertOrigin, notes: convertNotes } });
+      showToast("Shift converted to open pickup");
+      setConvertModal(false);
+      setConvertNotes("");
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const approveShift = async (id) => {
+    try { await af("/api/pickups/" + id + "/approve", { method: "POST" }); showToast("Shift approved"); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+
+  const releaseShift = async (id) => {
+    try { await af("/api/pickups/" + id + "/release", { method: "POST" }); showToast("Shift released"); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+
+  const cancelShift = async (id) => {
+    try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast("Shift cancelled"); load(); }
+    catch (e) { showToast(e.message, "error"); }
+  };
+
+  const openConvertModal = async () => {
+    setConvertModal(true);
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const r = await af("/api/schedule?start_date=" + today + "&end_date=" + dateRange.end);
+      setSchedShifts(r.filter(s => s.status === "scheduled"));
+    } catch { setSchedShifts([]); }
+  };
+
+  const SVCATS = ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
+
+  const tabs = [
+    { id: "open", l: "Open", count: analytics?.summary?.open_count },
+    { id: "claimed", l: "Claimed", count: shifts.filter(s => s.status === "claimed").length || null },
+    { id: "filled", l: "Approved", count: null },
+    { id: "all", l: "All" },
+    { id: "analytics", l: "Analytics" },
+  ];
+
+  const ShiftCard = ({ s }) => (
+    <Crd t={t} style={{ marginBottom: 8, padding: 0, background: urgencyBg[s.urgency], border: "1px solid " + urgencyBorder[s.urgency] }}>
+      <div style={{ padding: "12px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{s.site_name}</span>
+              <Bdg l={s.status} c={statusColor[s.status] || GO} />
+              <Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />
+              {s.urgency === "urgent" && <Bdg l="URGENT" c={RD} />}
+              {s.ot_warning && <Bdg l="OT Risk" c={OR} />}
+            </div>
+            <div style={{ fontSize: 12, color: t.textSec }}>{fmtDt(s.scheduled_date)}, {fmtTm(s.start_time)} to {fmtTm(s.end_time)}</div>
+            <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+              {s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>Bldg: {s.building_name}</span>}
+              {s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>Floor: {s.floor_number}</span>}
+              {s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}
+            </div>
+            {s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic" }}>{s.notes}</div>}
+            {s.claimed_by_name && s.claimed_by_name.trim() && (
+              <div style={{ fontSize: 11, marginTop: 6 }}>
+                <span style={{ color: t.textMut }}>Claimed by: </span>
+                <span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>
+                {s.claimed_by_role && <span style={{ color: t.textMut }}> ({RL[s.claimed_by_role] || s.claimed_by_role})</span>}
+                {s.claimed_at && <span style={{ fontSize: 9, color: t.textMut, marginLeft: 6 }}>{new Date(s.claimed_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>}
+              </div>
+            )}
+            {s.approved_by_name && s.approved_by_name.trim() && (
+              <div style={{ fontSize: 11, marginTop: 2 }}>
+                <span style={{ color: t.textMut }}>Approved by: </span>
+                <span style={{ color: GR, fontWeight: 600 }}>{s.approved_by_name}</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+            {s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}
+            {(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Release</button>}
+            {s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Cancel</button>}
+          </div>
+        </div>
+      </div>
+    </Crd>
+  );
+
+  return (<div>
+    <SecT t={t} action="Post Open Shift" onAction={() => setCreateForm({ site_id: "", scheduled_date: "", start_time: "", end_time: "", building_name: "", floor_number: "", service_category: "", origin: "new_shift", urgency: "normal", notes: "" })}>Shift Pickup Board</SecT>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
+      { key: "thisWeek", label: "This Week" },
+      { key: "lastWeek", label: "Last Week" },
+      { key: "thisMonth", label: "This Month" },
+      { key: "last30", label: "Last 30 Days" },
+    ]} />
+
+    {/* Filters row */}
+    <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ flex: "0 0 180px" }}>
+        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+      </div>
+      <div style={{ flex: "0 0 160px" }}>
+        <Sel t={t} value={originFilter} onChange={e => setOriginFilter(e.target.value)} options={[{ v: "", l: "All Reasons" }, { v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "extra_coverage", l: "Extra Coverage" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "new_shift", l: "New Shift" }]} />
+      </div>
+      <div style={{ flex: 1 }} />
+      <button onClick={openConvertModal} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + RD, background: RD + "12", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+        <AlI sz={13} c={RD} /> Convert Callout
+      </button>
+    </div>
+
+    {/* Summary cards */}
+    {analytics?.summary && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <SC t={t} label="Open Now" value={analytics.summary.open_count} color={GO} icon={SwpI} />
+      <SC t={t} label="Fill Rate" value={analytics.summary.fill_rate + "%"} color={analytics.summary.fill_rate >= 80 ? GR : analytics.summary.fill_rate >= 50 ? OR : RD} icon={ChkI} />
+      <SC t={t} label="Avg Fill Time" value={analytics.summary.avg_time_to_fill_minutes > 60 ? Math.round(analytics.summary.avg_time_to_fill_minutes / 60) + "h" : analytics.summary.avg_time_to_fill_minutes + "m"} color={BL} icon={CkI} />
+      <SC t={t} label="Callouts" value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? analytics.summary.no_show_count + " no-shows" : ""} color={RD} icon={AlI} />
+    </div>}
+
+    {/* Tabs */}
+    <div style={{ display: "flex", gap: 4, marginBottom: 14, borderBottom: "1px solid " + t.border, paddingBottom: 2 }}>
+      {tabs.map(tb => (
+        <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+          padding: "8px 14px", borderRadius: "8px 8px 0 0", border: "none",
+          background: tab === tb.id ? t.goldBg : "transparent",
+          color: tab === tb.id ? GO : t.textMut,
+          fontSize: 12, fontWeight: tab === tb.id ? 700 : 500, cursor: "pointer",
+          borderBottom: tab === tb.id ? "2px solid " + GO : "2px solid transparent",
+          display: "flex", alignItems: "center", gap: 4
+        }}>
+          {tb.l}
+          {tb.count > 0 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: statusColor[tb.id] || GO, color: "#fff" }}>{tb.count}</span>}
+        </button>
+      ))}
+    </div>
+
+    {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading...</div>}
+
+    {/* SHIFT LIST TABS */}
+    {!loading && tab !== "analytics" && (
+      <div>
+        {shifts.length === 0 && <Crd t={t}><div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>No shifts found for this period and filter.</div></Crd>}
+        {shifts.map(s => <ShiftCard key={s.id} s={s} />)}
+      </div>
+    )}
+
+    {/* ANALYTICS TAB */}
+    {!loading && tab === "analytics" && analytics && (
+      <div>
+        <Crd t={t} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Reason Breakdown</div>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+            {[
+              { k: "callout_count", l: "Callouts", c: RD },
+              { k: "no_show_count", l: "No-Shows", c: RD },
+              { k: "extra_coverage_count", l: "Extra Coverage", c: OR },
+              { k: "voluntary_drop_count", l: "Voluntary Drops", c: BL },
+              { k: "new_shift_count", l: "New Shifts", c: GO },
+            ].map(r => (
+              <div key={r.k} style={{ textAlign: "center", minWidth: 80 }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: r.c }}>{analytics.summary[r.k]}</div>
+                <div style={{ fontSize: 10, color: t.textMut }}>{r.l}</div>
+              </div>
+            ))}
+          </div>
+        </Crd>
+
+        {analytics.summary.ot_warning_count > 0 && (
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+            <AlI sz={14} c={OR} />
+            <span style={{ fontSize: 12, color: OR, fontWeight: 600 }}>{analytics.summary.ot_warning_count} shift{analytics.summary.ot_warning_count !== 1 ? "s" : ""} claimed with overtime risk</span>
+          </div>
+        )}
+
+        {analytics.sites?.length > 0 && (
+          <Crd t={t} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Coverage by Site</div>
+            {analytics.sites.map(s => {
+              const fillPct = s.total > 0 ? Math.round(s.filled / s.total * 100) : 0;
+              return (
+                <div key={s.site_id} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.site_name}</span>
+                    <span style={{ fontSize: 11 }}>
+                      <span style={{ color: fillPct >= 80 ? GR : fillPct >= 50 ? OR : RD, fontWeight: 600 }}>{fillPct}% filled</span>
+                      <span style={{ color: t.textMut, marginLeft: 8 }}>{s.total} total, {s.callouts} callouts</span>
+                    </span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 3, background: fillPct >= 80 ? GR : fillPct >= 50 ? OR : RD, width: fillPct + "%", transition: "width 0.4s ease" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </Crd>
+        )}
+
+        {analytics.trends?.length > 0 && (
+          <Crd t={t}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Weekly Trend</div>
+            <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 100 }}>
+              {analytics.trends.map((w, i) => {
+                const max = Math.max(...analytics.trends.map(x => x.total));
+                const h = max > 0 ? (w.total / max * 80) : 0;
+                const fillPct = w.total > 0 ? Math.round(w.filled / w.total * 100) : 0;
+                return (
+                  <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{w.total}</div>
+                    <div style={{ width: "80%", height: h, borderRadius: "4px 4px 0 0", background: fillPct >= 80 ? GR : fillPct >= 50 ? OR : RD, minHeight: 2 }} />
+                    <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, writingMode: "vertical-lr", transform: "rotate(180deg)", height: 40 }}>{fmtDt(w.week_start)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Crd>
+        )}
+      </div>
+    )}
+
+    {/* POST OPEN SHIFT MODAL */}
+    {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Post Open Shift</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+
+      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Date *</Lbl><Inp t={t} type="date" value={createForm.scheduled_date} onChange={e => setCreateForm({ ...createForm, scheduled_date: e.target.value })} /></div>
+        <div><Lbl>Start Time *</Lbl><Inp t={t} type="time" value={createForm.start_time} onChange={e => setCreateForm({ ...createForm, start_time: e.target.value })} /></div>
+        <div><Lbl>End Time *</Lbl><Inp t={t} type="time" value={createForm.end_time} onChange={e => setCreateForm({ ...createForm, end_time: e.target.value })} /></div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Building</Lbl><Sel t={t} value={createForm.building_name} onChange={e => setCreateForm({ ...createForm, building_name: e.target.value, floor_number: "" })} options={[{ v: "", l: "Select..." }, ...(siteLocations[createForm.site_id]?.buildings || []).map(b => ({ v: b, l: b }))]} /></div>
+        <div><Lbl>Floor</Lbl><Sel t={t} value={createForm.floor_number} onChange={e => setCreateForm({ ...createForm, floor_number: e.target.value })} options={[{ v: "", l: "Select..." }, ...(siteLocations[createForm.site_id]?.floors?.[createForm.building_name] || []).map(f => ({ v: f, l: f }))]} /></div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><Lbl>Service Category</Lbl><Sel t={t} value={createForm.service_category} onChange={e => setCreateForm({ ...createForm, service_category: e.target.value })} options={[{ v: "", l: "Select..." }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
+        <div><Lbl>Reason</Lbl><Sel t={t} value={createForm.origin} onChange={e => setCreateForm({ ...createForm, origin: e.target.value })} options={[{ v: "new_shift", l: "New Shift" }, { v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "extra_coverage", l: "Extra Coverage" }, { v: "voluntary_drop", l: "Voluntary Drop" }]} /></div>
+        <div><Lbl>Urgency</Lbl><Sel t={t} value={createForm.urgency} onChange={e => setCreateForm({ ...createForm, urgency: e.target.value })} options={[{ v: "normal", l: "Normal" }, { v: "urgent", l: "Urgent" }]} /></div>
+      </div>
+
+      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><TArea t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Additional details about this shift..." rows={2} /></div>
+
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn>
+        <Btn t={t} onClick={postShift}>Post Shift</Btn>
+      </div>
+    </div></Mdl>}
+
+    {/* CONVERT CALLOUT MODAL */}
+    {convertModal && <Mdl t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Convert Scheduled Shift to Open Pickup</div><button onClick={() => setConvertModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14 }}>
+        Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div><Lbl>Reason</Lbl><Sel t={t} value={convertOrigin} onChange={e => setConvertOrigin(e.target.value)} options={[{ v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "extra_coverage", l: "Extra Coverage" }]} /></div>
+        <div><Lbl>Notes</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder="e.g. Marcus called out sick" /></div>
+      </div>
+
+      <div style={{ maxHeight: 300, overflow: "auto" }}>
+        {schedShifts.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No upcoming scheduled shifts found.</div>}
+        {schedShifts.map(s => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "1px solid " + t.border, marginBottom: 6, cursor: "pointer" }} onClick={() => convertShift(s.id)}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.staff_name || "Unassigned"}</div>
+              <div style={{ fontSize: 11, color: t.textSec }}>{s.site_name} | {fmtDt(s.scheduled_date)}</div>
+              <div style={{ fontSize: 10, color: t.textMut }}>{fmtTm(s.start_time)} to {fmtTm(s.end_time)}{s.building_name ? " | " + s.building_name : ""}{s.floor_number ? " Fl " + s.floor_number : ""}</div>
+            </div>
+            <span style={{ fontSize: 10, color: RD, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, flexShrink: 0 }}>Convert</span>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+        <Btn t={t} v="ghost" onClick={() => setConvertModal(false)}>Close</Btn>
       </div>
     </div></Mdl>}
   </div>);
