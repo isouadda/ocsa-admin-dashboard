@@ -2542,6 +2542,21 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       </div>
       {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>Overtime risk: claiming this shift may push the worker past 40 weekly hours.</div>}
       {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
+      <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
+        <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ flex: 1 }}><Sel t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: "Select staff member..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <Btn t={t} onClick={async () => {
+            if (!pickupDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
+            try {
+              await af("/api/pickups/" + pickupDetail.id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
+              showToast("Shift assigned");
+              setPickupDetail(null);
+              loadCalendar();
+            } catch (e) { showToast(e.message, "error"); }
+          }} style={{ padding: "8px 16px", fontSize: 11 }}>Assign</Btn>
+        </div>
+      </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast("Shift released"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Release</Btn>
         <div style={{ display: "flex", gap: 10 }}>
