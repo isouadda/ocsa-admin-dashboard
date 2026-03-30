@@ -330,7 +330,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Page Content */}
-      <div style={{ flex: 1, padding: "20px 28px 40px", maxWidth: 1400 }}>
+      <div style={{ flex: 1, padding: "20px 28px 40px" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
@@ -2281,34 +2281,34 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
         const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
         const hasAny = sched.length > 0 || actual.length > 0;
-        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 4, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
-          {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 56, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
+          {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
-            {s.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{s.site_name}</div>}
-            {s.service_category && <div style={{ fontSize: 7, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
+            {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
+            {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
           </div>))}
-          {actual.map(a => (<div key={a.id} onClick={e => { e.stopPropagation(); setShiftDetail(a); }} style={{ padding: "2px 4px", marginBottom: 2, borderRadius: 3, fontSize: 9, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
+          {actual.map(a => (<div key={a.id} onClick={e => { e.stopPropagation(); setShiftDetail(a); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
-            {a.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{a.site_name}</div>}
+            {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
           </div>))}
-          {!hasAny && <div style={{ fontSize: 16, color: t.textMut, opacity: 0.3, textAlign: "center", lineHeight: "40px" }}>+</div>}
+          {!hasAny && <div style={{ fontSize: 16, color: t.textMut, opacity: 0.3, textAlign: "center", lineHeight: "48px" }}>+</div>}
         </div>);
       })}
     </div>))}
     {calData.inspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
-      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 7, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
+      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
     </div>)}
     {openShifts.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: TL, textTransform: "uppercase" }}>Pickups</div>
       {weekDays.map(d => { const pks = getPickupsForDay(d); return (<div key={d} style={{ padding: 4 }}>{pks.map(p => {
         const pkColor = p.status === "open" ? TL : p.status === "claimed" ? OR : GR;
-        return (<div key={p.id} style={{ padding: "2px 4px", borderRadius: 3, fontSize: 9, fontWeight: 600, background: pkColor + "18", color: pkColor, marginBottom: 2, border: "1px solid " + pkColor + "30" }}>
+        return (<div key={p.id} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: pkColor + "18", color: pkColor, marginBottom: 2, border: "1px solid " + pkColor + "30" }}>
           {p.start_time?.slice(0, 5)}-{p.end_time?.slice(0, 5)}
-          <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase" }}>{p.status}</span>
-          {p.site_name && <div style={{ fontSize: 8, opacity: 0.8 }}>{p.site_name}</div>}
-          {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 7, opacity: 0.7 }}>{p.claimed_by_name}</div>}
+          <span style={{ marginLeft: 3, fontSize: 8, textTransform: "uppercase" }}>{p.status}</span>
+          {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+          {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.claimed_by_name}</div>}
         </div>);
       })}</div>); })}
     </div>)}
