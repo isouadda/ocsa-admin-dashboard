@@ -2133,6 +2133,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   const [inspModal, setInspModal] = useState(null);
   const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
   const [schedSupervisors, setSchedSupervisors] = useState([]);
+  const [pickupDetail, setPickupDetail] = useState(null);
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -2190,7 +2191,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
   const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
 
-  const getShiftsForDay = (dateStr) => calData.scheduled_shifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
+  const getShiftsForDay = (dateStr) => calData.scheduled_shifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr && s.status !== "cancelled");
   const getActualForDay = (dateStr) => calData.actual_shifts.filter(s => s.clock_in_time?.slice(0, 10) === dateStr);
   const getInspForDay = (dateStr) => calData.inspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getPickupsForDay = (dateStr) => openShifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
@@ -2282,9 +2283,8 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
         const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
         const dayPickups = getPickupsForDay(d);
-        const droppedHere = dayPickups.filter(p => p.status === "open" && String(p.original_user_id) === String(staff.id));
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
-        const hasAny = sched.length > 0 || actual.length > 0 || droppedHere.length > 0 || claimedByMe.length > 0;
+        const hasAny = sched.length > 0 || actual.length > 0 || claimedByMe.length > 0;
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
@@ -2296,15 +2296,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
             {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
           </div>))}
-          {droppedHere.map(p => (<div key={p.id} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, background: t.hover, color: t.textMut, border: "1px dashed " + t.textMut + "40", opacity: 0.7 }}>
-            {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
-            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.cardAlt }}>OPEN</span>
-            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
-          </div>))}
-          {claimedByMe.map(p => (<div key={p.id} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
+          {claimedByMe.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: OR + "25" }}>CLAIMED</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+            {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.claimed_by_name}</div>}
           </div>))}
           {!hasAny && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: t.textMut, opacity: 0.3 }}>+</div>}
         </div>);
@@ -2349,9 +2345,9 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
     {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: t.textMut, l: "Open/Dropped", dashed: true }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
+      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: (lg.dashed ? "1px dashed " : "1px solid ") + lg.c }} />
+          <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
           <span style={{ fontSize: 9, color: t.textMut, fontWeight: 600 }}>{lg.l}</span>
         </div>
       ))}
@@ -2529,6 +2525,29 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setInspModal(null)}>Close</Btn><Btn t={t} onClick={submitInspReschedule}>Reschedule</Btn></div>
+      </div>
+    </div></Mdl>}
+
+    {/* PICKUP DETAIL MODAL */}
+    {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Claimed Pickup Shift</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: OR }}>Claimed</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
+      </div>
+      {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>Overtime risk: claiming this shift may push the worker past 40 weekly hours.</div>}
+      {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+        <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast("Shift released"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Release</Btn>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setPickupDetail(null)}>Close</Btn>
+          <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>
+        </div>
       </div>
     </div></Mdl>}
   </div>);
