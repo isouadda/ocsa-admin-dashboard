@@ -2174,7 +2174,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         af("/api/pickups?start_date=" + r.start + "&end_date=" + r.end + (filterSite ? "&site_id=" + filterSite : ""))
       ]);
       setCalData(d);
-      setOpenShifts(pk.filter(s => s.status !== "cancelled" && s.status !== "expired"));
+      setOpenShifts(pk.filter(s => s.status === "open" || s.status === "claimed"));
     } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -2281,7 +2281,10 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       {weekDays.map(d => {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
         const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
-        const hasAny = sched.length > 0 || actual.length > 0;
+        const dayPickups = getPickupsForDay(d);
+        const droppedHere = dayPickups.filter(p => p.status === "open" && String(p.original_user_id) === String(staff.id));
+        const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
+        const hasAny = sched.length > 0 || actual.length > 0 || droppedHere.length > 0 || claimedByMe.length > 0;
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
@@ -2293,6 +2296,16 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
             {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
           </div>))}
+          {droppedHere.map(p => (<div key={p.id} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, background: t.hover, color: t.textMut, border: "1px dashed " + t.textMut + "40", opacity: 0.7 }}>
+            {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.cardAlt }}>OPEN</span>
+            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+          </div>))}
+          {claimedByMe.map(p => (<div key={p.id} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
+            {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: OR + "25" }}>CLAIMED</span>
+            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
+          </div>))}
           {!hasAny && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: t.textMut, opacity: 0.3 }}>+</div>}
         </div>);
       })}
@@ -2301,18 +2314,6 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     {calData.inspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
       {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
-    </div>)}
-    {openShifts.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
-      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: TL, textTransform: "uppercase" }}>Pickups</div>
-      {weekDays.map(d => { const pks = getPickupsForDay(d); return (<div key={d} style={{ padding: 4 }}>{pks.map(p => {
-        const pkColor = p.status === "open" ? TL : p.status === "claimed" ? OR : GR;
-        return (<div key={p.id} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: pkColor + "18", color: pkColor, marginBottom: 2, border: "1px solid " + pkColor + "30" }}>
-          {p.start_time?.slice(0, 5)}-{p.end_time?.slice(0, 5)}
-          <span style={{ marginLeft: 3, fontSize: 8, textTransform: "uppercase" }}>{p.status}</span>
-          {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
-          {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.claimed_by_name}</div>}
-        </div>);
-      })}</div>); })}
     </div>)}
   </div>);
 
@@ -2324,7 +2325,8 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
           {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
           {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
-          {pks.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: TL, marginBottom: 1 }}>{pks.length} pickup{pks.length > 1 ? "s" : ""}</div>}
+          {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: t.textMut, marginBottom: 1 }}>{pks.filter(p => p.status === "open").length} open</div>}
+          {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: OR, marginBottom: 1 }}>{pks.filter(p => p.status === "claimed").length} claimed</div>}
           {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
         </div>); })}
     </div></div>); };
@@ -2347,9 +2349,9 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
     {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: TL, l: "Pickup" }, { c: BL, l: "Inspection" }].map(lg => (
+      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: t.textMut, l: "Open/Dropped", dashed: true }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
+          <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: (lg.dashed ? "1px dashed " : "1px solid ") + lg.c }} />
           <span style={{ fontSize: 9, color: t.textMut, fontWeight: 600 }}>{lg.l}</span>
         </div>
       ))}
