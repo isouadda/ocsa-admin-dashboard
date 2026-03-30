@@ -2283,9 +2283,10 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
         const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
         const dayPickups = getPickupsForDay(d);
+        const openHere = dayPickups.filter(p => p.status === "open" && String(p.original_user_id) === String(staff.id));
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
-        const hasAny = sched.length > 0 || actual.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
+        const hasAny = sched.length > 0 || actual.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
@@ -2296,6 +2297,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           {actual.map(a => (<div key={a.id} onClick={e => { e.stopPropagation(); setShiftDetail(a); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
             {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
+          </div>))}
+          {openHere.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
+            {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.hover }}>OPEN</span>
+            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
           </div>))}
           {dropReqs.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail({ ...p, isDropRequest: true }); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#F1C40F22", color: "#F1C40F", border: "1px dashed #F1C40F60" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
@@ -2351,7 +2357,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
     {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: "#F1C40F", l: "Drop Req" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
+      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: t.textMut, l: "Open" }, { c: "#F1C40F", l: "Drop Req" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
           <span style={{ fontSize: 9, color: t.textMut, fontWeight: 600 }}>{lg.l}</span>
@@ -2603,6 +2609,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   const [convertOrigin, setConvertOrigin] = useState("callout");
   const [convertNotes, setConvertNotes] = useState("");
   const [siteLocations, setSiteLocations] = useState({});
+  const [requestCount, setRequestCount] = useState(0);
 
   const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); };
   const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + ap; };
@@ -2647,12 +2654,14 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
       if (tab !== "all" && tab !== "analytics") q += "&status=" + (tab === "filled" ? "approved" : tab);
     }
     try {
-      const [s, a] = await Promise.all([
+      const [s, a, reqs] = await Promise.all([
         af("/api/pickups" + (tab === "all" ? "?start_date=" + r.start + "&end_date=" + r.end + (siteFilter ? "&site_id=" + siteFilter : "") + (originFilter ? "&origin=" + originFilter : "") : q)),
-        af("/api/pickups/analytics?start_date=" + r.start + "&end_date=" + r.end)
+        af("/api/pickups/analytics?start_date=" + r.start + "&end_date=" + r.end),
+        af("/api/pickups?status=requested")
       ]);
       setShifts(s);
       setAnalytics(a);
+      setRequestCount(reqs.length);
     } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -2660,6 +2669,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   useEffect(() => {
     af("/api/sites").then(setSites).catch(() => {});
     af("/api/users?status=active").then(setStaff).catch(() => {});
+    af("/api/pickups?status=requested").then(r => setRequestCount(r.length)).catch(() => {});
     load();
   }, []);
   useEffect(() => { load(); }, [dateRange, tab, siteFilter, originFilter]);
@@ -2726,7 +2736,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
 
   const tabs = [
     { id: "open", l: "Open", count: analytics?.summary?.open_count },
-    { id: "requested", l: "Requests", count: null },
+    { id: "requested", l: "Requests", count: requestCount > 0 ? requestCount : null },
     { id: "claimed", l: "Claimed", count: shifts.filter(s => s.status === "claimed").length || null },
     { id: "filled", l: "Approved", count: null },
     { id: "all", l: "All" },
