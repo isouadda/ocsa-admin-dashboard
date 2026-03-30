@@ -2613,6 +2613,14 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   const urgencyBg = { urgent: t.redSubtle, normal: "transparent" };
   const urgencyBorder = { urgent: t.redBorder, normal: t.border };
   const [shiftDetail, setShiftDetail] = useState(null);
+  const [siteStaff, setSiteStaff] = useState([]);
+  const staffName = (s) => s.name || ((s.first_name || s.firstName || "") + " " + (s.last_name || s.lastName || "")).trim() || "Unknown";
+  const openDetail = async (s) => {
+    setShiftDetail({ ...s });
+    if (s.site_id) {
+      try { const sd = await af("/api/sites/" + s.site_id); setSiteStaff((sd.staff || []).filter(st => st.role !== "admin")); } catch { setSiteStaff([]); }
+    }
+  };
 
   const load = async (range) => {
     setLoading(true);
@@ -2710,7 +2718,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
 
   const ShiftCard = ({ s }) => (
     <Crd t={t} style={{ marginBottom: 8, padding: 0, background: urgencyBg[s.urgency], border: "1px solid " + urgencyBorder[s.urgency], cursor: "pointer" }}>
-      <div style={{ padding: "12px 16px" }} onClick={() => setShiftDetail({ ...s })}>
+      <div style={{ padding: "12px 16px" }} onClick={() => openDetail(s)}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
@@ -2973,7 +2981,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
           <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: "Select staff member..." }, ...staff.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.first_name + " " + s.last_name }))]} /></div>
+            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: siteStaff.length > 0 ? "Staff at this site..." : "Select staff member..." }, ...(siteStaff.length > 0 ? siteStaff : staff.filter(s => s.role !== "admin")).map(s => ({ v: s.id || s.user_id, l: staffName(s) }))]} /></div>
             <Btn t={t} onClick={async () => {
               if (!shiftDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
               try {
