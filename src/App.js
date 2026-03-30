@@ -2175,7 +2175,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         af("/api/pickups?start_date=" + r.start + "&end_date=" + r.end + (filterSite ? "&site_id=" + filterSite : ""))
       ]);
       setCalData(d);
-      setOpenShifts(pk.filter(s => s.status === "open" || s.status === "claimed"));
+      setOpenShifts(pk.filter(s => s.status === "open" || s.status === "claimed" || s.status === "requested"));
     } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -2284,7 +2284,8 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
         const dayPickups = getPickupsForDay(d);
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
-        const hasAny = sched.length > 0 || actual.length > 0 || claimedByMe.length > 0;
+        const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
+        const hasAny = sched.length > 0 || actual.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
@@ -2295,6 +2296,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           {actual.map(a => (<div key={a.id} onClick={e => { e.stopPropagation(); setShiftDetail(a); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
             {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
+          </div>))}
+          {dropReqs.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail({ ...p, isDropRequest: true }); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#F1C40F22", color: "#F1C40F", border: "1px dashed #F1C40F60" }}>
+            {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: "#F1C40F30" }}>DROP REQ</span>
+            {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
           </div>))}
           {claimedByMe.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
@@ -2345,7 +2351,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
     {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
+      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: "#F1C40F", l: "Drop Req" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
           <span style={{ fontSize: 9, color: t.textMut, fontWeight: 600 }}>{lg.l}</span>
@@ -2530,15 +2536,17 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
 
     {/* PICKUP DETAIL MODAL */}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Claimed Pickup Shift</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{pickupDetail.isDropRequest ? "Shift Drop Request" : "Claimed Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {pickupDetail.isDropRequest && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: OR }}>Claimed</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.isDropRequest ? "#F1C40F" : OR }}>{pickupDetail.isDropRequest ? "Drop Requested" : "Claimed"}</div></div>
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>
+        {pickupDetail.isDropRequest && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
+        {!pickupDetail.isDropRequest && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
+        {!pickupDetail.isDropRequest && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
       </div>
       {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>Overtime risk: claiming this shift may push the worker past 40 weekly hours.</div>}
       {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
@@ -2549,8 +2557,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
           <Btn t={t} onClick={async () => {
             if (!pickupDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
             try {
+              if (pickupDetail.isDropRequest) {
+                await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" });
+              }
               await af("/api/pickups/" + pickupDetail.id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
-              showToast("Shift assigned");
+              showToast("Shift reassigned");
               setPickupDetail(null);
               loadCalendar();
             } catch (e) { showToast(e.message, "error"); }
@@ -2558,10 +2569,18 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-        <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast("Shift released"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Release</Btn>
+        {pickupDetail.isDropRequest ? (
+          <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/deny-drop", { method: "POST" }); showToast("Drop request denied"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Deny Request</Btn>
+        ) : (
+          <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast("Shift released"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Release</Btn>
+        )}
         <div style={{ display: "flex", gap: 10 }}>
           <Btn t={t} v="ghost" onClick={() => setPickupDetail(null)}>Close</Btn>
-          <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>
+          {pickupDetail.isDropRequest ? (
+            <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" }); showToast("Drop approved, shift is now open"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve Drop</Btn>
+          ) : (
+            <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>
+          )}
         </div>
       </div>
     </div></Mdl>}
