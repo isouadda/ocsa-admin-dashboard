@@ -2607,11 +2607,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); };
   const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + ap; };
 
-  const statusColor = { open: GO, claimed: BL, approved: GR, filled: GR, expired: "#7A8A9A", cancelled: "#7A8A9A" };
+  const statusColor = { open: GO, claimed: BL, approved: GR, filled: GR, expired: "#7A8A9A", cancelled: "#7A8A9A", requested: "#F1C40F" };
   const originColor = { callout: RD, no_show: RD, extra_coverage: OR, voluntary_drop: BL, new_shift: GO };
   const originLabel = { callout: "Callout", no_show: "No-Show", extra_coverage: "Extra Coverage", voluntary_drop: "Voluntary Drop", new_shift: "New Shift" };
   const urgencyBg = { urgent: t.redSubtle, normal: "transparent" };
   const urgencyBorder = { urgent: t.redBorder, normal: t.border };
+  const [shiftDetail, setShiftDetail] = useState(null);
 
   const load = async (range) => {
     setLoading(true);
@@ -2700,6 +2701,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
 
   const tabs = [
     { id: "open", l: "Open", count: analytics?.summary?.open_count },
+    { id: "requested", l: "Requests", count: null },
     { id: "claimed", l: "Claimed", count: shifts.filter(s => s.status === "claimed").length || null },
     { id: "filled", l: "Approved", count: null },
     { id: "all", l: "All" },
@@ -2707,13 +2709,13 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   ];
 
   const ShiftCard = ({ s }) => (
-    <Crd t={t} style={{ marginBottom: 8, padding: 0, background: urgencyBg[s.urgency], border: "1px solid " + urgencyBorder[s.urgency] }}>
-      <div style={{ padding: "12px 16px" }}>
+    <Crd t={t} style={{ marginBottom: 8, padding: 0, background: urgencyBg[s.urgency], border: "1px solid " + urgencyBorder[s.urgency], cursor: "pointer" }}>
+      <div style={{ padding: "12px 16px" }} onClick={() => setShiftDetail({ ...s })}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
               <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{s.site_name}</span>
-              <Bdg l={s.status} c={statusColor[s.status] || GO} />
+              <Bdg l={s.status === "requested" ? "Drop Request" : s.status} c={statusColor[s.status] || GO} />
               <Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />
               {s.urgency === "urgent" && <Bdg l="URGENT" c={RD} />}
               {s.ot_warning && <Bdg l="OT Risk" c={OR} />}
@@ -2730,20 +2732,21 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
                 <span style={{ color: t.textMut }}>Claimed by: </span>
                 <span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>
                 {s.claimed_by_role && <span style={{ color: t.textMut }}> ({RL[s.claimed_by_role] || s.claimed_by_role})</span>}
-                {s.claimed_at && <span style={{ fontSize: 9, color: t.textMut, marginLeft: 6 }}>{new Date(s.claimed_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>}
               </div>
             )}
-            {s.approved_by_name && s.approved_by_name.trim() && (
-              <div style={{ fontSize: 11, marginTop: 2 }}>
-                <span style={{ color: t.textMut }}>Approved by: </span>
-                <span style={{ color: GR, fontWeight: 600 }}>{s.approved_by_name}</span>
+            {s.original_user_name && s.original_user_name.trim() && s.status === "requested" && (
+              <div style={{ fontSize: 11, marginTop: 4 }}>
+                <span style={{ color: t.textMut }}>Requested by: </span>
+                <span style={{ color: "#F1C40F", fontWeight: 600 }}>{s.original_user_name}</span>
               </div>
             )}
           </div>
-          <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+          <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }} onClick={e => e.stopPropagation()}>
             {s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}
             {(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Release</button>}
             {s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Cancel</button>}
+            {s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast("Drop approved"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}
+            {s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Deny</button>}
           </div>
         </div>
       </div>
@@ -2942,6 +2945,86 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
         <Btn t={t} v="ghost" onClick={() => setConvertModal(false)}>Close</Btn>
       </div>
+    </div></Mdl>}
+
+    {/* SHIFT DETAIL MODAL */}
+    {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{shiftDetail.status === "requested" ? "Shift Drop Request" : "Shift Details"}</div>
+        <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      {shiftDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift.</div>}
+
+      {!shiftDetail.editing ? (<>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: statusColor[shiftDetail.status] || GO }}>{shiftDetail.status === "requested" ? "Drop Requested" : (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1)}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{fmtDt(shiftDetail.scheduled_date)}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{fmtTm(shiftDetail.start_time)} to {fmtTm(shiftDetail.end_time)}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{originLabel[shiftDetail.origin] || shiftDetail.origin}</div></div>
+          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Urgency</div><div style={{ fontSize: 13, color: t.text }}>{(shiftDetail.urgency || "normal").charAt(0).toUpperCase() + (shiftDetail.urgency || "normal").slice(1)}</div></div>
+          {shiftDetail.building_name && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Building</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.building_name}</div></div>}
+          {shiftDetail.floor_number && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.floor_number}</div></div>}
+          {shiftDetail.claimed_by_name && shiftDetail.claimed_by_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 13, fontWeight: 600, color: BL }}>{shiftDetail.claimed_by_name}</div></div>}
+          {shiftDetail.original_user_name && shiftDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{shiftDetail.status === "requested" ? "Requested By" : "Originally Assigned"}</div><div style={{ fontSize: 13, color: t.textSec }}>{shiftDetail.original_user_name}</div></div>}
+        </div>
+        {shiftDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{shiftDetail.notes}</div></div>}
+
+        <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: "Select staff member..." }, ...staff.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.first_name + " " + s.last_name }))]} /></div>
+            <Btn t={t} onClick={async () => {
+              if (!shiftDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
+              try {
+                if (shiftDetail.status === "requested") await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" });
+                await af("/api/pickups/" + shiftDetail.id + "/assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
+                showToast("Shift assigned"); setShiftDetail(null); load();
+              } catch (e) { showToast(e.message, "error"); }
+            }} style={{ padding: "8px 16px", fontSize: 11 }}>Assign</Btn>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            {shiftDetail.status === "requested" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Deny</Btn>}
+            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" } }); showToast("Shift cancelled"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Cancel</Btn>}
+            {(shiftDetail.status === "claimed" || shiftDetail.status === "approved") && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/release", { method: "POST" }); showToast("Released"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: OR, borderColor: OR }}>Release</Btn>}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editSite: shiftDetail.site_id, editDate: String(shiftDetail.scheduled_date).slice(0, 10), editStart: String(shiftDetail.start_time).slice(0, 5), editEnd: String(shiftDetail.end_time).slice(0, 5), editBuilding: shiftDetail.building_name || "", editFloor: shiftDetail.floor_number || "", editService: shiftDetail.service_category || "", editOrigin: shiftDetail.origin, editUrgency: shiftDetail.urgency, editNotes: shiftDetail.notes || "" })}>Edit</Btn>
+            {shiftDetail.status === "requested" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" }); showToast("Drop approved, shift is open"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>Approve Drop</Btn>}
+            {shiftDetail.status === "claimed" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>}
+            {shiftDetail.status !== "requested" && shiftDetail.status !== "claimed" && <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>}
+          </div>
+        </div>
+      </>) : (<>
+        <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => { setShiftDetail({ ...shiftDetail, editSite: e.target.value }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Date</Lbl><Inp t={t} type="date" value={shiftDetail.editDate} onChange={e => setShiftDetail({ ...shiftDetail, editDate: e.target.value })} /></div>
+          <div><Lbl>Start</Lbl><Inp t={t} type="time" value={shiftDetail.editStart} onChange={e => setShiftDetail({ ...shiftDetail, editStart: e.target.value })} /></div>
+          <div><Lbl>End</Lbl><Inp t={t} type="time" value={shiftDetail.editEnd} onChange={e => setShiftDetail({ ...shiftDetail, editEnd: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Building</Lbl><Inp t={t} value={shiftDetail.editBuilding} onChange={e => setShiftDetail({ ...shiftDetail, editBuilding: e.target.value })} /></div>
+          <div><Lbl>Floor</Lbl><Inp t={t} value={shiftDetail.editFloor} onChange={e => setShiftDetail({ ...shiftDetail, editFloor: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Service</Lbl><Sel t={t} value={shiftDetail.editService} onChange={e => setShiftDetail({ ...shiftDetail, editService: e.target.value })} options={[{ v: "", l: "Select..." }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
+          <div><Lbl>Reason</Lbl><Sel t={t} value={shiftDetail.editOrigin} onChange={e => setShiftDetail({ ...shiftDetail, editOrigin: e.target.value })} options={[{ v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "extra_coverage", l: "Extra Coverage" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "new_shift", l: "New Shift" }]} /></div>
+          <div><Lbl>Urgency</Lbl><Sel t={t} value={shiftDetail.editUrgency} onChange={e => setShiftDetail({ ...shiftDetail, editUrgency: e.target.value })} options={[{ v: "normal", l: "Normal" }, { v: "urgent", l: "Urgent" }]} /></div>
+        </div>
+        <div style={{ marginBottom: 14 }}><Lbl>Notes</Lbl><Inp t={t} value={shiftDetail.editNotes} onChange={e => setShiftDetail({ ...shiftDetail, editNotes: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: false })}>Cancel</Btn>
+          <Btn t={t} onClick={async () => {
+            try {
+              await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { site_id: shiftDetail.editSite, scheduled_date: shiftDetail.editDate, start_time: shiftDetail.editStart, end_time: shiftDetail.editEnd, building_name: shiftDetail.editBuilding, floor_number: shiftDetail.editFloor, service_category: shiftDetail.editService, origin: shiftDetail.editOrigin, urgency: shiftDetail.editUrgency, notes: shiftDetail.editNotes } });
+              showToast("Shift updated"); setShiftDetail(null); load();
+            } catch (e) { showToast(e.message, "error"); }
+          }}>Save Changes</Btn>
+        </div>
+      </>)}
     </div></Mdl>}
   </div>);
 }
