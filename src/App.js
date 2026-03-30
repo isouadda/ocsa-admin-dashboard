@@ -330,7 +330,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Page Content */}
-      <div style={{ flex: 1, padding: "20px 28px 40px" }}>
+      <div style={{ flex: 1, padding: "20px 28px 40px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
@@ -2270,18 +2270,19 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
   const weekDays = getWeekDays();
 
-  const renderWeekView = () => (<div style={{ overflowX: "auto", minHeight: "calc(100vh - 280px)" }}>
+  const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
       {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? GO : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? GO : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
     </div>
-    {staffForSite.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1 }}>
+    <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+    {staffForSite.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 1, flex: 1 }}>
       <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={28} /><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div></div>
       {weekDays.map(d => {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
         const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
         const hasAny = sched.length > 0 || actual.length > 0;
-        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 90, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent") }}>
+        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 48, background: t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
@@ -2292,10 +2293,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
             {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
           </div>))}
-          {!hasAny && <div style={{ fontSize: 16, color: t.textMut, opacity: 0.3, textAlign: "center", lineHeight: "80px" }}>+</div>}
+          {!hasAny && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: t.textMut, opacity: 0.3 }}>+</div>}
         </div>);
       })}
     </div>))}
+    </div>
     {calData.inspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
       {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
@@ -2314,11 +2316,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
     </div>)}
   </div>);
 
-  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); return (<div>
+  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1 }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const actual = getActualForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
-        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 90, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
+        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 48, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
           {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
           {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
@@ -2329,7 +2331,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
 
   const switchToMonth = () => { const n = new Date(dateRange.start + "T00:00:00"); const first = new Date(n.getFullYear(), n.getMonth(), 1); const last = new Date(n.getFullYear(), n.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); setView("month"); };
 
-  return (<div>
+  return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
       <SecT t={t}>Schedule</SecT>
       <div style={{ display: "flex", gap: 6 }}>
@@ -2352,8 +2354,8 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
         </div>
       ))}
     </div>}
-    {!loading && view === "week" && <Crd t={t} style={{ padding: 12 }}>{renderWeekView()}</Crd>}
-    {!loading && view === "month" && <Crd t={t} style={{ padding: 12 }}>{renderMonthView()}</Crd>}
+    {!loading && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
+    {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1 }}>{renderMonthView()}</Crd>}
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
