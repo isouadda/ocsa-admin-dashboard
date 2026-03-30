@@ -2617,18 +2617,35 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   const staffName = (s) => s.name || ((s.first_name || s.firstName || "") + " " + (s.last_name || s.lastName || "")).trim() || "Unknown";
   const openDetail = async (s) => {
     setShiftDetail({ ...s });
+    setSiteStaff([]);
     if (s.site_id) {
-      try { const sd = await af("/api/sites/" + s.site_id); setSiteStaff((sd.staff || []).filter(st => st.role !== "admin")); } catch { setSiteStaff([]); }
+      try {
+        const sd = await af("/api/sites/" + s.site_id);
+        const sStaff = (sd.staff || []).filter(st => st.role !== "admin");
+        if (sStaff.length > 0) {
+          setSiteStaff(sStaff);
+        } else {
+          setSiteStaff(staff.filter(st => st.role !== "admin"));
+        }
+      } catch {
+        setSiteStaff(staff.filter(st => st.role !== "admin"));
+      }
     }
   };
 
   const load = async (range) => {
     setLoading(true);
     const r = range || dateRange;
-    let q = "?start_date=" + r.start + "&end_date=" + r.end;
-    if (siteFilter) q += "&site_id=" + siteFilter;
-    if (originFilter) q += "&origin=" + originFilter;
-    if (tab !== "all" && tab !== "analytics") q += "&status=" + (tab === "filled" ? "approved" : tab);
+    let q = "";
+    if (tab === "requested") {
+      q = "?status=requested";
+      if (siteFilter) q += "&site_id=" + siteFilter;
+    } else {
+      q = "?start_date=" + r.start + "&end_date=" + r.end;
+      if (siteFilter) q += "&site_id=" + siteFilter;
+      if (originFilter) q += "&origin=" + originFilter;
+      if (tab !== "all" && tab !== "analytics") q += "&status=" + (tab === "filled" ? "approved" : tab);
+    }
     try {
       const [s, a] = await Promise.all([
         af("/api/pickups" + (tab === "all" ? "?start_date=" + r.start + "&end_date=" + r.end + (siteFilter ? "&site_id=" + siteFilter : "") + (originFilter ? "&origin=" + originFilter : "") : q)),
