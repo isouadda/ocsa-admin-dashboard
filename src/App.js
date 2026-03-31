@@ -446,7 +446,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff }) {
   const viewDetail = async id => { try { const d = await af("/api/users/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); } };
   const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); setDetail(null); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); viewDetail(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const unassign = async (uid, sid) => { try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); viewDetail(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const unassign = async (uid, sid) => { if (!window.confirm("Remove this site assignment?")) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); viewDetail(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast("PIN must be 4 digits", "error"); return; } try { const d = await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(d.message); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: { firstName: editForm.firstName, lastName: editForm.lastName, phone: editForm.phone, email: editForm.email, role: editForm.role, hourlyRate: editForm.hourlyRate } }); showToast("User updated"); setEditForm(null); load(); loadStaff(); if (detail) viewDetail(editForm.id); } catch (e) { showToast(e.message, "error"); } };
   return (<div>
@@ -479,7 +479,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff }) {
         {(!detail.certifications || detail.certifications.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No certifications on file</div>}
         {detail.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.greenSubtle, borderRadius: 6, marginBottom: 3, border: "1px solid " + t.greenBorder }}>
           <div><span style={{ fontSize: 11, color: GR, fontWeight: 500 }}>{c.cert_name}</span>{c.expiry_date && <span style={{ fontSize: 9, color: t.textMut, marginLeft: 8 }}>Exp: {fd(c.expiry_date)}</span>}</div>
-          <button onClick={async () => { try { await af("/api/users/" + detail.user.id + "/certifications/" + c.id, { method: "DELETE" }); showToast("Removed"); viewDetail(detail.user.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button>
+          <button onClick={async () => { if (!window.confirm("Remove this certification?")) return; try { await af("/api/users/" + detail.user.id + "/certifications/" + c.id, { method: "DELETE" }); showToast("Removed"); viewDetail(detail.user.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button>
         </div>)}
       </div>
       <div style={{ marginBottom: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div><button onClick={() => setAssignForm({ userId: detail.user.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Assign</button></div>
@@ -2707,6 +2707,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff }) {
   };
 
   const releaseShift = async (id) => {
+    if (!window.confirm("Release this shift back to the open pool?")) return;
     try { await af("/api/pickups/" + id + "/release", { method: "POST" }); showToast("Shift released"); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
