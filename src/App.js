@@ -2111,17 +2111,7 @@ function ClockHistoryPage({ af, showToast, isAdmin, t, allStaff, sites }) {
 
 // ===== SCHEDULE PAGE =====
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
-  const SERVICE_CATS = [
-    { v: "", l: "No specific service" },
-    { v: "Office Cleaning", l: "Office Cleaning" },
-    { v: "Laboratory Cleaning", l: "Laboratory Cleaning" },
-    { v: "Industrial Cleaning", l: "Industrial Cleaning" },
-    { v: "Biohazard Cleaning", l: "Biohazard Cleaning" },
-    { v: "Post-Construction", l: "Post-Construction Cleaning" },
-    { v: "Disinfection", l: "Disinfection Services" },
-    { v: "Landscaping", l: "Landscaping" },
-    { v: "Green Cleaning", l: "Green Cleaning" },
-  ];
+  const SERVICE_CATS = [{ v: "", l: "No specific service" }, ...getOpts("service_categories")];
   const [view, setView] = useState("week");
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
@@ -2743,9 +2733,6 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       setSchedShifts(r.filter(s => s.status === "scheduled"));
     } catch { setSchedShifts([]); }
   };
-
-  const svcOpts = getOpts("service_categories");
-  const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
 
   const tabs = [
     { id: "open", l: "Open", count: analytics?.summary?.open_count },
