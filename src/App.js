@@ -1,22 +1,21 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
-const SUPA_URL = "https://gcgswxyxkbummtgzgusk.supabase.co";
-const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdjZ3N3eHl4a2J1bW10Z3pndXNrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ0NjY0NTcsImV4cCI6MjA5MDA0MjQ1N30.Vbe7ueRmQ6MPZX2sqa0XHIlJD22_J7sDJ65OoQ50LaM";
-async function uploadTaskMedia(file) {
+async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
-  const isVideo = ["mp4", "mov", "webm", "avi"].includes(ext);
-  const fileName = "task-" + Date.now() + "-" + Math.random().toString(36).substring(2, 8) + "." + ext;
-  const res = await fetch(SUPA_URL + "/storage/v1/object/task-media/" + fileName, {
-    method: "POST", headers: { "Authorization": "Bearer " + SUPA_KEY, "apikey": SUPA_KEY, "Content-Type": file.type }, body: file,
+  const res = await fetch(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + token, "Content-Type": file.type },
+    body: file,
   });
-  if (!res.ok) throw new Error("Upload failed");
-  return { url: SUPA_URL + "/storage/v1/object/public/task-media/" + fileName, type: isVideo ? "video" : "image" };
+  if (res.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Upload failed"); }
+  return res.json();
 }
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await fetch(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  if (r.status === 401) throw new Error("Session expired");
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
   if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Request failed"); }
   return r.json();
 }
@@ -161,7 +160,14 @@ export default function AdminDashboard() {
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
+  const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
   const isAdmin = user?.role === "admin";
+  const [sites, setSites] = useState([]);
+  const [allStaff, setAllStaff] = useState([]);
+  const loadSites = useCallback(async () => { try { const s = await af("/api/sites"); setSites(s); return s; } catch (e) { console.warn("Failed to load sites:", e.message); return []; } }, [af]);
+  const loadStaff = useCallback(async () => { try { const s = await af("/api/users?status=active"); setAllStaff(s); return s; } catch (e) { console.warn("Failed to load staff:", e.message); return []; } }, [af]);
+  useEffect(() => { if (token) { loadSites(); loadStaff(); } }, [token]);
+  useEffect(() => { const h = () => { setToken(null); setUser(null); }; window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, []);
   const handleLogin = async (phone, pin) => {
     setLoading(true);
     try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
@@ -332,21 +338,21 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: "20px 28px 40px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
-        {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} />}
-        {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}       {page === "timesheets" && <TimesheetsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "operations" && <OpsPage af={af} t={t} />}
-        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} />}
+        {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} />}
+        {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} />}
+        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} />}       {page === "timesheets" && <TimesheetsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} />}
+        {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
+        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} />}
+        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
+        {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} allStaff={allStaff} sites={sites} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} />}
+        {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
+        {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
       </div>
     </div>
 
@@ -371,9 +377,9 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   const [laborDash, setLaborDash] = useState(null);
   useEffect(() => {
     af("/api/reports/overview").then(setStats).catch(e => showToast(e.message, "error"));
-    af("/api/clock/active").then(setActive).catch(() => {});
-    af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(() => {});
-    af("/api/labor/dashboard").then(setLaborDash).catch(() => {});
+    af("/api/clock/active").then(setActive).catch(e => console.warn(e.message));
+    af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(e => console.warn(e.message));
+    af("/api/labor/dashboard").then(setLaborDash).catch(e => console.warn(e.message));
   }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
   return (<div>
@@ -428,21 +434,21 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   </div>);
 }
 
-function StaffPage({ af, showToast, t }) {
+function StaffPage({ af, showToast, t, sites, allStaff, loadStaff }) {
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
-  const [detail, setDetail] = useState(null); const [sites, setSites] = useState([]); const [assignForm, setAssignForm] = useState(null);
+  const [detail, setDetail] = useState(null); const [assignForm, setAssignForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
-  const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); af("/api/sites").then(setSites).catch(() => {}); };
+  const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
   useEffect(() => { load(); }, []);
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
-  const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast("Approved"); load(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast("Name, phone, and email required", "error"); return; } try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast("Added. Temp PIN: " + d.tempPin); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast("Approved"); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast("Name, phone, and email required", "error"); return; } try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast("Added. Temp PIN: " + d.tempPin); setAddForm(null); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const viewDetail = async id => { try { const d = await af("/api/users/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); } };
-  const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); viewDetail(assignForm.userId); } catch (e) { showToast(e.message, "error"); } };
-  const unassign = async (uid, sid) => { try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); viewDetail(uid); } catch (e) { showToast(e.message, "error"); } };
+  const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); setDetail(null); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); viewDetail(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const unassign = async (uid, sid) => { try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); viewDetail(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast("PIN must be 4 digits", "error"); return; } try { const d = await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(d.message); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
-  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: { firstName: editForm.firstName, lastName: editForm.lastName, phone: editForm.phone, email: editForm.email, role: editForm.role, hourlyRate: editForm.hourlyRate } }); showToast("User updated"); setEditForm(null); load(); if (detail) viewDetail(editForm.id); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: { firstName: editForm.firstName, lastName: editForm.lastName, phone: editForm.phone, email: editForm.email, role: editForm.role, hourlyRate: editForm.hourlyRate } }); showToast("User updated"); setEditForm(null); load(); loadStaff(); if (detail) viewDetail(editForm.id); } catch (e) { showToast(e.message, "error"); } };
   return (<div>
     <SecT t={t} action="Add Staff" onAction={() => setAddForm({ firstName: "", lastName: "", phone: "", email: "", role: "custodial_laborer" })}>Staff Management</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{["all", "active", "pending", "inactive"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? GO : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", textTransform: "capitalize", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{f}</button>)}</div>
@@ -526,12 +532,11 @@ function StaffPage({ af, showToast, t }) {
   </div>);
 }
 
-function SitesPage({ af, showToast, isAdmin, t }) {
-  const [sites, setSites] = useState([]); const [exp, setExp] = useState(null); const [sd, setSd] = useState(null); const [st, setSt] = useState([]);
-  const [addSite, setAddSite] = useState(null); const [addTask, setAddTask] = useState(null); const [staffList, setStaffList] = useState([]); const [editTask, setEditTask] = useState(null);
+function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf }) {
+  const [exp, setExp] = useState(null); const [sd, setSd] = useState(null); const [st, setSt] = useState([]);
+  const [addSite, setAddSite] = useState(null); const [addTask, setAddTask] = useState(null); const staffList = allStaff; const [editTask, setEditTask] = useState(null);
   const [showInactive, setShowInactive] = useState(false); const [deleteConfirm, setDeleteConfirm] = useState(null); const [deleteText, setDeleteText] = useState("");
-  const load = () => af("/api/sites").then(setSites).catch(e => showToast(e.message, "error"));
-  useEffect(() => { load(); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
+  const load = () => loadSites();
   const expand = async id => { if (exp === id) { setExp(null); return; } setExp(id); try { const d = await af("/api/sites/" + id); setSd(d); const tt = await af("/api/sites/" + id + "/tasks"); setSt(tt); } catch (e) { showToast(e.message, "error"); } };
   const submitSite = async () => { if (!addSite.name || !addSite.address) { showToast("Name and address required", "error"); return; } try { await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || "Philadelphia", state: addSite.state || "PA", zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } }); showToast("Site created"); setAddSite(null); load(); } catch (e) { showToast(e.message, "error"); } };
   const submitTask = async () => { if (!addTask.label || !addTask.zone) { showToast("Label and zone required", "error"); return; } try { await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } }); showToast("Task created"); setAddTask(null); expand(addTask.siteId); } catch (e) { showToast(e.message, "error"); } };
@@ -582,7 +587,7 @@ function SitesPage({ af, showToast, isAdmin, t }) {
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions (optional)</Lbl><TArea t={t} value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes for the cleaner..." rows={3} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
       <div style={{ marginBottom: 16 }}><Lbl>Assign To</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: "Select (optional)" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -595,7 +600,7 @@ function SitesPage({ af, showToast, isAdmin, t }) {
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
       </div>
       {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>YouTube link attached</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt="Task reference" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
@@ -614,9 +619,9 @@ function SitesPage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
-function OpsPage({ af, t }) {
-  const [active, setActive] = useState([]); const [all, setAll] = useState([]);
-  useEffect(() => { af("/api/clock/active").then(setActive).catch(() => {}); af("/api/users?status=active").then(setAll).catch(() => {}); }, []);
+function OpsPage({ af, t, allStaff }) {
+  const [active, setActive] = useState([]); const all = allStaff;
+  useEffect(() => { af("/api/clock/active").then(setActive).catch(e => console.warn("Load active:", e.message)); }, []);
   const onIds = new Set(active.map(a => a.userId)); const off = all.filter(s => !onIds.has(s.id));
   return (<div><SecT t={t}>Live Operations</SecT>
     <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>On Site ({active.length})</div>
@@ -627,12 +632,12 @@ function OpsPage({ af, t }) {
   </div>);
 }
 
-function IssuesPage({ af, showToast, t }) {
+function IssuesPage({ af, showToast, t, allStaff }) {
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
-  const [staffList, setStaffList] = useState([]); const [assignTask, setAssignTask] = useState(null);
+  const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
   const load = () => af("/api/issues").then(setIssues).catch(e => showToast(e.message, "error"));
-  useEffect(() => { load(); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
+  useEffect(() => { load(); }, []);
   const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: "#9B59B6" };
@@ -717,9 +722,10 @@ function SuppliesAdminPage({ af, showToast, isAdmin, t }) {
 
 function ChatPage({ af, user, t }) {
   const [dms, setDms] = useState([]); const [sel, setSel] = useState(null); const [msgs, setMsgs] = useState([]); const [reply, setReply] = useState(""); const endRef = useRef(null);
-  useEffect(() => { af("/api/chat/dm-inbox").then(setDms).catch(() => {}); }, []);
+  useEffect(() => { af("/api/chat/dm-inbox").then(setDms).catch(e => console.warn(e.message)); }, []);
   const open = async id => { setSel(id); try { const m = await af("/api/chat/channels/" + id + "/messages"); setMsgs(m); } catch (e) { console.error(e); } };
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
+  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + sel + "/messages"); setMsgs(m); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const send = async () => { if (!reply.trim() || !sel) return; try { const d = await af("/api/chat/channels/" + sel + "/messages", { method: "POST", body: { text: reply.trim() } }); setMsgs(p => [...p, d.message]); setReply(""); } catch (e) { console.error(e); } };
   return (<div><SecT t={t}>Private Messages</SecT>
     <div style={{ padding: "8px 12px", marginBottom: 14, borderRadius: 8, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL }}>Private conversations with staff.</div>
@@ -753,8 +759,8 @@ function ReportsPage({ af, showToast, isAdmin, t }) {
   const loadReports = (range) => {
     const r = range || dateRange;
     const q = "?start_date=" + r.start + "&end_date=" + r.end;
-    af("/api/reports/task-completion" + q).then(setTasks).catch(() => {});
-    af("/api/reports/issues" + q).then(setIssS).catch(() => {});
+    af("/api/reports/task-completion" + q).then(setTasks).catch(e => console.warn(e.message));
+    af("/api/reports/issues" + q).then(setIssS).catch(e => console.warn(e.message));
   };
 
   useEffect(() => { loadReports(); }, []);
@@ -803,11 +809,10 @@ function ReportsPage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
-function LaborReportsPage({ af, showToast, isAdmin, t }) {
+function LaborReportsPage({ af, showToast, isAdmin, t, sites }) {
   const [dateRange, setDateRange] = useState(() => PRESETS.last30());
   const [tab, setTab] = useState("overview");
   const [siteFilter, setSiteFilter] = useState("");
-  const [sites, setSites] = useState([]);
   const [summary, setSummary] = useState(null);
   const [bySite, setBySite] = useState([]);
   const [byStaff, setByStaff] = useState([]);
@@ -846,7 +851,6 @@ function LaborReportsPage({ af, showToast, isAdmin, t }) {
   };
 
   useEffect(() => {
-    af("/api/sites").then(setSites).catch(() => {});
     load();
   }, []);
   useEffect(() => { load(); }, [dateRange, siteFilter]);
@@ -1172,15 +1176,15 @@ function LaborReportsPage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
-function AssignedTasksAdminPage({ af, showToast, isAdmin, t }) {
+function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf }) {
   const [tasks, setTasks] = useState([]);
   const [filters, setFilters] = useState({ site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" });
-  const [sites, setSites] = useState([]); const [staffList, setStaffList] = useState([]);
+  const staffList = allStaff;
   const [sel, setSel] = useState(null); const [activity, setActivity] = useState([]);
   const [reassignForm, setReassignForm] = useState(null); const [createForm, setCreateForm] = useState(null);
   const [loading, setLoading] = useState(false);
   const load = async (f) => { setLoading(true); try { const params = new URLSearchParams(); const ff = f || filters; if (ff.site_id) params.set("site_id", ff.site_id); if (ff.building_name) params.set("building_name", ff.building_name); if (ff.floor_number) params.set("floor_number", ff.floor_number); if (ff.zone) params.set("zone", ff.zone); if (ff.user_id) params.set("user_id", ff.user_id); if (ff.status) params.set("status", ff.status); const d = await af("/api/clock/tasks/assigned-all?" + params.toString()); setTasks(d); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
-  useEffect(() => { load(); af("/api/sites").then(d => { const seen = new Set(); setSites(d.filter(s => { if (seen.has(s.name)) return false; seen.add(s.name); return true; })); }).catch(() => {}); af("/api/users?status=active").then(setStaffList).catch(() => {}); }, []);
+  useEffect(() => { load(); }, []);
   const updateFilter = (key, val) => { const nf = { ...filters, [key]: val }; setFilters(nf); load(nf); };
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
@@ -1251,7 +1255,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t }) {
       <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder="Step-by-step instructions or notes..." rows={3} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
         <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uploadTaskMedia(f); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
         {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt="Attached" style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
@@ -1260,7 +1264,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
-function TimesheetsPage({ af, showToast, isAdmin, t }) {
+function TimesheetsPage({ af, showToast, isAdmin, t, sites, allStaff }) {
   const [data, setData] = useState(null);
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterUser, setFilterUser] = useState("");
@@ -1274,8 +1278,7 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
   const [bulkRejectReason, setBulkRejectReason] = useState("");
   const [exporting, setExporting] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [sites, setSites] = useState([]);
-  const [staff, setStaff] = useState([]);
+  const staff = allStaff;
 
   const load = async (range) => {
     setLoading(true);
@@ -1294,11 +1297,7 @@ function TimesheetsPage({ af, showToast, isAdmin, t }) {
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-    af("/api/sites").then(setSites).catch(() => {});
-    af("/api/users?status=active").then(setStaff).catch(() => {});
-  }, []);
+  useEffect(() => { load(); }, []);
 
   useEffect(() => { load(); }, [dateRange, filterUser, filterSite, filterStatus]);
 
@@ -1570,7 +1569,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const [linkSupply, setLinkSupply] = useState(null);
 
   const load = () => af("/api/vendors").then(setVendors).catch(e => showToast(e.message, "error"));
-  useEffect(() => { load(); af("/api/supplies").then(setSupplies).catch(() => {}); }, []);
+  useEffect(() => { load(); af("/api/supplies").then(setSupplies).catch(e => console.warn(e.message)); }, []);
 
   const loadDetail = async id => {
     try { const d = await af("/api/vendors/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); }
@@ -1792,16 +1791,15 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
     </Mdl>}
   </div>);
 }
-function ServicesPage({ af, showToast, isAdmin, t }) {
+function ServicesPage({ af, showToast, isAdmin, t, sites }) {
   const [services, setServices] = useState([]);
-  const [sites, setSites] = useState([]);
   const [detail, setDetail] = useState(null);
   const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [linkSite, setLinkSite] = useState(null);
 
   const load = () => af("/api/services").then(setServices).catch(e => showToast(e.message, "error"));
-  useEffect(() => { load(); af("/api/sites").then(setSites).catch(() => {}); }, []);
+  useEffect(() => { load(); }, []);
 
   const loadDetail = async id => {
     try { const d = await af("/api/services/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); }
@@ -1974,10 +1972,9 @@ function ServicesPage({ af, showToast, isAdmin, t }) {
     </Mdl>}
   </div>);
 }
-function ClockHistoryPage({ af, showToast, isAdmin, t }) {
+function ClockHistoryPage({ af, showToast, isAdmin, t, allStaff, sites }) {
   const [hours, setHours] = useState(null);
-  const [staffList, setStaffList] = useState([]);
-  const [sites, setSites] = useState([]);
+  const staffList = allStaff;
   const [clockHistory, setClockHistory] = useState([]);
   const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
   const [manualEntry, setManualEntry] = useState(null);
@@ -1986,7 +1983,7 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
 
   const loadHours = (range) => {
     const r = range || dateRange;
-    af("/api/reports/hours?group_by=user&start_date=" + r.start + "&end_date=" + r.end).then(setHours).catch(() => {});
+    af("/api/reports/hours?group_by=user&start_date=" + r.start + "&end_date=" + r.end).then(setHours).catch(e => console.warn("Load hours:", e.message));
   };
 
   const loadHistory = async (filters, range) => {
@@ -2002,8 +1999,6 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
 
   useEffect(() => {
     loadHours(); loadHistory(histFilter);
-    af("/api/users?status=active").then(setStaffList).catch(() => {});
-    af("/api/sites").then(setSites).catch(() => {});
   }, []);
 
   useEffect(() => { loadHours(); loadHistory(histFilter); }, [dateRange]);
@@ -2104,7 +2099,7 @@ function ClockHistoryPage({ af, showToast, isAdmin, t }) {
 }
 
 // ===== SCHEDULE PAGE =====
-function SchedulePage({ af, showToast, isAdmin, t }) {
+function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff }) {
   const SERVICE_CATS = [
     { v: "", l: "No specific service" },
     { v: "Office Cleaning", l: "Office Cleaning" },
@@ -2120,8 +2115,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
   const [searchStaff, setSearchStaff] = useState("");
-  const [sites, setSites] = useState([]);
-  const [staffList, setStaffList] = useState([]);
+  const staffList = allStaff;
   const [calData, setCalData] = useState({ scheduled_shifts: [], actual_shifts: [], inspections: [] });
   const [openShifts, setOpenShifts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -2181,11 +2175,11 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   };
 
   useEffect(() => {
-    af("/api/sites").then(s => { setSites(s); s.forEach(site => loadSiteLocations(site.id)); }).catch(() => {});
-    af("/api/users?status=active").then(setStaffList).catch(() => {});
-    af("/api/users?role=supervisor").then(setSchedSupervisors).catch(() => {});
+    sites.forEach(site => loadSiteLocations(site.id));
+    af("/api/users?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
     loadCalendar();
   }, []);
+  useEffect(() => { if (sites.length > 0) sites.forEach(site => loadSiteLocations(site.id)); }, [sites]);
   useEffect(() => { loadCalendar(); }, [dateRange, filterSite]);
 
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
@@ -2236,7 +2230,7 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
       showToast("Schedule updated"); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
-  const deleteShift = async (id) => { try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteShift = async (id) => { if (!window.confirm("Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
@@ -2593,13 +2587,12 @@ function SchedulePage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
-function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
+function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff }) {
   const [dateRange, setDateRange] = useState(() => PRESETS.last30());
   const [tab, setTab] = useState("open");
   const [shifts, setShifts] = useState([]);
   const [analytics, setAnalytics] = useState(null);
-  const [sites, setSites] = useState([]);
-  const [staff, setStaff] = useState([]);
+  const staff = allStaff;
   const [siteFilter, setSiteFilter] = useState("");
   const [originFilter, setOriginFilter] = useState("");
   const [loading, setLoading] = useState(false);
@@ -2610,6 +2603,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   const [convertNotes, setConvertNotes] = useState("");
   const [siteLocations, setSiteLocations] = useState({});
   const [requestCount, setRequestCount] = useState(0);
+  const [claimedCount, setClaimedCount] = useState(0);
 
   const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); };
   const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + ap; };
@@ -2654,22 +2648,22 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
       if (tab !== "all" && tab !== "analytics") q += "&status=" + (tab === "filled" ? "approved" : tab);
     }
     try {
-      const [s, a, reqs] = await Promise.all([
+      const [s, a, reqs, claimed] = await Promise.all([
         af("/api/pickups" + (tab === "all" ? "?start_date=" + r.start + "&end_date=" + r.end + (siteFilter ? "&site_id=" + siteFilter : "") + (originFilter ? "&origin=" + originFilter : "") : q)),
         af("/api/pickups/analytics?start_date=" + r.start + "&end_date=" + r.end),
-        af("/api/pickups?status=requested")
+        af("/api/pickups?status=requested"),
+        af("/api/pickups?status=claimed&start_date=" + r.start + "&end_date=" + r.end)
       ]);
       setShifts(s);
       setAnalytics(a);
       setRequestCount(reqs.length);
+      setClaimedCount(claimed.length);
     } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
 
   useEffect(() => {
-    af("/api/sites").then(setSites).catch(() => {});
-    af("/api/users?status=active").then(setStaff).catch(() => {});
-    af("/api/pickups?status=requested").then(r => setRequestCount(r.length)).catch(() => {});
+    af("/api/pickups?status=requested").then(r => setRequestCount(r.length)).catch(e => console.warn("Load request count:", e.message));
     load();
   }, []);
   useEffect(() => { load(); }, [dateRange, tab, siteFilter, originFilter]);
@@ -2718,6 +2712,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   };
 
   const cancelShift = async (id) => {
+    if (!window.confirm("Cancel this open shift? It will no longer be available for pickup.")) return;
     try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast("Shift cancelled"); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
@@ -2737,7 +2732,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   const tabs = [
     { id: "open", l: "Open", count: analytics?.summary?.open_count },
     { id: "requested", l: "Requests", count: requestCount > 0 ? requestCount : null },
-    { id: "claimed", l: "Claimed", count: shifts.filter(s => s.status === "claimed").length || null },
+    { id: "claimed", l: "Claimed", count: claimedCount > 0 ? claimedCount : null },
     { id: "filled", l: "Approved", count: null },
     { id: "all", l: "All" },
     { id: "analytics", l: "Analytics" },
@@ -3064,7 +3059,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t }) {
   </div>);
 }
 
-function InspectionsPage({ af, showToast, isAdmin, t }) {
+function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff }) {
   const CIMS_C = { SD: "#3498DB", HSE: "#F39C12", GB: "#2ECC71", QS: "#C8A84E", HR: "#9B59B6", MC: "#2C3E50" };
   const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
   const CIMS_CATS = ["SD", "HSE", "GB", "QS", "HR", "MC"];
@@ -3076,7 +3071,6 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
   const [templates, setTemplates] = useState([]);
   const [scheduled, setScheduled] = useState([]);
   const [completed, setCompleted] = useState([]);
-  const [sites, setSites] = useState([]);
   // Analytics state
   const [analyticsRange, setAnalyticsRange] = useState(() => PRESETS.last90());
   const [analyticsSite, setAnalyticsSite] = useState("");
@@ -3126,8 +3120,7 @@ function InspectionsPage({ af, showToast, isAdmin, t }) {
 
   useEffect(() => {
     loadTemplates(); loadScheduled();
-    af("/api/sites").then(setSites).catch(() => {});
-    af("/api/users?role=supervisor").then(setSupervisors).catch(() => {});
+    af("/api/users?role=supervisor").then(setSupervisors).catch(e => console.warn("Load supervisors:", e.message));
   }, []);
 
   useEffect(() => {
