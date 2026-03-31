@@ -73,6 +73,7 @@ const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
 const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
 const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
+const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 0 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 0 2 0l.43.25a2 2 0 0 0 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 0 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 0 0-2l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 0-2 0l-.43-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
@@ -209,10 +210,11 @@ export default function AdminDashboard() {
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
     { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "schedule", l: "Schedule", i: CalI }, { id: "marketplace", l: "Shift Pickup", i: SwpI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
     { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }, { id: "labor", l: "Labor Reports", i: DlrI }] },
+    ...(isAdmin ? [{ label: null, items: [{ id: "settings", l: "Settings", i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections", labor: "Labor Reports", marketplace: "Shift Pickup" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections", labor: "Labor Reports", marketplace: "Shift Pickup", settings: "Settings" };
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
   const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
@@ -353,6 +355,7 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
+        {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} />}
       </div>
     </div>
 
@@ -3809,6 +3812,276 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff }) {
         <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>Cancel</Btn><Btn t={t} onClick={scheduleInspection}>Schedule</Btn></div>
+      </div></Mdl>}
+    </div>
+  );
+}
+
+function SettingsPage({ af, showToast, t, sites }) {
+  const [cats, setCats] = useState([]);
+  const [selCat, setSelCat] = useState(null);
+  const [tab, setTab] = useState("global");
+  const [addCatForm, setAddCatForm] = useState(null);
+  const [editCatForm, setEditCatForm] = useState(null);
+  const [addValForm, setAddValForm] = useState(null);
+  const [editValForm, setEditValForm] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [selSite, setSelSite] = useState("");
+  const [siteLookups, setSiteLookups] = useState({ zones: [], buildings: [], floors: [] });
+  const [siteTab, setSiteTab] = useState("zone");
+  const [addSiteVal, setAddSiteVal] = useState(null);
+  const [editSiteVal, setEditSiteVal] = useState(null);
+
+  const load = async () => { try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
+  useEffect(() => { load(); }, []);
+
+  const loadSiteLookups = async (sId) => { if (!sId) return; try { const d = await af("/api/lookups/site/" + sId + "/all"); setSiteLookups(d); } catch (e) { showToast(e.message, "error"); } };
+  useEffect(() => { if (tab === "site" && selSite) loadSiteLookups(selSite); }, [tab, selSite]);
+
+  const activeCat = cats.find(c => c.id === selCat);
+
+  // Category CRUD
+  const submitAddCat = async () => {
+    if (!addCatForm.label || !addCatForm.slug) { showToast("Label and slug required", "error"); return; }
+    try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast("Category created"); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const submitEditCat = async () => {
+    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast("Category updated"); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const deleteCat = async (id) => {
+    if (!window.confirm("Delete this category and all its values?")) return;
+    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast("Category deleted"); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const toggleCatActive = async (cat) => {
+    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? "Category deactivated" : "Category activated"); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  // Value CRUD
+  const submitAddVal = async () => {
+    if (!addValForm.value || !addValForm.label) { showToast("Value and label required", "error"); return; }
+    try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast("Value added"); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const submitEditVal = async () => {
+    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast("Value updated"); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const deleteVal = async (id) => {
+    if (!window.confirm("Delete this value?")) return;
+    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast("Value deleted"); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const toggleValActive = async (val) => {
+    try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
+  };
+  const moveVal = async (val, dir) => {
+    const vals = activeCat.values.slice().sort((a, b) => a.sort_order - b.sort_order);
+    const idx = vals.findIndex(v => v.id === val.id);
+    if ((dir === -1 && idx === 0) || (dir === 1 && idx === vals.length - 1)) return;
+    const swapWith = vals[idx + dir];
+    try {
+      await af("/api/lookups/reorder", { method: "PATCH", body: { items: [{ id: val.id, sort_order: swapWith.sort_order }, { id: swapWith.id, sort_order: val.sort_order }] } });
+      load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  // Site lookup CRUD
+  const submitAddSiteVal = async () => {
+    if (!addSiteVal.value || !addSiteVal.label) { showToast("Value and label required", "error"); return; }
+    try { await af("/api/lookups/site/" + selSite, { method: "POST", body: addSiteVal }); showToast("Added"); setAddSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+  };
+  const submitEditSiteVal = async () => {
+    try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast("Updated"); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+  };
+  const deleteSiteVal = async (id) => {
+    if (!window.confirm("Delete this value?")) return;
+    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast("Deleted"); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+  };
+  const toggleSiteValActive = async (val) => {
+    try { await af("/api/lookups/site/" + selSite + "/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+  };
+  const moveSiteVal = async (val, dir, list) => {
+    const sorted = list.slice().sort((a, b) => a.sort_order - b.sort_order);
+    const idx = sorted.findIndex(v => v.id === val.id);
+    if ((dir === -1 && idx === 0) || (dir === 1 && idx === sorted.length - 1)) return;
+    const swapWith = sorted[idx + dir];
+    try {
+      await af("/api/lookups/site/" + selSite + "/reorder", { method: "PATCH", body: { items: [{ id: val.id, sort_order: swapWith.sort_order }, { id: swapWith.id, sort_order: val.sort_order }] } });
+      loadSiteLookups(selSite);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const siteTypeLabel = { zone: "Zones", building: "Buildings", floor: "Floors" };
+  const currentSiteList = siteTab === "zone" ? siteLookups.zones : siteTab === "building" ? siteLookups.buildings : siteLookups.floors;
+
+  if (loading) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading settings...</div>;
+
+  return (
+    <div>
+      <SecT t={t}>Settings</SecT>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
+        <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
+      </div>
+
+      {tab === "global" && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        {/* Category List */}
+        <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>Categories ({cats.length})</div>
+            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+          </div>
+          <div style={{ maxHeight: 500, overflowY: "auto" }}>
+            {cats.map(c => (
+              <div key={c.id} onClick={() => setSelCat(c.id)} style={{ padding: "8px 14px", cursor: "pointer", background: selCat === c.id ? t.goldBg : "transparent", borderLeft: selCat === c.id ? "3px solid " + GO : "3px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? GO : t.text }}>{c.label}</div>
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {c.values?.length || 0} values</div>
+                </div>
+                {!c.is_active && <Bdg l="off" c={t.textMut} />}
+              </div>
+            ))}
+          </div>
+        </Crd>
+
+        {/* Value Management */}
+        {activeCat && <Crd t={t} style={{ flex: 1, padding: 0 }}>
+          <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{activeCat.label}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || "No description"}{activeCat.is_system ? " | System category" : ""}</div>
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Edit</button>
+              <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? "Deactivate" : "Activate"}</button>
+              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>Delete</button>}
+              <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: "#0A1628", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add Value</button>
+            </div>
+          </div>
+          <div style={{ padding: "8px 0" }}>
+            {activeCat.values?.sort((a, b) => a.sort_order - b.sort_order).map((v, i) => (
+              <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderBottom: "1px solid " + t.border, opacity: v.is_active ? 1 : 0.5 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <button onClick={() => moveVal(v, -1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 10, color: t.textMut, lineHeight: 1 }}>&#9650;</button>
+                  <button onClick={() => moveVal(v, 1)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 10, color: t.textMut, lineHeight: 1 }}>&#9660;</button>
+                </div>
+                {v.color && <div style={{ width: 14, height: 14, borderRadius: 3, background: v.color, flexShrink: 0 }} />}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{v.label}</div>
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | prompts text input" : ""}</div>
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
+                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
+                </div>
+              </div>
+            ))}
+            {(!activeCat.values || activeCat.values.length === 0) && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No values yet. Click "+ Add Value" to add one.</div>}
+          </div>
+        </Crd>}
+      </div>}
+
+      {tab === "site" && <div>
+        <div style={{ marginBottom: 12 }}>
+          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+        </div>
+        {selSite && <div>
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            {["zone", "building", "floor"].map(st => (
+              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{siteTypeLabel[st]} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
+            ))}
+          </div>
+          <Crd t={t} style={{ padding: 0 }}>
+            <div style={{ padding: "10px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{siteTypeLabel[siteTab]}</div>
+              <button onClick={() => setAddSiteVal({ lookup_type: siteTab, value: "", label: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: "#0A1628", fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+            </div>
+            {currentSiteList.sort((a, b) => a.sort_order - b.sort_order).map(v => (
+              <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderBottom: "1px solid " + t.border, opacity: v.is_active ? 1 : 0.5 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                  <button onClick={() => moveSiteVal(v, -1, currentSiteList)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 10, color: t.textMut, lineHeight: 1 }}>&#9650;</button>
+                  <button onClick={() => moveSiteVal(v, 1, currentSiteList)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 10, color: t.textMut, lineHeight: 1 }}>&#9660;</button>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{v.label}</div>
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}</div>
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
+                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
+                </div>
+              </div>
+            ))}
+            {currentSiteList.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No {siteTypeLabel[siteTab].toLowerCase()} defined for this site yet.</div>}
+          </Crd>
+        </div>}
+      </div>}
+
+      {/* Add Category Modal */}
+      {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Add Category</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Label *</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder="e.g. Equipment Types" /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Slug (auto-generated)</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder="e.g. equipment_types" style={{ fontFamily: "monospace" }} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder="Optional description" /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAddCat}>Create Category</Btn></div>
+      </div></Mdl>}
+
+      {/* Edit Category Modal */}
+      {editCatForm && <Mdl t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Edit Category</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Label</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditCat}>Save</Btn></div>
+      </div></Mdl>}
+
+      {/* Add Value Modal */}
+      {addValForm && <Mdl t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Add Value to {activeCat?.label}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Value (stored) *</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder="e.g. floor_tech" style={{ fontFamily: "monospace" }} /></div>
+          <div><Lbl>Label (displayed) *</Lbl><Inp t={t} value={addValForm.label} onChange={e => setAddValForm({ ...addValForm, label: e.target.value })} placeholder="e.g. Floor Technician" /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Color (optional)</Lbl><Inp t={t} value={addValForm.color} onChange={e => setAddValForm({ ...addValForm, color: e.target.value })} placeholder="e.g. #3498DB" /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Show "Other" text input</span></div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddValForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAddVal}>Add Value</Btn></div>
+      </div></Mdl>}
+
+      {/* Edit Value Modal */}
+      {editValForm && <Mdl t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Edit Value</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Value (stored)</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
+          <div><Lbl>Label (displayed)</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Color</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder="e.g. #3498DB" /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Show "Other" text input</span></div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditValForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditVal}>Save</Btn></div>
+      </div></Mdl>}
+
+      {/* Add Site Lookup Modal */}
+      {addSiteVal && <Mdl t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Add {siteTypeLabel[addSiteVal.lookup_type] ? siteTypeLabel[addSiteVal.lookup_type].slice(0, -1) : "Value"}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Value *</Lbl><Inp t={t} value={addSiteVal.value} onChange={e => setAddSiteVal({ ...addSiteVal, value: e.target.value, label: e.target.value })} placeholder="e.g. Gymnasium" /></div>
+          <div><Lbl>Label</Lbl><Inp t={t} value={addSiteVal.label} onChange={e => setAddSiteVal({ ...addSiteVal, label: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSiteVal(null)}>Cancel</Btn><Btn t={t} onClick={submitAddSiteVal}>Add</Btn></div>
+      </div></Mdl>}
+
+      {/* Edit Site Lookup Modal */}
+      {editSiteVal && <Mdl t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Edit Site Lookup</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+          <div><Lbl>Value</Lbl><Inp t={t} value={editSiteVal.value} onChange={e => setEditSiteVal({ ...editSiteVal, value: e.target.value })} /></div>
+          <div><Lbl>Label</Lbl><Inp t={t} value={editSiteVal.label} onChange={e => setEditSiteVal({ ...editSiteVal, label: e.target.value })} /></div>
+        </div>
+        <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>Changing the type will reclassify this value. For example, changing from "Building" to "Zone" moves it between categories.</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>Cancel</Btn><Btn t={t} onClick={submitEditSiteVal}>Save</Btn></div>
       </div></Mdl>}
     </div>
   );
