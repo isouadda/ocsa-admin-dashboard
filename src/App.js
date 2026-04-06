@@ -4477,7 +4477,7 @@ function FormsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap 
   const createTemplate = async () => {
     if (!createForm.name.trim()) return showToast("Name is required", "error");
     const seed = useTemplate && SEED_TEMPLATES[createForm.category];
-    const schemaFields = seed ? seed.fields.map(f => ({ ...f, id: "f_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6) })) : [];
+    const schemaFields = seed ? seed.fields.map((f, fi) => ({ ...f, id: "f_" + Date.now() + "_" + fi + "_" + Math.random().toString(36).slice(2, 6) })) : [];
     try {
       const tpl = await af("/api/forms", { method: "POST", body: { ...createForm, schema: { fields: schemaFields } } });
       showToast("Template created");
@@ -4570,7 +4570,7 @@ function FormsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap 
     setPropTab("general");
   };
 
-  const updateField = (idx, key, val) => { const nf = [...fields]; nf[idx] = { ...nf[idx], [key]: val }; setFields(nf); };
+  const updateField = (idx, key, val) => { const nf = [...fields]; nf[idx] = typeof key === "object" ? { ...nf[idx], ...key } : { ...nf[idx], [key]: val }; setFields(nf); };
 
   const removeField = (idx) => {
     if (!window.confirm("Remove this field?")) return;
@@ -4865,15 +4865,16 @@ function FormsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap 
                   <input type="checkbox" checked={selField.readOnly || false} onChange={e => updateField(selIdx, "readOnly", e.target.checked)} style={{ accentColor: OR }} />
                   <span style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>Read Only</span>
                 </div>}
-                {(selField.type === "dropdown" || selField.type === "radio" || selField.type === "text") && <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
+                {(selField.type === "dropdown" || selField.type === "radio" || selField.type === "text" || selField.type === "textarea") && <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
                   <Lbl>Data Source</Lbl>
                   <Sel t={t} value={selField.dataSource || ""} onChange={e => {
                     const ds = e.target.value;
-                    updateField(selIdx, "dataSource", ds);
-                    if (ds === "staff" && allStaff) updateField(selIdx, "options", allStaff.filter(s => s.status === "active").map(s => s.name));
-                    else if (ds === "sites" && sites) updateField(selIdx, "options", sites.map(s => s.name));
-                    else if (ds === "supervisors" && allStaff) updateField(selIdx, "options", allStaff.filter(s => s.role === "supervisor" && s.status === "active").map(s => s.name));
-                    else if (ds === "roles") updateField(selIdx, "options", ["Admin", "Supervisor", "Custodial Lead", "Custodial Laborer", "Day Porter", "Contractor"]);
+                    let opts = selField.options || [];
+                    if (ds === "staff" && allStaff) opts = allStaff.filter(s => s.status === "active").map(s => s.name);
+                    else if (ds === "sites" && sites) opts = sites.map(s => s.name);
+                    else if (ds === "supervisors" && allStaff) opts = allStaff.filter(s => s.role === "supervisor" && s.status === "active").map(s => s.name);
+                    else if (ds === "roles") opts = ["Admin", "Supervisor", "Custodial Lead", "Custodial Laborer", "Day Porter", "Contractor"];
+                    updateField(selIdx, { dataSource: ds, options: opts });
                   }} options={[
                     { v: "", l: "None (manual options)" },
                     { v: "staff", l: "Staff List (all active)" },
