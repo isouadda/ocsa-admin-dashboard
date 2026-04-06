@@ -357,7 +357,7 @@ export default function AdminDashboard() {
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "forms" && <FormsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} getOpts={getOpts} />}
+        {page === "forms" && <FormsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} allStaff={allStaff} sites={sites} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -4338,7 +4338,7 @@ function SettingsPage({ af, showToast, t, sites }) {
 }
 
 // ===== FORMS PAGE (Session 14) =====
-function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
+function FormsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap }) {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("list"); // list | designer | preview
@@ -4510,9 +4510,12 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
     const newName = window.prompt("Enter a name for the new template:", tplName + " (Copy)");
     if (!newName) return;
     try {
-      await af("/api/forms", { method: "POST", body: { name: newName, description: tplDesc, category: tplCat, schema: { fields } } });
-      showToast("Saved as new template");
-      loadTemplates();
+      const newTpl = await af("/api/forms", { method: "POST", body: { name: newName, description: tplDesc, category: tplCat, schema: { fields } } });
+      showToast('Template "' + newName + '" created');
+      await loadTemplates();
+      setCatFilter(tplCat);
+      setEditTpl(null);
+      setView("list");
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -4531,6 +4534,7 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
   const [previewData, setPreviewData] = useState({});
   const [previewStars, setPreviewStars] = useState({});
   const [previewScale, setPreviewScale] = useState({});
+  const [previewPhotos, setPreviewPhotos] = useState({});
   const [sigMode, setSigMode] = useState({});
   const [sigText, setSigText] = useState({});
   const sigCanvasRefs = useRef({});
@@ -4627,6 +4631,25 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
   // RENDER
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading forms...</div>;
 
+  // Inject animations
+  if (!document.getElementById("forms-anim-css")) {
+    const style = document.createElement("style");
+    style.id = "forms-anim-css";
+    style.textContent = `
+      @keyframes formFieldIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes formPulse { 0% { box-shadow: 0 0 0 0 rgba(200,168,78,0.3); } 70% { box-shadow: 0 0 0 8px rgba(200,168,78,0); } 100% { box-shadow: 0 0 0 0 rgba(200,168,78,0); } }
+      @keyframes formBounce { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+      .form-field-card { animation: formFieldIn 0.2s ease-out; }
+      .form-field-card:hover .form-drag-handle { opacity: 1; }
+      .form-drag-handle { opacity: 0.3; transition: opacity 0.15s; }
+      .form-cat-btn:hover { transform: scale(1.04); }
+      .form-cat-btn { transition: all 0.15s ease; }
+      .form-star:hover { transform: scale(1.2); }
+      .form-star { transition: transform 0.1s ease; cursor: pointer; }
+    `;
+    document.head.appendChild(style);
+  }
+
   // Shared styles
   const S = {
     panel: { background: t.card, borderRight: "1px solid " + t.border, overflowY: "auto" },
@@ -4719,7 +4742,7 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={saveAsNewTemplate} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Save as New Template</button>
-              <Btn t={t} v="ghost" onClick={() => { setPreviewData({}); setPreviewStars({}); setPreviewScale({}); setSigMode({}); setSigText({}); setView("preview"); }} style={{ fontSize: 11, padding: "7px 14px" }}>Preview</Btn>
+              <Btn t={t} v="ghost" onClick={() => { setPreviewData({}); setPreviewStars({}); setPreviewScale({}); setPreviewPhotos({}); setSigMode({}); setSigText({}); setView("preview"); }} style={{ fontSize: 11, padding: "7px 14px" }}>Preview</Btn>
               <Btn t={t} onClick={saveTemplate} style={{ fontSize: 11, padding: "7px 16px" }}>{saving ? "Saving..." : "Save"}</Btn>
             </div>
           </div>
@@ -4752,6 +4775,7 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
                   draggable onDragStart={() => setDragIdx(i)} onDragOver={e => e.preventDefault()}
                   onDrop={() => { if (dragIdx !== null && dragIdx !== i) moveField(dragIdx, i); setDragIdx(null); }}
                   onDragEnd={() => setDragIdx(null)}
+                  className="form-field-card"
                   style={{ ...S.canvasField(active, hover && !active), opacity: dragging ? 0.4 : 1 }}>
                   {/* Toolbar on hover/active */}
                   {(active || hover) && (
@@ -4841,6 +4865,25 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
                   <input type="checkbox" checked={selField.readOnly || false} onChange={e => updateField(selIdx, "readOnly", e.target.checked)} style={{ accentColor: OR }} />
                   <span style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>Read Only</span>
                 </div>}
+                {(selField.type === "dropdown" || selField.type === "radio" || selField.type === "text") && <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
+                  <Lbl>Data Source</Lbl>
+                  <Sel t={t} value={selField.dataSource || ""} onChange={e => {
+                    const ds = e.target.value;
+                    updateField(selIdx, "dataSource", ds);
+                    if (ds === "staff" && allStaff) updateField(selIdx, "options", allStaff.filter(s => s.status === "active").map(s => s.name));
+                    else if (ds === "sites" && sites) updateField(selIdx, "options", sites.map(s => s.name));
+                    else if (ds === "supervisors" && allStaff) updateField(selIdx, "options", allStaff.filter(s => s.role === "supervisor" && s.status === "active").map(s => s.name));
+                    else if (ds === "roles") updateField(selIdx, "options", ["Admin", "Supervisor", "Custodial Lead", "Custodial Laborer", "Day Porter", "Contractor"]);
+                  }} options={[
+                    { v: "", l: "None (manual options)" },
+                    { v: "staff", l: "Staff List (all active)" },
+                    { v: "supervisors", l: "Supervisors only" },
+                    { v: "sites", l: "Sites List" },
+                    { v: "roles", l: "Staff Roles" },
+                  ]} />
+                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Auto-populate this field's options from platform data. Selecting a source replaces the current option list.</div>
+                  {selField.dataSource && <div style={{ fontSize: 10, color: GR, marginTop: 4, fontWeight: 600 }}>Linked to: {selField.dataSource === "staff" ? "Staff List" : selField.dataSource === "sites" ? "Sites List" : selField.dataSource === "supervisors" ? "Supervisors" : selField.dataSource === "roles" ? "Roles" : selField.dataSource}</div>}
+                </div>}
                 <div style={{ padding: 12, background: t.cardAlt, borderRadius: 8, marginBottom: 14 }}>
                   <div style={{ fontSize: 10, color: t.textMut, marginBottom: 4 }}>FIELD ID</div>
                   <div style={{ fontSize: 11, color: t.textSec, fontFamily: "monospace" }}>{selField.id}</div>
@@ -4871,7 +4914,7 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
 
   // ===== INTERACTIVE PREVIEW =====
   if (view === "preview" && editTpl) {
-    const resetPreview = () => { setPreviewData({}); setPreviewStars({}); setPreviewScale({}); setSigText({}); fields.forEach(f => { if (f.type === "signature") clearSigCanvas(f.id); }); };
+    const resetPreview = () => { setPreviewData({}); setPreviewStars({}); setPreviewScale({}); setPreviewPhotos({}); setSigText({}); fields.forEach(f => { if (f.type === "signature") clearSigCanvas(f.id); }); };
     return (
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -4906,7 +4949,20 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
                   {f.type === "time" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Inp t={t} type="time" value={val} onChange={e => setVal(e.target.value)} readOnly={f.readOnly} style={{ width: 160 }} /></>}
                   {f.type === "star_rating" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ display: "flex", gap: 4 }}>{Array.from({ length: f.maxStars || 5 }).map((_, si) => { const filled = (previewStars[f.id] || 0) > si; return <svg key={si} onClick={() => setPreviewStars(p => ({ ...p, [f.id]: si + 1 }))} width={28} height={28} viewBox="0 0 24 24" fill={filled ? GO : "none"} stroke={GO} strokeWidth="1.5" style={{ cursor: "pointer", transition: "transform 0.1s", transform: filled ? "scale(1.1)" : "scale(1)" }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>; })}</div></>}
                   {f.type === "scale_rating" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 11, color: t.textMut }}>{f.minLabel || ""}</span><div style={{ display: "flex", gap: 4 }}>{Array.from({ length: (f.scaleMax || 10) - (f.scaleMin || 1) + 1 }).map((_, si) => { const num = (f.scaleMin || 1) + si; const sel = previewScale[f.id] === num; return <div key={si} onClick={() => setPreviewScale(p => ({ ...p, [f.id]: num }))} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "2px solid " + GO : "1px solid " + t.inputBorder, borderRadius: 8, fontSize: 13, fontWeight: sel ? 700 : 400, color: sel ? "#0A1628" : t.textSec, background: sel ? GO : t.inputBg, cursor: "pointer", transition: "all 0.15s" }}>{num}</div>; })}</div><span style={{ fontSize: 11, color: t.textMut }}>{f.maxLabel || ""}</span></div></>}
-                  {f.type === "photo" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ padding: 24, border: "2px dashed rgba(200,168,78,0.4)", borderRadius: 10, background: "rgba(200,168,78,0.04)", textAlign: "center", cursor: "pointer" }}><svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5" style={{ marginBottom: 6 }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /></svg><div style={{ fontSize: 12, color: t.textMut }}>Tap to capture or upload photo</div></div></>}
+                  {f.type === "photo" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>
+                    {previewPhotos[f.id] ? (
+                      <div style={{ position: "relative", display: "inline-block" }}>
+                        <img src={previewPhotos[f.id]} alt="Preview" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 10, border: "1px solid " + t.border }} />
+                        <button onClick={() => setPreviewPhotos(p => { const n = { ...p }; delete n[f.id]; return n; })} style={{ position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 12, background: "rgba(0,0,0,0.6)", border: "none", color: "#fff", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>x</button>
+                      </div>
+                    ) : (
+                      <label style={{ display: "block", padding: 24, border: "2px dashed rgba(200,168,78,0.4)", borderRadius: 10, background: "rgba(200,168,78,0.04)", textAlign: "center", cursor: "pointer" }}>
+                        <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = ev => setPreviewPhotos(p => ({ ...p, [f.id]: ev.target.result })); reader.readAsDataURL(file); } }} />
+                        <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5" style={{ marginBottom: 6 }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /></svg>
+                        <div style={{ fontSize: 12, color: t.textMut }}>Tap to capture or upload photo</div>
+                      </label>
+                    )}
+                  </>}
                   {f.type === "signature" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>
                     {(f.signatureMode === "both") && <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
                       <button onClick={() => setSigMode(p => ({ ...p, [f.id]: "draw" }))} style={{ flex: 1, padding: "6px 0", fontSize: 11, fontWeight: 600, border: "1px solid " + (curSigMode === "draw" ? GO : t.border), borderRadius: 6, background: curSigMode === "draw" ? GO : "transparent", color: curSigMode === "draw" ? "#0A1628" : t.textSec, cursor: "pointer" }}>Draw</button>
