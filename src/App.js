@@ -4346,12 +4346,18 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
   const [catFilter, setCatFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({ name: "", description: "", category: "checklist" });
+  const [useTemplate, setUseTemplate] = useState(true);
 
   const CATS = [
-    { v: "inspection", l: "Inspection" }, { v: "checklist", l: "Checklist" }, { v: "report", l: "Report" },
-    { v: "safety", l: "Safety" }, { v: "incident", l: "Incident" }, { v: "audit", l: "Audit" }, { v: "custom", l: "Custom" }
+    { v: "inspection", l: "Inspection", color: BL, icon: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 12l2 2 4-4" },
+    { v: "checklist", l: "Checklist", color: GR, icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" },
+    { v: "report", l: "Report", color: TL, icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h6" },
+    { v: "safety", l: "Safety", color: OR, icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
+    { v: "incident", l: "Incident", color: RD, icon: "M12 2L2 22h20L12 2zm0 7v5m0 3h.01" },
+    { v: "audit", l: "Audit", color: "#8E44AD", icon: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M12 12h.01M12 16h.01M12 8h.01" },
+    { v: "custom", l: "Custom", color: GO, icon: "M12 5v14M5 12h14" }
   ];
-  const catLabel = Object.fromEntries(CATS.map(c => [c.v, c.l]));
+  const catMap = Object.fromEntries(CATS.map(c => [c.v, c]));
 
   const FIELD_TYPES = [
     { type: "heading", label: "Heading", icon: "M4 12h16M4 6h16", group: "Layout" },
@@ -4367,10 +4373,99 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
     { type: "time", label: "Time", icon: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0v10l4 4", group: "Basic" },
     { type: "star_rating", label: "Star Rating", icon: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z", group: "Basic" },
     { type: "scale_rating", label: "Scale Rating", icon: "M3 12h2m2 0h2m2 0h2m2 0h2m2 0h2M4 8v8M20 8v8", group: "Basic" },
-    { type: "photo", label: "Photo Upload", icon: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", group: "Advanced" },
+    { type: "photo", label: "Photo Upload", icon: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", group: "Advanced" },
     { type: "signature", label: "Signature", icon: "M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z", group: "Advanced" },
     { type: "file", label: "File Upload", icon: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12", group: "Advanced" },
   ];
+
+  // Pre-built templates per category
+  const SEED_TEMPLATES = {
+    inspection: { name: "Site Inspection", description: "Standard site inspection form with scoring", fields: [
+      { id: "s1", type: "heading", label: "Site Inspection Report", headingLevel: 1, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "s2", type: "dropdown", label: "Site", required: true, labelAlign: "top", readOnly: false, placeholder: "Select site", helpText: "", options: ["PPSB", "SPHS", "OHS", "Universal", "PLA", "Andrew Hamilton", "Houston", "Bodine HS", "Gilbert Spruance", "Dobbins"], lookupSlug: "" },
+      { id: "s3", type: "date", label: "Inspection Date", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "s4", type: "text", label: "Inspector Name", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "s5", type: "heading", label: "Zone Evaluation", headingLevel: 2, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "s6", type: "text", label: "Zone / Area", required: true, labelAlign: "top", readOnly: false, placeholder: "e.g. Lobby, Restroom A", helpText: "", options: [], lookupSlug: "" },
+      { id: "s7", type: "star_rating", label: "Cleanliness Score", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "1 = Unacceptable, 5 = Excellent", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "s8", type: "star_rating", label: "Supply Stock Score", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "1 = Empty, 5 = Fully stocked", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "s9", type: "textarea", label: "Issues Found", required: false, labelAlign: "top", readOnly: false, placeholder: "Describe any problems observed", helpText: "", options: [], lookupSlug: "" },
+      { id: "s10", type: "photo", label: "Photo Evidence", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "Take photos of any issues", options: [], lookupSlug: "" },
+      { id: "s11", type: "textarea", label: "Corrective Actions Needed", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "s12", type: "signature", label: "Inspector Signature", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", signatureMode: "draw" },
+    ]},
+    checklist: { name: "Daily Cleaning Checklist", description: "Standard daily cleaning task verification", fields: [
+      { id: "c1", type: "heading", label: "Daily Cleaning Checklist", headingLevel: 1, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "c2", type: "dropdown", label: "Site", required: true, labelAlign: "top", readOnly: false, placeholder: "Select site", helpText: "", options: ["PPSB", "SPHS", "OHS", "Universal", "PLA", "Andrew Hamilton", "Houston", "Bodine HS", "Gilbert Spruance", "Dobbins"], lookupSlug: "" },
+      { id: "c3", type: "text", label: "Completed By", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "c4", type: "date", label: "Date", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "c5", type: "heading", label: "Restrooms", headingLevel: 2, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "c6", type: "checkbox", label: "Restroom Tasks", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: ["Toilets cleaned and sanitized", "Sinks and counters wiped", "Mirrors cleaned", "Floors mopped", "Trash emptied", "Supplies restocked"], lookupSlug: "" },
+      { id: "c7", type: "heading", label: "Common Areas", headingLevel: 2, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "c8", type: "checkbox", label: "Common Area Tasks", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: ["Floors vacuumed or swept", "Hard floors mopped", "Trash and recycling emptied", "Furniture dusted and wiped", "Glass doors and partitions cleaned"], lookupSlug: "" },
+      { id: "c9", type: "textarea", label: "Notes", required: false, labelAlign: "top", readOnly: false, placeholder: "Any issues or comments", helpText: "", options: [], lookupSlug: "" },
+      { id: "c10", type: "signature", label: "Staff Signature", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", signatureMode: "draw" },
+    ]},
+    safety: { name: "Safety Observation Report", description: "Document safety hazards and observations", fields: [
+      { id: "sf1", type: "heading", label: "Safety Observation Report", headingLevel: 1, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf2", type: "date", label: "Date of Observation", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf3", type: "time", label: "Time of Observation", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf4", type: "text", label: "Observer Name", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf5", type: "dropdown", label: "Site", required: true, labelAlign: "top", readOnly: false, placeholder: "Select site", helpText: "", options: ["PPSB", "SPHS", "OHS", "Universal", "PLA", "Andrew Hamilton", "Houston", "Bodine HS", "Gilbert Spruance", "Dobbins"], lookupSlug: "" },
+      { id: "sf6", type: "text", label: "Location / Area", required: true, labelAlign: "top", readOnly: false, placeholder: "e.g. Stairwell B, Kitchen", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf7", type: "dropdown", label: "Hazard Type", required: true, labelAlign: "top", readOnly: false, placeholder: "Select type", helpText: "", options: ["Slip / Trip / Fall", "Chemical Exposure", "Electrical", "Fire", "Ergonomic", "Equipment", "Other"], lookupSlug: "" },
+      { id: "sf8", type: "scale_rating", label: "Severity Level", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "1 = Minor, 5 = Critical", options: [], lookupSlug: "", scaleMin: 1, scaleMax: 5, minLabel: "Minor", maxLabel: "Critical" },
+      { id: "sf9", type: "textarea", label: "Description of Hazard", required: true, labelAlign: "top", readOnly: false, placeholder: "Describe what you observed", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf10", type: "photo", label: "Photo of Hazard", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf11", type: "radio", label: "Immediate Action Taken?", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: ["Yes", "No", "N/A"], lookupSlug: "" },
+      { id: "sf12", type: "textarea", label: "Action Taken / Recommended", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "sf13", type: "signature", label: "Observer Signature", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", signatureMode: "draw" },
+    ]},
+    incident: { name: "Incident Report", description: "Document workplace incidents and injuries", fields: [
+      { id: "i1", type: "heading", label: "Incident Report", headingLevel: 1, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i2", type: "paragraph", label: "", content: "Complete this form as soon as possible after any workplace incident. All fields marked with an asterisk are required.", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i3", type: "date", label: "Date of Incident", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i4", type: "time", label: "Time of Incident", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i5", type: "text", label: "Person(s) Involved", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i6", type: "dropdown", label: "Site", required: true, labelAlign: "top", readOnly: false, placeholder: "Select site", helpText: "", options: ["PPSB", "SPHS", "OHS", "Universal", "PLA", "Andrew Hamilton", "Houston", "Bodine HS", "Gilbert Spruance", "Dobbins"], lookupSlug: "" },
+      { id: "i7", type: "text", label: "Location within Site", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i8", type: "dropdown", label: "Incident Type", required: true, labelAlign: "top", readOnly: false, placeholder: "Select type", helpText: "", options: ["Injury", "Near Miss", "Property Damage", "Chemical Spill", "Biohazard", "Equipment Failure", "Other"], lookupSlug: "" },
+      { id: "i9", type: "textarea", label: "Description of Incident", required: true, labelAlign: "top", readOnly: false, placeholder: "Describe exactly what happened", helpText: "", options: [], lookupSlug: "" },
+      { id: "i10", type: "textarea", label: "Immediate Actions Taken", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i11", type: "radio", label: "Medical Attention Required?", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: ["Yes", "No"], lookupSlug: "" },
+      { id: "i12", type: "photo", label: "Photos", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "i13", type: "textarea", label: "Witness Information", required: false, labelAlign: "top", readOnly: false, placeholder: "Names and contact info of witnesses", helpText: "", options: [], lookupSlug: "" },
+      { id: "i14", type: "signature", label: "Reporter Signature", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", signatureMode: "draw" },
+    ]},
+    audit: { name: "Quality Audit", description: "CIMS-aligned quality audit form", fields: [
+      { id: "a1", type: "heading", label: "Quality Audit Form", headingLevel: 1, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a2", type: "dropdown", label: "Site", required: true, labelAlign: "top", readOnly: false, placeholder: "Select site", helpText: "", options: ["PPSB", "SPHS", "OHS", "Universal", "PLA", "Andrew Hamilton", "Houston", "Bodine HS", "Gilbert Spruance", "Dobbins"], lookupSlug: "" },
+      { id: "a3", type: "text", label: "Auditor", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a4", type: "date", label: "Audit Date", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a5", type: "heading", label: "Service Delivery", headingLevel: 2, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a6", type: "star_rating", label: "Task Completion Quality", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "a7", type: "star_rating", label: "Chemical Usage Compliance", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "a8", type: "star_rating", label: "PPE Compliance", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "a9", type: "heading", label: "Health, Safety & Environment", headingLevel: 2, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a10", type: "star_rating", label: "Safety Signage in Place", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "a11", type: "star_rating", label: "Equipment Condition", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", maxStars: 5 },
+      { id: "a12", type: "textarea", label: "Findings and Recommendations", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a13", type: "photo", label: "Supporting Photos", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "a14", type: "signature", label: "Auditor Signature", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", signatureMode: "draw" },
+    ]},
+    report: { name: "Service Report", description: "Post-service documentation and summary", fields: [
+      { id: "r1", type: "heading", label: "Service Report", headingLevel: 1, required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "r2", type: "dropdown", label: "Service Type", required: true, labelAlign: "top", readOnly: false, placeholder: "Select type", helpText: "", options: ["Office Cleaning", "Floor Care", "Post-Construction", "Disinfection", "Biohazard", "Industrial", "Landscaping", "Lab Cleaning"], lookupSlug: "" },
+      { id: "r3", type: "dropdown", label: "Site", required: true, labelAlign: "top", readOnly: false, placeholder: "Select site", helpText: "", options: ["PPSB", "SPHS", "OHS", "Universal", "PLA", "Andrew Hamilton", "Houston", "Bodine HS", "Gilbert Spruance", "Dobbins"], lookupSlug: "" },
+      { id: "r4", type: "date", label: "Service Date", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "r5", type: "text", label: "Technician / Lead", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "r6", type: "textarea", label: "Work Performed", required: true, labelAlign: "top", readOnly: false, placeholder: "Describe all tasks completed", helpText: "", options: [], lookupSlug: "" },
+      { id: "r7", type: "textarea", label: "Materials / Chemicals Used", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "r8", type: "textarea", label: "Issues Encountered", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "r9", type: "photo", label: "Before / After Photos", required: false, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "" },
+      { id: "r10", type: "signature", label: "Technician Signature", required: true, labelAlign: "top", readOnly: false, placeholder: "", helpText: "", options: [], lookupSlug: "", signatureMode: "draw" },
+    ]},
+  };
 
   const loadTemplates = useCallback(async () => {
     try { const d = await af("/api/forms"); setTemplates(d); } catch (e) { console.warn("Load forms error:", e); }
@@ -4381,8 +4476,10 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
 
   const createTemplate = async () => {
     if (!createForm.name.trim()) return showToast("Name is required", "error");
+    const seed = useTemplate && SEED_TEMPLATES[createForm.category];
+    const schemaFields = seed ? seed.fields.map(f => ({ ...f, id: "f_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6) })) : [];
     try {
-      const tpl = await af("/api/forms", { method: "POST", body: { ...createForm, schema: { fields: [] } } });
+      const tpl = await af("/api/forms", { method: "POST", body: { ...createForm, schema: { fields: schemaFields } } });
       showToast("Template created");
       setShowCreate(false);
       setCreateForm({ name: "", description: "", category: "checklist" });
@@ -4409,6 +4506,16 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
     try { const full = await af("/api/forms/" + tpl.id); setEditTpl(full); setView("designer"); } catch (e) { showToast(e.message, "error"); }
   };
 
+  const saveAsNewTemplate = async () => {
+    const newName = window.prompt("Enter a name for the new template:", tplName + " (Copy)");
+    if (!newName) return;
+    try {
+      await af("/api/forms", { method: "POST", body: { name: newName, description: tplDesc, category: tplCat, schema: { fields } } });
+      showToast("Saved as new template");
+      loadTemplates();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
   // DESIGNER STATE
   const [fields, setFields] = useState([]);
   const [selIdx, setSelIdx] = useState(null);
@@ -4418,6 +4525,15 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
   const [saving, setSaving] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
   const [propTab, setPropTab] = useState("general");
+  const [hovIdx, setHovIdx] = useState(null);
+
+  // Preview state
+  const [previewData, setPreviewData] = useState({});
+  const [previewStars, setPreviewStars] = useState({});
+  const [previewScale, setPreviewScale] = useState({});
+  const [sigMode, setSigMode] = useState({});
+  const [sigText, setSigText] = useState({});
+  const sigCanvasRefs = useRef({});
 
   useEffect(() => {
     if (editTpl) {
@@ -4434,57 +4550,40 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
     const ft = FIELD_TYPES.find(f => f.type === type);
     const newField = {
       id: "f_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6),
-      type,
-      label: ft ? ft.label : type,
-      required: false,
-      placeholder: "",
+      type, label: ft ? ft.label : type, required: false, placeholder: "", helpText: "",
       options: type === "dropdown" || type === "radio" || type === "checkbox" ? ["Option 1", "Option 2"] : [],
-      helpText: "",
-      lookupSlug: "",
-      labelAlign: "top",
-      readOnly: false,
+      lookupSlug: "", labelAlign: "top", readOnly: false,
     };
     if (type === "heading") { newField.label = "Section Heading"; newField.headingLevel = 2; }
     if (type === "paragraph") { newField.label = ""; newField.content = "Enter instructions or notes here."; }
     if (type === "number") { newField.min = ""; newField.max = ""; }
     if (type === "star_rating") { newField.label = "Rating"; newField.maxStars = 5; }
     if (type === "scale_rating") { newField.label = "Rating"; newField.scaleMin = 1; newField.scaleMax = 10; newField.minLabel = "Low"; newField.maxLabel = "High"; }
+    if (type === "signature") { newField.signatureMode = "draw"; }
     const nf = [...fields, newField];
     setFields(nf);
     setSelIdx(nf.length - 1);
     setPropTab("general");
   };
 
-  const updateField = (idx, key, val) => {
-    const nf = [...fields];
-    nf[idx] = { ...nf[idx], [key]: val };
-    setFields(nf);
-  };
+  const updateField = (idx, key, val) => { const nf = [...fields]; nf[idx] = { ...nf[idx], [key]: val }; setFields(nf); };
 
   const removeField = (idx) => {
     if (!window.confirm("Remove this field?")) return;
-    const nf = fields.filter((_, i) => i !== idx);
-    setFields(nf);
+    setFields(fields.filter((_, i) => i !== idx));
     setSelIdx(null);
   };
 
   const moveField = (from, to) => {
     if (to < 0 || to >= fields.length) return;
-    const nf = [...fields];
-    const [item] = nf.splice(from, 1);
-    nf.splice(to, 0, item);
-    setFields(nf);
-    setSelIdx(to);
+    const nf = [...fields]; const [item] = nf.splice(from, 1); nf.splice(to, 0, item);
+    setFields(nf); setSelIdx(to);
   };
 
   const duplicateField = (idx) => {
     const src = fields[idx];
-    const dup = { ...src, id: "f_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6), label: src.label + " (Copy)" };
-    if (dup.options) dup.options = [...dup.options];
-    const nf = [...fields];
-    nf.splice(idx + 1, 0, dup);
-    setFields(nf);
-    setSelIdx(idx + 1);
+    const dup = { ...src, id: "f_" + Date.now() + "_" + Math.random().toString(36).slice(2, 6), label: src.label + " (Copy)", options: src.options ? [...src.options] : [] };
+    const nf = [...fields]; nf.splice(idx + 1, 0, dup); setFields(nf); setSelIdx(idx + 1);
   };
 
   const saveTemplate = async () => {
@@ -4492,16 +4591,88 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
     setSaving(true);
     try {
       await af("/api/forms/" + editTpl.id, { method: "PATCH", body: { name: tplName, description: tplDesc, category: tplCat, schema: { fields } } });
-      showToast("Template saved");
-      loadTemplates();
+      showToast("Template saved"); loadTemplates();
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
   };
 
   const exitDesigner = () => { setView("list"); setEditTpl(null); setFields([]); setSelIdx(null); };
 
+  // Signature drawing helpers
+  const initSigCanvas = (fid, canvas) => {
+    if (!canvas) return;
+    sigCanvasRefs.current[fid] = canvas;
+    const ctx = canvas.getContext("2d");
+    ctx.strokeStyle = "#0A1628";
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    let drawing = false;
+    const getPos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const touch = e.touches ? e.touches[0] : e;
+      return { x: touch.clientX - r.left, y: touch.clientY - r.top };
+    };
+    const start = (e) => { e.preventDefault(); drawing = true; const p = getPos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+    const move = (e) => { if (!drawing) return; e.preventDefault(); const p = getPos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+    const end = () => { drawing = false; };
+    canvas.addEventListener("mousedown", start); canvas.addEventListener("mousemove", move); canvas.addEventListener("mouseup", end); canvas.addEventListener("mouseleave", end);
+    canvas.addEventListener("touchstart", start, { passive: false }); canvas.addEventListener("touchmove", move, { passive: false }); canvas.addEventListener("touchend", end);
+  };
+
+  const clearSigCanvas = (fid) => {
+    const canvas = sigCanvasRefs.current[fid];
+    if (canvas) { const ctx = canvas.getContext("2d"); ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  };
+
   // RENDER
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading forms...</div>;
+
+  // Shared styles
+  const S = {
+    panel: { background: t.card, borderRight: "1px solid " + t.border, overflowY: "auto" },
+    groupLabel: { padding: "12px 16px 4px", fontSize: 9, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1.5px" },
+    fieldBtn: { width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", background: "transparent", border: "none", color: t.text, fontSize: 12, cursor: "pointer", textAlign: "left", borderRadius: 6, transition: "all 0.15s", margin: "1px 0" },
+    fieldBtnHover: { background: t.goldSubtle || "rgba(200,168,78,0.08)" },
+    fieldIcon: { width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 8, flexShrink: 0 },
+    canvasField: (active, hover) => ({
+      padding: "14px 16px", marginBottom: 6, borderRadius: 10,
+      border: active ? "2px solid " + GO : "1px solid " + (hover ? "rgba(200,168,78,0.5)" : t.border),
+      background: active ? (t.goldSubtle || "rgba(200,168,78,0.06)") : t.card,
+      cursor: "pointer", position: "relative", transition: "all 0.15s",
+      boxShadow: active ? "0 2px 8px rgba(200,168,78,0.15)" : hover ? "0 1px 4px rgba(0,0,0,0.06)" : "none",
+    }),
+    propSection: { padding: "12px 16px", borderBottom: "1px solid " + t.border },
+    propTabBtn: (active) => ({
+      flex: 1, padding: "7px 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px",
+      border: "none", cursor: "pointer", borderRadius: 6, transition: "all 0.15s",
+      background: active ? GO : "transparent", color: active ? "#0A1628" : t.textSec,
+    }),
+  };
+
+  // Helper: render a field on canvas
+  const renderCanvasField = (f) => {
+    const lbl = (req) => <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 5 }}>{f.label}{req && f.required && <span style={{ color: RD, marginLeft: 2 }}> *</span>}</div>;
+    const inp = (ph) => <div style={{ padding: "9px 12px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 12, color: t.textMut }}>{ph || "Enter text..."}</div>;
+    switch (f.type) {
+      case "heading": return <div style={{ fontSize: f.headingLevel === 1 ? 18 : f.headingLevel === 3 ? 13 : 15, fontWeight: 700, color: t.text }}>{f.label}</div>;
+      case "paragraph": return <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{f.content || "Paragraph text"}</div>;
+      case "divider": return <hr style={{ border: "none", borderTop: "1px solid " + t.border, margin: "2px 0" }} />;
+      case "text": return <>{lbl(true)}{inp(f.placeholder)}</>;
+      case "textarea": return <>{lbl(true)}<div style={{ padding: "9px 12px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 12, color: t.textMut, minHeight: 50 }}>{f.placeholder || "Enter details..."}</div></>;
+      case "number": return <>{lbl(true)}<div style={{ padding: "9px 12px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 12, color: t.textMut, width: 140 }}>{f.placeholder || "0"}</div></>;
+      case "dropdown": return <>{lbl(true)}<div style={{ padding: "9px 12px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 12, color: t.textMut, display: "flex", justifyContent: "space-between" }}><span>{f.placeholder || "Select..."}</span><svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg></div></>;
+      case "checkbox": return <>{lbl(true)}{(f.options || []).map((o, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: t.textSec, marginBottom: 3 }}><div style={{ width: 16, height: 16, border: "2px solid " + t.inputBorder, borderRadius: 4, background: t.inputBg, flexShrink: 0 }} />{o}</div>)}</>;
+      case "radio": return <>{lbl(true)}{(f.options || []).map((o, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: t.textSec, marginBottom: 3 }}><div style={{ width: 16, height: 16, border: "2px solid " + t.inputBorder, borderRadius: 50, background: t.inputBg, flexShrink: 0 }} />{o}</div>)}</>;
+      case "date": return <>{lbl(true)}<div style={{ padding: "9px 12px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 12, color: t.textMut, width: 170 }}>MM / DD / YYYY</div></>;
+      case "time": return <>{lbl(true)}<div style={{ padding: "9px 12px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 12, color: t.textMut, width: 130 }}>HH : MM</div></>;
+      case "star_rating": return <>{lbl(true)}<div style={{ display: "flex", gap: 4 }}>{Array.from({ length: f.maxStars || 5 }).map((_, i) => <svg key={i} width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>)}</div></>;
+      case "scale_rating": return <>{lbl(true)}<div style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontSize: 10, color: t.textMut, minWidth: 30 }}>{f.minLabel || ""}</span><div style={{ display: "flex", gap: 2 }}>{Array.from({ length: (f.scaleMax || 10) - (f.scaleMin || 1) + 1 }).map((_, i) => <div key={i} style={{ width: 26, height: 26, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + t.inputBorder, borderRadius: 4, fontSize: 10, color: t.textSec, background: t.inputBg }}>{(f.scaleMin || 1) + i}</div>)}</div><span style={{ fontSize: 10, color: t.textMut, minWidth: 30 }}>{f.maxLabel || ""}</span></div></>;
+      case "photo": return <>{lbl(true)}<div style={{ padding: 18, border: "2px dashed rgba(200,168,78,0.4)", borderRadius: 10, background: t.goldSubtle || "rgba(200,168,78,0.04)", textAlign: "center" }}><svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5" style={{ marginBottom: 4 }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /></svg><div style={{ fontSize: 11, color: t.textMut }}>Tap to capture or upload photo</div></div></>;
+      case "signature": return <>{lbl(true)}<div style={{ padding: 20, border: "1px solid " + t.inputBorder, borderRadius: 10, background: t.inputBg, textAlign: "center" }}><svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={t.textMut} strokeWidth="1.5" style={{ marginBottom: 4 }}><path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" /></svg><div style={{ fontSize: 11, color: t.textMut }}>{f.signatureMode === "type" ? "Type your name" : "Draw your signature"}</div></div></>;
+      case "file": return <>{lbl(true)}<div style={{ padding: 18, border: "2px dashed " + t.inputBorder, borderRadius: 10, background: t.inputBg, textAlign: "center" }}><svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={t.textMut} strokeWidth="1.5" style={{ marginBottom: 4 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg><div style={{ fontSize: 11, color: t.textMut }}>Click or drag to upload</div></div></>;
+      default: return null;
+    }
+  };
 
   // ===== DESIGNER VIEW =====
   if (view === "designer" && editTpl) {
@@ -4511,102 +4682,88 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
 
     return (
       <div style={{ display: "flex", height: "calc(100vh - 80px)", gap: 0, margin: "-16px", overflow: "hidden" }}>
-        {/* LEFT PANEL: Field Types */}
-        <div style={{ width: 220, minWidth: 220, background: t.sidebarBg || t.cardAlt, borderRight: "1px solid " + t.border, overflowY: "auto", padding: 0 }}>
-          <div style={{ padding: "16px 14px 8px", fontSize: 13, fontWeight: 700, color: t.text, borderBottom: "1px solid " + t.border }}>Form Elements</div>
+        {/* LEFT PANEL */}
+        <div style={{ width: 230, minWidth: 230, ...S.panel, padding: 0 }}>
+          <div style={{ padding: "16px 16px 10px", borderBottom: "1px solid " + t.border }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 2 }}>Form Elements</div>
+            <div style={{ fontSize: 10, color: t.textMut }}>Click to add to form</div>
+          </div>
           {Object.entries(grouped).map(([group, items]) => (
             <div key={group}>
-              <div style={{ padding: "10px 14px 4px", fontSize: 9, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1.5px" }}>{group}</div>
+              <div style={S.groupLabel}>{group}</div>
               {items.map(ft => (
-                <button key={ft.type} onClick={() => addField(ft.type)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 14px", background: "transparent", border: "none", color: t.text, fontSize: 12, cursor: "pointer", textAlign: "left", transition: "background 0.1s" }}
-                  onMouseEnter={e => e.currentTarget.style.background = t.goldSubtle || "rgba(200,168,78,0.08)"}
-                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                  <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ft.icon} /></svg>
-                  {ft.label}
+                <button key={ft.type} onClick={() => addField(ft.type)}
+                  style={S.fieldBtn}
+                  onMouseEnter={e => { e.currentTarget.style.background = t.goldSubtle || "rgba(200,168,78,0.08)"; e.currentTarget.style.transform = "translateX(2px)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.transform = "none"; }}>
+                  <div style={{ ...S.fieldIcon, background: "rgba(200,168,78,0.1)" }}>
+                    <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={ft.icon} /></svg>
+                  </div>
+                  <span style={{ fontWeight: 500 }}>{ft.label}</span>
                 </button>
               ))}
             </div>
           ))}
         </div>
 
-        {/* CENTER: Form Canvas */}
-        <div style={{ flex: 1, overflowY: "auto", background: t.bg, padding: 24 }}>
-          {/* Top bar */}
+        {/* CENTER CANVAS */}
+        <div style={{ flex: 1, overflowY: "auto", background: t.bg, padding: "20px 28px" }}>
+          {/* Top toolbar */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <button onClick={exitDesigner} style={{ background: "none", border: "none", cursor: "pointer", color: t.textSec, fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
-                <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> Back
+              <button onClick={exitDesigner} style={{ background: "none", border: "none", cursor: "pointer", color: t.textSec, fontSize: 12, display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, transition: "background 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.background = t.cardAlt} onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> Back
               </button>
-              <span style={{ fontSize: 10, color: t.textMut, padding: "2px 8px", background: t.goldSubtle || "rgba(200,168,78,0.1)", borderRadius: 4, fontWeight: 600 }}>{catLabel[tplCat] || tplCat}</span>
+              {catMap[tplCat] && <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 20, background: catMap[tplCat].color + "18", color: catMap[tplCat].color, fontWeight: 700, letterSpacing: "0.3px" }}>{catMap[tplCat].l}</span>}
             </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Btn t={t} v="ghost" onClick={() => setView("preview")} style={{ fontSize: 11, padding: "6px 12px" }}>Preview</Btn>
-              <Btn t={t} onClick={saveTemplate} style={{ fontSize: 11, padding: "6px 14px" }}>{saving ? "Saving..." : "Save"}</Btn>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={saveAsNewTemplate} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Save as New Template</button>
+              <Btn t={t} v="ghost" onClick={() => { setPreviewData({}); setPreviewStars({}); setPreviewScale({}); setSigMode({}); setSigText({}); setView("preview"); }} style={{ fontSize: 11, padding: "7px 14px" }}>Preview</Btn>
+              <Btn t={t} onClick={saveTemplate} style={{ fontSize: 11, padding: "7px 16px" }}>{saving ? "Saving..." : "Save"}</Btn>
             </div>
           </div>
 
-          {/* Template name/desc */}
-          <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 12, padding: 20, marginBottom: 16 }}>
-            <input value={tplName} onChange={e => setTplName(e.target.value)} placeholder="Form Title" style={{ width: "100%", border: "none", background: "transparent", fontSize: 20, fontWeight: 700, color: t.text, outline: "none", marginBottom: 6, fontFamily: "'DM Sans',sans-serif" }} />
+          {/* Form header card */}
+          <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 14, padding: "24px 24px 20px", marginBottom: 12, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
+            <input value={tplName} onChange={e => setTplName(e.target.value)} placeholder="Form Title" style={{ width: "100%", border: "none", background: "transparent", fontSize: 22, fontWeight: 700, color: t.text, outline: "none", marginBottom: 6, fontFamily: "'DM Sans',sans-serif" }} />
             <input value={tplDesc} onChange={e => setTplDesc(e.target.value)} placeholder="Add a description (optional)" style={{ width: "100%", border: "none", background: "transparent", fontSize: 13, color: t.textSec, outline: "none", fontFamily: "'DM Sans',sans-serif" }} />
           </div>
 
           {/* Fields canvas */}
-          <div onClick={() => setSelIdx(null)} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 12, padding: 20, minHeight: 300 }}>
+          <div onClick={() => setSelIdx(null)} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 14, padding: 20, minHeight: 300, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
             {fields.length === 0 && (
               <div style={{ textAlign: "center", padding: "60px 20px", color: t.textMut }}>
-                <svg width={32} height={32} viewBox="0 0 24 24" fill="none" stroke={t.textMut} strokeWidth="1.5" style={{ marginBottom: 8 }}><path d="M12 5v14M5 12h14" /></svg>
-                <div style={{ fontSize: 14 }}>Click a field type on the left to start building</div>
+                <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(200,168,78,0.1)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                  <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5"><path d="M12 5v14M5 12h14" /></svg>
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: t.text, marginBottom: 4 }}>Start building your form</div>
+                <div style={{ fontSize: 12 }}>Click any element from the left panel to add it here</div>
               </div>
             )}
             {fields.map((f, i) => {
               const active = selIdx === i;
+              const hover = hovIdx === i;
               const dragging = dragIdx === i;
               return (
                 <div key={f.id}
                   onClick={(e) => { e.stopPropagation(); setSelIdx(i); setPropTab("general"); }}
-                  draggable
-                  onDragStart={() => setDragIdx(i)}
-                  onDragOver={e => e.preventDefault()}
+                  onMouseEnter={() => setHovIdx(i)} onMouseLeave={() => setHovIdx(null)}
+                  draggable onDragStart={() => setDragIdx(i)} onDragOver={e => e.preventDefault()}
                   onDrop={() => { if (dragIdx !== null && dragIdx !== i) moveField(dragIdx, i); setDragIdx(null); }}
                   onDragEnd={() => setDragIdx(null)}
-                  style={{
-                    padding: "12px 16px", marginBottom: 8, borderRadius: 8,
-                    border: active ? "2px solid " + GO : "1px solid " + (dragging ? GO : t.border),
-                    background: active ? (t.goldSubtle || "rgba(200,168,78,0.06)") : t.card,
-                    cursor: "grab", position: "relative", transition: "border 0.15s, background 0.15s",
-                    opacity: dragging ? 0.5 : 1,
-                  }}>
-                  {/* Field type label */}
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: f.type === "divider" ? 0 : 6 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke={t.textMut} strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>
-                      <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px" }}>{FIELD_TYPES.find(ft => ft.type === f.type)?.label || f.type}</span>
+                  style={{ ...S.canvasField(active, hover && !active), opacity: dragging ? 0.4 : 1 }}>
+                  {/* Toolbar on hover/active */}
+                  {(active || hover) && (
+                    <div style={{ position: "absolute", top: -1, right: 8, display: "flex", gap: 2, background: t.card, border: "1px solid " + t.border, borderRadius: 6, padding: "2px 4px", boxShadow: "0 2px 6px rgba(0,0,0,0.08)", zIndex: 2 }}>
+                      <button onClick={e => { e.stopPropagation(); moveField(i, i - 1); }} title="Move up" style={{ background: "none", border: "none", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg></button>
+                      <button onClick={e => { e.stopPropagation(); moveField(i, i + 1); }} title="Move down" style={{ background: "none", border: "none", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg></button>
+                      <button onClick={e => { e.stopPropagation(); duplicateField(i); }} title="Duplicate" style={{ background: "none", border: "none", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg></button>
+                      <button onClick={e => { e.stopPropagation(); removeField(i); }} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: 3, borderRadius: 4, display: "flex" }}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
                     </div>
-                    {active && <div style={{ display: "flex", gap: 4 }}>
-                      <button onClick={(e) => { e.stopPropagation(); moveField(i, i - 1); }} title="Move up" style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><path d="M18 15l-6-6-6 6" /></svg></button>
-                      <button onClick={(e) => { e.stopPropagation(); moveField(i, i + 1); }} title="Move down" style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg></button>
-                      <button onClick={(e) => { e.stopPropagation(); removeField(i); }} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>
-                    </div>}
-                  </div>
-                  {/* Field preview */}
-                  {f.type === "heading" && <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{f.label}</div>}
-                  {f.type === "divider" && <hr style={{ border: "none", borderTop: "1px solid " + t.border, margin: "4px 0" }} />}
-                  {f.type === "text" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "8px 10px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, fontSize: 12, color: t.textMut }}>{f.placeholder || "Enter text..."}</div></>}
-                  {f.type === "textarea" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "8px 10px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, fontSize: 12, color: t.textMut, minHeight: 60 }}>{f.placeholder || "Enter details..."}</div></>}
-                  {f.type === "number" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "8px 10px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, fontSize: 12, color: t.textMut, width: 160 }}>{f.placeholder || "0"}</div></>}
-                  {(f.type === "dropdown") && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "8px 10px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, fontSize: 12, color: t.textMut, display: "flex", justifyContent: "space-between" }}><span>{f.placeholder || "Select..."}</span><svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg></div></>}
-                  {f.type === "checkbox" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div>{(f.options || []).map((o, oi) => <div key={oi} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec, marginBottom: 2 }}><div style={{ width: 14, height: 14, border: "1px solid " + t.inputBorder, borderRadius: 3, background: t.inputBg }} />{o}</div>)}</>}
-                  {f.type === "radio" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div>{(f.options || []).map((o, oi) => <div key={oi} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec, marginBottom: 2 }}><div style={{ width: 14, height: 14, border: "1px solid " + t.inputBorder, borderRadius: 50, background: t.inputBg }} />{o}</div>)}</>}
-                  {f.type === "date" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "8px 10px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, fontSize: 12, color: t.textMut, width: 180 }}>MM/DD/YYYY</div></>}
-                  {f.type === "time" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "8px 10px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, fontSize: 12, color: t.textMut, width: 140 }}>HH:MM</div></>}
-                  {f.type === "photo" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "16px", border: "2px dashed " + t.inputBorder, borderRadius: 6, background: t.inputBg, textAlign: "center", fontSize: 12, color: t.textMut }}>Tap to take or upload photo</div></>}
-                  {f.type === "signature" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "20px", border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, textAlign: "center", fontSize: 12, color: t.textMut }}>Sign here</div></>}
-                  {f.type === "file" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ padding: "16px", border: "2px dashed " + t.inputBorder, borderRadius: 6, background: t.inputBg, textAlign: "center", fontSize: 12, color: t.textMut }}>Click or drag to upload file</div></>}
-                  {f.type === "paragraph" && <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, padding: "4px 0" }}>{f.content || "Paragraph text"}</div>}
-                  {f.type === "star_rating" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ display: "flex", gap: 4 }}>{Array.from({ length: f.maxStars || 5 }).map((_, si) => <svg key={si} width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>)}</div></>}
-                  {f.type === "scale_rating" && <><div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</div><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 10, color: t.textMut }}>{f.minLabel || ""}</span><div style={{ display: "flex", gap: 2 }}>{Array.from({ length: (f.scaleMax || 10) - (f.scaleMin || 1) + 1 }).map((_, si) => <div key={si} style={{ width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + t.inputBorder, borderRadius: 4, fontSize: 11, color: t.textSec, background: t.inputBg }}>{(f.scaleMin || 1) + si}</div>)}</div><span style={{ fontSize: 10, color: t.textMut }}>{f.maxLabel || ""}</span></div></>}
-                  {f.readOnly && <div style={{ fontSize: 9, color: OR, marginTop: 4, fontWeight: 600 }}>READ ONLY</div>}
+                  )}
+                  {renderCanvasField(f)}
+                  {f.readOnly && <div style={{ fontSize: 9, color: OR, marginTop: 4, fontWeight: 700, letterSpacing: "0.5px" }}>READ ONLY</div>}
                   {f.helpText && <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{f.helpText}</div>}
                 </div>
               );
@@ -4614,86 +4771,96 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
           </div>
         </div>
 
-        {/* RIGHT PANEL: Field Properties */}
-        <div style={{ width: 280, minWidth: 280, background: t.card, borderLeft: "1px solid " + t.border, overflowY: "auto", padding: 0 }}>
+        {/* RIGHT PANEL */}
+        <div style={{ width: 290, minWidth: 290, background: t.card, borderLeft: "1px solid " + t.border, overflowY: "auto" }}>
           {selField ? (<>
-            <div style={{ padding: "14px 16px", borderBottom: "1px solid " + t.border }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8 }}>{FIELD_TYPES.find(ft => ft.type === selField.type)?.label} Properties</div>
-              <div style={{ display: "flex", gap: 0 }}>
+            <div style={S.propSection}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                <div style={{ ...S.fieldIcon, background: "rgba(200,168,78,0.1)", width: 28, height: 28 }}>
+                  <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="2"><path d={FIELD_TYPES.find(ft => ft.type === selField.type)?.icon || ""} /></svg>
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{FIELD_TYPES.find(ft => ft.type === selField.type)?.label} Properties</div>
+              </div>
+              <div style={{ display: "flex", gap: 4, background: t.cardAlt, borderRadius: 8, padding: 3 }}>
                 {["general", "options", "advanced"].map(tab => (
-                  <button key={tab} onClick={() => setPropTab(tab)} style={{ flex: 1, padding: "6px 0", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px", border: "none", cursor: "pointer", background: propTab === tab ? GO : "transparent", color: propTab === tab ? "#0A1628" : t.textSec, borderRadius: propTab === tab ? 4 : 0 }}>{tab}</button>
+                  <button key={tab} onClick={() => setPropTab(tab)} style={S.propTabBtn(propTab === tab)}>{tab}</button>
                 ))}
               </div>
             </div>
             <div style={{ padding: 16 }}>
               {propTab === "general" && <>
-                {selField.type !== "paragraph" && <div style={{ marginBottom: 12 }}><Lbl>Field Label</Lbl><Inp t={t} value={selField.label} onChange={e => updateField(selIdx, "label", e.target.value)} /></div>}
-                {selField.type === "paragraph" && <div style={{ marginBottom: 12 }}><Lbl>Paragraph Text</Lbl><textarea value={selField.content || ""} onChange={e => updateField(selIdx, "content", e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, minHeight: 80, resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>}
+                {selField.type !== "paragraph" && <div style={{ marginBottom: 14 }}><Lbl>Field Label</Lbl><Inp t={t} value={selField.label} onChange={e => updateField(selIdx, "label", e.target.value)} /></div>}
+                {selField.type === "paragraph" && <div style={{ marginBottom: 14 }}><Lbl>Paragraph Text</Lbl><textarea value={selField.content || ""} onChange={e => updateField(selIdx, "content", e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, minHeight: 80, resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></div>}
                 {selField.type !== "heading" && selField.type !== "divider" && selField.type !== "paragraph" && <>
-                  <div style={{ marginBottom: 12 }}><Lbl>Placeholder</Lbl><Inp t={t} value={selField.placeholder || ""} onChange={e => updateField(selIdx, "placeholder", e.target.value)} /></div>
-                  <div style={{ marginBottom: 12 }}><Lbl>Help Text</Lbl><Inp t={t} value={selField.helpText || ""} onChange={e => updateField(selIdx, "helpText", e.target.value)} /></div>
-                  <div style={{ marginBottom: 12 }}><Lbl>Label Alignment</Lbl><Sel t={t} value={selField.labelAlign || "top"} onChange={e => updateField(selIdx, "labelAlign", e.target.value)} options={[{ v: "top", l: "Top" }, { v: "left", l: "Left" }]} /></div>
-                  <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="checkbox" checked={selField.required} onChange={e => updateField(selIdx, "required", e.target.checked)} />
-                    <span style={{ fontSize: 12, color: t.text }}>Required field</span>
+                  <div style={{ marginBottom: 14 }}><Lbl>Placeholder</Lbl><Inp t={t} value={selField.placeholder || ""} onChange={e => updateField(selIdx, "placeholder", e.target.value)} /></div>
+                  <div style={{ marginBottom: 14 }}><Lbl>Help Text</Lbl><Inp t={t} value={selField.helpText || ""} onChange={e => updateField(selIdx, "helpText", e.target.value)} /></div>
+                  <div style={{ marginBottom: 14 }}><Lbl>Label Alignment</Lbl><Sel t={t} value={selField.labelAlign || "top"} onChange={e => updateField(selIdx, "labelAlign", e.target.value)} options={[{ v: "top", l: "Top" }, { v: "left", l: "Left" }]} /></div>
+                  <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="checkbox" checked={selField.required} onChange={e => updateField(selIdx, "required", e.target.checked)} style={{ accentColor: GO }} />
+                    <span style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>Required field</span>
                   </div>
                 </>}
-                {selField.type === "heading" && <div style={{ marginBottom: 12 }}><Lbl>Heading Level</Lbl><Sel t={t} value={selField.headingLevel || 2} onChange={e => updateField(selIdx, "headingLevel", Number(e.target.value))} options={[{ v: 1, l: "H1 (Large)" }, { v: 2, l: "H2 (Medium)" }, { v: 3, l: "H3 (Small)" }]} /></div>}
+                {selField.type === "heading" && <div style={{ marginBottom: 14 }}><Lbl>Heading Level</Lbl><Sel t={t} value={selField.headingLevel || 2} onChange={e => updateField(selIdx, "headingLevel", Number(e.target.value))} options={[{ v: 1, l: "H1 (Large)" }, { v: 2, l: "H2 (Medium)" }, { v: 3, l: "H3 (Small)" }]} /></div>}
+                {selField.type === "signature" && <div style={{ marginBottom: 14 }}><Lbl>Signature Mode</Lbl><Sel t={t} value={selField.signatureMode || "draw"} onChange={e => updateField(selIdx, "signatureMode", e.target.value)} options={[{ v: "draw", l: "Draw (finger/mouse)" }, { v: "type", l: "Type (name as signature)" }, { v: "both", l: "Both (user chooses)" }]} /></div>}
               </>}
-
               {propTab === "options" && <>
                 {(selField.type === "dropdown" || selField.type === "checkbox" || selField.type === "radio") ? <>
                   <Lbl>Options</Lbl>
                   {(selField.options || []).map((opt, oi) => (
-                    <div key={oi} style={{ display: "flex", gap: 4, marginBottom: 4, alignItems: "center" }}>
+                    <div key={oi} style={{ display: "flex", gap: 4, marginBottom: 5, alignItems: "center" }}>
+                      <div style={{ width: 20, fontSize: 10, color: t.textMut, textAlign: "center", flexShrink: 0 }}>{oi + 1}</div>
                       <Inp t={t} value={opt} onChange={e => { const no = [...(selField.options || [])]; no[oi] = e.target.value; updateField(selIdx, "options", no); }} style={{ flex: 1 }} />
-                      <button onClick={() => { const no = (selField.options || []).filter((_, j) => j !== oi); updateField(selIdx, "options", no); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
+                      <button onClick={() => updateField(selIdx, "options", (selField.options || []).filter((_, j) => j !== oi))} style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}><svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg></button>
                     </div>
                   ))}
-                  <button onClick={() => updateField(selIdx, "options", [...(selField.options || []), "Option " + ((selField.options || []).length + 1)])} style={{ fontSize: 11, color: GO, background: "none", border: "none", cursor: "pointer", padding: "6px 0", fontWeight: 600 }}>+ Add Option</button>
-                  {selField.type === "dropdown" && <div style={{ marginTop: 12 }}>
+                  <button onClick={() => updateField(selIdx, "options", [...(selField.options || []), "Option " + ((selField.options || []).length + 1)])} style={{ fontSize: 11, color: GO, background: "none", border: "none", cursor: "pointer", padding: "8px 0", fontWeight: 600 }}>+ Add Option</button>
+                  {selField.type === "dropdown" && <div style={{ marginTop: 12, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
                     <Lbl>Lookup Source (optional)</Lbl>
                     <Inp t={t} value={selField.lookupSlug || ""} onChange={e => updateField(selIdx, "lookupSlug", e.target.value)} placeholder="e.g. supply_categories" />
-                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Enter a lookup slug to populate options from the lookup table instead of the manual list above.</div>
+                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Use a lookup slug to load options from lookup tables.</div>
                   </div>}
                 </> : selField.type === "star_rating" ? <>
-                  <div style={{ marginBottom: 12 }}><Lbl>Number of Stars</Lbl><Sel t={t} value={selField.maxStars || 5} onChange={e => updateField(selIdx, "maxStars", Number(e.target.value))} options={[{ v: 3, l: "3 Stars" }, { v: 4, l: "4 Stars" }, { v: 5, l: "5 Stars" }, { v: 7, l: "7 Stars" }, { v: 10, l: "10 Stars" }]} /></div>
+                  <div style={{ marginBottom: 14 }}><Lbl>Number of Stars</Lbl><Sel t={t} value={selField.maxStars || 5} onChange={e => updateField(selIdx, "maxStars", Number(e.target.value))} options={[{ v: 3, l: "3 Stars" }, { v: 4, l: "4 Stars" }, { v: 5, l: "5 Stars" }, { v: 7, l: "7 Stars" }, { v: 10, l: "10 Stars" }]} /></div>
                 </> : selField.type === "scale_rating" ? <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                    <div><Lbl>Scale Min</Lbl><Inp t={t} type="number" value={selField.scaleMin || 1} onChange={e => updateField(selIdx, "scaleMin", Number(e.target.value))} /></div>
-                    <div><Lbl>Scale Max</Lbl><Inp t={t} type="number" value={selField.scaleMax || 10} onChange={e => updateField(selIdx, "scaleMax", Number(e.target.value))} /></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                    <div><Lbl>Min</Lbl><Inp t={t} type="number" value={selField.scaleMin || 1} onChange={e => updateField(selIdx, "scaleMin", Number(e.target.value))} /></div>
+                    <div><Lbl>Max</Lbl><Inp t={t} type="number" value={selField.scaleMax || 10} onChange={e => updateField(selIdx, "scaleMax", Number(e.target.value))} /></div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-                    <div><Lbl>Min Label</Lbl><Inp t={t} value={selField.minLabel || ""} onChange={e => updateField(selIdx, "minLabel", e.target.value)} placeholder="e.g. Poor" /></div>
-                    <div><Lbl>Max Label</Lbl><Inp t={t} value={selField.maxLabel || ""} onChange={e => updateField(selIdx, "maxLabel", e.target.value)} placeholder="e.g. Excellent" /></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                    <div><Lbl>Min Label</Lbl><Inp t={t} value={selField.minLabel || ""} onChange={e => updateField(selIdx, "minLabel", e.target.value)} /></div>
+                    <div><Lbl>Max Label</Lbl><Inp t={t} value={selField.maxLabel || ""} onChange={e => updateField(selIdx, "maxLabel", e.target.value)} /></div>
                   </div>
-                </> : <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No additional options for this field type.</div>}
+                </> : <div style={{ fontSize: 12, color: t.textMut, padding: "24px 0", textAlign: "center" }}>No options for this field type.</div>}
               </>}
-
               {propTab === "advanced" && <>
-                {selField.type === "number" && <>
-                  <div style={{ marginBottom: 12 }}><Lbl>Min Value</Lbl><Inp t={t} type="number" value={selField.min || ""} onChange={e => updateField(selIdx, "min", e.target.value)} /></div>
-                  <div style={{ marginBottom: 12 }}><Lbl>Max Value</Lbl><Inp t={t} type="number" value={selField.max || ""} onChange={e => updateField(selIdx, "max", e.target.value)} /></div>
-                </>}
-                {selField.type !== "heading" && selField.type !== "divider" && selField.type !== "paragraph" && <div style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-                  <input type="checkbox" checked={selField.readOnly || false} onChange={e => updateField(selIdx, "readOnly", e.target.checked)} />
-                  <span style={{ fontSize: 12, color: t.text }}>Read Only (display only, cannot be edited)</span>
+                {selField.type === "number" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+                  <div><Lbl>Min Value</Lbl><Inp t={t} type="number" value={selField.min || ""} onChange={e => updateField(selIdx, "min", e.target.value)} /></div>
+                  <div><Lbl>Max Value</Lbl><Inp t={t} type="number" value={selField.max || ""} onChange={e => updateField(selIdx, "max", e.target.value)} /></div>
                 </div>}
-                <div style={{ marginBottom: 12 }}><Lbl>Field ID</Lbl><div style={{ fontSize: 11, color: t.textMut, fontFamily: "monospace", padding: "6px 8px", background: t.cardAlt, borderRadius: 4 }}>{selField.id}</div></div>
-                <div style={{ marginBottom: 12 }}><Lbl>Field Type</Lbl><div style={{ fontSize: 11, color: t.textMut, padding: "6px 8px", background: t.cardAlt, borderRadius: 4 }}>{selField.type}</div></div>
-                <button onClick={() => duplicateField(selIdx)} style={{ fontSize: 11, color: GO, background: "none", border: "1px solid " + GO, borderRadius: 6, padding: "8px 14px", cursor: "pointer", fontWeight: 600, width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}><svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg> Duplicate Field</button>
-                <button onClick={() => removeField(selIdx)} style={{ fontSize: 11, color: RD, background: "none", border: "1px solid " + RD, borderRadius: 6, padding: "8px 14px", cursor: "pointer", fontWeight: 600, width: "100%", marginTop: 8 }}>Delete Field</button>
+                {selField.type !== "heading" && selField.type !== "divider" && selField.type !== "paragraph" && <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox" checked={selField.readOnly || false} onChange={e => updateField(selIdx, "readOnly", e.target.checked)} style={{ accentColor: OR }} />
+                  <span style={{ fontSize: 12, color: t.text, fontWeight: 500 }}>Read Only</span>
+                </div>}
+                <div style={{ padding: 12, background: t.cardAlt, borderRadius: 8, marginBottom: 14 }}>
+                  <div style={{ fontSize: 10, color: t.textMut, marginBottom: 4 }}>FIELD ID</div>
+                  <div style={{ fontSize: 11, color: t.textSec, fontFamily: "monospace" }}>{selField.id}</div>
+                </div>
+                <button onClick={() => duplicateField(selIdx)} style={{ fontSize: 11, color: GO, background: "none", border: "1px solid " + GO, borderRadius: 8, padding: "9px 14px", cursor: "pointer", fontWeight: 600, width: "100%", marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "background 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(200,168,78,0.08)"} onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                  <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg> Duplicate Field</button>
+                <button onClick={() => removeField(selIdx)} style={{ fontSize: 11, color: RD, background: "none", border: "1px solid " + RD, borderRadius: 8, padding: "9px 14px", cursor: "pointer", fontWeight: 600, width: "100%", transition: "background 0.15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(231,76,60,0.06)"} onMouseLeave={e => e.currentTarget.style.background = "none"}>Delete Field</button>
               </>}
             </div>
           </>) : (
             <div style={{ padding: 16 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 16 }}>Form Settings</div>
-              <div style={{ marginBottom: 12 }}><Lbl>Template Name</Lbl><Inp t={t} value={tplName} onChange={e => setTplName(e.target.value)} /></div>
-              <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><Inp t={t} value={tplDesc} onChange={e => setTplDesc(e.target.value)} /></div>
-              <div style={{ marginBottom: 12 }}><Lbl>Category</Lbl><Sel t={t} value={tplCat} onChange={e => setTplCat(e.target.value)} options={CATS} /></div>
-              <div style={{ fontSize: 11, color: t.textMut, marginTop: 16, padding: "10px 12px", background: t.cardAlt, borderRadius: 6 }}>Click a field on the canvas to edit its properties here.</div>
-              <div style={{ marginTop: 16, fontSize: 12, color: t.textSec }}>
-                <strong style={{ color: t.text }}>{fields.length}</strong> field{fields.length !== 1 ? "s" : ""} in this form
+              <div style={{ fontSize: 15, fontWeight: 700, color: t.text, marginBottom: 16 }}>Form Settings</div>
+              <div style={{ marginBottom: 14 }}><Lbl>Template Name</Lbl><Inp t={t} value={tplName} onChange={e => setTplName(e.target.value)} /></div>
+              <div style={{ marginBottom: 14 }}><Lbl>Description</Lbl><Inp t={t} value={tplDesc} onChange={e => setTplDesc(e.target.value)} /></div>
+              <div style={{ marginBottom: 14 }}><Lbl>Category</Lbl><Sel t={t} value={tplCat} onChange={e => setTplCat(e.target.value)} options={CATS.map(c => ({ v: c.v, l: c.l }))} /></div>
+              <div style={{ padding: 14, background: t.cardAlt, borderRadius: 10, marginTop: 16 }}>
+                <div style={{ fontSize: 12, color: t.textSec, marginBottom: 4 }}>Click a field on the canvas to edit its properties here.</div>
+                <div style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{fields.length} field{fields.length !== 1 ? "s" : ""} in this form</div>
               </div>
             </div>
           )}
@@ -4702,44 +4869,68 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
     );
   }
 
-  // ===== PREVIEW VIEW =====
+  // ===== INTERACTIVE PREVIEW =====
   if (view === "preview" && editTpl) {
+    const resetPreview = () => { setPreviewData({}); setPreviewStars({}); setPreviewScale({}); setSigText({}); fields.forEach(f => { if (f.type === "signature") clearSigCanvas(f.id); }); };
     return (
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <button onClick={() => setView("designer")} style={{ background: "none", border: "none", cursor: "pointer", color: t.textSec, fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
-              <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> Back to Designer
-            </button>
+          <button onClick={() => setView("designer")} style={{ background: "none", border: "none", cursor: "pointer", color: t.textSec, fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg> Back to Designer
+          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 10, color: GO, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px", padding: "4px 12px", background: "rgba(200,168,78,0.1)", borderRadius: 20 }}>Live Preview</span>
+            <button onClick={resetPreview} style={{ fontSize: 11, padding: "6px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, cursor: "pointer", fontWeight: 600 }}>Reset</button>
           </div>
-          <span style={{ fontSize: 10, color: GO, fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>Preview Mode</span>
         </div>
         <div style={{ maxWidth: 640, margin: "0 auto" }}>
-          <Crd t={t} style={{ padding: 24 }}>
-            <div style={{ fontSize: 22, fontWeight: 700, color: t.text, marginBottom: 4 }}>{tplName}</div>
-            {tplDesc && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 20 }}>{tplDesc}</div>}
-            {fields.map((f, i) => (
-              <div key={f.id} style={{ marginBottom: 16 }}>
-                {f.type === "heading" && <div style={{ fontSize: f.headingLevel === 1 ? 20 : f.headingLevel === 3 ? 14 : 16, fontWeight: 700, color: t.text, marginTop: 8 }}>{f.label}</div>}
-                {f.type === "divider" && <hr style={{ border: "none", borderTop: "1px solid " + t.border, margin: "8px 0" }} />}
-                {["text", "textarea", "number", "date", "time"].includes(f.type) && <>
-                  <Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>
-                  {f.type === "textarea" ? <textarea disabled style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, minHeight: 80, resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} placeholder={f.placeholder} />
-                  : <Inp t={t} disabled placeholder={f.placeholder || (f.type === "date" ? "MM/DD/YYYY" : f.type === "time" ? "HH:MM" : "")} type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "time" ? "time" : "text"} />}
-                </>}
-                {f.type === "dropdown" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Sel t={t} disabled options={[{ v: "", l: f.placeholder || "Select..." }, ...(f.options || []).map(o => ({ v: o, l: o }))]} /></>}
-                {(f.type === "checkbox" || f.type === "radio") && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>{(f.options || []).map((o, oi) => <div key={oi} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><input type={f.type === "radio" ? "radio" : "checkbox"} disabled name={"preview_" + f.id} /><span style={{ fontSize: 13, color: t.text }}>{o}</span></div>)}</>}
-                {f.type === "photo" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ padding: 24, border: "2px dashed " + t.inputBorder, borderRadius: 8, background: t.inputBg, textAlign: "center", fontSize: 13, color: t.textMut }}>Tap to take or upload photo</div></>}
-                {f.type === "signature" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ padding: 30, border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, textAlign: "center", fontSize: 13, color: t.textMut }}>Sign here</div></>}
-                {f.type === "file" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ padding: 24, border: "2px dashed " + t.inputBorder, borderRadius: 8, background: t.inputBg, textAlign: "center", fontSize: 13, color: t.textMut }}>Click or drag to upload file</div></>}
-                {f.type === "paragraph" && <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.6 }}>{f.content || ""}</div>}
-                {f.type === "star_rating" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ display: "flex", gap: 6 }}>{Array.from({ length: f.maxStars || 5 }).map((_, si) => <svg key={si} width={24} height={24} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5" style={{ cursor: "pointer" }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>)}</div></>}
-                {f.type === "scale_rating" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 11, color: t.textMut }}>{f.minLabel || ""}</span><div style={{ display: "flex", gap: 4 }}>{Array.from({ length: (f.scaleMax || 10) - (f.scaleMin || 1) + 1 }).map((_, si) => <div key={si} style={{ width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid " + t.inputBorder, borderRadius: 6, fontSize: 12, color: t.textSec, background: t.inputBg, cursor: "pointer" }}>{(f.scaleMin || 1) + si}</div>)}</div><span style={{ fontSize: 11, color: t.textMut }}>{f.maxLabel || ""}</span></div></>}
-                {f.helpText && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{f.helpText}</div>}
-              </div>
-            ))}
-            <div style={{ marginTop: 24, textAlign: "center" }}>
-              <Btn t={t} disabled style={{ minWidth: 140 }}>Submit</Btn>
+          <Crd t={t} style={{ padding: 28, borderRadius: 14 }}>
+            <div style={{ fontSize: 24, fontWeight: 700, color: t.text, marginBottom: 4 }}>{tplName}</div>
+            {tplDesc && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 24 }}>{tplDesc}</div>}
+            {fields.map((f) => {
+              const val = previewData[f.id] || "";
+              const setVal = (v) => setPreviewData(p => ({ ...p, [f.id]: v }));
+              const curSigMode = sigMode[f.id] || f.signatureMode || "draw";
+              return (
+                <div key={f.id} style={{ marginBottom: 18 }}>
+                  {f.type === "heading" && <div style={{ fontSize: f.headingLevel === 1 ? 22 : f.headingLevel === 3 ? 14 : 17, fontWeight: 700, color: t.text, marginTop: 8, paddingBottom: 4, borderBottom: f.headingLevel === 1 ? "2px solid " + GO : "none" }}>{f.label}</div>}
+                  {f.type === "paragraph" && <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.6 }}>{f.content || ""}</div>}
+                  {f.type === "divider" && <hr style={{ border: "none", borderTop: "1px solid " + t.border, margin: "10px 0" }} />}
+                  {f.type === "text" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Inp t={t} value={val} onChange={e => setVal(e.target.value)} placeholder={f.placeholder} readOnly={f.readOnly} /></>}
+                  {f.type === "textarea" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><textarea value={val} onChange={e => setVal(e.target.value)} placeholder={f.placeholder} readOnly={f.readOnly} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, minHeight: 80, resize: "vertical", fontFamily: "'DM Sans',sans-serif" }} /></>}
+                  {f.type === "number" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Inp t={t} type="number" value={val} onChange={e => setVal(e.target.value)} placeholder={f.placeholder} readOnly={f.readOnly} min={f.min} max={f.max} style={{ width: 160 }} /></>}
+                  {f.type === "dropdown" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Sel t={t} value={val} onChange={e => setVal(e.target.value)} options={[{ v: "", l: f.placeholder || "Select..." }, ...(f.options || []).map(o => ({ v: o, l: o }))]} /></>}
+                  {f.type === "checkbox" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>{(f.options || []).map((o, oi) => { const checked = (val || []).includes(o); return <label key={oi} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}><input type="checkbox" checked={checked} onChange={() => { const cur = val || []; setVal(checked ? cur.filter(x => x !== o) : [...cur, o]); }} style={{ accentColor: GO }} /><span style={{ fontSize: 13, color: t.text }}>{o}</span></label>; })}</>}
+                  {f.type === "radio" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>{(f.options || []).map((o, oi) => <label key={oi} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, cursor: "pointer" }}><input type="radio" name={"pv_" + f.id} value={o} checked={val === o} onChange={() => setVal(o)} style={{ accentColor: GO }} /><span style={{ fontSize: 13, color: t.text }}>{o}</span></label>)}</>}
+                  {f.type === "date" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Inp t={t} type="date" value={val} onChange={e => setVal(e.target.value)} readOnly={f.readOnly} style={{ width: 200 }} /></>}
+                  {f.type === "time" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><Inp t={t} type="time" value={val} onChange={e => setVal(e.target.value)} readOnly={f.readOnly} style={{ width: 160 }} /></>}
+                  {f.type === "star_rating" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ display: "flex", gap: 4 }}>{Array.from({ length: f.maxStars || 5 }).map((_, si) => { const filled = (previewStars[f.id] || 0) > si; return <svg key={si} onClick={() => setPreviewStars(p => ({ ...p, [f.id]: si + 1 }))} width={28} height={28} viewBox="0 0 24 24" fill={filled ? GO : "none"} stroke={GO} strokeWidth="1.5" style={{ cursor: "pointer", transition: "transform 0.1s", transform: filled ? "scale(1.1)" : "scale(1)" }}><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>; })}</div></>}
+                  {f.type === "scale_rating" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 11, color: t.textMut }}>{f.minLabel || ""}</span><div style={{ display: "flex", gap: 4 }}>{Array.from({ length: (f.scaleMax || 10) - (f.scaleMin || 1) + 1 }).map((_, si) => { const num = (f.scaleMin || 1) + si; const sel = previewScale[f.id] === num; return <div key={si} onClick={() => setPreviewScale(p => ({ ...p, [f.id]: num }))} style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", border: sel ? "2px solid " + GO : "1px solid " + t.inputBorder, borderRadius: 8, fontSize: 13, fontWeight: sel ? 700 : 400, color: sel ? "#0A1628" : t.textSec, background: sel ? GO : t.inputBg, cursor: "pointer", transition: "all 0.15s" }}>{num}</div>; })}</div><span style={{ fontSize: 11, color: t.textMut }}>{f.maxLabel || ""}</span></div></>}
+                  {f.type === "photo" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ padding: 24, border: "2px dashed rgba(200,168,78,0.4)", borderRadius: 10, background: "rgba(200,168,78,0.04)", textAlign: "center", cursor: "pointer" }}><svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke={GO} strokeWidth="1.5" style={{ marginBottom: 6 }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" /></svg><div style={{ fontSize: 12, color: t.textMut }}>Tap to capture or upload photo</div></div></>}
+                  {f.type === "signature" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl>
+                    {(f.signatureMode === "both") && <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                      <button onClick={() => setSigMode(p => ({ ...p, [f.id]: "draw" }))} style={{ flex: 1, padding: "6px 0", fontSize: 11, fontWeight: 600, border: "1px solid " + (curSigMode === "draw" ? GO : t.border), borderRadius: 6, background: curSigMode === "draw" ? GO : "transparent", color: curSigMode === "draw" ? "#0A1628" : t.textSec, cursor: "pointer" }}>Draw</button>
+                      <button onClick={() => setSigMode(p => ({ ...p, [f.id]: "type" }))} style={{ flex: 1, padding: "6px 0", fontSize: 11, fontWeight: 600, border: "1px solid " + (curSigMode === "type" ? GO : t.border), borderRadius: 6, background: curSigMode === "type" ? GO : "transparent", color: curSigMode === "type" ? "#0A1628" : t.textSec, cursor: "pointer" }}>Type</button>
+                    </div>}
+                    {curSigMode === "type" || (f.signatureMode === "type" && f.signatureMode !== "both") ? (
+                      <div>
+                        <Inp t={t} value={sigText[f.id] || ""} onChange={e => setSigText(p => ({ ...p, [f.id]: e.target.value }))} placeholder="Type your full name" />
+                        {sigText[f.id] && <div style={{ marginTop: 8, padding: "12px 16px", border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, fontSize: 28, fontFamily: "'Brush Script MT', 'Segoe Script', 'Dancing Script', cursive", color: "#0A1628", textAlign: "center" }}>{sigText[f.id]}</div>}
+                      </div>
+                    ) : (
+                      <div>
+                        <canvas ref={c => initSigCanvas(f.id, c)} width={560} height={120} style={{ width: "100%", height: 120, border: "1px solid " + t.inputBorder, borderRadius: 8, background: t.inputBg, cursor: "crosshair", touchAction: "none" }} />
+                        <button onClick={() => clearSigCanvas(f.id)} style={{ fontSize: 10, color: t.textSec, background: "none", border: "none", cursor: "pointer", marginTop: 4, fontWeight: 600 }}>Clear signature</button>
+                      </div>
+                    )}
+                  </>}
+                  {f.type === "file" && <><Lbl>{f.label}{f.required && <span style={{ color: RD }}> *</span>}</Lbl><div style={{ padding: 24, border: "2px dashed " + t.inputBorder, borderRadius: 10, background: t.inputBg, textAlign: "center", cursor: "pointer" }}><svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={t.textMut} strokeWidth="1.5" style={{ marginBottom: 4 }}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg><div style={{ fontSize: 12, color: t.textMut }}>Click or drag to upload</div></div></>}
+                  {f.helpText && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{f.helpText}</div>}
+                </div>
+              );
+            })}
+            <div style={{ marginTop: 28, textAlign: "center" }}>
+              <Btn t={t} onClick={() => showToast("Preview only. Submission is available in the Staff Portal.")} style={{ minWidth: 160, padding: "12px 24px", fontSize: 14 }}>Submit</Btn>
             </div>
           </Crd>
         </div>
@@ -4751,54 +4942,101 @@ function FormsPage({ af, showToast, isAdmin, t, sites, getOpts }) {
   const filtered = catFilter === "all" ? templates : templates.filter(tpl => tpl.category === catFilter);
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+      {/* Category filter bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {[{ v: "all", l: "All" }, ...CATS].map(c => (
-            <button key={c.v} onClick={() => setCatFilter(c.v)} style={{ padding: "5px 12px", borderRadius: 6, border: "1px solid " + (catFilter === c.v ? GO : t.border), background: catFilter === c.v ? GO : "transparent", color: catFilter === c.v ? "#0A1628" : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>
+          <button onClick={() => setCatFilter("all")} style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid " + (catFilter === "all" ? GO : t.border), background: catFilter === "all" ? GO : "transparent", color: catFilter === "all" ? "#0A1628" : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}>All</button>
+          {CATS.map(c => (
+            <button key={c.v} onClick={() => setCatFilter(c.v)} style={{ padding: "6px 14px", borderRadius: 20, border: "1px solid " + (catFilter === c.v ? c.color : t.border), background: catFilter === c.v ? c.color + "18" : "transparent", color: catFilter === c.v ? c.color : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}>{c.l}</button>
           ))}
         </div>
-        {isAdmin && <Btn t={t} onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 4 }}><PlI sz={13} c="#0A1628" /> New Form</Btn>}
+        {isAdmin && <Btn t={t} onClick={() => setShowCreate(true)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 18px" }}><PlI sz={13} c="#0A1628" /> New Form</Btn>}
       </div>
 
+      {/* Empty state */}
       {filtered.length === 0 && <div style={{ textAlign: "center", padding: "60px 20px", color: t.textMut }}>
-        <FrmI sz={40} c={t.textMut} style={{ marginBottom: 12 }} />
-        <div style={{ fontSize: 14 }}>No form templates yet</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>Create your first form template to get started.</div>
+        <div style={{ width: 64, height: 64, borderRadius: 20, background: "rgba(200,168,78,0.1)", display: "inline-flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
+          <FrmI sz={28} c={GO} />
+        </div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>No form templates yet</div>
+        <div style={{ fontSize: 13 }}>Create your first form template to get started.</div>
       </div>}
 
-      {filtered.map(tpl => (
-        <Crd key={tpl.id} t={t} style={{ marginBottom: 10, padding: "14px 18px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => openDesigner(tpl)}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{tpl.name}</div>
-                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: tpl.is_active ? "rgba(46,204,113,0.12)" : "rgba(231,76,60,0.12)", color: tpl.is_active ? GR : RD, fontWeight: 600 }}>{tpl.is_active ? "Active" : "Inactive"}</span>
-                <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: t.goldSubtle || "rgba(200,168,78,0.1)", color: GO, fontWeight: 600 }}>{catLabel[tpl.category] || tpl.category}</span>
+      {/* Template cards */}
+      {filtered.map(tpl => {
+        const cat = catMap[tpl.category];
+        const fieldCount = (typeof tpl.schema === "object" ? tpl.schema : JSON.parse(tpl.schema || "{}")).fields?.length || 0;
+        return (
+          <div key={tpl.id} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 12, padding: "16px 20px", marginBottom: 8, cursor: "pointer", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,0.03)" }}
+            onClick={() => openDesigner(tpl)}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = GO; e.currentTarget.style.boxShadow = "0 2px 8px rgba(200,168,78,0.12)"; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.03)"; }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  {cat && <div style={{ width: 28, height: 28, borderRadius: 8, background: cat.color + "18", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={cat.color} strokeWidth="2"><path d={cat.icon} /></svg>
+                  </div>}
+                  <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{tpl.name}</div>
+                  <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 20, background: tpl.is_active ? "rgba(46,204,113,0.12)" : "rgba(231,76,60,0.12)", color: tpl.is_active ? GR : RD, fontWeight: 700 }}>{tpl.is_active ? "Active" : "Inactive"}</span>
+                </div>
+                {tpl.description && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 4, marginLeft: 36 }}>{tpl.description}</div>}
+                <div style={{ fontSize: 10, color: t.textMut, marginLeft: 36 }}>
+                  {fieldCount} field{fieldCount !== 1 ? "s" : ""}
+                  {tpl.submission_count > 0 && <span> | {tpl.submission_count} submission{tpl.submission_count !== 1 ? "s" : ""}</span>}
+                  {tpl.creator_name && <span> | by {tpl.creator_name}</span>}
+                </div>
               </div>
-              {tpl.description && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tpl.description}</div>}
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>
-                {(typeof tpl.schema === "object" ? tpl.schema : JSON.parse(tpl.schema || "{}")).fields?.length || 0} fields
-                {tpl.submission_count > 0 && <span> | {tpl.submission_count} submission{tpl.submission_count !== 1 ? "s" : ""}</span>}
-                {tpl.creator_name && <span> | Created by {tpl.creator_name}</span>}
+              <div style={{ display: "flex", gap: 2 }} onClick={e => e.stopPropagation()}>
+                <button onClick={() => openDesigner(tpl)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", padding: 7, borderRadius: 6, display: "flex" }}
+                  onMouseEnter={e => e.currentTarget.style.background = t.cardAlt} onMouseLeave={e => e.currentTarget.style.background = "none"}><EdI sz={15} c={t.textSec} /></button>
+                <button onClick={() => duplicateTemplate(tpl.id)} title="Duplicate" style={{ background: "none", border: "none", cursor: "pointer", padding: 7, borderRadius: 6, display: "flex" }}
+                  onMouseEnter={e => e.currentTarget.style.background = t.cardAlt} onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                  <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg></button>
+                <button onClick={() => toggleActive(tpl)} title={tpl.is_active ? "Deactivate" : "Activate"} style={{ background: "none", border: "none", cursor: "pointer", padding: 7, borderRadius: 6, display: "flex" }}
+                  onMouseEnter={e => e.currentTarget.style.background = t.cardAlt} onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                  {tpl.is_active ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={OR} strokeWidth="2"><path d="M18.36 6.64A9 9 0 0 1 12 21 9 9 0 0 1 5.64 6.64M12 2v10" /></svg>
+                  : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={GR} strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>}</button>
+                {isAdmin && <button onClick={() => deleteTemplate(tpl.id, tpl.name)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: 7, borderRadius: 6, display: "flex" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(231,76,60,0.06)"} onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                  <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>}
               </div>
-            </div>
-            <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => openDesigner(tpl)} title="Edit" style={{ background: "none", border: "none", cursor: "pointer", padding: 6 }}><EdI sz={15} c={t.textSec} /></button>
-              <button onClick={() => duplicateTemplate(tpl.id)} title="Duplicate" style={{ background: "none", border: "none", cursor: "pointer", padding: 6 }}><svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={t.textSec} strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg></button>
-              <button onClick={() => toggleActive(tpl)} title={tpl.is_active ? "Deactivate" : "Activate"} style={{ background: "none", border: "none", cursor: "pointer", padding: 6 }}>{tpl.is_active ? <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={OR} strokeWidth="2"><path d="M18.36 6.64A9 9 0 0 1 12 21 9 9 0 0 1 5.64 6.64M12 2v10" /></svg> : <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={GR} strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>}</button>
-              {isAdmin && <button onClick={() => deleteTemplate(tpl.id, tpl.name)} title="Delete" style={{ background: "none", border: "none", cursor: "pointer", padding: 6 }}><svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={RD} strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg></button>}
             </div>
           </div>
-        </Crd>
-      ))}
+        );
+      })}
 
       {/* Create Modal */}
-      {showCreate && <Mdl t={t} onClose={() => setShowCreate(false)}><div style={{ padding: 20 }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: t.text, marginBottom: 16 }}>New Form Template</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. Daily Zone Checklist" /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><Inp t={t} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} placeholder="What is this form used for?" /></div>
-        <div style={{ marginBottom: 16 }}><Lbl>Category</Lbl><Sel t={t} value={createForm.category} onChange={e => setCreateForm({ ...createForm, category: e.target.value })} options={CATS} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setShowCreate(false)}>Cancel</Btn><Btn t={t} onClick={createTemplate}>Create and Design</Btn></div>
+      {showCreate && <Mdl t={t} onClose={() => setShowCreate(false)}><div style={{ padding: 24 }}>
+        <div style={{ fontSize: 20, fontWeight: 700, color: t.text, marginBottom: 20 }}>New Form Template</div>
+        <div style={{ marginBottom: 14 }}><Lbl>Name *</Lbl><Inp t={t} value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder="e.g. Daily Zone Checklist" /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Description</Lbl><Inp t={t} value={createForm.description} onChange={e => setCreateForm({ ...createForm, description: e.target.value })} placeholder="What is this form used for?" /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>Category</Lbl>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginTop: 4 }}>
+            {CATS.map(c => (
+              <button key={c.v} onClick={() => setCreateForm({ ...createForm, category: c.v })} style={{
+                padding: "10px 4px", borderRadius: 10, border: createForm.category === c.v ? "2px solid " + c.color : "1px solid " + t.border,
+                background: createForm.category === c.v ? c.color + "12" : "transparent", cursor: "pointer", textAlign: "center", transition: "all 0.15s"
+              }}>
+                <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke={createForm.category === c.v ? c.color : t.textMut} strokeWidth="2" style={{ marginBottom: 2 }}><path d={c.icon} /></svg>
+                <div style={{ fontSize: 10, fontWeight: 600, color: createForm.category === c.v ? c.color : t.textSec }}>{c.l}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        {SEED_TEMPLATES[createForm.category] && <div style={{ marginBottom: 14, padding: 14, background: t.cardAlt, borderRadius: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+            <input type="checkbox" checked={useTemplate} onChange={e => setUseTemplate(e.target.checked)} style={{ accentColor: GO }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Start from example template</span>
+          </div>
+          <div style={{ fontSize: 11, color: t.textMut, marginLeft: 24 }}>
+            Pre-loads "{SEED_TEMPLATES[createForm.category].name}" with {SEED_TEMPLATES[createForm.category].fields.length} fields. You can edit everything after creation.
+          </div>
+        </div>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 20 }}>
+          <Btn t={t} v="ghost" onClick={() => setShowCreate(false)}>Cancel</Btn>
+          <Btn t={t} onClick={createTemplate}>Create and Design</Btn>
+        </div>
       </div></Mdl>}
     </div>
   );
