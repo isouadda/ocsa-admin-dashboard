@@ -105,6 +105,7 @@ function toISO(d) { return d.toISOString().split("T")[0]; }
 const PRESETS = {
   thisWeek: () => { const m = getMonday(new Date()); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
   lastWeek: () => { const m = getMonday(new Date()); m.setDate(m.getDate() - 7); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
+  nextWeek: () => { const m = getMonday(new Date()); m.setDate(m.getDate() + 7); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
   thisMonth: () => { const n = new Date(); return { start: n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0") + "-01", end: toISO(n) }; },
   last7: () => { const n = new Date(); const p = new Date(n); p.setDate(p.getDate() - 6); return { start: toISO(p), end: toISO(n) }; },
   last30: () => { const n = new Date(); const p = new Date(n); p.setDate(p.getDate() - 29); return { start: toISO(p), end: toISO(n) }; },
@@ -2320,7 +2321,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div>)}
   </div>);
 
-  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+      <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() - 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>&lt; Prev</button>
+      <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{MONTH_NAMES[startMonth]} {startYear}</div>
+      <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() + 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>Next &gt;</button>
+    </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1 }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const actual = getActualForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
@@ -2345,7 +2351,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
         <Btn t={t} onClick={() => openCreate(toISO(new Date()), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c="#0A1628" /> Schedule Shift</Btn>
       </div>
     </div>
-    {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }]} />}
+    {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
       <Sel t={t} value={filterSite} onChange={e => setFilterSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
       <Inp t={t} value={searchStaff} onChange={e => setSearchStaff(e.target.value)} placeholder="Search staff..." style={{ width: 160, fontSize: 12 }} />
@@ -2605,6 +2611,11 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const [siteLocations, setSiteLocations] = useState({});
   const [requestCount, setRequestCount] = useState(0);
   const [claimedCount, setClaimedCount] = useState(0);
+  const [fillRateData, setFillRateData] = useState(null);
+  const [responseTimeData, setResponseTimeData] = useState(null);
+  const [patternData, setPatternData] = useState(null);
+  const [reliabilityData, setReliabilityData] = useState(null);
+  const [analyticsTab, setAnalyticsTab] = useState("overview");
   const svcOpts = getOpts("service_categories");
   const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
   const roleLabels = lkMap("staff_roles");
@@ -2664,6 +2675,19 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       setAnalytics(a);
       setRequestCount(reqs.length);
       setClaimedCount(claimed.length);
+      if (tab === "analytics") {
+        const dq = "&start_date=" + r.start + "&end_date=" + r.end;
+        const [fr, rt, pt, rl] = await Promise.all([
+          af("/api/pickups/analytics/fill-rate?" + dq.slice(1)),
+          af("/api/pickups/analytics/response-time?" + dq.slice(1)),
+          af("/api/pickups/analytics/patterns?" + dq.slice(1)),
+          af("/api/pickups/analytics/staff-reliability?" + dq.slice(1))
+        ]);
+        setFillRateData(fr);
+        setResponseTimeData(rt);
+        setPatternData(pt);
+        setReliabilityData(rl);
+      }
     } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -2849,6 +2873,15 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {/* ANALYTICS TAB */}
     {!loading && tab === "analytics" && analytics && (
       <div>
+        {/* Analytics sub-tabs */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {[{ id: "overview", l: "Overview" }, { id: "response", l: "Response Time" }, { id: "patterns", l: "Callout Patterns" }, { id: "reliability", l: "Staff Reliability" }].map(at => (
+            <button key={at.id} onClick={() => setAnalyticsTab(at.id)} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: analyticsTab === at.id ? 700 : 500, cursor: "pointer", background: analyticsTab === at.id ? t.goldBg : "transparent", color: analyticsTab === at.id ? GO : t.textMut, border: analyticsTab === at.id ? "1px solid " + t.goldBorder : "1px solid " + t.border }}>{at.l}</button>
+          ))}
+        </div>
+
+        {/* OVERVIEW SUB-TAB */}
+        {analyticsTab === "overview" && (<div>
         <Crd t={t} style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Reason Breakdown</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
@@ -2897,6 +2930,22 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           </Crd>
         )}
 
+        {/* Fill Rate by Origin */}
+        {fillRateData?.by_origin?.length > 0 && (
+          <Crd t={t} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Fill Rate by Reason</div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              {fillRateData.by_origin.map(o => (
+                <div key={o.origin} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid " + (originColor[o.origin] || GO) + "40", background: (originColor[o.origin] || GO) + "0A", minWidth: 120, textAlign: "center" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: o.fill_rate >= 80 ? GR : o.fill_rate >= 50 ? OR : RD }}>{o.fill_rate}%</div>
+                  <div style={{ fontSize: 10, color: t.textMut, marginBottom: 2 }}>{originLabel[o.origin] || o.origin}</div>
+                  <div style={{ fontSize: 9, color: t.textMut }}>{o.filled}/{o.total} filled</div>
+                </div>
+              ))}
+            </div>
+          </Crd>
+        )}
+
         {analytics.trends?.length > 0 && (
           <Crd t={t}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Weekly Trend</div>
@@ -2916,6 +2965,199 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             </div>
           </Crd>
         )}
+        </div>)}
+
+        {/* RESPONSE TIME SUB-TAB */}
+        {analyticsTab === "response" && responseTimeData && (<div>
+          <Crd t={t} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Response Time Summary</div>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+              {[
+                { l: "Average", v: responseTimeData.overall?.avg_minutes, u: "min" },
+                { l: "Median", v: responseTimeData.overall?.median_minutes, u: "min" },
+                { l: "Fastest", v: responseTimeData.overall?.min_minutes, u: "min" },
+                { l: "Slowest", v: responseTimeData.overall?.max_minutes, u: "min" },
+                { l: "Total Claimed", v: responseTimeData.overall?.claimed_count, u: "" },
+              ].map((m, i) => {
+                const displayVal = m.u === "min" && m.v > 60 ? Math.round(m.v / 60) + "h " + (m.v % 60) + "m" : (m.v || 0) + (m.u ? " " + m.u : "");
+                return (
+                  <div key={i} style={{ textAlign: "center", minWidth: 80 }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: i === 0 ? BL : i === 1 ? GO : t.text }}>{displayVal}</div>
+                    <div style={{ fontSize: 10, color: t.textMut }}>{m.l}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </Crd>
+
+          {responseTimeData.by_site?.length > 0 && (
+            <Crd t={t} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Response Time by Site</div>
+              <div style={{ overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead><tr style={{ borderBottom: "2px solid " + t.border }}>
+                    <th style={{ textAlign: "left", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Site</th>
+                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Avg (min)</th>
+                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Median (min)</th>
+                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Claims</th>
+                  </tr></thead>
+                  <tbody>{responseTimeData.by_site.map(s => (
+                    <tr key={s.site_id} style={{ borderBottom: "1px solid " + t.border }}>
+                      <td style={{ padding: "8px 10px", fontWeight: 600, color: t.text }}>{s.site_name}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", color: s.avg_minutes <= 60 ? GR : s.avg_minutes <= 240 ? OR : RD, fontWeight: 600 }}>{s.avg_minutes > 60 ? Math.round(s.avg_minutes / 60) + "h" : s.avg_minutes + "m"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", color: t.textSec }}>{s.median_minutes > 60 ? Math.round(s.median_minutes / 60) + "h" : s.median_minutes + "m"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", color: t.textMut }}>{s.claimed_count}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </Crd>
+          )}
+
+          {responseTimeData.by_urgency?.length > 0 && (
+            <Crd t={t}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Response Time by Urgency</div>
+              <div style={{ display: "flex", gap: 16 }}>
+                {responseTimeData.by_urgency.map(u => (
+                  <div key={u.urgency} style={{ padding: "12px 20px", borderRadius: 8, border: "1px solid " + (u.urgency === "urgent" ? RD : GO) + "40", background: (u.urgency === "urgent" ? RD : GO) + "0A", textAlign: "center", minWidth: 120 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: u.urgency === "urgent" ? RD : GO }}>{u.avg_minutes > 60 ? Math.round(u.avg_minutes / 60) + "h" : u.avg_minutes + "m"}</div>
+                    <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{u.urgency}</div>
+                    <div style={{ fontSize: 9, color: t.textMut }}>{u.claimed_count} claims</div>
+                  </div>
+                ))}
+              </div>
+            </Crd>
+          )}
+        </div>)}
+
+        {/* CALLOUT PATTERNS SUB-TAB */}
+        {analyticsTab === "patterns" && patternData && (<div>
+          <Crd t={t} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Shifts by Day of Week</div>
+            {(() => {
+              const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+              const maxTotal = Math.max(...(patternData.by_day || []).map(d => d.total), 1);
+              return (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-end", height: 120 }}>
+                  {DOW.map((dayName, di) => {
+                    const dd = (patternData.by_day || []).find(d => d.day_of_week === di);
+                    const total = dd?.total || 0;
+                    const callouts = dd?.callouts || 0;
+                    const noShows = dd?.no_shows || 0;
+                    const h = maxTotal > 0 ? (total / maxTotal * 90) : 0;
+                    const calloutPct = total > 0 ? Math.round(callouts / total * 100) : 0;
+                    return (
+                      <div key={di} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{total}</div>
+                        <div style={{ position: "relative", width: "70%", height: h, borderRadius: "4px 4px 0 0", background: GO + "30", minHeight: total > 0 ? 4 : 0, overflow: "hidden" }}>
+                          {callouts > 0 && <div style={{ position: "absolute", bottom: 0, width: "100%", height: (callouts / total * 100) + "%", background: RD + "60", borderRadius: "0 0 0 0" }} />}
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: t.text, marginTop: 4 }}>{dayName}</div>
+                        {calloutPct > 0 && <div style={{ fontSize: 8, color: RD }}>{calloutPct}% callouts</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: GO + "30" }} /><span style={{ fontSize: 9, color: t.textMut }}>Total</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: RD + "60" }} /><span style={{ fontSize: 9, color: t.textMut }}>Callouts</span></div>
+            </div>
+          </Crd>
+
+          {/* Site x Day heatmap */}
+          {patternData.by_site_day?.length > 0 && (() => {
+            const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+            const siteNames = [...new Set(patternData.by_site_day.map(d => d.site_name))];
+            const maxVal = Math.max(...patternData.by_site_day.map(d => d.total), 1);
+            return (
+              <Crd t={t} style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Site x Day Heatmap</div>
+                <div style={{ overflow: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead><tr>
+                      <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10, color: t.textMut }}></th>
+                      {DOW.map(d => <th key={d} style={{ textAlign: "center", padding: "6px 4px", fontSize: 10, color: t.textMut, fontWeight: 600 }}>{d}</th>)}
+                    </tr></thead>
+                    <tbody>{siteNames.map(sn => (
+                      <tr key={sn}>
+                        <td style={{ padding: "4px 8px", fontWeight: 600, color: t.text, fontSize: 11, whiteSpace: "nowrap" }}>{sn}</td>
+                        {DOW.map((_, di) => {
+                          const cell = patternData.by_site_day.find(d => d.site_name === sn && d.day_of_week === di);
+                          const val = cell?.total || 0;
+                          const intensity = maxVal > 0 ? Math.round(val / maxVal * 255) : 0;
+                          const bg = val > 0 ? "rgba(" + (cell?.callouts > 0 ? "220,53,69" : "200,168,78") + "," + (0.1 + intensity / 255 * 0.6) + ")" : "transparent";
+                          return <td key={di} style={{ textAlign: "center", padding: "6px 4px", background: bg, borderRadius: 4, color: val > 0 ? t.text : t.textMut, fontWeight: val > 0 ? 600 : 400 }}>{val || "-"}</td>;
+                        })}
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              </Crd>
+            );
+          })()}
+
+          {patternData.by_month?.length > 0 && (
+            <Crd t={t}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Monthly Totals</div>
+              <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 100 }}>
+                {patternData.by_month.map((m, i) => {
+                  const maxM = Math.max(...patternData.by_month.map(x => x.total));
+                  const h = maxM > 0 ? (m.total / maxM * 80) : 0;
+                  const mDate = new Date(m.month_start + "T00:00:00");
+                  return (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{m.total}</div>
+                      <div style={{ width: "70%", height: h, borderRadius: "4px 4px 0 0", background: m.callouts > m.total * 0.4 ? RD : GO, minHeight: 2 }} />
+                      <div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{mDate.toLocaleDateString("en-US", { month: "short" })}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Crd>
+          )}
+        </div>)}
+
+        {/* STAFF RELIABILITY SUB-TAB */}
+        {analyticsTab === "reliability" && reliabilityData && (<div>
+          <Crd t={t}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Staff Reliability Metrics</div>
+            {reliabilityData.staff?.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No pickup activity found in this period.</div>}
+            {reliabilityData.staff?.length > 0 && (
+              <div style={{ overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                  <thead><tr style={{ borderBottom: "2px solid " + t.border }}>
+                    <th style={{ textAlign: "left", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Staff Member</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Claims</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Completed</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Released</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Drop Requests</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Reliability</th>
+                  </tr></thead>
+                  <tbody>{reliabilityData.staff.map(s => {
+                    const reliPct = s.total_claims > 0 ? Math.round(s.completed / s.total_claims * 100) : 0;
+                    return (
+                      <tr key={s.user_id} style={{ borderBottom: "1px solid " + t.border }}>
+                        <td style={{ padding: "8px 10px" }}>
+                          <div style={{ fontWeight: 600, color: t.text }}>{s.name}</div>
+                          <div style={{ fontSize: 10, color: t.textMut }}>{roleLabels[s.role] || s.role}</div>
+                        </td>
+                        <td style={{ padding: "8px 10px", textAlign: "center", color: BL, fontWeight: 600 }}>{s.total_claims}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center", color: GR, fontWeight: 600 }}>{s.completed}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center", color: s.released > 0 ? OR : t.textMut }}>{s.released}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center", color: s.drop_requests > 0 ? RD : t.textMut }}>{s.drop_requests}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center" }}>
+                          <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: (reliPct >= 80 ? GR : reliPct >= 50 ? OR : RD) + "18", color: reliPct >= 80 ? GR : reliPct >= 50 ? OR : RD }}>{reliPct}%</span>
+                        </td>
+                      </tr>
+                    );
+                  })}</tbody>
+                </table>
+              </div>
+            )}
+          </Crd>
+        </div>)}
       </div>
     )}
 
