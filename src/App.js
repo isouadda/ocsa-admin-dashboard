@@ -2328,9 +2328,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() + 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>Next &gt;</button>
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const actual = getActualForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
-        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 48, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
+        return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
           {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
           {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
@@ -2366,7 +2366,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       ))}
     </div>}
     {!loading && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
-    {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1 }}>{renderMonthView()}</Crd>}
+    {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
