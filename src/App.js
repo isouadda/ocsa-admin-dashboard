@@ -4371,7 +4371,7 @@ function HRRecordsPage({ af, showToast, t, allStaff, uf, getOpts, lkMap }) {
       let fileUrl = form.file_url || "";
       let fileName = form.file_name || "";
       if (file) {
-        const up = await uf(file, "task-media");
+        const up = await uf(file, "employee-docs");
         fileUrl = up.url; fileName = file.name;
       }
       if (!form.user_id || !form.document_type) { showToast("Employee and document type are required", "error"); return; }
