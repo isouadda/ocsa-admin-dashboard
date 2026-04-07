@@ -4362,7 +4362,7 @@ function HRRecordsPage({ af, showToast, t, allStaff, uf, getOpts, lkMap }) {
   const loadOnboarding = useCallback(async () => { if (!selUser) { setOnboarding([]); return; } try { const d = await af("/api/hr/onboarding/" + selUser); setOnboarding(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); } catch (e) { showToast(e.message, "error"); } }, [af, showToast]);
 
-  useEffect(() => { if (tab === "documents") loadDocs(); else if (tab === "training") loadTraining(); else if (tab === "onboarding") loadOnboarding(); else if (tab === "compliance") loadCompliance(); }, [tab, selUser]);
+  useEffect(() => { if (tab === "documents" || tab === "other") loadDocs(); else if (tab === "training") loadTraining(); else if (tab === "onboarding") loadOnboarding(); else if (tab === "compliance") loadCompliance(); }, [tab, selUser]);
 
   const fmtDate = d => { if (!d) return ""; const dt = typeof d === "string" ? d : new Date(d).toISOString(); return dt.split("T")[0]; };
 
@@ -4417,6 +4417,7 @@ function HRRecordsPage({ af, showToast, t, allStaff, uf, getOpts, lkMap }) {
     { id: "training", l: "Training" },
     { id: "onboarding", l: "Onboarding" },
     { id: "compliance", l: "Compliance" },
+    { id: "other", l: "Other" },
   ];
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -4634,6 +4635,39 @@ function HRRecordsPage({ af, showToast, t, allStaff, uf, getOpts, lkMap }) {
             </div>
           </div>
         </>}
+      </div>}
+
+      {/* OTHER TAB */}
+      {tab === "other" && <div>
+        {(() => { const otherDocs = docs.filter(d => d.document_type === "other"); return (<>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, color: t.textSec }}>{otherDocs.length} item{otherDocs.length !== 1 ? "s" : ""}</div>
+          <Btn t={t} onClick={() => { setForm({ user_id: selUser, document_type: "other" }); setFile(null); setShowModal("doc"); }}>+ Add Other</Btn>
+        </div>
+        <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
+              {["Employee", "File", "Notes", "Expiry", "Jotform Ref", "Uploaded By", "Date", ""].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{h}</th>)}
+            </tr></thead>
+            <tbody>{otherDocs.map(d => (
+              <tr key={d.id} style={{ borderBottom: "1px solid " + t.border }}>
+                <td style={{ padding: "10px 12px", color: t.text }}>{d.user_name}</td>
+                <td style={{ padding: "10px 12px" }}>{d.file_url ? <a href={d.file_url} target="_blank" rel="noreferrer" style={{ color: BL, textDecoration: "none" }}>{d.file_name || "View"}</a> : <span style={{ color: t.textMut }}>No file</span>}</td>
+                <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{d.notes || ""}</td>
+                <td style={{ padding: "10px 12px" }}>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</td>
+                <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{d.jotform_reference || ""}</td>
+                <td style={{ padding: "10px 12px", color: t.textSec }}>{d.uploaded_by_name}</td>
+                <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{fd(d.created_at)}</td>
+                <td style={{ padding: "10px 12px", textAlign: "right" }}>
+                  <button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>Edit</button>
+                  <button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>Delete</button>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {otherDocs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No items filed under "Other." Click "+ Add Other" to upload.</div>}
+        </div>
+        </>); })()}
       </div>}
 
       {/* DOCUMENT MODAL */}
