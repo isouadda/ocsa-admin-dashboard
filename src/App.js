@@ -4641,7 +4641,7 @@ function HRRecordsPage({ af, showToast, t, allStaff, uf, getOpts, lkMap }) {
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{form.id ? "Edit Document" : "Add Document"}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Employee</div>
-            <Sel options={staffOpts.filter(s => s.v)} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            <Sel options={[{ v: "", l: "Select employee..." }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Document Type</div>
             <Sel options={docTypeOpts} value={form.document_type || ""} onChange={e => setForm({ ...form, document_type: e.target.value })} t={t} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Upload File</div>
@@ -4664,7 +4664,7 @@ function HRRecordsPage({ af, showToast, t, allStaff, uf, getOpts, lkMap }) {
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{form.id ? "Edit Training Record" : "Add Training Record"}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Employee</div>
-            <Sel options={staffOpts.filter(s => s.v)} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            <Sel options={[{ v: "", l: "Select employee..." }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Training Name</div>
             <Inp t={t} placeholder="e.g. General Cleaning Training" value={form.training_name || ""} onChange={e => setForm({ ...form, training_name: e.target.value })} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Training Type</div>
