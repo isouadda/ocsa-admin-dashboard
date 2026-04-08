@@ -483,6 +483,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
   const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
   const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
   const [tlStartDate, setTlStartDate] = useState(""); const [tlEndDate, setTlEndDate] = useState("");
+  const [tlDetail, setTlDetail] = useState(null); const [tlDetailLoading, setTlDetailLoading] = useState(false);
 
   const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
   useEffect(() => { load(); }, []);
@@ -495,7 +496,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
   const openProfile = async (id) => {
     try {
       const d = await af("/api/users/profile/" + id);
-      setProfile(d); setProfileTab("info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate("");
+      setProfile(d); setProfileTab("info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
     } catch (e) { showToast(e.message, "error"); }
   };
   const closeProfile = () => { setProfile(null); setProfileEdit(null); };
@@ -545,6 +546,88 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
     a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
     a.click(); URL.revokeObjectURL(a.href);
     showToast("CSV exported");
+  };
+
+  // Fetch timeline entry detail (Session 18)
+  const openTimelineDetail = async (entry) => {
+    setTlDetailLoading(true);
+    try {
+      const d = await af("/api/users/timeline-detail/" + entry.entityType + "/" + entry.entityId);
+      setTlDetail({ ...d, entry });
+    } catch (e) {
+      // If detail fetch fails, still show what we have from the activity log
+      setTlDetail({ found: false, entry, record: null, photos: [], relatedItems: [] });
+    }
+    setTlDetailLoading(false);
+  };
+
+  // Print detail record (Session 18)
+  const printTimelineDetail = () => {
+    if (!tlDetail) return;
+    const u = profile.user;
+    const e = tlDetail.entry;
+    const r = tlDetail.record;
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
+    html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
+    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:24px 32px}.section{margin-bottom:16px}.section-title{font-size:11px;color:#C8A84E;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
+    html += '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{margin-bottom:6px}.field .label{font-size:9px;color:#888;text-transform:uppercase}.field .value{font-size:12px;font-weight:500;margin-top:2px}';
+    html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
+    html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
+    html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
+    html += '<div class="header"><div><h1>Record Detail: ' + e.actionType.replace(/_/g, " ") + '</h1><div class="sub">' + u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString() + '</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#C8A84E;font-family:serif">OCSA</div><div style="font-size:8px;color:#8899AA;letter-spacing:2px;text-transform:uppercase">Cleaning Inc.</div></div></div>';
+    html += '<div class="content">';
+    html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
+    if (r) {
+      html += '<div class="section"><div class="section-title">Record Details</div><div class="grid">';
+      Object.entries(r).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
+          const label = k.replace(/_/g, " ");
+          let val = String(v);
+          if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
+          if (val.length > 200) val = val.substring(0, 200) + "...";
+          html += '<div class="field"><div class="label">' + label + '</div><div class="value">' + val + '</div></div>';
+        }
+      });
+      html += '</div></div>';
+    }
+    if (tlDetail.photos && tlDetail.photos.length > 0) {
+      html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
+      tlDetail.photos.forEach(p => { html += '<img class="photo" src="' + (p.photo_url || p.file_url || "") + '" />'; });
+      html += '</div>';
+    }
+    if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
+      html += '<div class="section"><div class="section-title">Related Items (' + tlDetail.relatedItems.length + ')</div><table><tr>';
+      const first = tlDetail.relatedItems[0];
+      const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
+      cols.slice(0, 6).forEach(c => { html += '<th>' + c.replace(/_/g, " ") + '</th>'; });
+      html += '</tr>';
+      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
+      html += '</table></div>';
+    }
+    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Record</div></div></body></html>';
+    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
+  };
+
+  // Print filtered timeline (Session 18)
+  const printTimeline = () => {
+    if (timeline.length === 0) { showToast("No data to print", "error"); return; }
+    const u = profile.user;
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + u.firstName + ' ' + u.lastName + ' - Activity Timeline</title><style>';
+    html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
+    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
+    html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
+    html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
+    html += '<div class="header"><div><h1>' + u.firstName + ' ' + u.lastName + ' - Activity Timeline</h1><div class="sub">' + timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString() + '</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#C8A84E;font-family:serif">OCSA</div><div style="font-size:8px;color:#8899AA;letter-spacing:2px;text-transform:uppercase">Cleaning Inc.</div></div></div>';
+    html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+    html += '</table><div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Employee Record</div></div></body></html>';
+    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
   };
 
   // Print report for employee profile (Session 18)
@@ -811,6 +894,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
             <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Activity Timeline ({tlTotal} total)</div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
+              <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
             </div>
           </div>
           {/* Category filter chips */}
@@ -834,7 +918,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
               const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
               return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 700, color: GO, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
-                <div style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "flex-start" }}>
+                <div style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "flex-start", cursor: "pointer", borderRadius: 6 }} onClick={() => openTimelineDetail(entry)} onMouseEnter={e => e.currentTarget.style.background = t.hover} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 16 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, marginTop: 3 }} />
                     {i < timeline.length - 1 && <div style={{ width: 1, height: 24, background: t.border, marginTop: 2 }} />}
@@ -851,6 +935,61 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
           </div>}
         </Crd>
       </div>}
+
+      {/* Timeline Detail Modal (Session 18) */}
+      {tlDetailLoading && <Mdl t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading record details...</div></Mdl>}
+      {tlDetail && !tlDetailLoading && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "80vh", overflow: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Record Detail</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+          </div>
+        </div>
+        {/* Activity summary */}
+        <div style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tlDetail.entry?.description || "N/A"}</div>
+          <div style={{ fontSize: 11, color: t.textMut }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString() : ""}{tlDetail.entry?.actorName ? " by " + tlDetail.entry.actorName : ""}</div>
+          <div style={{ marginTop: 6 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
+        </div>
+        {!tlDetail.found && <div style={{ padding: 16, textAlign: "center", color: t.textMut, fontSize: 12 }}>
+          <div style={{ marginBottom: 8 }}>The source record could not be found. It may have been deleted or the entry was logged with a temporary reference.</div>
+          {tlDetail.entry?.metadata && Object.keys(tlDetail.entry.metadata).length > 0 && <div>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6, marginTop: 12 }}>Available Metadata</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{k.replace(/_/g, " ")}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(v)}</span></div>)}
+            </div>
+          </div>}
+        </div>}
+        {tlDetail.found && tlDetail.record && <div>
+          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Record Fields</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
+            {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
+              const isUrl = typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://"));
+              const isObj = typeof v === "object" && !Array.isArray(v);
+              return <div key={k} style={{ fontSize: 11 }}>
+                <div style={{ color: t.textMut, fontSize: 9, textTransform: "uppercase", marginBottom: 1 }}>{k.replace(/_/g, " ")}</div>
+                {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? "View file" : v}</a>
+                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(v)}</div>}
+              </div>;
+            })}
+          </div>
+          {/* Photos */}
+          {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {tlDetail.photos.map((p, i) => <a key={i} href={p.photo_url || p.file_url || ""} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={"Photo " + (i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
+            </div>
+          </div>}
+          {/* Related items */}
+          {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
+            {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: 10, background: t.hover, borderRadius: 6, marginBottom: 4, fontSize: 11 }}>
+              {Object.entries(item).filter(([k, v]) => v !== null && v !== undefined && k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 6).map(([k, v]) => <span key={k} style={{ marginRight: 12 }}><span style={{ color: t.textMut }}>{k.replace(/_/g, " ")}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{typeof v === "object" ? JSON.stringify(v).substring(0, 80) : String(v).substring(0, 80)}</span></span>)}
+            </div>)}
+          </div>}
+        </div>}
+      </div></Mdl>}
 
       {/* Modals that need to work inside profile view */}
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
