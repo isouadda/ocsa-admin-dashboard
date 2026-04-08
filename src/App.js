@@ -1083,6 +1083,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const [tlLoading, setTlLoading] = useState(false);
   const [tlOffset, setTlOffset] = useState(0);
   const [floorPlanLabel, setFloorPlanLabel] = useState("Floor Plan");
+  const [tlDetail, setTlDetail] = useState(null);
+  const [tlDetailLoading, setTlDetailLoading] = useState(false);
   const cimsLabels = lkMap("cims_categories");
   const staffList = allStaff;
   const load = () => loadSites();
@@ -1208,6 +1210,117 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     if (actionType.includes("site_assigned") || actionType.includes("site_unassigned")) return "staff";
     if (actionType.includes("site_")) return "site";
     return "site";
+  };
+
+  // Branded print helpers (duplicated from StaffPage for site context)
+  const SITE_LOGO_B64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAABQCAIAAABd+SbeAAAfQklEQVR42u2cZ5hUVbb31977hDqVqzpnukHabkAaGgUUQUBEDDiimMOMecZR7yTTBMdnnPGOYYyjGMaAaRQVx4iigkADapObJJ1zqq5cddLe6/3QgI7eURDH9859aj1PfajuU3Xq/M46/7322mttIoSAjP37jWYQZEBnQGcsAzoDOgM6YxnQGdAZy4DOgM6AztgBGAoAPJQvkDIMD8QIZQCAiBmP/rdiJuZAg5UeBEIQEQjJgP7uFYMQYiVarB1nGzufAABKBFg2OXjWGdDfQBoBILqKijhqlQSgfyg947cb3/iolRDCBWZAf1exAuO2jckVlp7P8qcBwLtbE6ubDKdkAxzc6Pg9gSaEfCtl+/+tG0BEuk0M1aE61eHPQmG8uCVanUOPm1gIAJSS/y2gcR9lw+a6Lf4jdSP8lt3bhtlzKYHu/tTKbZEzjlCY5rRtcVCuQ79Tn93rt4jIBSICJYQApDlvS+g2IvyHOTUFwK54ebu4ylFaiwDLd6X0hLlwWj4AkIMMq6XvBDHnfHjtkRAiSRIhZPgGRi07Ypp+SSpyOxg9xJD/+4+dqWVZUT7aW3uUw58HwnppQ2JiLh1TmYd4cLrxHYAmhMTjcc45FwIQKWWEYDhmtaXV3HypPW0rjJVr3E9AAQoMEP4z3BoRCSGpVMoyIkFfLgB0DaRW7on9YUaAyoptC8a+X9CdnZ3plA6AsiILLiSFJiJ9r7/XdMsy36N/PKKw3K0AQ0oYEMNGhQAFAPJPIT/Z+wKBIAQAIqWEEEAAFCAQhwWJHKpDAAFAFP/0p3/9rcMaGI1GFcXhcnsRYFlDXKTMBVPK9370e5uCE0KSyeS2bQ3CEkXFxV6fojgc69bvfHLJ9pPmjr3vPLUwKHPO0ii4zYlENQfIQACGkwdk/xULBGEDJcgY5WzvsGHZQmYEGGFAAPALonMgl7j/+C+iRJsLiUlfctuvuTrbtuPxuM/nkyUGaL/SkD5mhFo+wicOXjcOCTQiqqo6bdoxzY2foZmoKDmstatz0TNb60nlc+fMCmiwORQ1OGqMFXmUBBc9LdaqzbFNzXZrjx1JCSGAUEoQBKDTxwBsBUl1GZtdLc2s8QT9msmt+t16/Wfm7i6zbwgNGylQIAgEAAkgEBBfeCwIJ0iQIgIBRIKIBAUgsRWNJJI4ttD60xUjEx1LE50fUkkDrvurf+wM";
+  const sitePrintHeader = (title, subtitle) => {
+    let h = '<div class="header"><div><h1>' + title + '</h1><div class="sub">' + subtitle + '</div></div>';
+    h += '<img src="' + SITE_LOGO_B64 + '" style="height:40px" /></div>';
+    return h;
+  };
+
+  // Open timeline detail record
+  const openTimelineDetail = async (entry) => {
+    setTlDetailLoading(true);
+    try {
+      const d = await af("/api/users/timeline-detail/" + entry.entityType + "/" + entry.entityId);
+      setTlDetail({ ...d, entry });
+    } catch (e) {
+      setTlDetail({ found: false, entry, record: null, photos: [], relatedItems: [] });
+    }
+    setTlDetailLoading(false);
+  };
+
+  // Export timeline CSV
+  const exportTimelineCsv = () => {
+    if (timeline.length === 0) { showToast("No data to export", "error"); return; }
+    const siteName = siteProfile.site.name || "Site";
+    const rows = [["Date", "Time", "Action", "Description", "Performed By"]];
+    timeline.forEach(e => {
+      const dt = new Date(e.createdAt);
+      rows.push([dt.toLocaleDateString(), dt.toLocaleTimeString(), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
+    });
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = (siteName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
+    a.click(); URL.revokeObjectURL(a.href);
+    showToast("CSV exported");
+  };
+
+  // Print timeline
+  const printSiteTimeline = () => {
+    if (timeline.length === 0) { showToast("No data to print", "error"); return; }
+    const siteName = siteProfile.site.name || "Site";
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Site Timeline</title><style>';
+    html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
+    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
+    html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
+    html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
+    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString());
+    html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+    html += '</table><div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Site Record</div></div></body></html>';
+    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
+  };
+
+  // Print timeline detail
+  const printSiteTimelineDetail = () => {
+    if (!tlDetail) return;
+    const siteName = siteProfile.site.name || "Site";
+    const e = tlDetail.entry;
+    const r = tlDetail.record;
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
+    html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
+    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:24px 32px}.section{margin-bottom:16px}.section-title{font-size:11px;color:#C8A84E;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
+    html += '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{margin-bottom:6px}.field .label{font-size:9px;color:#888;text-transform:uppercase}.field .value{font-size:12px;font-weight:500;margin-top:2px}';
+    html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
+    html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
+    html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
+    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString());
+    html += '<div class="content">';
+    html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
+    if (r) {
+      html += '<div class="section"><div class="section-title">Record Details</div><div class="grid">';
+      Object.entries(r).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
+          const label = k.replace(/_/g, " ");
+          let val = String(v);
+          if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
+          const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
+          if (isImgUrl) {
+            html += '<div class="field" style="grid-column:span 2"><div class="label">' + label + '</div><img src="' + v + '" style="max-width:300px;max-height:200px;border-radius:6px;margin-top:4px" /></div>';
+          } else {
+            if (val.length > 200) val = val.substring(0, 200) + "...";
+            html += '<div class="field"><div class="label">' + label + '</div><div class="value">' + val + '</div></div>';
+          }
+        }
+      });
+      html += '</div></div>';
+    }
+    if (tlDetail.photos && tlDetail.photos.length > 0) {
+      html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
+      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || "") + '</div></div>'; });
+      html += '</div>';
+    }
+    if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
+      html += '<div class="section"><div class="section-title">Related Items (' + tlDetail.relatedItems.length + ')</div><table><tr>';
+      const first = tlDetail.relatedItems[0];
+      const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
+      cols.slice(0, 6).forEach(c => { html += '<th>' + c.replace(/_/g, " ") + '</th>'; });
+      html += '</tr>';
+      tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
+      html += '</table></div>';
+    }
+    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Site Record</div></div></body></html>';
+    const w = window.open("", "_blank"); w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
   };
 
   // ---- PROFILE VIEW ----
@@ -1373,7 +1486,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Upcoming Shifts (Next 7 Days)</div>
           {sp.upcomingShifts.length > 0 ? sp.upcomingShifts.map((sh, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.shift_date ? fd(sh.shift_date) : ""}</div></div>
+            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.scheduled_date ? fd(sh.scheduled_date) : ""}</div></div>
             <div style={{ fontSize: 11, color: t.textSec }}>{sh.start_time || ""} {sh.end_time ? " - " + sh.end_time : ""}</div>
           </div>) : <div style={{ fontSize: 12, color: t.textMut }}>No upcoming shifts</div>}
         </Crd>
@@ -1419,7 +1532,13 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <Inp t={t} type="date" value={tlDateRange.end} onChange={e => setTlDateRange(prev => ({ ...prev, end: e.target.value }))} style={{ width: 140, fontSize: 11 }} />
           {(tlDateRange.start || tlDateRange.end) && <button onClick={() => setTlDateRange({ start: "", end: "" })} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}>Clear</button>}
         </div>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tlTotal} entries</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: t.textMut }}>{tlTotal} entries</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
+            <button onClick={printSiteTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+          </div>
+        </div>
         {tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>Loading...</div>}
         {(() => {
           const grouped = {};
@@ -1433,7 +1552,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             {entries.map(e => {
               const cat = getTlCategory(e.actionType);
               const dotColor = tlColorMap[cat] || t.textMut;
-              return <div key={e.id} style={{ display: "flex", gap: 10, marginBottom: 4, paddingLeft: 8, borderLeft: "2px solid " + t.border }}>
+              return <div key={e.id} onClick={() => openTimelineDetail(e)} style={{ display: "flex", gap: 10, marginBottom: 4, paddingLeft: 8, borderLeft: "2px solid " + t.border, cursor: "pointer" }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, marginTop: 5, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: t.text }}>{e.description}</div>
@@ -1446,6 +1565,43 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? "Loading..." : "Load More"}</button>}
         {!tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>No activity recorded for this site</div>}
       </div>}
+
+      {/* TIMELINE DETAIL MODAL */}
+      {tlDetail && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Record Detail</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+          </div>
+        </div>
+        <div style={{ marginBottom: 12, padding: "10px 12px", background: t.hover, borderRadius: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>{tlDetail.entry?.description || "N/A"}</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString() : ""} | {tlDetail.entry?.actorName || "System"}</div>
+          <div style={{ marginTop: 4 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
+        </div>
+        {tlDetail.record && <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Record Fields</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
+              const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
+              if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{k.replace(/_/g, " ")}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
+              let val = typeof v === "object" ? JSON.stringify(v) : String(v);
+              if (val.length > 200) val = val.substring(0, 200) + "...";
+              return <div key={k}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{k.replace(/_/g, " ")}</div><div style={{ fontSize: 12, color: t.text, marginTop: 2 }}>{val}</div></div>;
+            })}
+          </div>
+        </div>}
+        {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
+        </div>}
+        {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
+          {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3, fontSize: 11, color: t.textSec }}>{Object.entries(item).filter(([k]) => k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 4).map(([k, v]) => k.replace(/_/g, " ") + ": " + (v !== null ? String(v).substring(0, 60) : "")).join(" | ")}</div>)}
+        </div>}
+        {!tlDetail.found && !tlDetailLoading && <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>Source record not found. The original data may have been deleted.</div>}
+      </div></Mdl>}
 
       {/* EDIT SITE MODAL */}
       {editSite && <Mdl t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
@@ -1544,6 +1700,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSite(null)}>Cancel</Btn><Btn t={t} onClick={submitSite}>Create</Btn></div></div></Mdl>}
   </div>);
 }
+
 
 
 function OpsPage({ af, t, allStaff }) {
