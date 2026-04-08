@@ -1151,8 +1151,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
-    html += '.content{padding:20px 32px}.msg{padding:8px 12px;margin-bottom:6px;border-left:3px solid #C8A84E;background:#f9f9f9;border-radius:0 6px 6px 0}';
-    html += '.msg .sender{font-weight:700;font-size:11px;color:#0A1628}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:3px;line-height:1.5}';
+    html += '.content{padding:20px 32px}.msg{display:flex;gap:10px;padding:10px 12px;margin-bottom:8px;background:#f9f9f9;border-radius:8px;border-left:3px solid #C8A84E}';
+    html += '.msg .avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1.5px solid #C8A84E}';
+    html += '.msg .initials{width:36px;height:36px;border-radius:50%;background:#f0e8d0;border:1.5px solid #C8A84E;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0A1628;flex-shrink:0}';
+    html += '.msg .sender{font-weight:700;font-size:12px;color:#0A1628}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString());
@@ -1160,8 +1162,16 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const sorted = [...siteChat].reverse();
     sorted.forEach(m => {
       const dt = new Date(m.sentAt);
-      html += '<div class="msg"><span class="sender">' + (m.senderName || "Unknown") + '</span><span class="time">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span>';
-      html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div>';
+      const name = m.senderName || "Unknown";
+      const initials = name.split(" ").map(w => w[0] || "").join("").toUpperCase();
+      html += '<div class="msg">';
+      if (m.profilePhotoUrl) {
+        html += '<img class="avatar" src="' + m.profilePhotoUrl + '" />';
+      } else {
+        html += '<div class="initials">' + initials + '</div>';
+      }
+      html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span>';
+      html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
     });
     html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Communication Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
