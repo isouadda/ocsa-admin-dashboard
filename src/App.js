@@ -349,7 +349,7 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: "20px 28px 40px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
-        {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} />}
+        {page === "staff" && isAdmin && <StaffPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
         {page === "hr" && <HRRecordsPage af={af} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}       {page === "timesheets" && <TimesheetsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} />}
@@ -447,27 +447,287 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   </div>);
 }
 
-function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap }) {
+function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf }) {
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
-  const [detail, setDetail] = useState(null); const [assignForm, setAssignForm] = useState(null);
+  const [assignForm, setAssignForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
+  // Profile view state
+  const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
+  const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
+  const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
+  const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
+
   const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
   useEffect(() => { load(); }, []);
   const roleLabels = lkMap("staff_roles");
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast("Approved"); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast("Name, phone, and email required", "error"); return; } try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast("Added. Temp PIN: " + d.tempPin); setAddForm(null); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const viewDetail = async id => { try { const d = await af("/api/users/" + id); setDetail(d); } catch (e) { showToast(e.message, "error"); } };
-  const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); setDetail(null); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); viewDetail(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const unassign = async (uid, sid) => { if (!window.confirm("Remove this site assignment?")) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); viewDetail(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+
+  // Open full profile
+  const openProfile = async (id) => {
+    try {
+      const d = await af("/api/users/profile/" + id);
+      setProfile(d); setProfileTab("info"); setProfileEdit(null);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+  const closeProfile = () => { setProfile(null); setProfileEdit(null); };
+
+  // Load HR data for the HR Files tab
+  const loadHrData = async (userId) => {
+    setHrLoading(true);
+    try {
+      const [docs, train] = await Promise.all([
+        af("/api/hr/documents?user_id=" + userId),
+        af("/api/hr/training?user_id=" + userId)
+      ]);
+      setHrDocs(docs); setHrTraining(train);
+      try { const ob = await af("/api/hr/onboarding/" + userId); setHrOnboarding(ob); } catch (e) { setHrOnboarding([]); }
+    } catch (e) { showToast(e.message, "error"); }
+    setHrLoading(false);
+  };
+  useEffect(() => { if (profile && profileTab === "hr") loadHrData(profile.user.id); }, [profileTab, profile?.user?.id]);
+
+  const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); closeProfile(); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); openProfile(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const unassign = async (uid, sid) => { if (!window.confirm("Remove this site assignment?")) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast("Removed"); openProfile(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast("PIN must be 4 digits", "error"); return; } try { const d = await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(d.message); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
-  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: { firstName: editForm.firstName, lastName: editForm.lastName, phone: editForm.phone, email: editForm.email, role: editForm.role, hourlyRate: editForm.hourlyRate } }); showToast("User updated"); setEditForm(null); load(); loadStaff(); if (detail) viewDetail(editForm.id); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Updated"); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
+
+  // Photo upload
+  const handlePhotoUpload = async (file, userId) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { showToast("Photo must be under 5MB", "error"); return; }
+    setPhotoUploading(true);
+    try {
+      const r = await uf(file, "profile-photos");
+      await af("/api/users/profile/photo", { method: "POST", body: { userId: userId, photoUrl: r.url } });
+      showToast("Photo updated");
+      openProfile(userId); load(); loadStaff();
+    } catch (e) { showToast(e.message, "error"); }
+    setPhotoUploading(false);
+  };
+
+  // Save profile personal info
+  const saveProfileInfo = async () => {
+    if (!profileEdit) return;
+    try {
+      await af("/api/users/" + profile.user.id, { method: "PATCH", body: profileEdit });
+      showToast("Profile updated");
+      setProfileEdit(null);
+      openProfile(profile.user.id); load(); loadStaff();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  // Avatar component with photo support
+  const Avatar = ({ user, sz = 36 }) => {
+    const name = (user.firstName || user.first_name || "") + " " + (user.lastName || user.last_name || "");
+    const url = user.profilePhotoUrl || user.profile_photo_url;
+    if (url) return <img src={url} alt={name} style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", border: "1.5px solid " + GO, flexShrink: 0 }} />;
+    return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
+  };
+
+  const ptabs = [{ id: "info", l: "Profile" }, { id: "hr", l: "HR Files" }, { id: "assign", l: "Assignments" }, { id: "certs", l: "Certifications" }];
+  const fmtDate = d => { if (!d) return "Not set"; const dt = typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0]; const [y, m, dy] = dt.split("-"); const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return months[parseInt(m) - 1] + " " + parseInt(dy) + ", " + y; };
+
+  // ============================================================
+  // PROFILE VIEW
+  // ============================================================
+  if (profile) {
+    const u = profile.user;
+    const isEditing = !!profileEdit;
+    const pe = profileEdit || {};
+    return (<div>
+      <button onClick={closeProfile} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", color: GO, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={GO} /> Back to Staff</button>
+
+      {/* Profile Header */}
+      <Crd t={t} style={{ marginBottom: 16, padding: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ position: "relative" }}>
+            <Avatar user={u} sz={72} />
+            <label style={{ position: "absolute", bottom: -4, right: -4, width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "2px solid " + t.card }}>
+              <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c="#0A1628" />
+              <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
+            </label>
+            {photoUploading && <div style={{ position: "absolute", top: 0, left: 0, width: 72, height: 72, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#F8F7F4" }}>...</div>}
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 20, fontWeight: 700, color: t.text }}>{u.firstName} {u.lastName}</div>
+            <div style={{ fontSize: 12, color: GO, marginTop: 2 }}>{roleLabels[u.role] || RL[u.role] || u.role}</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}><Bdg l={u.status} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} /></div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>Reset PIN</Btn>
+            {u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>Deactivate</Btn>}
+            {u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>Reactivate</Btn>}
+            {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>Approve</Btn>}
+          </div>
+        </div>
+      </Crd>
+
+      {/* Sub-tabs */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
+        {ptabs.map(tb => <button key={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? GO : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
+      </div>
+
+      {/* INFO TAB */}
+      {profileTab === "info" && <div>
+        <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Contact Information</div>
+            {!isEditing && <button onClick={() => setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={GO} /> Edit</button>}
+          </div>
+          {!isEditing ? <div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div style={{ fontSize: 11, color: t.textMut }}>Phone<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.phone || "Not set"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Email<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.email || "Not set"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Hire Date<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hireDate ? fmtDate(u.hireDate) : "Not set"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Birthday<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.birthday ? fmtDate(u.birthday) : "Not set"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Hourly Rate<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : "Not set"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Preferred Language<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.preferredLanguage || "English"}</div></div>
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <div style={{ fontSize: 11, color: t.textMut }}>Address</div>
+              <div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.addressLine1 ? (u.addressLine1 + (u.addressLine2 ? ", " + u.addressLine2 : "") + (u.city ? ", " + u.city : "") + (u.state ? ", " + u.state : "") + (u.zipCode ? " " + u.zipCode : "")) : "Not set"}</div>
+            </div>
+            <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <div style={{ fontSize: 11, color: t.textMut }}>Emergency Contact<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.emergencyContactName || "Not set"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Emergency Phone<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.emergencyContactPhone || "Not set"}</div></div>
+            </div>
+            {u.personalNotes && <div style={{ marginTop: 14 }}><div style={{ fontSize: 11, color: t.textMut }}>Notes</div><div style={{ color: t.textSec, marginTop: 2, fontSize: 12, lineHeight: 1.5, padding: "8px 10px", background: t.hover, borderRadius: 6 }}>{u.personalNotes}</div></div>}
+          </div> : <div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><Lbl>First Name</Lbl><Inp t={t} value={pe.firstName || ""} onChange={e => setProfileEdit({ ...pe, firstName: e.target.value })} /></div>
+              <div><Lbl>Last Name</Lbl><Inp t={t} value={pe.lastName || ""} onChange={e => setProfileEdit({ ...pe, lastName: e.target.value })} /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><Lbl>Phone</Lbl><Inp t={t} value={pe.phone || ""} onChange={e => setProfileEdit({ ...pe, phone: e.target.value })} /></div>
+              <div><Lbl>Email</Lbl><Inp t={t} value={pe.email || ""} onChange={e => setProfileEdit({ ...pe, email: e.target.value })} type="email" /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><Lbl>Role</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles")} /></div>
+              <div><Lbl>Hourly Rate</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>
+              <div><Lbl>Birthday</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}><Lbl>Address Line 1</Lbl><Inp t={t} value={pe.addressLine1 || ""} onChange={e => setProfileEdit({ ...pe, addressLine1: e.target.value })} placeholder="Street address" /></div>
+            <div style={{ marginBottom: 10 }}><Lbl>Address Line 2</Lbl><Inp t={t} value={pe.addressLine2 || ""} onChange={e => setProfileEdit({ ...pe, addressLine2: e.target.value })} placeholder="Apt, suite, etc." /></div>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><Lbl>City</Lbl><Inp t={t} value={pe.city || ""} onChange={e => setProfileEdit({ ...pe, city: e.target.value })} /></div>
+              <div><Lbl>State</Lbl><Inp t={t} value={pe.state || ""} onChange={e => setProfileEdit({ ...pe, state: e.target.value })} /></div>
+              <div><Lbl>Zip</Lbl><Inp t={t} value={pe.zipCode || ""} onChange={e => setProfileEdit({ ...pe, zipCode: e.target.value })} /></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+              <div><Lbl>Emergency Contact</Lbl><Inp t={t} value={pe.emergencyContactName || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactName: e.target.value })} placeholder="Full name" /></div>
+              <div><Lbl>Emergency Phone</Lbl><Inp t={t} value={pe.emergencyContactPhone || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactPhone: e.target.value })} placeholder="Phone number" /></div>
+            </div>
+            <div style={{ marginBottom: 10 }}><Lbl>Preferred Language</Lbl><Inp t={t} value={pe.preferredLanguage || ""} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} /></div>
+            <div style={{ marginBottom: 14 }}><Lbl>Notes</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder="Internal notes about this employee..." /></div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setProfileEdit(null)}>Cancel</Btn><Btn t={t} onClick={saveProfileInfo}>Save Changes</Btn></div>
+          </div>}
+        </Crd>
+      </div>}
+
+      {/* HR FILES TAB */}
+      {profileTab === "hr" && <div>
+        {hrLoading ? <div style={{ textAlign: "center", padding: 40, color: t.textMut, fontSize: 13 }}>Loading HR files...</div> : <div>
+          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Documents ({hrDocs.length})</div>
+            {hrDocs.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No documents on file</div>}
+            {hrDocs.map((doc, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{doc.document_type || "Document"}</div>
+                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{doc.file_name || "No file"}{doc.expiry_date ? " | Exp: " + fmtDate(doc.expiry_date) : ""}</div>
+              </div>
+              {doc.file_url && <a href={doc.file_url} target="_blank" rel="noopener noreferrer" style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 9, textDecoration: "none", fontWeight: 600 }}>View</a>}
+            </div>)}
+          </Crd>
+          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Training Records ({hrTraining.length})</div>
+            {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No training records</div>}
+            {hrTraining.map((tr, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{tr.training_name}</div>
+                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr.training_type || "Training"}{tr.completed_date ? " | Completed: " + fmtDate(tr.completed_date) : ""}{tr.score ? " | Score: " + tr.score : ""}</div>
+              </div>
+              <Bdg l={tr.status || "completed"} c={tr.status === "failed" ? RD : GR} />
+            </div>)}
+          </Crd>
+          {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Onboarding Steps</div>
+            {hrOnboarding.map((step, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.completed_at ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.completed_at ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.completed_at && <ChkI sz={10} c={GR} />}</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.completed_at && <div style={{ fontSize: 9, color: t.textMut }}>Completed {fmtDate(step.completed_at)}</div>}</div>
+            </div>)}
+          </Crd>}
+        </div>}
+      </div>}
+
+      {/* ASSIGNMENTS TAB */}
+      {profileTab === "assign" && <div>
+        <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div>
+            <button onClick={() => setAssignForm({ userId: u.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Assign</button>
+          </div>
+          {profile.assignments?.filter(a => a.is_active).map((a, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 6 }}>
+            <div><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{a.site_name || "Site"}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{a.role_at_site || "No role"} | {a.shift_name || "No shift"}{a.shift_start ? " | " + a.shift_start + " - " + a.shift_end : ""}</div></div>
+            <button onClick={() => unassign(u.id, a.site_id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>Remove</button>
+          </div>)}
+          {(!profile.assignments || profile.assignments.filter(a => a.is_active).length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No sites assigned</div>}
+        </Crd>
+      </div>}
+
+      {/* CERTIFICATIONS TAB */}
+      {profileTab === "certs" && <div>
+        <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Certifications</div>
+            <button onClick={() => setAddCert({ userId: u.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button>
+          </div>
+          {(!profile.certifications || profile.certifications.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No certifications on file</div>}
+          {profile.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.greenSubtle, borderRadius: 6, marginBottom: 4, border: "1px solid " + t.greenBorder }}>
+            <div><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? " | Exp: " + fmtDate(c.expiry_date) : ""}</div></div>
+            <button onClick={async () => { if (!window.confirm("Remove this certification?")) return; try { await af("/api/users/" + u.id + "/certifications/" + c.id, { method: "DELETE" }); showToast("Removed"); openProfile(u.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button>
+          </div>)}
+        </Crd>
+      </div>}
+
+      {/* Modals that need to work inside profile view */}
+      {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Reset PIN</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>Enter a new 4-digit PIN for this staff member.</div>
+        <div style={{ marginBottom: 16 }}><Lbl>New PIN (4 digits)</Lbl><Inp t={t} value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setResetPin(null)}>Cancel</Btn><Btn t={t} onClick={() => submitResetPin(resetPin)}>Reset PIN</Btn></div>
+      </div></Mdl>}
+      {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Assign to Site</div>
+        <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: "Select..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Role at Site</Lbl><Sel t={t} value={assignForm.role} onChange={e => setAssignForm({ ...assignForm, role: e.target.value })} options={getOpts("site_roles", "Select role...")} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Shift</Lbl><Sel t={t} value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} options={getOpts("shift_names", "Select shift...")} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Start</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>End</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignForm(null)}>Cancel</Btn><Btn t={t} onClick={assignSite}>Assign</Btn></div></div></Mdl>}
+      {addCert && <Mdl t={t} onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Certification</div><button onClick={() => setAddCert(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Certification Name *</Lbl><Inp t={t} value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder="e.g. Green Cleaning Fundamentals" /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={getOpts("certification_types")} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Issuing Body</Lbl><Inp t={t} value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder="e.g. ISSA, OSHA" /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
+          <div><Lbl>Issued Date</Lbl><Inp t={t} type="date" value={addCert.issuedDate} onChange={e => setAddCert({ ...addCert, issuedDate: e.target.value })} /></div>
+          <div><Lbl>Expiry Date</Lbl><Inp t={t} type="date" value={addCert.expiryDate} onChange={e => setAddCert({ ...addCert, expiryDate: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCert(null)}>Cancel</Btn><Btn t={t} onClick={async () => { if (!addCert.certName) { showToast("Name required", "error"); return; } try { await af("/api/users/" + addCert.userId + "/certifications", { method: "POST", body: addCert }); showToast("Certification added"); setAddCert(null); openProfile(addCert.userId); } catch (e) { showToast(e.message, "error"); } }}>Add Certification</Btn></div>
+      </div></Mdl>}
+    </div>);
+  }
+
+  // ============================================================
+  // STAFF LIST VIEW
+  // ============================================================
   return (<div>
     <SecT t={t} action="Add Staff" onAction={() => setAddForm({ firstName: "", lastName: "", phone: "", email: "", role: "custodial_laborer" })}>Staff Management</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{["all", "active", "pending", "inactive"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? GO : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", textTransform: "capitalize", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{f}</button>)}</div>
-    {filtered.map(s => <Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 12 }} onClick={() => viewDetail(s.id)}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Ini name={s.name} sz={36} color={s.status === "pending" ? OR : GO} /><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span><Bdg l={s.status} c={s.status === "active" ? GR : s.status === "pending" ? OR : RD} /></div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{roleLabels[s.role] || RL[s.role] || s.role} | {s.phone}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{s.sites?.length > 0 ? s.sites.map(x => x.siteName).join(", ") : "No sites"}</div></div>
+    {filtered.map(s => <Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 12 }} onClick={() => openProfile(s.id)}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={36} /><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span><Bdg l={s.status} c={s.status === "active" ? GR : s.status === "pending" ? OR : RD} /></div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{roleLabels[s.role] || RL[s.role] || s.role} | {s.phone}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{s.sites?.length > 0 ? s.sites.map(x => x.siteName).join(", ") : "No sites"}</div></div>
       {s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "6px 14px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Approve</button>}</div>
     </Crd>)}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add New Staff</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
@@ -477,44 +737,6 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
       <div style={{ marginBottom: 12 }}><Lbl>Email *</Lbl><Inp t={t} value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder="name@email.com" type="email" /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Role</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={getOpts("staff_roles")} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Staff</Btn></div></div></Mdl>}
-    {detail && <Mdl t={t} onClose={() => setDetail(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><Ini name={detail.user.firstName + " " + detail.user.lastName} sz={48} /><div><div style={{ fontSize: 18, fontWeight: 700, color: t.text }}>{detail.user.firstName} {detail.user.lastName}</div><div style={{ fontSize: 12, color: GO }}>{roleLabels[detail.user.role] || RL[detail.user.role]}</div></div></div><button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>Phone<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.user.phone}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Email<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.user.email || "Not set"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Status<div style={{ marginTop: 2 }}><Bdg l={detail.user.status} c={detail.user.status === "active" ? GR : OR} /></div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Role<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{roleLabels[detail.user.role] || RL[detail.user.role]}</div></div>
-      </div>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Certifications</div>
-          <button onClick={() => setAddCert({ userId: detail.user.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button>
-        </div>
-        {(!detail.certifications || detail.certifications.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No certifications on file</div>}
-        {detail.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.greenSubtle, borderRadius: 6, marginBottom: 3, border: "1px solid " + t.greenBorder }}>
-          <div><span style={{ fontSize: 11, color: GR, fontWeight: 500 }}>{c.cert_name}</span>{c.expiry_date && <span style={{ fontSize: 9, color: t.textMut, marginLeft: 8 }}>Exp: {fd(c.expiry_date)}</span>}</div>
-          <button onClick={async () => { if (!window.confirm("Remove this certification?")) return; try { await af("/api/users/" + detail.user.id + "/certifications/" + c.id, { method: "DELETE" }); showToast("Removed"); viewDetail(detail.user.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button>
-        </div>)}
-      </div>
-      <div style={{ marginBottom: 16 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div><button onClick={() => setAssignForm({ userId: detail.user.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Assign</button></div>
-        {detail.assignments?.filter(a => a.is_active).map((a, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px", background: t.hover, borderRadius: 6, marginBottom: 4 }}><div><div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{a.site_name || "Site"}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{a.role_at_site || "No role"} | {a.shift_name || "No shift"}</div></div><button onClick={() => unassign(detail.user.id, a.site_id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button></div>)}
-        {(!detail.assignments || detail.assignments.filter(a => a.is_active).length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No sites assigned</div>}
-      </div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.user.id, firstName: detail.user.firstName, lastName: detail.user.lastName, phone: detail.user.phone, email: detail.user.email, role: detail.user.role, hourlyRate: detail.user.hourlyRate || "" })}>Edit Info</Btn>
-        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setResetPin(detail.user.id); setNewPin(""); }}>Reset PIN</Btn>
-      </div>
-      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-        {detail.user.status === "active" && <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => updateStatus(detail.user.id, "inactive")}>Deactivate</Btn>}
-        {detail.user.status === "inactive" && <Btn t={t} style={{ flex: 1 }} onClick={() => updateStatus(detail.user.id, "active")}>Reactivate</Btn>}
-        {detail.user.status === "pending" && <Btn t={t} style={{ flex: 1 }} onClick={() => { approve(detail.user.id); setDetail(null); }}>Approve</Btn>}
-      </div></div></Mdl>}
-    {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Reset PIN</div>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>Enter a new 4-digit PIN for this staff member. Share it with them directly or send it to their email.</div>
-      <div style={{ marginBottom: 16 }}><Lbl>New PIN (4 digits)</Lbl><Inp t={t} value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setResetPin(null)}>Cancel</Btn><Btn t={t} onClick={() => submitResetPin(resetPin)}>Reset PIN</Btn></div>
-    </div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Staff Info</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>First Name</Lbl><Inp t={t} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
@@ -525,26 +747,9 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
       <div style={{ marginBottom: 16 }}><Lbl>Hourly Rate</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
     </div></Mdl>}
-    {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Assign to Site</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: "Select..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Role at Site</Lbl><Sel t={t} value={assignForm.role} onChange={e => setAssignForm({ ...assignForm, role: e.target.value })} options={getOpts("site_roles", "Select role...")} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Shift</Lbl><Sel t={t} value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} options={getOpts("shift_names", "Select shift...")} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Start</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>End</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignForm(null)}>Cancel</Btn><Btn t={t} onClick={assignSite}>Assign</Btn></div></div></Mdl>}
-    {addCert && <Mdl t={t} onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Certification</div><button onClick={() => setAddCert(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Certification Name *</Lbl><Inp t={t} value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder="e.g. Green Cleaning Fundamentals" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={getOpts("certification_types")} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Issuing Body</Lbl><Inp t={t} value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder="e.g. ISSA, OSHA" /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        <div><Lbl>Issued Date</Lbl><Inp t={t} type="date" value={addCert.issuedDate} onChange={e => setAddCert({ ...addCert, issuedDate: e.target.value })} /></div>
-        <div><Lbl>Expiry Date</Lbl><Inp t={t} type="date" value={addCert.expiryDate} onChange={e => setAddCert({ ...addCert, expiryDate: e.target.value })} /></div>
-      </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCert(null)}>Cancel</Btn><Btn t={t} onClick={async () => { if (!addCert.certName) { showToast("Name required", "error"); return; } try { await af("/api/users/" + addCert.userId + "/certifications", { method: "POST", body: addCert }); showToast("Certification added"); setAddCert(null); viewDetail(addCert.userId); } catch (e) { showToast(e.message, "error"); } }}>Add Certification</Btn></div>
-    </div></Mdl>}
   </div>);
 }
+
 
 function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [exp, setExp] = useState(null); const [sd, setSd] = useState(null); const [st, setSt] = useState([]);
