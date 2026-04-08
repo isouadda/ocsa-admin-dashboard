@@ -1065,47 +1065,476 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
 
 
 function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
-  const [exp, setExp] = useState(null); const [sd, setSd] = useState(null); const [st, setSt] = useState([]);
-  const [addSite, setAddSite] = useState(null); const [addTask, setAddTask] = useState(null); const staffList = allStaff; const [editTask, setEditTask] = useState(null);
-  const [showInactive, setShowInactive] = useState(false); const [deleteConfirm, setDeleteConfirm] = useState(null); const [deleteText, setDeleteText] = useState("");
+  const [selectedSite, setSelectedSite] = useState(null);
+  const [siteProfile, setSiteProfile] = useState(null);
+  const [siteTab, setSiteTab] = useState("general");
+  const [st, setSt] = useState([]);
+  const [addSite, setAddSite] = useState(null);
+  const [addTask, setAddTask] = useState(null);
+  const [editTask, setEditTask] = useState(null);
+  const [editSite, setEditSite] = useState(null);
+  const [showInactive, setShowInactive] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleteText, setDeleteText] = useState("");
+  const [timeline, setTimeline] = useState([]);
+  const [tlTotal, setTlTotal] = useState(0);
+  const [tlCat, setTlCat] = useState("all");
+  const [tlDateRange, setTlDateRange] = useState({ start: "", end: "" });
+  const [tlLoading, setTlLoading] = useState(false);
+  const [tlOffset, setTlOffset] = useState(0);
+  const [floorPlanLabel, setFloorPlanLabel] = useState("Floor Plan");
   const cimsLabels = lkMap("cims_categories");
+  const staffList = allStaff;
   const load = () => loadSites();
-  const expand = async id => { if (exp === id) { setExp(null); return; } setExp(id); try { const d = await af("/api/sites/" + id); setSd(d); const tt = await af("/api/sites/" + id + "/tasks"); setSt(tt); } catch (e) { showToast(e.message, "error"); } };
-  const submitSite = async () => { if (!addSite.name || !addSite.address) { showToast("Name and address required", "error"); return; } try { await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || "Philadelphia", state: addSite.state || "PA", zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } }); showToast("Site created"); setAddSite(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  const submitTask = async () => { if (!addTask.label || !addTask.zone) { showToast("Label and zone required", "error"); return; } try { await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } }); showToast("Task created"); setAddTask(null); expand(addTask.siteId); } catch (e) { showToast(e.message, "error"); } };
-  const submitEditTask = async () => { try { await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } }); showToast("Task updated"); setEditTask(null); expand(editTask.siteId); } catch (e) { showToast(e.message, "error"); } };
-  const delTask = async (sid, tid) => { try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast("Removed"); expand(sid); } catch (e) { showToast(e.message, "error"); } };
-  const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast("Site deactivated"); setExp(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  const deleteSite = async (id) => { try { await af("/api/sites/" + id, { method: "DELETE" }); showToast("Site permanently deleted"); setDeleteConfirm(null); setDeleteText(""); load(); } catch (e) { showToast(e.message, "error"); } };
+
+  const openProfile = async (siteId) => {
+    setSelectedSite(siteId);
+    setSiteTab("general");
+    setTimeline([]);
+    setTlOffset(0);
+    setTlCat("all");
+    try {
+      const p = await af("/api/sites/profile/" + siteId);
+      setSiteProfile(p);
+      const tasks = await af("/api/sites/" + siteId + "/tasks");
+      setSt(tasks);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const closeProfile = () => { setSelectedSite(null); setSiteProfile(null); setSt([]); };
+
+  const loadTimeline = async (cat, offset, append) => {
+    if (!selectedSite) return;
+    setTlLoading(true);
+    try {
+      let url = "/api/sites/timeline/" + selectedSite + "?limit=100&offset=" + offset;
+      if (cat && cat !== "all") url += "&category=" + cat;
+      if (tlDateRange.start) url += "&startDate=" + tlDateRange.start;
+      if (tlDateRange.end) url += "&endDate=" + tlDateRange.end;
+      const d = await af(url);
+      setTimeline(append ? prev => [...prev, ...d.entries] : d.entries);
+      setTlTotal(d.total);
+    } catch (e) { console.warn("Timeline load error:", e); }
+    setTlLoading(false);
+  };
+
+  useEffect(() => { if (siteTab === "timeline" && selectedSite) { setTlOffset(0); loadTimeline(tlCat, 0, false); } }, [siteTab, tlCat, tlDateRange, selectedSite]);
+
+  const loadMoreTl = () => { const next = tlOffset + 100; setTlOffset(next); loadTimeline(tlCat, next, true); };
+
+  const refreshProfile = async () => { if (selectedSite) { try { const p = await af("/api/sites/profile/" + selectedSite); setSiteProfile(p); } catch (e) { console.warn(e); } } };
+
+  const saveSiteField = async (fieldMap) => {
+    try {
+      await af("/api/sites/" + selectedSite, { method: "PATCH", body: fieldMap });
+      showToast("Saved");
+      refreshProfile();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitSite = async () => {
+    if (!addSite.name || !addSite.address) { showToast("Name and address required", "error"); return; }
+    try {
+      await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || "Philadelphia", state: addSite.state || "PA", zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } });
+      showToast("Site created"); setAddSite(null); load();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitTask = async () => {
+    if (!addTask.label || !addTask.zone) { showToast("Label and zone required", "error"); return; }
+    try {
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } });
+      showToast("Task created"); setAddTask(null);
+      const tasks = await af("/api/sites/" + selectedSite + "/tasks"); setSt(tasks);
+      refreshProfile();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const submitEditTask = async () => {
+    try {
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } });
+      showToast("Task updated"); setEditTask(null);
+      const tasks = await af("/api/sites/" + selectedSite + "/tasks"); setSt(tasks);
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const delTask = async (sid, tid) => {
+    try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast("Removed"); const tasks = await af("/api/sites/" + sid + "/tasks"); setSt(tasks); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast("Site deactivated"); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
+
+  const deleteSite = async (id) => { try { await af("/api/sites/" + id, { method: "DELETE" }); showToast("Site permanently deleted"); setDeleteConfirm(null); setDeleteText(""); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
+
+  const uploadFloorPlan = async (file) => {
+    if (!file || !selectedSite) return;
+    if (file.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; }
+    try {
+      showToast("Uploading...");
+      const r = await uf(file, "site-floor-plans");
+      await af("/api/sites/" + selectedSite + "/floor-plans", { method: "POST", body: { label: floorPlanLabel || "Floor Plan", fileUrl: r.url } });
+      showToast("Floor plan uploaded");
+      setFloorPlanLabel("Floor Plan");
+      refreshProfile();
+    } catch (e) { showToast("Upload failed: " + e.message, "error"); }
+  };
+
+  const deleteFloorPlan = async (planId) => {
+    if (!window.confirm("Remove this floor plan?")) return;
+    try { await af("/api/sites/" + selectedSite + "/floor-plans/" + planId, { method: "DELETE" }); showToast("Floor plan removed"); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
+  };
+
   const visibleSites = showInactive ? sites : sites.filter(s => s.status === "active");
   const inactiveCount = sites.filter(s => s.status !== "active").length;
-  return (<div>
-    <SecT t={t} action={isAdmin ? "Add Site" : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>Sites and Tasks</SecT>
-    {isAdmin && inactiveCount > 0 && <div style={{ marginBottom: 12 }}><button onClick={() => setShowInactive(!showInactive)} style={{ padding: "5px 12px", borderRadius: 6, background: showInactive ? t.goldBg : "transparent", color: showInactive ? GO : t.textMut, fontSize: 11, fontWeight: 500, cursor: "pointer", border: showInactive ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{showInactive ? "Hide" : "Show"} inactive ({inactiveCount})</button></div>}
-    {visibleSites.map(site => { const isO = exp === site.id; return <Crd key={site.id} t={t} style={{ marginBottom: 12, padding: 0 }}>
-      <button onClick={() => expand(site.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", color: t.text, cursor: "pointer", textAlign: "left" }}>
-        <MpI sz={20} c={GO} /><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{site.name}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{site.address_line1}</div><div style={{ display: "flex", gap: 10, marginTop: 4, fontSize: 10, color: t.textMut }}>{site.staff_count != null && <span>{site.staff_count} staff</span>}{site.task_count != null && <span>{site.task_count} tasks</span>}</div></div>
-        <Bdg l={site.status} c={GR} /><Ic d={isO ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} sz={16} c={t.textMut} />
+
+  const tlCats = [
+    { k: "all", l: "All" }, { k: "clock", l: "Clock" }, { k: "tasks", l: "Tasks" }, { k: "inspections", l: "Inspections" },
+    { k: "issues", l: "Issues" }, { k: "schedule", l: "Schedule" }, { k: "marketplace", l: "Marketplace" },
+    { k: "supplies", l: "Supplies" }, { k: "staff", l: "Staff" }, { k: "site", l: "Site" }
+  ];
+
+  const tlColorMap = {
+    clock: BL, tasks: GR, inspections: TL, issues: RD, schedule: OR, marketplace: GO, supplies: "#9B59B6", staff: BL, site: GO
+  };
+
+  const getTlCategory = (actionType) => {
+    if (actionType.includes("clock") || actionType.includes("manual_clock")) return "clock";
+    if (actionType.includes("task")) return "tasks";
+    if (actionType.includes("inspection")) return "inspections";
+    if (actionType.includes("issue")) return "issues";
+    if (actionType.includes("shift_created") || actionType.includes("shift_updated") || actionType.includes("shift_deleted") || actionType.includes("bulk_shifts")) return "schedule";
+    if (actionType.includes("drop_") || actionType.includes("claimed") || actionType.includes("released") || actionType.includes("pickup_") || actionType.includes("converted")) return "marketplace";
+    if (actionType.includes("supply")) return "supplies";
+    if (actionType.includes("site_assigned") || actionType.includes("site_unassigned")) return "staff";
+    if (actionType.includes("site_")) return "site";
+    return "site";
+  };
+
+  // ---- PROFILE VIEW ----
+  if (selectedSite && siteProfile) {
+    const sp = siteProfile;
+    const s = sp.site;
+    const tabs = [
+      { k: "general", l: "General Info" }, { k: "tasks", l: "Service Details" },
+      { k: "shifts", l: "Shifts & Schedule" }, { k: "supplies", l: "Supplies" },
+      { k: "scope", l: "Scope of Work" }, { k: "timeline", l: "Timeline" }
+    ];
+
+    return (<div>
+      <button onClick={closeProfile} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", background: "none", border: "none", color: GO, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+        <Ic d="M19 12H5M12 19l-7-7 7-7" sz={16} c={GO} /> Back to Sites
       </button>
-      {isO && sd && <div style={{ padding: "0 16px 16px", borderTop: "1px solid " + t.border }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, padding: "12px 0", borderBottom: "1px solid " + t.border, marginBottom: 12 }}>
-          <div style={{ fontSize: 10, color: t.textMut }}>Contract<div style={{ color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{sd.site.contract_type || "N/A"}</div></div>
-          <div style={{ fontSize: 10, color: t.textMut }}>Prime<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sd.site.prime_contractor || "N/A"}</div></div>
-          <div style={{ fontSize: 10, color: t.textMut }}>Client<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sd.site.client_name || "N/A"}</div></div>
+
+      <Crd t={t} style={{ marginBottom: 16, padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+              <MpI sz={24} c={GO} />
+              <div style={{ fontSize: 20, fontWeight: 700, color: t.text }}>{s.name}</div>
+              <Bdg l={s.status} c={s.status === "active" ? GR : OR} />
+            </div>
+            <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
+          </div>
+          {isAdmin && <div style={{ display: "flex", gap: 6 }}>
+            {s.status === "active" && <button onClick={() => { if (window.confirm("Deactivate this site?")) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>Deactivate</button>}
+            {s.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + s.id, { method: "PATCH", body: { status: "active" } }); showToast("Site reactivated"); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>Reactivate</button>}
+            <button onClick={() => { setDeleteConfirm(s); setDeleteText(""); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>Delete</button>
+          </div>}
         </div>
-        {sd.zones?.length > 0 && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Zones</div><div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>{sd.zones.map(z => <span key={z} style={{ padding: "3px 8px", borderRadius: 4, background: t.cardAlt, border: "1px solid " + t.border, fontSize: 10, color: t.textSec }}>{z}</span>)}</div></div>}
-        {sd.staff?.length > 0 && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Staff</div>{sd.staff.map((s, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><Ini name={s.first_name + " " + s.last_name} sz={24} /><span style={{ fontSize: 12, color: t.text }}>{s.first_name} {s.last_name}</span></div><span style={{ fontSize: 10, color: t.textMut }}>{s.role_at_site || (lkMap("staff_roles")[s.role] || RL[s.role])}</span></div>)}</div>}
-        <div style={{ marginBottom: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Tasks ({st.length})</div><button onClick={() => setAddTask({ siteId: site.id, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button></div>
-          {st.map((tk, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: t.hover, borderRadius: 4, marginBottom: 2 }}><div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: site.id, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}><div style={{ fontSize: 11, display: "flex", alignItems: "center", gap: 4, color: t.text }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL, flexShrink: 0 }} title="Has details" />}{tk.task_type === "assigned" && <Bdg l="assigned" c={BL} />}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? "Fl " + tk.floor_number + " | " : ""}{tk.zone} | {cimsLabels[tk.cims_category] || CIMS_LABELS[tk.cims_category] || tk.cims_category} | {tk.priority}{tk.due_date ? " | Due: " + fd(tk.due_date) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}><button onClick={() => setEditTask({ id: tk.id, siteId: site.id, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button><button onClick={() => delTask(site.id, tk.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Remove</button></div></div>)}
-          {st.length === 0 && <div style={{ fontSize: 11, color: t.textMut }}>No tasks</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 20, fontWeight: 700, color: GO }}>{sp.staff.length}</div><div style={{ fontSize: 10, color: t.textMut }}>Staff</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 20, fontWeight: 700, color: BL }}>{sp.taskCount}</div><div style={{ fontSize: 10, color: t.textMut }}>Tasks</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 20, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score (30d)</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 20, fontWeight: 700, color: RD }}>{parseInt(sp.issueSummary?.open_count || 0) + parseInt(sp.issueSummary?.in_progress_count || 0)}</div><div style={{ fontSize: 10, color: t.textMut }}>Open Issues</div></div>
         </div>
-        {isAdmin && <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          {site.status === "active" && <button onClick={() => { if (window.confirm("Deactivate this site? Staff will no longer see it.")) deactivateSite(site.id); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>Deactivate</button>}
-          {site.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + site.id, { method: "PATCH", body: { status: "active" } }); showToast("Site reactivated"); setExp(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>Reactivate</button>}
-          <button onClick={() => { setDeleteConfirm(site); setDeleteText(""); }} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>Permanently Delete</button>
-        </div>}
+      </Crd>
+
+      <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
+        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} style={{ padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? GO : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
+      </div>
+
+      {/* GENERAL INFO TAB */}
+      {siteTab === "general" && <div>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Contract Details</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Type</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.contract_type || "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Prime Contractor</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.prime_contractor || "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Client</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_name || "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Monthly Value</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString() : "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Billing</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.billing_frequency || "monthly"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Dates</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fd(s.contract_start_date) : "N/A"} {s.contract_end_date ? " to " + fd(s.contract_end_date) : ""}</div></div>
+          </div>
+          {isAdmin && <button onClick={() => setEditSite({
+            clientName: s.client_name || "", contractType: s.contract_type || "", primeContractor: s.prime_contractor || "",
+            contractValueMonthly: s.contract_value_monthly || "", billingFrequency: s.billing_frequency || "monthly",
+            contractStartDate: s.contract_start_date ? (typeof s.contract_start_date === "object" ? s.contract_start_date.toISOString().split("T")[0] : String(s.contract_start_date).split("T")[0]) : "",
+            contractEndDate: s.contract_end_date ? (typeof s.contract_end_date === "object" ? s.contract_end_date.toISOString().split("T")[0] : String(s.contract_end_date).split("T")[0]) : "",
+            clientContactName: s.client_contact_name || "", clientContactEmail: s.client_contact_email || "", clientContactPhone: s.client_contact_phone || "",
+            siteNotes: s.site_notes || "",
+            addressLine1: s.address_line1 || "", addressLine2: s.address_line2 || "", city: s.city || "", state: s.state || "", zipCode: s.zip_code || "",
+            name: s.name || ""
+          })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Edit Details</button>}
+        </Crd>
+
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Client Contact</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Name</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_contact_name || "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Email</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_contact_email || "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Phone</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_contact_phone || "N/A"}</div></div>
+          </div>
+        </Crd>
+
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Assigned Staff ({sp.staff.length})</div>
+          {sp.staff.map((st2, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {st2.profile_photo_url ? <img src={st2.profile_photo_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : <Ini name={st2.first_name + " " + st2.last_name} sz={32} />}
+              <div><div style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{st2.first_name} {st2.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{st2.role_at_site || (lkMap("staff_roles")[st2.role] || RL[st2.role])}</div></div>
+            </div>
+            {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
+          </div>)}
+          {sp.staff.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No staff assigned</div>}
+        </Crd>
+
+        {sp.zones.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Zones</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{sp.zones.map(z => <span key={z} style={{ padding: "4px 10px", borderRadius: 6, background: t.cardAlt, border: "1px solid " + t.border, fontSize: 11, color: t.textSec }}>{z}</span>)}</div>
+        </Crd>}
+
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Floor Plans ({sp.floorPlans.length})</div>
+          </div>
+          {sp.floorPlans.map(fp => <div key={fp.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" sz={16} c={BL} />
+              <div><div style={{ fontSize: 12, color: t.text }}>{fp.label}</div><div style={{ fontSize: 10, color: t.textMut }}>{fd(fp.uploaded_at)}</div></div>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>View</a>
+              {isAdmin && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>Remove</button>}
+            </div>
+          </div>)}
+          {isAdmin && <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <Inp t={t} value={floorPlanLabel} onChange={e => setFloorPlanLabel(e.target.value)} placeholder="Label" style={{ width: 160, fontSize: 11 }} />
+            <input type="file" accept="image/*,.pdf" onChange={e => { if (e.target.files?.[0]) uploadFloorPlan(e.target.files[0]); }} style={{ fontSize: 11, color: t.textSec }} />
+          </div>}
+        </Crd>
+
+        {s.site_notes && <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 8 }}>Notes</div>
+          <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{s.site_notes}</div>
+        </Crd>}
       </div>}
-    </Crd>; })}
+
+      {/* SERVICE DETAILS TAB (Tasks) */}
+      {siteTab === "tasks" && <div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>Tasks ({st.length})</div>
+          <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={GO} /> Add Task</button>
+        </div>
+        {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}>
+              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title="Has details" />}{tk.task_type === "assigned" && <Bdg l="assigned" c={BL} />}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? "Fl " + tk.floor_number + " | " : ""}{tk.zone} | {cimsLabels[tk.cims_category] || CIMS_LABELS[tk.cims_category] || tk.cims_category} | {tk.priority}{tk.due_date ? " | Due: " + fd(tk.due_date) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+            </div>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 9, cursor: "pointer" }}>Edit</button>
+              <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button>
+            </div>
+          </div>
+        </Crd>)}
+        {st.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>No tasks configured for this site</div>}
+      </div>}
+
+      {/* SHIFTS & SCHEDULE TAB */}
+      {siteTab === "shifts" && <div>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Marketplace Coverage (Last 30 Days)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 18, fontWeight: 700, color: GO }}>{sp.marketplaceSummary?.total_pickups || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Total Pickups</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 18, fontWeight: 700, color: GR }}>{sp.marketplaceSummary?.worked || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Worked</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 18, fontWeight: 700, color: OR }}>{sp.marketplaceSummary?.pending || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Pending</div></div>
+          </div>
+        </Crd>
+
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Inspections (Last 30 Days)</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 18, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.total || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Inspections</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 18, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{sp.inspectionSummary?.last_inspection ? fd(sp.inspectionSummary.last_inspection) : "None"}</div><div style={{ fontSize: 10, color: t.textMut }}>Last Inspection</div></div>
+          </div>
+        </Crd>
+
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Upcoming Shifts (Next 7 Days)</div>
+          {sp.upcomingShifts.length > 0 ? sp.upcomingShifts.map((sh, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
+            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.shift_date ? fd(sh.shift_date) : ""}</div></div>
+            <div style={{ fontSize: 11, color: t.textSec }}>{sh.start_time || ""} {sh.end_time ? " - " + sh.end_time : ""}</div>
+          </div>) : <div style={{ fontSize: 12, color: t.textMut }}>No upcoming shifts</div>}
+        </Crd>
+      </div>}
+
+      {/* SUPPLIES TAB */}
+      {siteTab === "supplies" && <div>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Supplies at This Site ({sp.supplies.length})</div>
+          {sp.supplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
+            <div>
+              <div style={{ fontSize: 12, color: t.text, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>{sup.name}{sup.is_green_certified && <Bdg l="Green" c={GR} />}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{sup.category} | {sup.unit}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.min_stock ? RD : t.text }}>{sup.current_stock}</div>
+              <div style={{ fontSize: 9, color: t.textMut }}>Min: {sup.min_stock}</div>
+            </div>
+          </div>)}
+          {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supplies assigned to this site</div>}
+        </Crd>
+      </div>}
+
+      {/* SCOPE OF WORK TAB */}
+      {siteTab === "scope" && <div>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Scope of Work</div>
+          {s.scope_of_work ? <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{s.scope_of_work}</div> : <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>No scope of work documented yet.</div>}
+          {isAdmin && <div style={{ marginTop: 12 }}>
+            <TArea t={t} rows={10} defaultValue={s.scope_of_work || ""} id="scopeEdit" placeholder="Document the scope of work for this site..." />
+            <Btn t={t} style={{ marginTop: 8 }} onClick={() => { const v = document.getElementById("scopeEdit").value; saveSiteField({ scopeOfWork: v }); }}>Save Scope</Btn>
+          </div>}
+        </Crd>
+      </div>}
+
+      {/* TIMELINE TAB */}
+      {siteTab === "timeline" && <div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); setTlOffset(0); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? GO : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          <Inp t={t} type="date" value={tlDateRange.start} onChange={e => setTlDateRange(prev => ({ ...prev, start: e.target.value }))} style={{ width: 140, fontSize: 11 }} />
+          <Inp t={t} type="date" value={tlDateRange.end} onChange={e => setTlDateRange(prev => ({ ...prev, end: e.target.value }))} style={{ width: 140, fontSize: 11 }} />
+          {(tlDateRange.start || tlDateRange.end) && <button onClick={() => setTlDateRange({ start: "", end: "" })} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}>Clear</button>}
+        </div>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tlTotal} entries</div>
+        {tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>Loading...</div>}
+        {(() => {
+          const grouped = {};
+          timeline.forEach(e => {
+            const day = new Date(e.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+            if (!grouped[day]) grouped[day] = [];
+            grouped[day].push(e);
+          });
+          return Object.entries(grouped).map(([day, entries]) => <div key={day} style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.textMut, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>{day}</div>
+            {entries.map(e => {
+              const cat = getTlCategory(e.actionType);
+              const dotColor = tlColorMap[cat] || t.textMut;
+              return <div key={e.id} style={{ display: "flex", gap: 10, marginBottom: 4, paddingLeft: 8, borderLeft: "2px solid " + t.border }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, marginTop: 5, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: t.text }}>{e.description}</div>
+                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{new Date(e.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })} | {e.actorName}</div>
+                </div>
+              </div>;
+            })}
+          </div>);
+        })()}
+        {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? "Loading..." : "Load More"}</button>}
+        {!tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>No activity recorded for this site</div>}
+      </div>}
+
+      {/* EDIT SITE MODAL */}
+      {editSite && <Mdl t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Site Details</div><button onClick={() => setEditSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Site Name</Lbl><Inp t={t} value={editSite.name} onChange={e => setEditSite({ ...editSite, name: e.target.value })} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Address</Lbl><Inp t={t} value={editSite.addressLine1} onChange={e => setEditSite({ ...editSite, addressLine1: e.target.value })} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>City</Lbl><Inp t={t} value={editSite.city} onChange={e => setEditSite({ ...editSite, city: e.target.value })} /></div><div><Lbl>State</Lbl><Inp t={t} value={editSite.state} onChange={e => setEditSite({ ...editSite, state: e.target.value })} /></div><div><Lbl>Zip</Lbl><Inp t={t} value={editSite.zipCode} onChange={e => setEditSite({ ...editSite, zipCode: e.target.value })} /></div></div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: GO, marginBottom: 8, marginTop: 4 }}>Contract</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Contract Type</Lbl><Sel t={t} value={editSite.contractType} onChange={e => setEditSite({ ...editSite, contractType: e.target.value })} options={getOpts("contract_types")} /></div><div><Lbl>Prime Contractor</Lbl><Inp t={t} value={editSite.primeContractor} onChange={e => setEditSite({ ...editSite, primeContractor: e.target.value })} /></div></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Client Name</Lbl><Inp t={t} value={editSite.clientName} onChange={e => setEditSite({ ...editSite, clientName: e.target.value })} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Monthly Value ($)</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div><div><Lbl>Billing</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: "Monthly" }, { v: "weekly", l: "Weekly" }, { v: "biweekly", l: "Bi-Weekly" }, { v: "quarterly", l: "Quarterly" }, { v: "annual", l: "Annual" }]} /></div><div><Lbl>Start Date</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }}><div><Lbl>End Date</Lbl><Inp t={t} type="date" value={editSite.contractEndDate} onChange={e => setEditSite({ ...editSite, contractEndDate: e.target.value })} /></div></div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: GO, marginBottom: 8, marginTop: 4 }}>Client Contact</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Contact Name</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>Email</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>Phone</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
+        <div style={{ marginBottom: 16 }}><Lbl>Site Notes</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSite(null)}>Cancel</Btn><Btn t={t} onClick={async () => {
+          try {
+            await af("/api/sites/" + selectedSite, { method: "PATCH", body: editSite });
+            showToast("Site updated"); setEditSite(null); refreshProfile(); load();
+          } catch (e) { showToast(e.message, "error"); }
+        }}>Save</Btn></div>
+      </div></Mdl>}
+
+      {/* ADD TASK MODAL */}
+      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Task</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Description *</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder="e.g. Vacuum carpets" /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone *</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Restrooms" /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions (optional)</Lbl><TArea t={t} value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes for the cleaner..." rows={3} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
+          <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
+          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
+        <div style={{ marginBottom: 16 }}><Lbl>Assign To</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: "Select (optional)" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>Cancel</Btn><Btn t={t} onClick={submitTask}>Create</Btn></div></div></Mdl>}
+
+      {/* EDIT TASK MODAL */}
+      {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Task Name</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
+          <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
+          <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
+        </div>
+        {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>YouTube link attached</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt="Task reference" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>Cancel</Btn><Btn t={t} onClick={submitEditTask}>Save Changes</Btn></div>
+      </div></Mdl>}
+
+      {/* DELETE SITE MODAL */}
+      {deleteConfirm && <Mdl t={t} onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: RD, marginBottom: 12 }}>Permanently Delete Site</div>
+        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>This will permanently remove <span style={{ fontWeight: 700, color: t.text }}>{deleteConfirm.name}</span> and all associated tasks, assignments, and data. This action cannot be undone.</div>
+        <div style={{ padding: "10px 12px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14 }}>Type <span style={{ fontWeight: 700 }}>DELETE</span> to confirm.</div>
+        <div style={{ marginBottom: 16 }}><Inp t={t} value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="Type DELETE here" style={{ textTransform: "uppercase", textAlign: "center", fontSize: 16, letterSpacing: "4px", border: deleteText === "DELETE" ? "1px solid " + RD : "1px solid " + t.inputBorder }} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <Btn t={t} v="ghost" onClick={() => { setDeleteConfirm(null); setDeleteText(""); }}>Cancel</Btn>
+          <Btn t={t} v="danger" onClick={() => { if (deleteText === "DELETE") deleteSite(deleteConfirm.id); else showToast("Type DELETE to confirm", "error"); }}>Delete Permanently</Btn>
+        </div>
+      </div></Mdl>}
+    </div>);
+  }
+
+  // ---- LIST VIEW ----
+  return (<div>
+    <SecT t={t} action={isAdmin ? "Add Site" : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>Sites</SecT>
+    {isAdmin && inactiveCount > 0 && <div style={{ marginBottom: 12 }}><button onClick={() => setShowInactive(!showInactive)} style={{ padding: "5px 12px", borderRadius: 6, background: showInactive ? t.goldBg : "transparent", color: showInactive ? GO : t.textMut, fontSize: 11, fontWeight: 500, cursor: "pointer", border: showInactive ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{showInactive ? "Hide" : "Show"} inactive ({inactiveCount})</button></div>}
+    {visibleSites.map(site => <Crd key={site.id} t={t} style={{ marginBottom: 8, padding: 0, cursor: "pointer" }} onClick={() => openProfile(site.id)}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 16px" }}>
+        <MpI sz={20} c={GO} />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{site.name}</div>
+          <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{site.address_line1}</div>
+          <div style={{ display: "flex", gap: 10, marginTop: 4, fontSize: 10, color: t.textMut }}>
+            {site.staff_count != null && <span>{site.staff_count} staff</span>}
+            {site.task_count != null && <span>{site.task_count} tasks</span>}
+            {site.contract_type && <span style={{ textTransform: "capitalize" }}>{site.contract_type}</span>}
+          </div>
+        </div>
+        <Bdg l={site.status} c={site.status === "active" ? GR : OR} />
+        <Ic d="M9 18l6-6-6-6" sz={16} c={t.textMut} />
+      </div>
+    </Crd>)}
+    {visibleSites.length === 0 && <div style={{ textAlign: "center", padding: 30, color: t.textMut, fontSize: 13 }}>No sites found</div>}
+
     {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Site</div><button onClick={() => setAddSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={addSite.name} onChange={e => setAddSite({ ...addSite, name: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Address *</Lbl><Inp t={t} value={addSite.address} onChange={e => setAddSite({ ...addSite, address: e.target.value })} /></div>
@@ -1113,44 +1542,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       <div style={{ marginBottom: 12 }}><Lbl>Client</Lbl><Inp t={t} value={addSite.client} onChange={e => setAddSite({ ...addSite, client: e.target.value })} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Contract Type</Lbl><Sel t={t} value={addSite.contract} onChange={e => setAddSite({ ...addSite, contract: e.target.value })} options={getOpts("contract_types")} /></div><div><Lbl>Prime Contractor</Lbl><Inp t={t} value={addSite.prime} onChange={e => setAddSite({ ...addSite, prime: e.target.value })} /></div></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSite(null)}>Cancel</Btn><Btn t={t} onClick={submitSite}>Create</Btn></div></div></Mdl>}
-    {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Task</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Description *</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder="e.g. Vacuum carpets" /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone *</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Restrooms" /></div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions (optional)</Lbl><TArea t={t} value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes for the cleaner..." rows={3} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
-        <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
-      <div style={{ marginBottom: 16 }}><Lbl>Assign To</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: "Select (optional)" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>Cancel</Btn><Btn t={t} onClick={submitTask}>Create</Btn></div></div></Mdl>}
-    {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Task Name</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
-        <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
-      </div>
-      {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>YouTube link attached</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt="Task reference" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>Cancel</Btn><Btn t={t} onClick={submitEditTask}>Save Changes</Btn></div>
-    </div></Mdl>}
-    {deleteConfirm && <Mdl t={t} onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
-      <div style={{ fontSize: 16, fontWeight: 700, color: RD, marginBottom: 12 }}>Permanently Delete Site</div>
-      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>This will permanently remove <span style={{ fontWeight: 700, color: t.text }}>{deleteConfirm.name}</span> and all associated tasks, assignments, and data. This action cannot be undone.</div>
-      <div style={{ padding: "10px 12px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14 }}>Type <span style={{ fontWeight: 700 }}>DELETE</span> to confirm.</div>
-      <div style={{ marginBottom: 16 }}><Inp t={t} value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="Type DELETE here" style={{ textTransform: "uppercase", textAlign: "center", fontSize: 16, letterSpacing: "4px", border: deleteText === "DELETE" ? "1px solid " + RD : "1px solid " + t.inputBorder }} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <Btn t={t} v="ghost" onClick={() => { setDeleteConfirm(null); setDeleteText(""); }}>Cancel</Btn>
-        <Btn t={t} v="danger" onClick={() => { if (deleteText === "DELETE") deleteSite(deleteConfirm.id); else showToast("Type DELETE to confirm", "error"); }}>Delete Permanently</Btn>
-      </div>
-    </div></Mdl>}
   </div>);
 }
+
 
 function OpsPage({ af, t, allStaff }) {
   const [active, setActive] = useState([]); const all = allStaff;
