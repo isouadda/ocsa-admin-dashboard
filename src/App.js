@@ -479,6 +479,10 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
+  // Timeline state (Session 18)
+  const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
+  const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
+  const [tlStartDate, setTlStartDate] = useState(""); const [tlEndDate, setTlEndDate] = useState("");
 
   const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
   useEffect(() => { load(); }, []);
@@ -491,7 +495,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
   const openProfile = async (id) => {
     try {
       const d = await af("/api/users/profile/" + id);
-      setProfile(d); setProfileTab("info"); setProfileEdit(null);
+      setProfile(d); setProfileTab("info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate("");
     } catch (e) { showToast(e.message, "error"); }
   };
   const closeProfile = () => { setProfile(null); setProfileEdit(null); };
@@ -510,6 +514,89 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
     setHrLoading(false);
   };
   useEffect(() => { if (profile && profileTab === "hr") loadHrData(profile.user.id); }, [profileTab, profile?.user?.id]);
+
+  // Timeline loader (Session 18)
+  const loadTimeline = async (userId, cat, sd, ed) => {
+    setTlLoading(true);
+    try {
+      let url = "/api/users/timeline/" + userId + "?limit=200";
+      if (cat && cat !== "all") url += "&category=" + cat;
+      if (sd) url += "&startDate=" + sd;
+      if (ed) url += "&endDate=" + ed;
+      const d = await af(url);
+      setTimeline(d.entries || []); setTlTotal(d.total || 0);
+    } catch (e) { showToast(e.message, "error"); setTimeline([]); }
+    setTlLoading(false);
+  };
+  useEffect(() => { if (profile && profileTab === "timeline") loadTimeline(profile.user.id, tlCategory, tlStartDate, tlEndDate); }, [profileTab, profile?.user?.id, tlCategory, tlStartDate, tlEndDate]);
+
+  // CSV export for timeline (Session 18)
+  const exportTimelineCsv = () => {
+    if (timeline.length === 0) { showToast("No data to export", "error"); return; }
+    const u = profile.user;
+    const rows = [["Date", "Time", "Action", "Description", "Performed By"]];
+    timeline.forEach(e => {
+      const dt = new Date(e.createdAt);
+      rows.push([dt.toLocaleDateString(), dt.toLocaleTimeString(), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
+    });
+    const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+    a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
+    a.click(); URL.revokeObjectURL(a.href);
+    showToast("CSV exported");
+  };
+
+  // Print report for employee profile (Session 18)
+  const printProfileReport = () => {
+    const u = profile.user;
+    const fullName = u.firstName + " " + u.lastName;
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + fullName + ' - Employee Report</title><style>';
+    html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
+    html += '.header{background:#0A1628;color:#F8F7F4;padding:24px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:18px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:24px 32px}.section{margin-bottom:20px}.section-title{font-size:11px;color:#C8A84E;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
+    html += '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{margin-bottom:6px}.field .label{font-size:9px;color:#888;text-transform:uppercase}.field .value{font-size:12px;font-weight:500;margin-top:2px}';
+    html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
+    html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
+    html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
+    html += '<div class="header"><div><h1>' + fullName + '</h1><div class="sub">Employee Report | Generated ' + new Date().toLocaleDateString() + '</div></div><div style="text-align:right"><div style="font-size:16px;font-weight:700;color:#C8A84E;font-family:serif">OCSA</div><div style="font-size:8px;color:#8899AA;letter-spacing:2px;text-transform:uppercase">Cleaning Inc.</div></div></div>';
+    html += '<div class="content">';
+    // Profile info section
+    html += '<div class="section"><div class="section-title">Employee Information</div><div class="grid">';
+    html += '<div class="field"><div class="label">Role</div><div class="value">' + (u.role || "N/A") + '</div></div>';
+    html += '<div class="field"><div class="label">Status</div><div class="value">' + (u.status || "N/A") + '</div></div>';
+    html += '<div class="field"><div class="label">Hire Date</div><div class="value">' + (u.hireDate ? fmtDate(u.hireDate) : "N/A") + '</div></div>';
+    html += '<div class="field"><div class="label">Phone</div><div class="value">' + (u.phone || "N/A") + '</div></div>';
+    html += '<div class="field"><div class="label">Email</div><div class="value">' + (u.email || "N/A") + '</div></div>';
+    html += '<div class="field"><div class="label">Hourly Rate</div><div class="value">' + (u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : "N/A") + '</div></div>';
+    html += '</div></div>';
+    // Assignments
+    const activeAssign = (profile.assignments || []).filter(a => a.is_active);
+    if (activeAssign.length > 0) {
+      html += '<div class="section"><div class="section-title">Site Assignments (' + activeAssign.length + ')</div><table><tr><th>Site</th><th>Role</th><th>Shift</th><th>Hours</th></tr>';
+      activeAssign.forEach(a => { html += '<tr><td>' + (a.site_name || "") + '</td><td>' + (a.role_at_site || "") + '</td><td>' + (a.shift_name || "") + '</td><td>' + (a.shift_start ? a.shift_start + " - " + a.shift_end : "") + '</td></tr>'; });
+      html += '</table></div>';
+    }
+    // Certifications
+    const certs = profile.certifications || [];
+    if (certs.length > 0) {
+      html += '<div class="section"><div class="section-title">Certifications (' + certs.length + ')</div><table><tr><th>Name</th><th>Type</th><th>Issuer</th><th>Expiry</th></tr>';
+      certs.forEach(c => { html += '<tr><td>' + (c.cert_name || "") + '</td><td>' + (c.cert_type || "") + '</td><td>' + (c.issuing_body || "") + '</td><td>' + (c.expiry_date ? fmtDate(c.expiry_date) : "N/A") + '</td></tr>'; });
+      html += '</table></div>';
+    }
+    // Timeline (if loaded)
+    if (timeline.length > 0) {
+      html += '<div class="section"><div class="section-title">Activity Timeline (' + timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + ')</div><table><tr><th>Date</th><th>Action</th><th>Description</th><th>By</th></tr>';
+      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+      html += '</table></div>';
+    }
+    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Employee Record</div>';
+    html += '</div></body></html>';
+    const w = window.open("", "_blank");
+    w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
+  };
 
   const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); closeProfile(); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const assignSite = async () => { if (!assignForm.siteId) { showToast("Select a site", "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast("Assigned"); setAssignForm(null); openProfile(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
@@ -551,7 +638,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
     return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
   };
 
-  const ptabs = [{ id: "info", l: "Profile" }, { id: "hr", l: "HR Files" }, { id: "assign", l: "Assignments" }, { id: "certs", l: "Certifications" }];
+  const ptabs = [{ id: "info", l: "Profile" }, { id: "hr", l: "HR Files" }, { id: "assign", l: "Assignments" }, { id: "certs", l: "Certifications" }, { id: "timeline", l: "Timeline" }];
   const fmtDate = d => { if (!d) return "Not set"; const dt = typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0]; const [y, m, dy] = dt.split("-"); const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return months[parseInt(m) - 1] + " " + parseInt(dy) + ", " + y; };
 
   // ============================================================
@@ -581,6 +668,7 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
             <div style={{ display: "flex", gap: 8, marginTop: 6 }}><Bdg l={u.status} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} /></div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>Print Report</Btn>
             <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>Reset PIN</Btn>
             {u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>Deactivate</Btn>}
             {u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>Reactivate</Btn>}
@@ -713,6 +801,54 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
             <div><div style={{ fontSize: 12, color: GR, fontWeight: 600 }}>{c.cert_name}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{c.issuing_body || ""}{c.expiry_date ? " | Exp: " + fmtDate(c.expiry_date) : ""}</div></div>
             <button onClick={async () => { if (!window.confirm("Remove this certification?")) return; try { await af("/api/users/" + u.id + "/certifications/" + c.id, { method: "DELETE" }); showToast("Removed"); openProfile(u.id); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button>
           </div>)}
+        </Crd>
+      </div>}
+
+      {/* TIMELINE TAB (Session 18) */}
+      {profileTab === "timeline" && <div>
+        <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Activity Timeline ({tlTotal} total)</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
+            </div>
+          </div>
+          {/* Category filter chips */}
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+            {[{ id: "all", l: "All" }, { id: "clock", l: "Clock" }, { id: "tasks", l: "Tasks" }, { id: "inspections", l: "Inspections" }, { id: "issues", l: "Issues" }, { id: "schedule", l: "Schedule" }, { id: "marketplace", l: "Marketplace" }, { id: "documents", l: "Documents" }, { id: "training", l: "Training" }, { id: "profile", l: "Profile" }, { id: "timesheets", l: "Timesheets" }, { id: "supplies", l: "Supplies" }].map(c => <button key={c.id} onClick={() => setTlCategory(c.id)} style={{ padding: "4px 10px", borderRadius: 12, fontSize: 10, fontWeight: tlCategory === c.id ? 700 : 500, background: tlCategory === c.id ? GO + "20" : "transparent", color: tlCategory === c.id ? GO : t.textMut, border: tlCategory === c.id ? "1px solid " + GO : "1px solid " + t.border, cursor: "pointer" }}>{c.l}</button>)}
+          </div>
+          {/* Date range filters */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
+            <div style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>Date range:</div>
+            <input type="date" value={tlStartDate} onChange={e => setTlStartDate(e.target.value)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid " + t.border, background: t.card, color: t.text, fontSize: 11 }} />
+            <div style={{ fontSize: 10, color: t.textMut }}>to</div>
+            <input type="date" value={tlEndDate} onChange={e => setTlEndDate(e.target.value)} style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid " + t.border, background: t.card, color: t.text, fontSize: 11 }} />
+            {(tlStartDate || tlEndDate) && <button onClick={() => { setTlStartDate(""); setTlEndDate(""); }} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Clear</button>}
+          </div>
+          {/* Timeline entries */}
+          {tlLoading ? <div style={{ textAlign: "center", padding: 30, color: t.textMut, fontSize: 12 }}>Loading timeline...</div> : timeline.length === 0 ? <div style={{ textAlign: "center", padding: 30, color: t.textMut, fontSize: 12 }}>No activity found for this filter.</div> : <div>
+            {timeline.map((entry, i) => {
+              const dt = new Date(entry.createdAt);
+              const prevDt = i > 0 ? new Date(timeline[i - 1].createdAt) : null;
+              const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
+              const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
+              const dotColor = catColors[entry.entityType] || t.textMut;
+              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 700, color: GO, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
+                <div style={{ display: "flex", gap: 10, padding: "6px 0", alignItems: "flex-start" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 16 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, marginTop: 3 }} />
+                    {i < timeline.length - 1 && <div style={{ width: 1, height: 24, background: t.border, marginTop: 2 }} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{entry.description || entry.actionType.replace(/_/g, " ")}</div>
+                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " by " + entry.actorName : ""}</div>
+                  </div>
+                  <div style={{ fontSize: 9, color: dotColor, background: dotColor + "15", padding: "2px 6px", borderRadius: 4, flexShrink: 0, textTransform: "capitalize" }}>{entry.entityType.replace(/_/g, " ")}</div>
+                </div>
+              </div>;
+            })}
+            {timeline.length < tlTotal && <div style={{ textAlign: "center", padding: 12 }}><button onClick={async () => { try { let url = "/api/users/timeline/" + u.id + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load More ({tlTotal - timeline.length} remaining)</button></div>}
+          </div>}
         </Crd>
       </div>}
 
