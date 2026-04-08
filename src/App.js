@@ -24,6 +24,29 @@ function dlCSV(fn, hds, rows) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = fn; a.click();
 }
 
+function compressImage(file, maxSize, quality) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        if (blob) resolve(new File([blob], "photo.jpg", { type: "image/jpeg" }));
+        else reject(new Error("Compression failed"));
+      }, "image/jpeg", quality || 0.8);
+    };
+    img.onerror = () => reject(new Error("Could not read image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 // ===== THEME SYSTEM =====
 const GO = "#C8A84E", GL = "#E8D08E", GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#3498DB", TL = "#1ABC9C";
 const CIMS_LABELS = { SD: "Service Delivery", HSE: "Health, Safety & Environment", GB: "Green Buildings", QS: "Quality System", HR: "Human Resources", MC: "Management Commitment" };
@@ -497,10 +520,11 @@ function StaffPage({ af, showToast, t, sites, allStaff, loadStaff, getOpts, lkMa
   // Photo upload
   const handlePhotoUpload = async (file, userId) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { showToast("Photo must be under 5MB", "error"); return; }
+    if (file.size > 20 * 1024 * 1024) { showToast("Photo must be under 20MB", "error"); return; }
     setPhotoUploading(true);
     try {
-      const r = await uf(file, "profile-photos");
+      const compressed = await compressImage(file, 800, 0.85);
+      const r = await uf(compressed, "profile-photos");
       await af("/api/users/profile/photo", { method: "POST", body: { userId: userId, photoUrl: r.url } });
       showToast("Photo updated");
       openProfile(userId); load(); loadStaff();
