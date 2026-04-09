@@ -3743,17 +3743,18 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
 
     {/* PICKUP DETAIL MODAL */}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{pickupDetail.isDropRequest ? "Shift Drop Request" : "Claimed Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      {pickupDetail.isDropRequest && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.</div>}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>{pickupDetail.status === "requested" ? "Shift Drop Request" : pickupDetail.status === "open" ? "Open Marketplace Shift" : pickupDetail.status === "claimed" ? "Claimed Pickup Shift" : pickupDetail.status === "approved" ? "Approved Shift" : "Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.</div>}
+      {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: GO, fontWeight: 600, marginBottom: 14 }}>This shift is open in the marketplace and available for staff to claim.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.isDropRequest ? "#F1C40F" : OR }}>{pickupDetail.isDropRequest ? "Drop Requested" : "Claimed"}</div></div>
+        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
-        {pickupDetail.isDropRequest && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
-        {!pickupDetail.isDropRequest && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
+        {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
+        {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
         <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        {!pickupDetail.isDropRequest && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
+        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
       </div>
       {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>Overtime risk: claiming this shift may push the worker past 40 weekly hours.</div>}
       {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
@@ -3764,7 +3765,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
           <Btn t={t} onClick={async () => {
             if (!pickupDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
             try {
-              if (pickupDetail.isDropRequest) {
+              if (pickupDetail.status === "requested") {
                 await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" });
               }
               await af("/api/pickups/" + pickupDetail.id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
@@ -3776,16 +3777,17 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-        {pickupDetail.isDropRequest ? (
+        {pickupDetail.status === "requested" ? (
           <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/deny-drop", { method: "POST" }); showToast("Drop request denied"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Deny Request</Btn>
         ) : (
           <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast("Shift released"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Release</Btn>
         )}
         <div style={{ display: "flex", gap: 10 }}>
           <Btn t={t} v="ghost" onClick={() => setPickupDetail(null)}>Close</Btn>
-          {pickupDetail.isDropRequest ? (
+          {pickupDetail.status === "requested" && (
             <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" }); showToast("Drop approved, shift is now open"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve Drop</Btn>
-          ) : (
+          )}
+          {pickupDetail.status === "claimed" && (
             <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>
           )}
         </div>
