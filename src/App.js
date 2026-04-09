@@ -1554,8 +1554,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{sup.category} | {sup.unit}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.min_stock ? RD : t.text }}>{sup.current_stock}</div>
-              <div style={{ fontSize: 9, color: t.textMut }}>Min: {sup.min_stock}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.low_threshold ? RD : t.text }}>{sup.current_stock}</div>
+              <div style={{ fontSize: 9, color: t.textMut }}>Min: {sup.low_threshold}</div>
             </div>
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supplies assigned to this site</div>}
