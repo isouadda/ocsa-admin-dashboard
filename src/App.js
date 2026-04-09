@@ -412,16 +412,17 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   const [stats, setStats] = useState(null); const [active, setActive] = useState([]);
   const [inspSummary, setInspSummary] = useState([]);
   const [laborDash, setLaborDash] = useState(null);
-  useEffect(() => {
-    af("/api/reports/overview").then(setStats).catch(e => showToast(e.message, "error"));
+  const loadDash = () => {
+    af("/api/reports/overview").then(setStats).catch(e => console.warn(e.message));
     af("/api/clock/active").then(setActive).catch(e => console.warn(e.message));
     af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(e => console.warn(e.message));
     af("/api/labor/dashboard").then(setLaborDash).catch(e => console.warn(e.message));
-  }, []);
+  };
+  useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
   return (<div>
     <div style={{ fontSize: 20, fontWeight: 700, marginBottom: 4, color: t.text }}>Welcome back, {user?.firstName || "Admin"}</div>
-    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 20 }}>Operations overview.</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>Operations overview.</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> Refresh</button></div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 20 }}>
       <SC t={t} label="On Site" value={stats.clockedInNow} sub={"of " + stats.activeStaff + " active"} color={GR} icon={CkI} />
       <SC t={t} label="Open Issues" value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
@@ -1833,9 +1834,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
 function OpsPage({ af, t, allStaff }) {
   const [active, setActive] = useState([]); const all = allStaff;
-  useEffect(() => { af("/api/clock/active").then(setActive).catch(e => console.warn("Load active:", e.message)); }, []);
+  const loadOps = () => { af("/api/clock/active").then(setActive).catch(e => console.warn("Load active:", e.message)); };
+  useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, []);
   const onIds = new Set(active.map(a => a.userId)); const off = all.filter(s => !onIds.has(s.id));
-  return (<div><SecT t={t}>Live Operations</SecT>
+  return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Live Operations</SecT>
     <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>On Site ({active.length})</div>
     {active.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>No staff on site.</div></Crd>}
     {active.map(s => { const h = Math.floor(s.elapsedMinutes / 60), m = s.elapsedMinutes % 60, pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return <Crd key={s.shiftId} t={t} style={{ marginBottom: 8, padding: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><Ini name={s.name} sz={40} color={GR} /><div style={{ flex: 1 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><Bdg l="On Site" c={GR} /></div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{s.siteName}</div><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}><span style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{h}h {m}m</span><div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{pct}%</span></div></div></div></div></Crd>; })}
@@ -3382,7 +3384,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     loadCalendar();
   }, []);
   useEffect(() => { if (sites.length > 0) sites.forEach(site => loadSiteLocations(site.id)); }, [sites]);
-  useEffect(() => { loadCalendar(); }, [dateRange, filterSite]);
+  useEffect(() => { loadCalendar(); const iv = setInterval(() => loadCalendar(), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
 
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
   const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
@@ -3544,7 +3546,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
 
   return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-      <SecT t={t}>Schedule</SecT>
+      <SecT t={t} action="Refresh" onAction={() => loadCalendar()}>Schedule</SecT>
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? GO : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? GO : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
@@ -3898,7 +3900,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     af("/api/pickups?status=requested").then(r => setRequestCount(r.length)).catch(e => console.warn("Load request count:", e.message));
     load();
   }, []);
-  useEffect(() => { load(); }, [dateRange, tab, siteFilter, originFilter]);
+  useEffect(() => { load(); const iv = setInterval(() => load(), 45000); return () => clearInterval(iv); }, [dateRange, tab, siteFilter, originFilter]);
 
   const loadSiteLocations = async (siteId) => {
     if (siteLocations[siteId]) return;
@@ -4016,6 +4018,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
   return (<div>
     <SecT t={t} action="Post Open Shift" onAction={() => setCreateForm({ site_id: "", scheduled_date: "", start_time: "", end_time: "", building_name: "", floor_number: "", service_category: "", origin: "new_shift", urgency: "normal", notes: "" })}>Shift Pickup Board</SecT>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10, marginTop: -6 }}><button onClick={() => load()} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={11} c={t.textMut} /> Refresh</button></div>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
       { key: "thisWeek", label: "This Week" },
       { key: "lastWeek", label: "Last Week" },
