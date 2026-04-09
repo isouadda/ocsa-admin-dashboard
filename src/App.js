@@ -1089,6 +1089,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const [siteChatTotal, setSiteChatTotal] = useState(0);
   const [siteChatChannel, setSiteChatChannel] = useState(null);
   const [siteChatLoading, setSiteChatLoading] = useState(false);
+  const [showAddSupply, setShowAddSupply] = useState(false);
+  const [availableSupplies, setAvailableSupplies] = useState([]);
+  const [addSupplyLoading, setAddSupplyLoading] = useState(false);
   const cimsLabels = lkMap("cims_categories");
   const staffList = allStaff;
   const load = () => loadSites();
@@ -1143,6 +1146,34 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   };
 
   useEffect(() => { if (siteTab === "chat" && selectedSite) loadSiteChat(); }, [siteTab, selectedSite]);
+
+  const openAddSupply = async () => {
+    setAddSupplyLoading(true);
+    try {
+      const d = await af("/api/sites/" + selectedSite + "/supplies/available");
+      setAvailableSupplies(d);
+    } catch (e) { showToast("Failed to load supplies", "error"); setAvailableSupplies([]); }
+    setAddSupplyLoading(false);
+    setShowAddSupply(true);
+  };
+
+  const assignSupplyToSite = async (supplyId) => {
+    try {
+      await af("/api/sites/" + selectedSite + "/supplies", { method: "POST", body: { supplyId } });
+      showToast("Supply assigned");
+      setAvailableSupplies(prev => prev.filter(s => s.id !== supplyId));
+      refreshProfile();
+    } catch (e) { showToast(e.message, "error"); }
+  };
+
+  const removeSupplyFromSite = async (supplyId) => {
+    if (!window.confirm("Remove this supply from the site?")) return;
+    try {
+      await af("/api/sites/" + selectedSite + "/supplies/" + supplyId, { method: "DELETE" });
+      showToast("Supply removed");
+      refreshProfile();
+    } catch (e) { showToast(e.message, "error"); }
+  };
 
   const printSiteChat = () => {
     if (siteChat.length === 0) { showToast("No messages to print", "error"); return; }
@@ -1547,19 +1578,38 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* SUPPLIES TAB */}
       {siteTab === "supplies" && <div>
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Supplies at This Site ({sp.supplies.length})</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Supplies at This Site ({sp.supplies.length})</div>
+            {isAdmin && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={GO} /> Add Supply</button>}
+          </div>
           {sp.supplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div>
               <div style={{ fontSize: 12, color: t.text, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>{sup.name}{sup.is_green_certified && <Bdg l="Green" c={GR} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{sup.category} | {sup.unit}</div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.low_threshold ? RD : t.text }}>{sup.current_stock}</div>
-              <div style={{ fontSize: 9, color: t.textMut }}>Min: {sup.low_threshold}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.low_threshold ? RD : t.text }}>{sup.current_stock}</div>
+                <div style={{ fontSize: 9, color: t.textMut }}>Min: {sup.low_threshold}</div>
+              </div>
+              {isAdmin && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button>}
             </div>
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supplies assigned to this site</div>}
         </Crd>
+
+        {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontSize: 16, fontWeight: 700, color: t.text }}>Add Supply to Site</div><button onClick={() => setShowAddSupply(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          {addSupplyLoading && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>Loading...</div>}
+          {!addSupplyLoading && availableSupplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>All supplies are already assigned to this site</div>}
+          {availableSupplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
+            <div>
+              <div style={{ fontSize: 13, color: t.text, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>{sup.name}{sup.is_green_certified && <Bdg l="Green" c={GR} />}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{sup.category} | {sup.unit} | Stock: {sup.current_stock}</div>
+            </div>
+            <button onClick={() => assignSupplyToSite(sup.id)} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: GO, color: "#0A1628", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Add</button>
+          </div>)}
+        </div></Mdl>}
       </div>}
 
       {/* CHAT TAB */}
