@@ -5650,6 +5650,7 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
   const [detailSub, setDetailSub] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [linkModal, setLinkModal] = useState(null);
+  const [fullRefreshModal, setFullRefreshModal] = useState(false);
 
   const [libFilters, setLibFilters] = useState({ category: "", enabled: "", onboarding: "", search: "" });
   const [subFilters, setSubFilters] = useState({ form_id: "", status: "", linked: "", date_start: "", date_end: "", search: "" });
@@ -5766,6 +5767,18 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
       loadConfig(); loadForms();
       if (tab === "submissions") loadSubmissions(true);
     } catch (e) { showToast("Sync failed: " + e.message, "error"); }
+    setSyncingSubs(false);
+  };
+
+  const runFullRefresh = async () => {
+    setFullRefreshModal(false);
+    setSyncingSubs(true);
+    try {
+      const d = await af("/api/jotform/submissions/sync", { method: "POST", body: { full_refresh: true } });
+      showToast("Full refresh complete. Processed " + d.totalProcessed + " submissions (" + d.totalCreated + " new, " + d.totalUpdated + " updated) across " + d.formsScanned + " form(s)");
+      loadConfig(); loadForms(); loadSyncLog();
+      if (tab === "submissions") loadSubmissions(true);
+    } catch (e) { showToast("Full refresh failed: " + e.message, "error"); }
     setSyncingSubs(false);
   };
 
@@ -5990,8 +6003,9 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Btn t={t} onClick={syncForms} disabled={syncingForms}>{syncingForms ? "Syncing..." : "Sync Form Catalog"}</Btn>
               <Btn t={t} v="ghost" onClick={() => syncSubmissions(null)} disabled={syncingSubs}>{syncingSubs ? "Syncing..." : "Sync All Submissions"}</Btn>
+              <Btn t={t} v="danger" onClick={() => setFullRefreshModal(true)} disabled={syncingSubs}>{syncingSubs ? "Running..." : "Full Refresh"}</Btn>
             </div>
-            <div style={{ fontSize: 11, color: t.textMut, marginTop: 8, lineHeight: 1.5 }}>Form catalog sync pulls the list of Jotform forms. Submissions sync pulls new submissions for enabled forms only.</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 8, lineHeight: 1.5 }}>Form catalog sync pulls the list of Jotform forms. Submissions sync pulls only new or updated submissions for enabled forms. Full Refresh bypasses the incremental filter and re-pulls every submission for every enabled form (use sparingly, see warning).</div>
           </Crd>
 
           <Crd t={t} style={{ padding: 16 }}>
@@ -6150,6 +6164,43 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
                 </div>
               </div>
             </>)}
+          </div>
+        </Mdl>
+      )}
+
+      {/* ================ FULL REFRESH WARNING MODAL ================ */}
+      {fullRefreshModal && (
+        <Mdl t={t} onClose={() => setFullRefreshModal(false)}>
+          <div style={{ padding: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ fontSize: 16, fontWeight: 700, color: RD }}>Full Refresh. Read Before Running.</div>
+              <button onClick={() => setFullRefreshModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+            </div>
+
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 12, color: OR, marginBottom: 14, lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>What this does</div>
+              Pulls every submission from Jotform for every enabled form, ignoring the incremental filter. Existing cached submissions are re-fetched and their metadata is refreshed (submitter name, email, matched employee, expiry). Admin-set fields (status, notes, manual expiry, entity links) are preserved.
+            </div>
+
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14, lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>When to use this</div>
+              Use this only when you have a specific reason, such as: you have made changes in Jotform that are not appearing here, the field-extraction logic has changed, or you suspect the cache is out of sync. For normal daily operations, the regular "Sync All Submissions" button is sufficient.
+            </div>
+
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: t.text }}>Rate limit note</div>
+              Jotform API limits vary by account tier. Free accounts allow 1,000 calls per day. Each enabled form costs one API call, plus one per 1,000 submissions. If you have many forms with many submissions, a full refresh could consume a large portion of your daily quota.
+            </div>
+
+            <div style={{ padding: "10px 14px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.6 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6, color: t.text }}>Duration</div>
+              Typical run time is 1 to 5 minutes depending on volume. Do not close this page while it runs. You can monitor progress in the Sync Log table below after it completes.
+            </div>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <Btn t={t} v="ghost" onClick={() => setFullRefreshModal(false)}>Cancel</Btn>
+              <Btn t={t} v="danger" onClick={runFullRefresh}>Run Full Refresh</Btn>
+            </div>
           </div>
         </Mdl>
       )}
