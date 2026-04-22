@@ -391,7 +391,7 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "forms" && isAdmin && <FormsPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
+        {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
         {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} />}
       </div>
     </div>
@@ -5635,8 +5635,8 @@ function JotformPickerField({ af, form, setForm, t }) {
   );
 }
 
-// ===== FORMS PAGE (Session 20: Jotform Integration) =====
-function FormsPage({ af, showToast, t, allStaff, sites, user }) {
+// ===== FORMS PAGE (Session 20: Jotform Integration, Session 21: PDF + Diagnostic) =====
+function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
   const [tab, setTab] = useState("library");
   const [config, setConfig] = useState(null);
   const [forms, setForms] = useState([]);
@@ -5651,6 +5651,16 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
   const [detailLoading, setDetailLoading] = useState(false);
   const [linkModal, setLinkModal] = useState(null);
   const [fullRefreshModal, setFullRefreshModal] = useState(false);
+
+  // Session 21 additions
+  const [pdfAccessLog, setPdfAccessLog] = useState([]);
+  const [pdfAccessTotal, setPdfAccessTotal] = useState(0);
+  const [pdfFilters, setPdfFilters] = useState({ access_type: "", success: "", date_start: "", date_end: "" });
+  const [pdfOffset, setPdfOffset] = useState(0);
+  const PDF_LIMIT = 50;
+  const [diagnosticResult, setDiagnosticResult] = useState(null);
+  const [runningDiagnostic, setRunningDiagnostic] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const [libFilters, setLibFilters] = useState({ category: "", enabled: "", onboarding: "", search: "" });
   const [subFilters, setSubFilters] = useState({ form_id: "", status: "", linked: "", date_start: "", date_end: "", search: "" });
@@ -5740,9 +5750,38 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
     catch (e) { console.warn("Sync log:", e.message); }
   }, [af]);
 
+  const loadPdfAccessLog = useCallback(async (resetOffset) => {
+    setLoading(true);
+    try {
+      const offset = resetOffset ? 0 : pdfOffset;
+      const q = ["limit=" + PDF_LIMIT, "offset=" + offset];
+      if (pdfFilters.access_type) q.push("access_type=" + pdfFilters.access_type);
+      if (pdfFilters.success) q.push("success=" + pdfFilters.success);
+      if (pdfFilters.date_start) q.push("date_start=" + pdfFilters.date_start);
+      if (pdfFilters.date_end) q.push("date_end=" + pdfFilters.date_end);
+      const d = await af("/api/jotform/pdf-access-log?" + q.join("&"));
+      setPdfAccessLog(d.entries || []);
+      setPdfAccessTotal(d.total || 0);
+      if (resetOffset) setPdfOffset(0);
+    } catch (e) { showToast("PDF log load failed: " + e.message, "error"); }
+    setLoading(false);
+  }, [af, pdfFilters, pdfOffset, showToast]);
+
+  const runDiagnostic = useCallback(async () => {
+    setRunningDiagnostic(true);
+    setDiagnosticResult(null);
+    try {
+      const d = await af("/api/jotform/diagnostic");
+      setDiagnosticResult(d);
+      showToast("Diagnostic complete");
+    } catch (e) { showToast("Diagnostic failed: " + e.message, "error"); }
+    setRunningDiagnostic(false);
+  }, [af, showToast]);
+
   useEffect(() => { loadConfig(); }, [loadConfig]);
   useEffect(() => { if (tab === "library") loadForms(); }, [tab, libFilters]);
   useEffect(() => { if (tab === "submissions") loadSubmissions(true); }, [tab, subFilters]);
+  useEffect(() => { if (tab === "pdf_access") loadPdfAccessLog(true); }, [tab, pdfFilters]);
   useEffect(() => { if (tab === "settings") { loadConfig(); loadSyncLog(); } }, [tab]);
 
   const syncForms = async () => {
@@ -5792,6 +5831,7 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
         expiry_days: editForm.expiry_days ? parseInt(editForm.expiry_days, 10) : null,
         requires_annual_renewal: editForm.requires_annual_renewal,
         requires_signature: editForm.requires_signature,
+        has_original_pdf: editForm.has_original_pdf !== false,
         notes: editForm.notes || null,
       };
       await af("/api/jotform/forms/" + editForm.id, { method: "PATCH", body });
@@ -5833,6 +5873,63 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
     } catch (e) { showToast(e.message, "error"); }
   };
 
+  // Session 21: fetch PDF as blob (binary payload, bypasses af which expects JSON)
+  const fetchPdfBlob = async (submissionId, action) => {
+    const url = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app") +
+      "/api/jotform/submissions/" + submissionId + "/pdf?action=" + action;
+    const r = await fetch(url, { headers: { "Authorization": "Bearer " + token } });
+    if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
+    if (!r.ok) {
+      const body = await r.json().catch(() => ({}));
+      throw new Error(body.error || "PDF fetch failed (status " + r.status + ")");
+    }
+    return await r.blob();
+  };
+
+  const viewPdf = async (submissionId) => {
+    setPdfBusy(true);
+    try {
+      const blob = await fetchPdfBlob(submissionId, "view");
+      const blobUrl = URL.createObjectURL(blob);
+      const w = window.open(blobUrl, "_blank");
+      if (!w) showToast("Popup blocked. Allow popups to view PDFs.", "error");
+      // Revoke after a delay so the new tab has time to load
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (e) { showToast(e.message, "error"); }
+    setPdfBusy(false);
+  };
+
+  const downloadPdf = async (submissionId, filenameHint) => {
+    setPdfBusy(true);
+    try {
+      const blob = await fetchPdfBlob(submissionId, "download");
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = (filenameHint || "submission") + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      showToast("Download started");
+    } catch (e) { showToast(e.message, "error"); }
+    setPdfBusy(false);
+  };
+
+  const printPdf = async (submissionId) => {
+    setPdfBusy(true);
+    try {
+      const blob = await fetchPdfBlob(submissionId, "print");
+      const blobUrl = URL.createObjectURL(blob);
+      const w = window.open(blobUrl, "_blank");
+      if (!w) { showToast("Popup blocked. Allow popups to print PDFs.", "error"); return; }
+      // Give the new window time to load the PDF, then trigger print
+      w.addEventListener("load", () => { try { w.print(); } catch (e) { /* browser will handle */ } });
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (e) { showToast(e.message, "error"); }
+    setPdfBusy(false);
+  };
+
   const statusBadge = (status) => {
     const colors = { new: BL, reviewed: t.textMut, linked: GR, archived: t.textMut };
     return <Bdg l={status} c={colors[status] || t.textMut} />;
@@ -5841,6 +5938,7 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
   const tabs = [
     { id: "library", l: "Form Library" },
     { id: "submissions", l: "Submissions" },
+    { id: "pdf_access", l: "PDF Access Log" },
     { id: "settings", l: "Settings" },
   ];
 
@@ -5979,6 +6077,53 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
         </div>
       )}
 
+      {/* ================ PDF ACCESS LOG TAB (Session 21) ================ */}
+      {tab === "pdf_access" && (
+        <div>
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14, lineHeight: 1.5 }}>
+            <strong>CIMS Phase 3 evidence.</strong> Every view, download, and print of an original Jotform PDF is recorded here with user, timestamp, IP, and success status. This log is append-only and survives submission deletion via text snapshots.
+          </div>
+
+          <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ minWidth: 160 }}>
+              <Sel options={[{ v: "", l: "All actions" }, { v: "view", l: "View" }, { v: "download", l: "Download" }, { v: "print", l: "Print" }]} value={pdfFilters.access_type} onChange={e => setPdfFilters({ ...pdfFilters, access_type: e.target.value })} t={t} />
+            </div>
+            <div style={{ minWidth: 160 }}>
+              <Sel options={[{ v: "", l: "Any result" }, { v: "true", l: "Success only" }, { v: "false", l: "Failed only" }]} value={pdfFilters.success} onChange={e => setPdfFilters({ ...pdfFilters, success: e.target.value })} t={t} />
+            </div>
+            <Inp t={t} type="date" value={pdfFilters.date_start} onChange={e => setPdfFilters({ ...pdfFilters, date_start: e.target.value })} style={{ width: 150 }} />
+            <Inp t={t} type="date" value={pdfFilters.date_end} onChange={e => setPdfFilters({ ...pdfFilters, date_end: e.target.value })} style={{ width: 150 }} />
+            <Btn t={t} v="ghost" onClick={() => loadPdfAccessLog(true)} style={{ fontSize: 12, padding: "8px 14px" }}>Refresh</Btn>
+          </div>
+
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
+                {["When", "User", "Action", "Form", "Submitter", "Result", "IP"].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{h}</th>)}
+              </tr></thead>
+              <tbody>{pdfAccessLog.map(e => (
+                <tr key={e.id} style={{ borderBottom: "1px solid " + t.border }}>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{fmtDT(e.accessed_at)}</td>
+                  <td style={{ padding: "10px 12px", color: t.text, fontSize: 12 }}>{e.first_name ? (e.first_name + " " + e.last_name) : <span style={{ color: t.textMut, fontStyle: "italic" }}>deleted user</span>}<div style={{ fontSize: 10, color: t.textMut }}>{e.user_email || ""}</div></td>
+                  <td style={{ padding: "10px 12px" }}><Bdg l={e.access_type} c={e.access_type === "view" ? BL : e.access_type === "download" ? GO : TL} /></td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.form_title || <span style={{ color: t.textMut, fontFamily: "monospace", fontSize: 10 }}>{e.jotform_form_id}</span>}</td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.submitter_name || <span style={{ color: t.textMut }}>--</span>}</td>
+                  <td style={{ padding: "10px 12px" }}>{e.success ? <Bdg l="success" c={GR} /> : <Bdg l="failed" c={RD} />}{!e.success && e.error_message && <div style={{ fontSize: 10, color: RD, marginTop: 2, maxWidth: 280 }}>{e.error_message}</div>}</td>
+                  <td style={{ padding: "10px 12px", color: t.textMut, fontSize: 11, fontFamily: "monospace" }}>{e.ip_address || "--"}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+            {pdfAccessLog.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No PDF access events recorded yet. Events appear here as soon as anyone views, downloads, or prints a submission PDF.</div>}
+          </div>
+
+          {pdfAccessTotal > pdfAccessLog.length && (
+            <div style={{ marginTop: 12, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: t.textMut }}>Showing {pdfAccessLog.length} of {pdfAccessTotal}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ================ SETTINGS TAB ================ */}
       {tab === "settings" && (
         <div>
@@ -6006,6 +6151,68 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
               <Btn t={t} v="danger" onClick={() => setFullRefreshModal(true)} disabled={syncingSubs}>{syncingSubs ? "Running..." : "Full Refresh"}</Btn>
             </div>
             <div style={{ fontSize: 11, color: t.textMut, marginTop: 8, lineHeight: 1.5 }}>Form catalog sync pulls the list of Jotform forms. Submissions sync pulls only new or updated submissions for enabled forms. Full Refresh bypasses the incremental filter and re-pulls every submission for every enabled form (use sparingly, see warning).</div>
+          </Crd>
+
+          {/* ================ DIAGNOSTIC CARD (Session 21 Part B Step 1) ================ */}
+          <Crd t={t} style={{ marginBottom: 14, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>Account Capability Diagnostic</div>
+              <Btn t={t} v="ghost" onClick={runDiagnostic} disabled={runningDiagnostic} style={{ fontSize: 12, padding: "6px 14px" }}>{runningDiagnostic ? "Probing..." : "Run Diagnostic"}</Btn>
+            </div>
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10, lineHeight: 1.5 }}>
+              Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how we filter the platform to show OCSA Cleaning forms only (separate from OCSA Construction and My Choice for Living).
+            </div>
+
+            {diagnosticResult && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ padding: "10px 14px", borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, marginBottom: 12 }}>
+                  <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Recommendation</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: GO, marginBottom: 4 }}>{diagnosticResult.recommendation}</div>
+                  <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{diagnosticResult.recommendationReason}</div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+                  <div style={{ padding: 10, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+                    <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Labels API</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: diagnosticResult.tests.userLabels && diagnosticResult.tests.userLabels.success ? GR : RD }}>{diagnosticResult.tests.userLabels && diagnosticResult.tests.userLabels.success ? "Works" : "Not available"}</div>
+                    <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{diagnosticResult.tests.userLabels && diagnosticResult.tests.userLabels.success ? (diagnosticResult.tests.userLabels.count + " labels returned") : (diagnosticResult.tests.userLabels && diagnosticResult.tests.userLabels.error ? diagnosticResult.tests.userLabels.error : "--")}</div>
+                  </div>
+                  <div style={{ padding: 10, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+                    <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Folders API</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: diagnosticResult.tests.userFolders && diagnosticResult.tests.userFolders.success ? GR : RD }}>{diagnosticResult.tests.userFolders && diagnosticResult.tests.userFolders.success ? "Works" : "Not available"}</div>
+                    <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{diagnosticResult.tests.userFolders && diagnosticResult.tests.userFolders.success ? (diagnosticResult.tests.userFolders.count + " folders found") : (diagnosticResult.tests.userFolders && diagnosticResult.tests.userFolders.error ? diagnosticResult.tests.userFolders.error : "--")}</div>
+                  </div>
+                  <div style={{ padding: 10, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+                    <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Form Detail</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: diagnosticResult.tests.formFull && diagnosticResult.tests.formFull.success ? GR : RD }}>{diagnosticResult.tests.formFull && diagnosticResult.tests.formFull.success ? "Works" : "Not available"}</div>
+                    <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{diagnosticResult.analysis && diagnosticResult.analysis.sampledFormId ? ("Sampled: " + (diagnosticResult.analysis.sampledFormTitle || diagnosticResult.analysis.sampledFormId)) : "--"}</div>
+                  </div>
+                </div>
+
+                {diagnosticResult.analysis && diagnosticResult.analysis.labelNamesFound && diagnosticResult.analysis.labelNamesFound.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Labels found</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {diagnosticResult.analysis.labelNamesFound.map((n, idx) => (<Bdg key={idx} l={n} c={String(n).toLowerCase().includes("ocsa cleaning") ? GR : t.textMut} />))}
+                    </div>
+                  </div>
+                )}
+
+                {diagnosticResult.analysis && diagnosticResult.analysis.folderNamesFound && diagnosticResult.analysis.folderNamesFound.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Folders found</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {diagnosticResult.analysis.folderNamesFound.map((n, idx) => (<Bdg key={idx} l={n} c={String(n).toLowerCase().includes("ocsa cleaning") ? GR : t.textMut} />))}
+                    </div>
+                  </div>
+                )}
+
+                <details style={{ marginTop: 10 }}>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: t.textMut }}>Raw JSON (paste this back to Claude for Step 2 implementation)</summary>
+                  <pre style={{ marginTop: 8, padding: 12, borderRadius: 8, background: t.bg, border: "1px solid " + t.border, fontSize: 10, color: t.textSec, overflow: "auto", maxHeight: 400, fontFamily: "monospace" }}>{JSON.stringify(diagnosticResult, null, 2)}</pre>
+                </details>
+              </div>
+            )}
           </Crd>
 
           <Crd t={t} style={{ padding: 16 }}>
@@ -6064,6 +6271,10 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: t.textSec, cursor: "pointer" }}>
                 <input type="checkbox" checked={editForm.requires_annual_renewal} onChange={e => setEditForm({ ...editForm, requires_annual_renewal: e.target.checked })} />
                 Annual renewal required
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: t.textSec, cursor: "pointer" }}>
+                <input type="checkbox" checked={editForm.has_original_pdf !== false} onChange={e => setEditForm({ ...editForm, has_original_pdf: e.target.checked })} />
+                Has original PDF (show PDF buttons)
               </label>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>Target Role (optional)</Lbl>
@@ -6154,11 +6365,18 @@ function FormsPage({ af, showToast, t, allStaff, sites, user }) {
               )}
 
               <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 16, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {detailSub.meta.status !== "reviewed" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateSubmissionStatus(detailSub.meta.id, "reviewed")}>Mark Reviewed</Btn>}
                   {detailSub.meta.status !== "archived" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateSubmissionStatus(detailSub.meta.id, "archived")}>Archive</Btn>}
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {detailSub.meta.has_original_pdf !== false && (
+                    <>
+                      <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} disabled={pdfBusy} onClick={() => viewPdf(detailSub.meta.id)}>{pdfBusy ? "Working..." : "View Original PDF"}</Btn>
+                      <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} disabled={pdfBusy} onClick={() => downloadPdf(detailSub.meta.id, (detailSub.meta.form_title || "submission") + "_" + (detailSub.meta.submitter_name || "unknown"))}>Download</Btn>
+                      <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} disabled={pdfBusy} onClick={() => printPdf(detailSub.meta.id)}>Print</Btn>
+                    </>
+                  )}
                   {detailSub.meta.jotform_view_url && <a href={detailSub.meta.jotform_view_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: BL, textDecoration: "none", padding: "8px 12px", border: "1px solid " + t.border, borderRadius: 6 }}>Open in Jotform</a>}
                   <Btn t={t} onClick={() => setDetailSub(null)}>Close</Btn>
                 </div>
