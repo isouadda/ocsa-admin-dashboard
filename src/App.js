@@ -5785,13 +5785,43 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
   useEffect(() => { if (tab === "settings") { loadConfig(); loadSyncLog(); } }, [tab]);
 
   const syncForms = async () => {
-    if (!window.confirm("Pull the latest list of forms from Jotform? This will update the catalog below.")) return;
     setSyncingForms(true);
     try {
-      const d = await af("/api/jotform/forms/sync", { method: "POST" });
-      showToast("Synced " + d.total + " forms (" + d.created + " new, " + d.updated + " updated)");
+      // Step 1: dry-run to compute what will happen
+      const preview = await af("/api/jotform/forms/sync", { method: "POST", body: { dry_run: true } });
+      const s = preview.stats || {};
+      const p = preview.plan || {};
+      const labelsLine = preview.labels && preview.labels.cleaning
+        ? ("Label resolved: OCSA Cleaning (" + preview.labels.cleaning.id + ")")
+        : "Label NOT resolved";
+
+      const msg =
+        "OCSA Cleaning sync preview.\n\n" +
+        labelsLine + "\n" +
+        "Jotform forms tagged OCSA Cleaning: " + (s.cleaningTotal || 0) + "\n" +
+        "Also tagged Construction or MCFL (excluded): " + (s.overlapWithExclusions || 0) + "\n" +
+        "DELETED in Jotform (excluded): " + (s.deletedInCleaning || 0) + "\n" +
+        "Final OCSA Cleaning-only count: " + (s.finalCount || 0) + "\n\n" +
+        "Database changes:\n" +
+        "  New forms to import: " + (p.willCreate || 0) + "\n" +
+        "  Existing forms to refresh: " + (p.willUpdate || 0) + "\n" +
+        "  Forms to purge: " + (p.willPurge || 0) + "\n" +
+        "  Submissions that will be deleted: " + (p.submissionsToPurge || 0) + "\n\n" +
+        "Proceed with the actual sync?";
+
+      if (!window.confirm(msg)) { setSyncingForms(false); return; }
+
+      // Step 2: real sync
+      const d = await af("/api/jotform/forms/sync", { method: "POST", body: {} });
+      showToast(
+        "Synced " + d.total + " OCSA Cleaning forms (" +
+        d.created + " new, " + d.updated + " updated, " +
+        d.purgedForms + " purged, " + d.purgedSubmissions + " submissions removed)"
+      );
       loadForms(); loadConfig();
-    } catch (e) { showToast("Sync failed: " + e.message, "error"); }
+    } catch (e) {
+      showToast("Sync failed: " + e.message, "error");
+    }
     setSyncingForms(false);
   };
 
