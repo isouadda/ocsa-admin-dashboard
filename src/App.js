@@ -2292,11 +2292,12 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   const out = cfg.output;
   const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
 
+  const slaColor = (v) => (v === null || v === undefined) ? t.textMut : (v >= 90 ? GR : (v >= 75 ? OR : RD));
   const tiles = sm ? [
     { label: "Median resolution", value: fmtDurMin(sm.resolution_median_minutes), color: t.text },
     { label: "Median first response", value: fmtDurMin(sm.first_response_median_minutes), color: t.text },
-    { label: "Resolution SLA", value: fmtPctVal(sm.sla_resolution_compliance_pct), color: (sm.sla_resolution_compliance_pct === null || sm.sla_resolution_compliance_pct === undefined) ? t.textMut : GR },
-    { label: "Response SLA", value: fmtPctVal(sm.sla_response_compliance_pct), color: (sm.sla_response_compliance_pct === null || sm.sla_response_compliance_pct === undefined) ? t.textMut : GR },
+    { label: "Resolution SLA", value: fmtPctVal(sm.sla_resolution_compliance_pct), color: slaColor(sm.sla_resolution_compliance_pct) },
+    { label: "Response SLA", value: fmtPctVal(sm.sla_response_compliance_pct), color: slaColor(sm.sla_response_compliance_pct) },
     { label: "Open now", value: String(sm.open_count), sub: sm.aging_count + " aging", color: sm.open_count > 0 ? OR : GR },
   ] : [];
 
