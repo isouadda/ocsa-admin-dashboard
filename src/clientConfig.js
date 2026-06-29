@@ -5,6 +5,7 @@ const CONFIDENTIAL_LABEL = 'Confidential Record';
 const clientConfig = {
   company: {
     name: COMPANY_NAME,
+    shortName: 'OCSA Cleaning',
     location: COMPANY_LOCATION,
     confidentialLabel: CONFIDENTIAL_LABEL,
     footerLine: `${COMPANY_NAME} | ${COMPANY_LOCATION} | ${CONFIDENTIAL_LABEL}`,
