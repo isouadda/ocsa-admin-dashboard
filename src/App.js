@@ -678,9 +678,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const r = tlDetail.record;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
-    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
-    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
-    html += '.content{padding:24px 32px}.section{margin-bottom:16px}.section-title{font-size:11px;color:#C8A84E;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
+    html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:24px 32px}.section{margin-bottom:16px}.section-title{font-size:11px;color:' + GOLD + ';text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
     html += '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{margin-bottom:6px}.field .label{font-size:9px;color:#888;text-transform:uppercase}.field .value{font-size:12px;font-weight:500;margin-top:2px}';
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
@@ -720,7 +720,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.footerLine + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -731,15 +731,15 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const u = profile.user;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + u.firstName + ' ' + u.lastName + ' - Activity Timeline</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
-    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
-    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += printHeader(u.firstName + ' ' + u.lastName + ' - Activity Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString(), u.profilePhotoUrl || null);
     html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
-    html += '</table><div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Employee Record</div></div></body></html>';
+    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -750,9 +750,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const fullName = u.firstName + " " + u.lastName;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + fullName + ' - Employee Report</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
-    html += '.header{background:#0A1628;color:#F8F7F4;padding:24px 32px;display:flex;align-items:center;justify-content:space-between}';
-    html += '.header h1{margin:0;font-size:18px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
-    html += '.content{padding:24px 32px}.section{margin-bottom:20px}.section-title{font-size:11px;color:#C8A84E;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
+    html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:24px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:18px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:24px 32px}.section{margin-bottom:20px}.section-title{font-size:11px;color:' + GOLD + ';text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
     html += '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{margin-bottom:6px}.field .label{font-size:9px;color:#888;text-transform:uppercase}.field .value{font-size:12px;font-weight:500;margin-top:2px}';
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
@@ -788,7 +788,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Employee Record</div>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div>';
     html += '</div></body></html>';
     const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
@@ -843,7 +843,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Shared branded print header builder (Session 18)
   const printHeader = (title, subtitle, photoUrl) => {
     let h = '<div class="header"><div style="display:flex;align-items:center;gap:16px">';
-    if (photoUrl) h += '<img src="' + photoUrl + '" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid #C8A84E" />';
+    if (photoUrl) h += '<img src="' + photoUrl + '" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid ' + GOLD + '" />';
     h += '<div><h1>' + title + '</h1><div class="sub">' + subtitle + '</div></div></div>';
     h += '<img src="' + OCSA_LOGO_B64 + '" style="height:40px" /></div>';
     return h;
@@ -1313,12 +1313,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const siteName = siteProfile?.site?.name || "Site";
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Chat History</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
-    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
-    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
-    html += '.content{padding:20px 32px}.msg{display:flex;gap:10px;padding:10px 12px;margin-bottom:8px;background:#f9f9f9;border-radius:8px;border-left:3px solid #C8A84E}';
-    html += '.msg .avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1.5px solid #C8A84E}';
-    html += '.msg .initials{width:36px;height:36px;border-radius:50%;background:#f0e8d0;border:1.5px solid #C8A84E;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#0A1628;flex-shrink:0}';
-    html += '.msg .sender{font-weight:700;font-size:12px;color:#0A1628}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
+    html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:20px 32px}.msg{display:flex;gap:10px;padding:10px 12px;margin-bottom:8px;background:#f9f9f9;border-radius:8px;border-left:3px solid ' + GOLD + '}';
+    html += '.msg .avatar{width:36px;height:36px;border-radius:50%;object-fit:cover;flex-shrink:0;border:1.5px solid ' + GOLD + '}';
+    html += '.msg .initials{width:36px;height:36px;border-radius:50%;background:#f0e8d0;border:1.5px solid ' + GOLD + ';display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:' + NAVY + ';flex-shrink:0}';
+    html += '.msg .sender{font-weight:700;font-size:12px;color:' + NAVY + '}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString());
@@ -1337,7 +1337,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span>';
       html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
     });
-    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Communication Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Communication Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1471,15 +1471,15 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const siteName = siteProfile.site.name || "Site";
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Site Timeline</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
-    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
-    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
     html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString());
     html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
     timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
-    html += '</table><div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Site Record</div></div></body></html>';
+    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Site Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1492,9 +1492,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const r = tlDetail.record;
     let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
-    html += '.header{background:#0A1628;color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
-    html += '.header h1{margin:0;font-size:16px;color:#C8A84E}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
-    html += '.content{padding:24px 32px}.section{margin-bottom:16px}.section-title{font-size:11px;color:#C8A84E;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
+    html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
+    html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
+    html += '.content{padding:24px 32px}.section{margin-bottom:16px}.section-title{font-size:11px;color:' + GOLD + ';text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:8px;border-bottom:1px solid #e0e0e0;padding-bottom:4px}';
     html += '.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.field{margin-bottom:6px}.field .label{font-size:9px;color:#888;text-transform:uppercase}.field .value{font-size:12px;font-weight:500;margin-top:2px}';
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
@@ -1534,7 +1534,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">OCSA Cleaning Inc. | Philadelphia, PA | Confidential Site Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Site Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -2727,8 +2727,8 @@ function LaborReportsPage({ af, showToast, isAdmin, t, sites }) {
   const printReport = () => {
     const w = window.open("", "_blank");
     if (!w) { showToast("Please allow popups", "error"); return; }
-    let html = '<html><head><title>OCSA Labor Report</title><style>body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:#0A1628}h1{color:#0A1628;border-bottom:3px solid #C8A84E;padding-bottom:8px;font-size:22px}h2{color:#0A1628;font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #ddd;padding:6px 10px;font-size:12px;text-align:left}th{background:#0A1628;color:#C8A84E;font-weight:600}tr:nth-child(even){background:#f9f9f9}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.summary-card{background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}.summary-card .val{font-size:24px;font-weight:700;color:#0A1628}.summary-card .lbl{font-size:10px;color:#888;text-transform:uppercase;margin-top:4px}.footer{margin-top:30px;border-top:2px solid #C8A84E;padding-top:8px;font-size:10px;color:#888;text-align:center}@media print{body{margin:15px}}</style></head><body>';
-    html += '<h1>OCSA Cleaning Inc. - Labor Report</h1>';
+    let html = '<html><head><title>' + clientConfig.company.brandTag + ' Labor Report</title><style>body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:' + NAVY + '}h1{color:' + NAVY + ';border-bottom:3px solid ' + GOLD + ';padding-bottom:8px;font-size:22px}h2{color:' + NAVY + ';font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #ddd;padding:6px 10px;font-size:12px;text-align:left}th{background:' + NAVY + ';color:' + GOLD + ';font-weight:600}tr:nth-child(even){background:#f9f9f9}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.summary-card{background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}.summary-card .val{font-size:24px;font-weight:700;color:' + NAVY + '}.summary-card .lbl{font-size:10px;color:#888;text-transform:uppercase;margin-top:4px}.footer{margin-top:30px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888;text-align:center}@media print{body{margin:15px}}</style></head><body>';
+    html += '<h1>' + clientConfig.company.name + ' - Labor Report</h1>';
     html += '<p style="font-size:12px;color:#666">Period: ' + dateRange.start + ' to ' + dateRange.end + ' | Generated: ' + new Date().toLocaleDateString() + '</p>';
     if (summary) {
       html += '<div class="summary-grid">';
@@ -2761,7 +2761,7 @@ function LaborReportsPage({ af, showToast, isAdmin, t, sites }) {
         html += '</table>';
       }
     }
-    html += '<div class="footer">OCSA Cleaning Inc. | Labor Report | Confidential</div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | Labor Report | Confidential</div></body></html>';
     w.document.write(html);
     w.document.close();
     w.print();
