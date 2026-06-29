@@ -919,7 +919,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>First Name</Lbl><Inp t={t} value={pe.firstName || ""} onChange={e => setProfileEdit({ ...pe, firstName: e.target.value })} /></div>
               <div><Lbl>Last Name</Lbl><Inp t={t} value={pe.lastName || ""} onChange={e => setProfileEdit({ ...pe, lastName: e.target.value })} /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><Lbl>Employee ID</Lbl><Inp t={t} value={pe.employeeId || ""} onChange={e => { setProfileEdit({ ...pe, employeeId: e.target.value }); setEmpIdError(""); }} placeholder="OCSA-0042" />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
+            <div style={{ marginBottom: 10 }}><Lbl>Employee ID</Lbl><Inp t={t} value={pe.employeeId || ""} onChange={e => { setProfileEdit({ ...pe, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><Lbl>Phone</Lbl><Inp t={t} value={pe.phone || ""} onChange={e => setProfileEdit({ ...pe, phone: e.target.value })} /></div>
               <div><Lbl>Email</Lbl><Inp t={t} value={pe.email || ""} onChange={e => setProfileEdit({ ...pe, email: e.target.value })} type="email" /></div>
@@ -1179,7 +1179,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Phone *</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder="2155550000 (no dashes needed)" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Email *</Lbl><Inp t={t} value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder="name@email.com" type="email" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Employee ID</Lbl><Inp t={t} value={addForm.employeeId || ""} onChange={e => { setAddForm({ ...addForm, employeeId: e.target.value }); setEmpIdError(""); }} placeholder="OCSA-0042" />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>Employee ID</Lbl><Inp t={t} value={addForm.employeeId || ""} onChange={e => { setAddForm({ ...addForm, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
       <div style={{ marginBottom: 16 }}><Lbl>Role</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={getOpts("staff_roles")} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Staff</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
@@ -1189,7 +1189,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>Phone</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Email</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Role</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles")} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Employee ID</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder="OCSA-0042" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Employee ID</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Hourly Rate</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
     </div></Mdl>}
