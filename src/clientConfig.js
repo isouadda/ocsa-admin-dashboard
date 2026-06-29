@@ -14,6 +14,7 @@ const clientConfig = {
   brand: {
     navy: '#0A1628',
     gold: '#C8A84E',
+    navyDark: '#0F1D32',
   },
   employee: {
     idPrefix: 'OCSA',
