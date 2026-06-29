@@ -2184,7 +2184,7 @@ const defaultIssueConfig = () => ({
     medium: { first_response_minutes: 240, resolution_minutes: 1440 },
     low: { first_response_minutes: 1440, resolution_minutes: 4320 },
   },
-  output: { trend: true, by_site: true, severity: true },
+  output: { trend: true, by_site: true, severity: true, sla: false },
   branding: { use_company_settings: true },
 });
 
@@ -2206,7 +2206,7 @@ const readIssueConfig = (cfg) => {
       medium: { first_response_minutes: num(smd.first_response_minutes, d.sla_targets.medium.first_response_minutes), resolution_minutes: num(smd.resolution_minutes, d.sla_targets.medium.resolution_minutes) },
       low: { first_response_minutes: num(sl.first_response_minutes, d.sla_targets.low.first_response_minutes), resolution_minutes: num(sl.resolution_minutes, d.sla_targets.low.resolution_minutes) },
     },
-    output: { trend: ou.trend !== false, by_site: ou.by_site !== false, severity: ou.severity !== false },
+    output: { trend: ou.trend !== false, by_site: ou.by_site !== false, severity: ou.severity !== false, sla: ou.sla === true },
     branding: { use_company_settings: br.use_company_settings !== false },
   };
 };
@@ -2255,6 +2255,38 @@ const IssueSeverityWidget = ({ timing, t }) => {
   return (
     <ChartCard t={t} title="Open issues by severity" sub="Currently open">
       <DonutChartW labels={["High", "Medium", "Low"]} values={vals} t={t} colors={[RD, OR, GO]} />
+    </ChartCard>
+  );
+};
+
+const SlaComplianceTrendWidget = ({ timing, t }) => {
+  const trend = (timing && timing.trend) ? timing.trend : [];
+  const cats = trend.map(b => fmtBucketDate(b.bucket_start));
+  const pct = (v) => (v === null || v === undefined) ? null : v;
+  const series = [
+    { name: "Resolution SLA %", data: trend.map(b => pct(b.sla_resolution_compliance_pct)) },
+    { name: "Response SLA %", data: trend.map(b => pct(b.sla_response_compliance_pct)) },
+  ];
+  const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
+  const totalBreaches = trend.reduce((a, b) => a + (b.resolution_breach_count || 0) + (b.response_breach_count || 0), 0);
+  return (
+    <ChartCard t={t} title="SLA compliance trend" sub={"Resolution and response compliance percent per " + ((timing && timing.bucket) ? timing.bucket : "week")}>
+      <div style={{ marginBottom: 10 }}>
+        <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
+        <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>SLA breaches in range</span>
+      </div>
+      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>Not enough resolved data to chart compliance yet.</div>}
+    </ChartCard>
+  );
+};
+
+const SlaBySiteWidget = ({ timing, t }) => {
+  const rows = ((timing && timing.by_site) ? timing.by_site : []).filter(s => s.sla_resolution_compliance_pct !== null && s.sla_resolution_compliance_pct !== undefined);
+  if (rows.length < 2) return null;
+  return (
+    <ChartCard t={t} title="Resolution SLA by site" sub="Compliance percent, higher is better">
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name="Resolution SLA %" />
     </ChartCard>
   );
 };
@@ -2336,6 +2368,11 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const siteTable = tableRows ? ('<h2>By site</h2><table><thead><tr><th>Site</th><th>Reported</th><th>Resolved</th><th>Open</th><th>Aging</th><th>Median resolution</th><th>Median first response</th><th>Resolution SLA</th><th>Response SLA</th></tr></thead><tbody>' + tableRows + '</tbody></table>') : "";
     const sv = sm.open_by_severity;
     const sevTable = out.severity ? ('<h2>Open by severity</h2><table><thead><tr><th>High</th><th>Medium</th><th>Low</th></tr></thead><tbody><tr><td>' + sv.high + '</td><td>' + sv.medium + '</td><td>' + sv.low + '</td></tr></tbody></table>') : "";
+    const slaPct = (v) => (v === null || v === undefined) ? '-' : (v + '%');
+    const slaRows = out.sla ? ((timing && timing.trend ? timing.trend : []).map(b =>
+      '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(slaPct(b.sla_resolution_compliance_pct)) + '</td><td>' + esc(slaPct(b.sla_response_compliance_pct)) + '</td><td>' + (b.resolution_breach_count || 0) + '</td><td>' + (b.response_breach_count || 0) + '</td></tr>'
+    ).join("")) : "";
+    const slaTable = slaRows ? ('<h2>SLA compliance by period</h2><table><thead><tr><th>Period</th><th>Resolution SLA</th><th>Response SLA</th><th>Resolution breaches</th><th>Response breaches</th></tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
     const targetsLine = tgt ? ('<p class="meta">Targets, response then resolution. High ' + fmtDurMin(tgt.high.first_response_minutes) + ' and ' + fmtDurMin(tgt.high.resolution_minutes) + '. Medium ' + fmtDurMin(tgt.medium.first_response_minutes) + ' and ' + fmtDurMin(tgt.medium.resolution_minutes) + '. Low ' + fmtDurMin(tgt.low.first_response_minutes) + ' and ' + fmtDurMin(tgt.low.resolution_minutes) + '. Aging means open past its resolution target.</p>') : "";
     const einLine = showEin ? ('<div>EIN ' + esc(settings.ein) + '</div>') : "";
     const style = '<style>'
@@ -2363,7 +2400,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + '<h1>Issue Response and Resolution</h1>'
       + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
-      + targetsLine + trendTable + siteTable + sevTable
+      + targetsLine + trendTable + siteTable + sevTable + slaTable
       + '<div class="footer">' + esc(cName) + (addr ? (' &middot; ' + esc(addr)) : "") + einLine + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
@@ -2407,8 +2444,10 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     </div>
     {hasActivity ? <div>
       {out.trend ? <div style={{ marginBottom: 16 }}><IssueTrendWidget timing={timing} t={t} /></div> : null}
+      {out.sla ? <div style={{ marginBottom: 16 }}><SlaComplianceTrendWidget timing={timing} t={t} /></div> : null}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
         {out.by_site ? <IssueBySiteWidget timing={timing} t={t} /> : null}
+        {out.sla ? <SlaBySiteWidget timing={timing} t={t} /> : null}
         {out.severity ? <IssueSeverityWidget timing={timing} t={t} /> : null}
       </div>
     </div> : null}
@@ -2437,6 +2476,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const [outTrend, setOutTrend] = useState(c0.output.trend);
   const [outBySite, setOutBySite] = useState(c0.output.by_site);
   const [outSeverity, setOutSeverity] = useState(c0.output.severity);
+  const [outSla, setOutSla] = useState(c0.output.sla);
   const [brand, setBrand] = useState(c0.branding.use_company_settings);
   const [saving, setSaving] = useState(false);
 
@@ -2451,7 +2491,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         medium: { first_response_minutes: h2m(medFr), resolution_minutes: h2m(medRes) },
         low: { first_response_minutes: h2m(lowFr), resolution_minutes: h2m(lowRes) },
       },
-      output: { trend: outTrend, by_site: outBySite, severity: outSeverity },
+      output: { trend: outTrend, by_site: outBySite, severity: outSeverity, sla: outSla },
       branding: { use_company_settings: brand },
     };
   };
@@ -2517,6 +2557,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
           {chk("Resolution and response trend", outTrend, setOutTrend)}
           {chk("Per-site breakdown", outBySite, setOutBySite)}
           {chk("Open issues by severity", outSeverity, setOutSeverity)}
+          {chk("SLA compliance and breaches", outSla, setOutSla)}
         </div> :
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14, fontSize: 13, color: t.textMut }}>
           This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.
