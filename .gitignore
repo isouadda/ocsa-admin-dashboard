@@ -10,7 +10,7 @@ package-lock.json
 *.log
 
 # environment
-.env
+.env*.local
 .env.local
 .env.development.local
 .env.test.local
