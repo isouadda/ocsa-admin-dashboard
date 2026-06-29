@@ -320,7 +320,7 @@ export default function AdminDashboard() {
 
       {/* Logo + collapse toggle */}
       <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid " + SB_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
-        {!sidebarCollapsed && <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 8px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt="OCSA Cleaning" style={{ height: 26 }} /></div>}
+        {!sidebarCollapsed && <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 8px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt={clientConfig.company.shortName} style={{ height: 26 }} /></div>}
         <button onClick={toggleSidebar} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: SB_TEXT, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Ic d={sidebarCollapsed ? "M13 17l5-5-5-5M6 17l5-5-5-5" : "M11 17l-5-5 5-5M18 17l-5-5 5-5"} sz={16} c={SB_TEXT} />
         </button>
@@ -417,7 +417,7 @@ export default function AdminDashboard() {
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, letterSpacing: ".2px" }}>{pageLabels[page] || "Dashboard"}</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? "OCSA Cleaning Admin" : "OCSA Cleaning Supervisor"}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? `${clientConfig.company.shortName} Admin` : `${clientConfig.company.shortName} Supervisor`}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ position: "relative" }}>
@@ -2309,7 +2309,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
-    const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || "OCSA Cleaning Inc.";
+    const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const showEin = !!(useBrand && settings && settings.show_ein_on_reports && settings.ein);
     const addr = useBrand && settings && settings.address ? settings.address : "";
