@@ -118,6 +118,7 @@ const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.2
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
+const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
 
 // ===== THEMED SHARED COMPONENTS =====
 const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
@@ -763,6 +764,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     // Profile info section
     html += '<div class="section"><div class="section-title">Employee Information</div><div class="grid">';
     html += '<div class="field"><div class="label">Role</div><div class="value">' + (u.role || "N/A") + '</div></div>';
+    html += '<div class="field"><div class="label">Employment Type</div><div class="value">' + (u.employmentType ? (ET[u.employmentType] || u.employmentType) : "N/A") + '</div></div>';
     html += '<div class="field"><div class="label">Status</div><div class="value">' + (u.status || "N/A") + '</div></div>';
     html += '<div class="field"><div class="label">Hire Date</div><div class="value">' + (u.hireDate ? fmtDate(u.hireDate) : "N/A") + '</div></div>';
     html += '<div class="field"><div class="label">Phone</div><div class="value">' + (u.phone || "N/A") + '</div></div>';
@@ -873,7 +875,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           </div>}
         name={u.firstName + " " + u.lastName}
         idCode={u.employeeId}
-        subtitle={roleLabels[u.role] || RL[u.role] || u.role}
+        subtitle={(roleLabels[u.role] || RL[u.role] || u.role) + (u.employmentType ? " (" + (ET[u.employmentType] || u.employmentType) + ")" : "")}
         badges={<Bdg l={u.status} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />}
         actions={<>
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>Print Report</Btn>
@@ -894,7 +896,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Contact Information</div>
-            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={GO} /> Edit</button>}
+            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={GO} /> Edit</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -927,6 +929,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><Lbl>Role</Lbl><Sel t={t} value={pe.role || ""} onChange={e => setProfileEdit({ ...pe, role: e.target.value })} options={getOpts("staff_roles")} /></div>
+              <div><Lbl>Employment Type</Lbl><Sel t={t} value={pe.employmentType || ""} onChange={e => setProfileEdit({ ...pe, employmentType: e.target.value || null })} options={[{v:"",l:"Unspecified"},{v:"full_time",l:"Full Time"},{v:"part_time",l:"Part Time"},{v:"supplemental",l:"Supplemental"}]} /></div>
               <div><Lbl>Hourly Rate</Lbl><Inp t={t} value={pe.hourlyRate || ""} onChange={e => setProfileEdit({ ...pe, hourlyRate: e.target.value })} type="number" placeholder="0.00" /></div>
               <div><Lbl>Birthday</Lbl><Inp t={t} value={pe.birthday || ""} onChange={e => setProfileEdit({ ...pe, birthday: e.target.value })} type="date" /></div>
             </div>
@@ -1147,7 +1150,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // STAFF LIST VIEW
   // ============================================================
   return (<div>
-    <SecT t={t} action="Add Staff" onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer" }); }}>Staff Management</SecT>
+    <SecT t={t} action="Add Staff" onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); }}>Staff Management</SecT>
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: staff.length, color: GO }, { id: "active", label: "Active", count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: "Pending", count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: "Inactive", count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: "All roles" }, ...getOpts("staff_roles")]} /></div>
@@ -1170,8 +1173,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: "Phone", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "\u2014" },
         { header: "Status", render: s => <Bdg l={s.status} c={statusColor(s.status)} /> },
         { header: "Role", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleLabels[s.role] || RL[s.role] || s.role },
+        { header: "Employment", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? (ET[s.employmentType] || s.employmentType) : "-" },
         { header: "Sites", tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : "No sites" },
-        { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Approve</button>}<button title="Edit" onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "" }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title="View profile" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button></div> }
+        { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Approve</button>}<button title="Edit" onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title="View profile" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button></div> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty="No staff match these filters." footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
@@ -1181,7 +1185,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>Phone *</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder="2155550000 (no dashes needed)" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Email *</Lbl><Inp t={t} value={addForm.email} onChange={e => setAddForm({ ...addForm, email: e.target.value })} placeholder="name@email.com" type="email" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Employee ID</Lbl><Inp t={t} value={addForm.employeeId || ""} onChange={e => { setAddForm({ ...addForm, employeeId: e.target.value }); setEmpIdError(""); }} placeholder={`${clientConfig.employee.idPrefix}-0042`} />{empIdError && <div style={{ fontSize: 11, color: RD, marginTop: 4 }}>{empIdError}</div>}</div>
-      <div style={{ marginBottom: 16 }}><Lbl>Role</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={getOpts("staff_roles")} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Role</Lbl><Sel t={t} value={addForm.role} onChange={e => setAddForm({ ...addForm, role: e.target.value })} options={getOpts("staff_roles")} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>Employment Type</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={[{v:"",l:"Unspecified"},{v:"full_time",l:"Full Time"},{v:"part_time",l:"Part Time"},{v:"supplemental",l:"Supplemental"}]} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Staff</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Staff Info</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
@@ -1190,6 +1195,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 12 }}><Lbl>Phone</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Email</Lbl><Inp t={t} value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} type="email" /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Role</Lbl><Sel t={t} value={editForm.role} onChange={e => setEditForm({ ...editForm, role: e.target.value })} options={getOpts("staff_roles")} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Employment Type</Lbl><Sel t={t} value={editForm.employmentType || ""} onChange={e => setEditForm({ ...editForm, employmentType: e.target.value || null })} options={[{v:"",l:"Unspecified"},{v:"full_time",l:"Full Time"},{v:"part_time",l:"Part Time"},{v:"supplemental",l:"Supplemental"}]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Employee ID</Lbl><Inp t={t} value={editForm.employeeId || ""} onChange={e => setEditForm({ ...editForm, employeeId: e.target.value })} placeholder={`${clientConfig.employee.idPrefix}-0042`} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Hourly Rate</Lbl><Inp t={t} value={editForm.hourlyRate} onChange={e => setEditForm({ ...editForm, hourlyRate: e.target.value })} placeholder="0.00" type="number" /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
