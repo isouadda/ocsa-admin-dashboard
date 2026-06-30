@@ -2168,7 +2168,7 @@ const REPORT_SOURCES = [
   { key: "task_turnaround", label: "Task Turnaround", category: "Service Delivery", available: false },
   { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: false },
   { key: "training_certification", label: "Training and Certification Status", category: "Workforce", available: false },
-  { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: false },
+  { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
   { key: "vendor_activity", label: "Vendor Activity", category: "Vendors", available: false },
 ];
 const sourceLabel = (key) => { if (isIssueSource(key)) return "Issue Response and Resolution"; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.label : key; };
@@ -2207,6 +2207,33 @@ const readIssueConfig = (cfg) => {
       low: { first_response_minutes: num(sl.first_response_minutes, d.sla_targets.low.first_response_minutes), resolution_minutes: num(sl.resolution_minutes, d.sla_targets.low.resolution_minutes) },
     },
     output: { trend: ou.trend !== false, by_site: ou.by_site !== false, severity: ou.severity !== false, sla: ou.sla === true },
+    branding: { use_company_settings: br.use_company_settings !== false },
+  };
+};
+
+const SUPPLY_SOURCE_KEY = "supply_usage";
+const isSupplySource = (key) => key === SUPPLY_SOURCE_KEY;
+
+const defaultSupplyConfig = () => ({
+  date_range: { preset: "last30" },
+  bucket: "week",
+  filters: { site_id: "", category: "" },
+  output: { trend: true, by_site: true, top_supplies: true, green_share: true },
+  branding: { use_company_settings: true },
+});
+
+const readSupplyConfig = (cfg) => {
+  const d = defaultSupplyConfig();
+  const c = cfg && typeof cfg === "object" ? cfg : {};
+  const dr = c.date_range && typeof c.date_range === "object" ? c.date_range : {};
+  const fl = c.filters && typeof c.filters === "object" ? c.filters : {};
+  const ou = c.output && typeof c.output === "object" ? c.output : {};
+  const br = c.branding && typeof c.branding === "object" ? c.branding : {};
+  return {
+    date_range: { preset: dr.preset || d.date_range.preset, start: dr.start || null, end: dr.end || null },
+    bucket: c.bucket || d.bucket,
+    filters: { site_id: fl.site_id || "", category: fl.category || "" },
+    output: { trend: ou.trend !== false, by_site: ou.by_site !== false, top_supplies: ou.top_supplies !== false, green_share: ou.green_share !== false },
     branding: { use_company_settings: br.use_company_settings !== false },
   };
 };
@@ -2454,10 +2481,171 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   </div>);
 }
 
+const SupplyCostTrendWidget = ({ data, t }) => {
+  const trend = (data && data.trend) ? data.trend : [];
+  const cats = trend.map(b => fmtBucketDate(b.bucket_start));
+  const series = [{ name: "Estimated cost", data: trend.map(b => b.estimated_cost) }];
+  const hasData = trend.some(b => b.estimated_cost > 0);
+  return (
+    <ChartCard t={t} title="Estimated cost trend" sub={"Estimated supply cost per " + ((data && data.bucket) ? data.bucket : "week")}>
+      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>No supply usage in this range yet.</div>}
+    </ChartCard>
+  );
+};
+
+const SupplyCostBySiteWidget = ({ data, t }) => {
+  const rows = ((data && data.by_site) ? data.by_site : []).filter(s => s.estimated_cost > 0);
+  if (rows.length < 1) return null;
+  return (
+    <ChartCard t={t} title="Estimated cost by site" sub="Higher means more spend">
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.estimated_cost)} t={t} name="Estimated cost (USD)" />
+    </ChartCard>
+  );
+};
+
+const SupplyTopSuppliesWidget = ({ data, t }) => {
+  const rows = ((data && data.by_supply) ? data.by_supply : []).filter(s => s.estimated_cost > 0).slice(0, 10);
+  if (rows.length < 1) return null;
+  return (
+    <ChartCard t={t} title="Top supplies by cost" sub="Estimated cost, top 10">
+      <BarChartW categories={rows.map(s => s.supply_name)} values={rows.map(s => s.estimated_cost)} t={t} horizontal={true} name="Estimated cost (USD)" />
+    </ChartCard>
+  );
+};
+
+const SupplyGreenShareWidget = ({ data, t }) => {
+  const gs = data && data.green_split;
+  const vals = gs ? [gs.green_cost, gs.non_green_cost] : [0, 0];
+  if (!vals.some(v => v > 0)) return null;
+  return (
+    <ChartCard t={t} title="Green-certified share of cost" sub="Estimated cost split">
+      <DonutChartW labels={["Green certified", "Other"]} values={vals} t={t} colors={[GR, OR]} />
+    </ChartCard>
+  );
+};
+
+function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
+  const cfg = readSupplyConfig(config);
+  const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
+  const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
+  const [catFilter, setCatFilter] = useState(cfg.filters.category || "");
+  const [bucket, setBucket] = useState(cfg.bucket || "week");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = (range) => {
+    const r = range || dateRange;
+    setLoading(true);
+    let q = "?start_date=" + r.start + "&end_date=" + r.end + "&bucket=" + bucket;
+    if (siteFilter) q += "&site_id=" + siteFilter;
+    if (catFilter) q += "&category=" + catFilter;
+    af("/api/report-engine/supply-usage" + q)
+      .then(d => { setData(d); setLoading(false); })
+      .catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+  };
+
+  useEffect(() => { load(); }, [dateRange, siteFilter, catFilter, bucket]);
+
+  const sm = data && data.summary;
+  const hasActivity = !!(sm && sm.usage_events > 0);
+  const out = cfg.output;
+  const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  const money = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const tiles = sm ? [
+    { label: "Estimated cost", value: money(sm.total_estimated_cost), color: t.text },
+    { label: "Usage events", value: String(sm.usage_events), color: t.text },
+    { label: "Supplies used", value: String(sm.supplies_used), color: t.text },
+    { label: "Sites", value: String(sm.sites_active), color: t.text },
+  ] : [];
+
+  const exportPdf = () => {
+    if (!sm) { showToast("No data to export", "error"); return; }
+    const useBrand = cfg.branding.use_company_settings;
+    const navy = (useBrand && settings && settings.primary_color) || NAVY;
+    const gold = (useBrand && settings && settings.secondary_color) || GOLD;
+    const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
+    const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
+    const addr = useBrand && settings && settings.address ? settings.address : "";
+    const gen = new Date().toLocaleString();
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const m = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
+    const catLabel = catFilter ? (catFilter.charAt(0).toUpperCase() + catFilter.slice(1)) : "All categories";
+    const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
+    const summaryCards = card(m(sm.total_estimated_cost), "Estimated cost") + card(String(sm.usage_events), "Usage events") + card(String(sm.supplies_used), "Supplies used") + card(String(sm.sites_active), "Sites");
+    const trendRows = out.trend ? ((data && data.trend ? data.trend : []).filter(b => b.usage_events > 0).map(b => '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(m(b.estimated_cost)) + '</td><td>' + esc(String(b.quantity)) + '</td><td>' + esc(String(b.usage_events)) + '</td></tr>').join("")) : "";
+    const trendTable = trendRows ? ('<h2>Estimated cost by period</h2><table><thead><tr><th>Period</th><th>Estimated cost</th><th>Quantity</th><th>Events</th></tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
+    const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
+    const siteTable = siteRows ? ('<h2>Cost by site</h2><table><thead><tr><th>Site</th><th>Estimated cost</th><th>Events</th></tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const supRows = out.top_supplies ? ((data && data.by_supply ? data.by_supply : []).slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(s.category) + '</td><td>' + esc(s.is_green_certified ? "Yes" : "No") + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.quantity) + " " + (s.unit || "")) + '</td></tr>').join("")) : "";
+    const supTable = supRows ? ('<h2>Top supplies by cost</h2><table><thead><tr><th>Supply</th><th>Category</th><th>Green</th><th>Estimated cost</th><th>Quantity</th></tr></thead><tbody>' + supRows + '</tbody></table>') : "";
+    const greenLine = out.green_share && data && data.green_split ? ('<p class="meta">Green-certified share of estimated cost: ' + esc(m(data.green_split.green_cost)) + ' of ' + esc(m(sm.total_estimated_cost)) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
+    const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Supply Usage and Cost</title>' + style + '</head><body>'
+      + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<h1>Supply Usage and Cost</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(catLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
+      + '<p class="meta">Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.</p>'
+      + '<div class="grid">' + summaryCards + '</div>'
+      + greenLine + trendTable + siteTable + supTable
+      + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
+      + '</body></html>';
+    const w = window.open("", "_blank");
+    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
+  };
+
+  return (<div>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <div style={{ marginBottom: 16 }}>
+      <ChartCard t={t} title="Supply Usage and Cost" sub="Estimated cost from logged usage at current prices" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
+            <option value="">All sites</option>
+            {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={selSt}>
+            <option value="">All categories</option>
+            <option value="chemical">Chemical</option>
+            <option value="supply">Supply</option>
+            <option value="equipment">Equipment</option>
+            <option value="ppe">PPE</option>
+          </select>
+          <select value={bucket} onChange={e => setBucket(e.target.value)} style={selSt}>
+            <option value="day">Daily</option>
+            <option value="week">Weekly</option>
+            <option value="month">Monthly</option>
+          </select>
+        </div>
+        {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>Loading...</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No supply usage in this range yet.</div> :
+          <div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
+              {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} sub={s.sub} color={s.color} />)}
+            </div>
+            <div style={{ fontSize: 11, color: t.textMut }}>Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.</div>
+          </div>}
+      </ChartCard>
+    </div>
+    {hasActivity ? <div>
+      {out.trend ? <div style={{ marginBottom: 16 }}><SupplyCostTrendWidget data={data} t={t} /></div> : null}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
+        {out.by_site ? <SupplyCostBySiteWidget data={data} t={t} /> : null}
+        {out.green_share ? <SupplyGreenShareWidget data={data} t={t} /> : null}
+      </div>
+      {out.top_supplies ? <div style={{ marginBottom: 16 }}><SupplyTopSuppliesWidget data={data} t={t} /></div> : null}
+    </div> : null}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
   const c0 = readIssueConfig(initial && initial.config);
+  const sc0 = readSupplyConfig(initial && initial.config);
   const toH = (m) => Math.round((m / 60) * 100) / 100;
   const [name, setName] = useState(initial ? (initial.name || "") : "");
   const [description, setDescription] = useState(initial && initial.description ? initial.description : "");
@@ -2477,10 +2665,27 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const [outBySite, setOutBySite] = useState(c0.output.by_site);
   const [outSeverity, setOutSeverity] = useState(c0.output.severity);
   const [outSla, setOutSla] = useState(c0.output.sla);
+  const [supPreset, setSupPreset] = useState(sc0.date_range.preset || "last30");
+  const [supBucket, setSupBucket] = useState(sc0.bucket || "week");
+  const [supSiteId, setSupSiteId] = useState(sc0.filters.site_id || "");
+  const [supCategory, setSupCategory] = useState(sc0.filters.category || "");
+  const [supOutTrend, setSupOutTrend] = useState(sc0.output.trend);
+  const [supOutBySite, setSupOutBySite] = useState(sc0.output.by_site);
+  const [supOutTop, setSupOutTop] = useState(sc0.output.top_supplies);
+  const [supOutGreen, setSupOutGreen] = useState(sc0.output.green_share);
   const [brand, setBrand] = useState(c0.branding.use_company_settings);
   const [saving, setSaving] = useState(false);
 
   const buildConfig = () => {
+    if (isSupplySource(source)) {
+      return {
+        date_range: { preset: supPreset },
+        bucket: supBucket,
+        filters: { site_id: supSiteId, category: supCategory },
+        output: { trend: supOutTrend, by_site: supOutBySite, top_supplies: supOutTop, green_share: supOutGreen },
+        branding: { use_company_settings: brand },
+      };
+    }
     const h2m = (h) => Math.max(1, Math.round(Number(h) * 60));
     return {
       date_range: { preset },
@@ -2559,6 +2764,22 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
           {chk("Open issues by severity", outSeverity, setOutSeverity)}
           {chk("SLA compliance and breaches", outSla, setOutSla)}
         </div> :
+        isSupplySource(source) ?
+        <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Supply report settings</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><Lbl>Default range</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
+            <div><Lbl>Trend bucket</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
+            <div><Lbl>Category</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: "All categories" }, { v: "chemical", l: "Chemical" }, { v: "supply", l: "Supply" }, { v: "equipment", l: "Equipment" }, { v: "ppe", l: "PPE" }]} /></div>
+          </div>
+          <div style={{ marginBottom: 12 }}><Lbl>Default site</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
+          {chk("Cost trend", supOutTrend, setSupOutTrend)}
+          {chk("Cost by site", supOutBySite, setSupOutBySite)}
+          {chk("Top supplies by cost", supOutTop, setSupOutTop)}
+          {chk("Green-certified share", supOutGreen, setSupOutGreen)}
+        </div> :
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14, fontSize: 13, color: t.textMut }}>
           This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.
         </div>}
@@ -2626,6 +2847,8 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
       </div>
       {isIssueSource(active.source) ?
         <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+       isSupplySource(active.source) ?
+        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>This report's data source arrives with the report templates workstream. It will run here once that ships.</div></Crd>}
     </div>);
   }
