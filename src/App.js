@@ -6642,6 +6642,154 @@ function PermissionsMatrixPanel({ t }) {
   );
 }
 
+function PermissionsEditorPanel({ af, uf, showToast, t }) {
+  const [staff, setStaff] = useState([]);
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [selId, setSelId] = useState("");
+  const [detail, setDetail] = useState(null);
+  const [overrides, setOverrides] = useState({});
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLoadingStaff(true);
+    af("/api/users")
+      .then((d) => {
+        const list = Array.isArray(d) ? d : (d && Array.isArray(d.users) ? d.users : []);
+        setStaff(list);
+        setLoadingStaff(false);
+      })
+      .catch((e) => { setLoadingStaff(false); showToast("Could not load team: " + e.message, "error"); });
+  }, []);
+
+  const loadDetail = (id) => {
+    if (!id) { setDetail(null); setOverrides({}); return; }
+    setLoadingDetail(true);
+    af("/api/users/" + id + "/permissions")
+      .then((d) => {
+        setDetail(d);
+        setOverrides(d && d.overrides && typeof d.overrides === "object" ? Object.assign({}, d.overrides) : {});
+        setLoadingDetail(false);
+      })
+      .catch((e) => { setLoadingDetail(false); showToast("Could not load permissions: " + e.message, "error"); });
+  };
+
+  const onSelect = (id) => { setSelId(id); loadDetail(id); };
+
+  const caps = (detail && Array.isArray(detail.capabilities)) ? detail.capabilities : [];
+  const role = detail && detail.role;
+  const isAdminTarget = role === "admin";
+  const tierOf = (r) => (r === "admin" ? "admin" : r === "supervisor" ? "supervisor" : "staff");
+  const roleDefault = (c) => !!(c.defaults && c.defaults[tierOf(role)]);
+
+  const effOf = (c) => {
+    if (isAdminTarget && c.key === "manage_permissions") return true;
+    if (Object.prototype.hasOwnProperty.call(overrides, c.key)) return !!overrides[c.key];
+    return roleDefault(c);
+  };
+  const stateOf = (c) => {
+    if (isAdminTarget && c.key === "manage_permissions") return "locked";
+    if (Object.prototype.hasOwnProperty.call(overrides, c.key)) return overrides[c.key] ? "allow" : "deny";
+    return "default";
+  };
+
+  const setDefault = (key) => { const n = Object.assign({}, overrides); delete n[key]; setOverrides(n); };
+  const setAllow = (key) => setOverrides(Object.assign({}, overrides, { [key]: true }));
+  const setDeny = (key) => setOverrides(Object.assign({}, overrides, { [key]: false }));
+
+  const dirty = detail && JSON.stringify(overrides) !== JSON.stringify(detail.overrides || {});
+
+  const save = () => {
+    if (!selId) return;
+    setSaving(true);
+    af("/api/users/" + selId + "/permissions", { method: "PUT", body: { permissions: overrides } })
+      .then((d) => {
+        setDetail((prev) => prev ? Object.assign({}, prev, { overrides: (d && d.overrides) || {}, effective: (d && d.effective) || prev.effective }) : prev);
+        setOverrides((d && d.overrides) ? Object.assign({}, d.overrides) : {});
+        setSaving(false);
+        showToast("Permissions saved", "success");
+      })
+      .catch((e) => { setSaving(false); showToast("Could not save: " + e.message, "error"); });
+  };
+
+  const groups = [];
+  caps.forEach((c) => {
+    let g = groups.find((x) => x.name === c.group);
+    if (!g) { g = { name: c.group, items: [] }; groups.push(g); }
+    g.items.push(c);
+  });
+
+  const card = { background: t.card, border: "1px solid " + t.borderSolid, borderRadius: 10, padding: 18, marginBottom: 16 };
+  const selSt = { padding: "8px 12px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", minWidth: 260 };
+  const segBtn = (active, color) => ({ padding: "5px 10px", borderRadius: 6, border: "1px solid " + (active ? color : t.borderSolid), background: active ? color : "transparent", color: active ? "#fff" : t.textMut, fontSize: 11, fontFamily: FONT_BODY, cursor: "pointer", fontWeight: active ? 700 : 500 });
+  const tag = (txt, color) => (<span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: color, border: "1px solid " + color, borderRadius: 4, padding: "1px 5px", marginLeft: 8 }}>{txt}</span>);
+
+  return (
+    <div>
+      <div style={card}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 4 }}>Per-person permissions</div>
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.</div>
+        {loadingStaff ? (
+          <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>Loading team...</div>
+        ) : (
+          <select value={selId} onChange={(e) => onSelect(e.target.value)} style={selSt}>
+            <option value="">Select a team member...</option>
+            {staff.map((u) => (
+              <option key={u.id} value={u.id}>{(u.first_name || "") + " " + (u.last_name || "") + (u.role ? "  (" + u.role + ")" : "")}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {loadingDetail ? (
+        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>Loading permissions...</div>
+      ) : detail ? (
+        <div style={card}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{detail.name}</div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Role: {role}. Default follows this role until you override it.</div>
+            </div>
+            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 700, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? "Saving..." : "Save changes"}</button>
+          </div>
+
+          {groups.map((g) => (
+            <div key={g.name} style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{g.name}</div>
+              {g.items.map((c) => {
+                const st = stateOf(c);
+                const eff = effOf(c);
+                const locked = st === "locked";
+                return (
+                  <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid " + t.borderSolid, flexWrap: "wrap", gap: 8 }}>
+                    <div style={{ flex: "1 1 240px" }}>
+                      <span style={{ fontSize: 13, color: t.text }}>{c.label}</span>
+                      {c.enforced ? tag("Enforced", GR) : tag("Rolling out", OR)}
+                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Currently: {eff ? "Allowed" : "Blocked"}{st === "default" ? " (role default)" : st === "locked" ? " (admins always allowed)" : " (override)"}</div>
+                    </div>
+                    {locked ? (
+                      <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>Locked on</div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>Default</button>
+                        <button onClick={() => setAllow(c.key)} style={segBtn(st === "allow", GR)}>Allow</button>
+                        <button onClick={() => setDeny(c.key)} style={segBtn(st === "deny", RD)}>Deny</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+          <div style={{ fontSize: 10, color: t.textMut, marginTop: 8 }}>Enforced capabilities take effect immediately. Rolling out capabilities are saved against the person now and begin enforcing as each area is wired.</div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No team member selected.</div>
+      )}
+    </div>
+  );
+}
+
 function SettingsPage({ af, showToast, t, sites, uf }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
@@ -6750,7 +6898,7 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
 
       {tab === "company" && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
-      {tab === "permissions" && <PermissionsMatrixPanel t={t} />}
+      {tab === "permissions" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
       {tab === "global" && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
