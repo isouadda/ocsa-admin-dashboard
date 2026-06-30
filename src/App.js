@@ -6735,7 +6735,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
           <select value={selId} onChange={(e) => onSelect(e.target.value)} style={selSt}>
             <option value="">Select a team member...</option>
             {staff.map((u) => (
-              <option key={u.id} value={u.id}>{(u.first_name || "") + " " + (u.last_name || "") + (u.role ? "  (" + u.role + ")" : "")}</option>
+              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || ("User " + u.id)) + (u.role ? "  (" + u.role + ")" : ""))}</option>
             ))}
           </select>
         )}
