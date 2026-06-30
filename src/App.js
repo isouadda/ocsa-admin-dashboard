@@ -2162,14 +2162,8 @@ const ISSUE_SOURCE_ALIASES = ["issues_timing", "issues"];
 const isIssueSource = (key) => ISSUE_SOURCE_ALIASES.includes(key);
 const REPORT_SOURCES = [
   { key: ISSUE_SOURCE_KEY, label: "Issue Response and Resolution", category: "Service Delivery", available: true },
-  { key: "site_service_delivery", label: "Site Service Delivery Summary", category: "Service Delivery", available: false },
-  { key: "attendance_hours", label: "Attendance and Hours", category: "Workforce", available: false },
-  { key: "task_completion", label: "Task Completion", category: "Service Delivery", available: false },
-  { key: "task_turnaround", label: "Task Turnaround", category: "Service Delivery", available: false },
-  { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
-  { key: "training_certification", label: "Training and Certification Status", category: "Workforce", available: false },
   { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
-  { key: "vendor_activity", label: "Vendor Activity", category: "Vendors", available: false },
+  { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
 ];
 const sourceLabel = (key) => { if (isIssueSource(key)) return "Issue Response and Resolution"; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.label : key; };
 const sourceAvailable = (key) => { if (isIssueSource(key)) return true; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.available : false; };
@@ -6521,6 +6515,133 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   );
 }
 
+const ACCESS_TIERS = [
+  { key: "a", label: "Admin" },
+  { key: "s", label: "Supervisor" },
+  { key: "st", label: "Staff" },
+];
+
+const PERMISSION_GROUPS = [
+  { group: "Administration", rows: [
+    { cap: "Company settings and branding", a: "Manage", s: "None", st: "None" },
+    { cap: "Dropdown and site lookups", a: "Manage", s: "None", st: "None" },
+    { cap: "Roles and permissions reference", a: "View", s: "None", st: "None" },
+    { cap: "Staff accounts, approvals, PIN resets", a: "Manage", s: "None", st: "None" },
+    { cap: "Site records and floor plans", a: "Manage", s: "View", st: "Assigned" },
+    { cap: "Integrations and forms", a: "Manage", s: "None", st: "None" },
+  ]},
+  { group: "Operations", rows: [
+    { cap: "Tasks: create, assign, reassign", a: "Manage", s: "Assigned sites", st: "Own tasks" },
+    { cap: "Issues: report and track", a: "Manage", s: "Manage", st: "Report" },
+    { cap: "Issue to task assignment", a: "Manage", s: "Manage", st: "None" },
+    { cap: "Inspections: templates and scheduling", a: "Manage", s: "Manage", st: "Complete assigned" },
+    { cap: "Clock in and out", a: "All staff", s: "All staff", st: "Self" },
+    { cap: "Manual time entry and shift edits", a: "Manage", s: "None", st: "None" },
+    { cap: "Schedule and shift pickups", a: "Manage", s: "Manage", st: "Request" },
+  ]},
+  { group: "Supplies and vendors", rows: [
+    { cap: "Inventory usage and requests", a: "Manage", s: "Manage", st: "Log and request" },
+    { cap: "Supply catalog: create, edit, delete", a: "Manage", s: "None", st: "None" },
+    { cap: "Vendors: view", a: "View", s: "View", st: "View" },
+    { cap: "Vendors: evaluate and export", a: "Manage", s: "Manage", st: "None" },
+    { cap: "Vendors: create, edit, delete, link", a: "Manage", s: "None", st: "None" },
+    { cap: "Services: view", a: "View", s: "View", st: "View" },
+    { cap: "Services: create, edit, delete, link", a: "Manage", s: "None", st: "None" },
+  ]},
+  { group: "Reporting", rows: [
+    { cap: "Reports and report builder", a: "Manage", s: "Manage", st: "None" },
+    { cap: "Labor reports", a: "Manage", s: "Manage", st: "None" },
+    { cap: "Timesheets", a: "Manage", s: "Manage", st: "None" },
+    { cap: "ADP payroll export", a: "Manage", s: "None", st: "None" },
+    { cap: "Activity log", a: "View", s: "View", st: "None" },
+  ]},
+  { group: "Communication", rows: [
+    { cap: "Messages", a: "All staff", s: "All staff", st: "All staff" },
+    { cap: "Direct message inbox overview", a: "View", s: "View", st: "None" },
+  ]},
+];
+
+const PERMISSION_NOTES = [
+  "Supervisors are scoped to their assigned sites for site-level actions.",
+  "Some delete actions within Inspections and Sites are reserved to Admin.",
+  "Staff covers custodial and porter roles, and client contacts, who use the staff portal. This shows their access to platform data.",
+  "This view reflects the access model in effect today. It is a reference, not an editor.",
+];
+
+function PermissionsMatrixPanel({ t }) {
+  const lvl = (label) => label === "Manage" ? "full" : (label === "None" ? "none" : "partial");
+  const cellColor = (label) => { const l = lvl(label); return l === "full" ? GR : l === "none" ? t.textMut : GO; };
+  const cellBg = (label) => { const l = lvl(label); return l === "full" ? GR + "1f" : l === "none" ? "transparent" : GO + "1a"; };
+
+  const printMatrix = () => {
+    const navy = NAVY, gold = GOLD, cName = clientConfig.company.name;
+    const gen = new Date().toLocaleString();
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    let body = "";
+    PERMISSION_GROUPS.forEach(g => {
+      body += '<h2>' + esc(g.group) + '</h2><table><thead><tr><th>Capability</th><th>Admin</th><th>Supervisor</th><th>Staff</th></tr></thead><tbody>';
+      g.rows.forEach(r => { body += '<tr><td>' + esc(r.cap) + '</td><td>' + esc(r.a) + '</td><td>' + esc(r.s) + '</td><td>' + esc(r.st) + '</td></tr>'; });
+      body += '</tbody></table>';
+    });
+    let notes = '<ul class="notes">';
+    PERMISSION_NOTES.forEach(n => { notes += '<li>' + esc(n) + '</li>'; });
+    notes += '</ul>';
+    const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.notes{font-size:10px;color:#555;margin-top:16px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Roles and Permissions</title>' + style + '</head><body>'
+      + '<div class="brand"><div class="co">' + esc(cName) + '</div></div>'
+      + '<h1>Roles and Permissions</h1>'
+      + '<p class="meta">Access reference, generated ' + esc(gen) + '</p>'
+      + body + notes
+      + '<div class="footer">' + esc(cName) + ' &middot; Access reference</div>'
+      + '</body></html>';
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(html); w.document.close();
+    setTimeout(() => w.print(), 400);
+  };
+
+  const headCell = { fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 700, color: t.textSec, textTransform: "uppercase", letterSpacing: "0.5px", padding: "0 6px 8px" };
+  const capCell = { fontSize: 12.5, color: t.text, padding: "8px 6px", borderTop: "1px solid " + t.border };
+
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 12.5, color: t.textSec, maxWidth: 620, lineHeight: 1.5 }}>
+          Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.
+        </div>
+        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: GO, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
+      </div>
+
+      {PERMISSION_GROUPS.map((g, gi) => (
+        <Crd key={gi} t={t} style={{ marginBottom: 14, padding: 16 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr" }}>
+            <div style={headCell}>Capability</div>
+            {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tier.label}</div>)}
+            {g.rows.flatMap((r, ri) => [
+              <div key={"cap-" + ri} style={capCell}>{r.cap}</div>,
+              ...ACCESS_TIERS.map(tier => (
+                <div key={"c-" + ri + "-" + tier.key} style={{ ...capCell, textAlign: "center" }}>
+                  <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: 11, fontSize: 11, fontWeight: 600, color: cellColor(r[tier.key]), background: cellBg(r[tier.key]) }}>{r[tier.key]}</span>
+                </div>
+              )),
+            ])}
+          </div>
+        </Crd>
+      ))}
+
+      <Crd t={t} style={{ padding: 16 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.textSec, marginBottom: 8 }}>Notes</div>
+        {PERMISSION_NOTES.map((n, i) => (
+          <div key={i} style={{ fontSize: 11.5, color: t.textMut, marginBottom: 5, paddingLeft: 12, position: "relative" }}>
+            <span style={{ position: "absolute", left: 0, color: GO }}>-</span>{n}
+          </div>
+        ))}
+      </Crd>
+    </div>
+  );
+}
+
 function SettingsPage({ af, showToast, t, sites, uf }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
@@ -6624,9 +6745,12 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
         <button onClick={() => setTab("company")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "company" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "company" ? t.goldBg : "transparent", color: tab === "company" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Company</button>
         <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
         <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
+        <button onClick={() => setTab("permissions")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "permissions" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "permissions" ? t.goldBg : "transparent", color: tab === "permissions" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Roles and Permissions</button>
       </div>
 
       {tab === "company" && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
+
+      {tab === "permissions" && <PermissionsMatrixPanel t={t} />}
 
       {tab === "global" && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
