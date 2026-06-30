@@ -2166,7 +2166,7 @@ const REPORT_SOURCES = [
   { key: "attendance_hours", label: "Attendance and Hours", category: "Workforce", available: false },
   { key: "task_completion", label: "Task Completion", category: "Service Delivery", available: false },
   { key: "task_turnaround", label: "Task Turnaround", category: "Service Delivery", available: false },
-  { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: false },
+  { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
   { key: "training_certification", label: "Training and Certification Status", category: "Workforce", available: false },
   { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
   { key: "vendor_activity", label: "Vendor Activity", category: "Vendors", available: false },
@@ -2234,6 +2234,31 @@ const readSupplyConfig = (cfg) => {
     bucket: c.bucket || d.bucket,
     filters: { site_id: fl.site_id || "", category: fl.category || "" },
     output: { trend: ou.trend !== false, by_site: ou.by_site !== false, top_supplies: ou.top_supplies !== false, green_share: ou.green_share !== false },
+    branding: { use_company_settings: br.use_company_settings !== false },
+  };
+};
+
+const INSPECTION_SOURCE_KEY = "inspection_quality";
+const isInspectionSource = (key) => key === INSPECTION_SOURCE_KEY;
+
+const defaultInspectionConfig = () => ({
+  date_range: { preset: "last90" },
+  filters: { site_id: "" },
+  output: { trend: true, by_site: true, lowest_items: true },
+  branding: { use_company_settings: true },
+});
+
+const readInspectionConfig = (cfg) => {
+  const d = defaultInspectionConfig();
+  const c = cfg && typeof cfg === "object" ? cfg : {};
+  const dr = c.date_range && typeof c.date_range === "object" ? c.date_range : {};
+  const fl = c.filters && typeof c.filters === "object" ? c.filters : {};
+  const ou = c.output && typeof c.output === "object" ? c.output : {};
+  const br = c.branding && typeof c.branding === "object" ? c.branding : {};
+  return {
+    date_range: { preset: dr.preset || d.date_range.preset, start: dr.start || null, end: dr.end || null },
+    filters: { site_id: fl.site_id || "" },
+    output: { trend: ou.trend !== false, by_site: ou.by_site !== false, lowest_items: ou.lowest_items !== false },
     branding: { use_company_settings: br.use_company_settings !== false },
   };
 };
@@ -2641,11 +2666,155 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
   </div>);
 }
 
+const InspectionScoreTrendWidget = ({ rows, t }) => {
+  const byDate = {};
+  (rows || []).forEach(r => {
+    const k = (r.scheduled_date || r.completed_at || "").slice(0, 10);
+    if (!k) return;
+    if (!byDate[k]) byDate[k] = { sum: 0, max: 0 };
+    byDate[k].sum += Number(r.total_score || 0);
+    byDate[k].max += Number(r.max_possible_score || 0);
+  });
+  const keys = Object.keys(byDate).sort();
+  const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const cats = keys.map(fmt);
+  const series = [{ name: "Avg score %", data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
+  const hasData = series[0].data.some(v => v !== null);
+  return (
+    <ChartCard t={t} title="Inspection score trend" sub="Average score percent over time">
+      {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>No completed inspections in this range yet.</div>}
+    </ChartCard>
+  );
+};
+
+const InspectionBySiteWidget = ({ rows, t }) => {
+  const data = (rows || []).filter(s => s.avg_score_pct !== null && s.avg_score_pct !== undefined);
+  if (data.length < 1) return null;
+  return (
+    <ChartCard t={t} title="Average score by site" sub="Inspection score percent">
+      <BarChartW categories={data.map(s => s.site_name)} values={data.map(s => Number(s.avg_score_pct))} t={t} valueSuffix="%" name="Avg score %" />
+    </ChartCard>
+  );
+};
+
+const InspectionLowestItemsWidget = ({ rows, t }) => {
+  const data = (rows || []).filter(s => s.avg_score_pct !== null && s.avg_score_pct !== undefined).slice(0, 10);
+  if (data.length < 1) return null;
+  return (
+    <ChartCard t={t} title="Lowest-scoring items" sub="Average score percent, lowest first">
+      <BarChartW categories={data.map(s => s.label)} values={data.map(s => Number(s.avg_score_pct))} t={t} horizontal={true} valueSuffix="%" name="Avg score %" />
+    </ChartCard>
+  );
+};
+
+function InspectionReport({ af, t, sites, settings, config, showToast }) {
+  const cfg = readInspectionConfig(config);
+  const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
+  const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
+  const [scores, setScores] = useState(null);
+  const [bySite, setBySite] = useState(null);
+  const [lowest, setLowest] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = (range) => {
+    const r = range || dateRange;
+    setLoading(true);
+    const base = "?start_date=" + r.start + "&end_date=" + r.end;
+    const sq = base + (siteFilter ? "&site_id=" + siteFilter : "");
+    Promise.all([
+      af("/api/inspections/analytics/scores-over-time" + sq),
+      af("/api/inspections/analytics/site-comparison" + base),
+      af("/api/inspections/analytics/lowest-items" + sq + "&limit=10"),
+    ]).then(([sc, bs, lw]) => {
+      setScores(sc); setBySite(bs); setLowest(lw); setLoading(false);
+    }).catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+  };
+
+  useEffect(() => { load(); }, [dateRange, siteFilter]);
+
+  const out = cfg.output;
+  const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  const inspRows = scores || [];
+  const totMax = inspRows.reduce((a, r) => a + Number(r.max_possible_score || 0), 0);
+  const totScore = inspRows.reduce((a, r) => a + Number(r.total_score || 0), 0);
+  const avgPct = totMax > 0 ? Math.round(1000 * totScore / totMax) / 10 : null;
+  const siteCount = (bySite || []).length;
+  const hasActivity = inspRows.length > 0;
+  const tiles = [
+    { label: "Avg score", value: avgPct === null ? "-" : (avgPct + "%"), color: t.text },
+    { label: "Inspections", value: String(inspRows.length), color: t.text },
+    { label: "Sites", value: String(siteCount), color: t.text },
+  ];
+
+  const exportPdf = () => {
+    if (!hasActivity) { showToast("No data to export", "error"); return; }
+    const useBrand = cfg.branding.use_company_settings;
+    const navy = (useBrand && settings && settings.primary_color) || NAVY;
+    const gold = (useBrand && settings && settings.secondary_color) || GOLD;
+    const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
+    const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
+    const addr = useBrand && settings && settings.address ? settings.address : "";
+    const gen = new Date().toLocaleString();
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const pct = (v) => (v == null ? "-" : (v + "%"));
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
+    const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
+    const summaryCards = card(pct(avgPct), "Avg score") + card(String(inspRows.length), "Inspections") + card(String(siteCount), "Sites");
+    const siteRows = out.by_site ? ((bySite || []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(String(s.inspection_count)) + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(pct(s.latest_score_pct)) + '</td></tr>').join("")) : "";
+    const siteTable = siteRows ? ('<h2>Average score by site</h2><table><thead><tr><th>Site</th><th>Inspections</th><th>Avg score</th><th>Latest</th></tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const lowRows = out.lowest_items ? ((lowest || []).slice(0, 20).map(s => '<tr><td>' + esc(s.label) + '</td><td>' + esc(s.zone || "") + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(String(s.occurrences)) + '</td></tr>').join("")) : "";
+    const lowTable = lowRows ? ('<h2>Lowest-scoring items</h2><table><thead><tr><th>Item</th><th>Zone</th><th>Avg score</th><th>Times checked</th></tr></thead><tbody>' + lowRows + '</tbody></table>') : "";
+    const inspListRows = out.trend ? ((scores || []).slice(0, 50).map(r => '<tr><td>' + esc((r.scheduled_date || r.completed_at || "").slice(0, 10)) + '</td><td>' + esc(r.site_name) + '</td><td>' + esc(pct(r.score_pct)) + '</td></tr>').join("")) : "";
+    const inspListTable = inspListRows ? ('<h2>Inspections in period</h2><table><thead><tr><th>Date</th><th>Site</th><th>Score</th></tr></thead><tbody>' + inspListRows + '</tbody></table>') : "";
+    const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inspection Scores and Quality</title>' + style + '</head><body>'
+      + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<h1>Inspection Scores and Quality</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
+      + '<div class="grid">' + summaryCards + '</div>'
+      + siteTable + lowTable + inspListTable
+      + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
+      + '</body></html>';
+    const w = window.open("", "_blank");
+    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
+  };
+
+  return (<div>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <div style={{ marginBottom: 16 }}>
+      <ChartCard t={t} title="Inspection Scores and Quality" sub="Inspection results over the selected period" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
+            <option value="">All sites</option>
+            {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </div>
+        {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>Loading...</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No completed inspections in this range yet.</div> :
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+            {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} color={s.color} />)}
+          </div>}
+      </ChartCard>
+    </div>
+    {hasActivity ? <div>
+      {out.trend ? <div style={{ marginBottom: 16 }}><InspectionScoreTrendWidget rows={scores} t={t} /></div> : null}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
+        {out.by_site ? <InspectionBySiteWidget rows={bySite} t={t} /> : null}
+      </div>
+      {out.lowest_items ? <div style={{ marginBottom: 16 }}><InspectionLowestItemsWidget rows={lowest} t={t} /></div> : null}
+    </div> : null}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
   const c0 = readIssueConfig(initial && initial.config);
   const sc0 = readSupplyConfig(initial && initial.config);
+  const inc0 = readInspectionConfig(initial && initial.config);
   const toH = (m) => Math.round((m / 60) * 100) / 100;
   const [name, setName] = useState(initial ? (initial.name || "") : "");
   const [description, setDescription] = useState(initial && initial.description ? initial.description : "");
@@ -2673,6 +2842,11 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const [supOutBySite, setSupOutBySite] = useState(sc0.output.by_site);
   const [supOutTop, setSupOutTop] = useState(sc0.output.top_supplies);
   const [supOutGreen, setSupOutGreen] = useState(sc0.output.green_share);
+  const [insPreset, setInsPreset] = useState(inc0.date_range.preset || "last90");
+  const [insSiteId, setInsSiteId] = useState(inc0.filters.site_id || "");
+  const [insOutTrend, setInsOutTrend] = useState(inc0.output.trend);
+  const [insOutBySite, setInsOutBySite] = useState(inc0.output.by_site);
+  const [insOutLowest, setInsOutLowest] = useState(inc0.output.lowest_items);
   const [brand, setBrand] = useState(c0.branding.use_company_settings);
   const [saving, setSaving] = useState(false);
 
@@ -2683,6 +2857,14 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         bucket: supBucket,
         filters: { site_id: supSiteId, category: supCategory },
         output: { trend: supOutTrend, by_site: supOutBySite, top_supplies: supOutTop, green_share: supOutGreen },
+        branding: { use_company_settings: brand },
+      };
+    }
+    if (isInspectionSource(source)) {
+      return {
+        date_range: { preset: insPreset },
+        filters: { site_id: insSiteId },
+        output: { trend: insOutTrend, by_site: insOutBySite, lowest_items: insOutLowest },
         branding: { use_company_settings: brand },
       };
     }
@@ -2780,6 +2962,19 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
           {chk("Top supplies by cost", supOutTop, setSupOutTop)}
           {chk("Green-certified share", supOutGreen, setSupOutGreen)}
         </div> :
+        isInspectionSource(source) ?
+        <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Inspection report settings</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div><Lbl>Default range</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
+            <div><Lbl>Default site</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          </div>
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
+          {chk("Score trend", insOutTrend, setInsOutTrend)}
+          {chk("Average score by site", insOutBySite, setInsOutBySite)}
+          {chk("Lowest-scoring items", insOutLowest, setInsOutLowest)}
+        </div> :
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14, fontSize: 13, color: t.textMut }}>
           This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.
         </div>}
@@ -2849,6 +3044,8 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
        isSupplySource(active.source) ?
         <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+       isInspectionSource(active.source) ?
+        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>This report's data source arrives with the report templates workstream. It will run here once that ships.</div></Crd>}
     </div>);
   }
