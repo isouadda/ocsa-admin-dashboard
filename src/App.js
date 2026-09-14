@@ -65,7 +65,7 @@ const DARK = {
   dark: true,
   bg: NAVY, card: "#132240", cardAlt: "#1B3058", border: "rgba(255,255,255,0.06)", borderSolid: "#1B3058",
   text: "#F8F7F4", textSec: "#A8B8C8", textMut: "#8899AA", inputBg: "rgba(255,255,255,0.04)", inputBorder: "#1B3058",
-  hover: "rgba(255,255,255,0.02)", goldBg: "rgba(231,176,23,0.12)", goldBorder: "rgba(231,176,23,0.25)",
+  hover: "rgba(255,255,255,0.02)", goldBg: "rgba(231,176,23,0.12)", goldBorder: "rgba(231,176,23,0.25)", goldText: GO,
   shadow: "0 4px 20px rgba(0,0,0,0.30)", popShadow: "0 18px 50px rgba(0,0,0,0.55)",
   modalOverlay: "rgba(0,0,0,0.7)",
   btnGhost: "#1B3058", scrollThumb: "#1B3058", greenSubtle: "rgba(46,204,113,0.04)", greenBorder: "rgba(46,204,113,0.1)",
@@ -78,7 +78,7 @@ const LIGHT = {
   dark: false,
   bg: "#F4F7FB", card: "#FFFFFF", cardAlt: "#EEF3F9", border: "#E4EAF2", borderSolid: "#D2DBE6",
   text: NAVY, textSec: "#4A5C70", textMut: "#5F6E7F", inputBg: "#FFFFFF", inputBorder: "#D2DBE6",
-  hover: "#F0F5FC", goldBg: "rgba(231,176,23,0.08)", goldBorder: "rgba(231,176,23,0.35)",
+  hover: "#F0F5FC", goldBg: "rgba(231,176,23,0.08)", goldBorder: "rgba(231,176,23,0.35)", goldText: "#8A5F10",
   shadow: "0 1px 2px rgba(16,24,40,0.04), 0 8px 24px rgba(16,24,40,0.06)", popShadow: "0 18px 45px rgba(16,24,40,0.18)",
   modalOverlay: "rgba(0,0,0,0.4)",
   btnGhost: "#E7EDF5", scrollThumb: "#C6D2E0", greenSubtle: "rgba(46,204,113,0.06)", greenBorder: "rgba(46,204,113,0.15)",
@@ -88,6 +88,7 @@ const LIGHT = {
   goldSubtle: "rgba(231,176,23,0.06)", goldSubtleBorder: "rgba(231,176,23,0.2)",
 };
 
+const goldToText = (t, c) => (c === GO ? t.goldText : c);
 const ft = d => new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 const fd = d => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const ff = d => new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -127,7 +128,7 @@ const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ pa
 const Lbl = ({ children }) => <label style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>;
 const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
 const Ini = ({ name: n, sz = 36, color: c = GO }) => <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 700, color: c, flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>;
-const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 700, color: c }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={c} /></div>}</div></Crd>;
+const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 700, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
@@ -144,7 +145,7 @@ const chartBase = (t, extra) => ({
   states: { hover: { filter: { type: "lighten", value: 0.06 } } },
   ...extra,
 });
-const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ fontSize: 12, fontWeight: 600, color: GO, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
+const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
 const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) + valueSuffix } }, legend: { show: false } })} />;
 const LineChartW = ({ categories, series, height = 260, t, colors }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } } })} />;
 const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 700 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
@@ -189,12 +190,12 @@ function DateRangePicker({ value, onChange, t, presets }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, minWidth: 160, cursor: "pointer" }} onClick={() => setShowCustom(!showCustom)}>
           {fmtRange(value.start, value.end)}
-          <span style={{ fontSize: 10, color: GO, marginLeft: 6 }}>&#9662;</span>
+          <span style={{ fontSize: 10, color: t.goldText, marginLeft: 6 }}>&#9662;</span>
         </div>
         {pills.map(p => (
-          <button key={p.key} onClick={() => pickPreset(p.key)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: activePreset === p.key ? 700 : 500, cursor: "pointer", background: activePreset === p.key ? t.goldBg : "transparent", color: activePreset === p.key ? GO : t.textMut, border: activePreset === p.key ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{p.label}</button>
+          <button key={p.key} onClick={() => pickPreset(p.key)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: activePreset === p.key ? 700 : 500, cursor: "pointer", background: activePreset === p.key ? t.goldBg : "transparent", color: activePreset === p.key ? t.goldText : t.textMut, border: activePreset === p.key ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{p.label}</button>
         ))}
-        <button onClick={() => setShowCustom(!showCustom)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? GO : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Custom</button>
+        <button onClick={() => setShowCustom(!showCustom)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? t.goldText : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Custom</button>
         <button onClick={() => { const r = PRESETS.thisWeek(); onChange(r); setActivePreset("thisWeek"); setShowCustom(false); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 500, cursor: "pointer", background: "transparent", color: BL, border: "1px solid " + t.border }}>Today</button>
       </div>
       {showCustom && (
@@ -398,7 +399,7 @@ export default function AdminDashboard() {
         {!sidebarCollapsed ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(231,176,23,0.12)", border: "1px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
               <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
             </div>
             <button onClick={() => { setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
@@ -426,7 +427,7 @@ export default function AdminDashboard() {
             {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
               <div style={{ position: "absolute", top: 44, right: 0, width: 240, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
                 {matches.slice(0, 8).map(it => { const NI = it.i; return (
-                  <button key={it.id} onClick={() => { setPage(it.id); setNavQ(""); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><NI sz={16} c={GO} /><span>{it.l}</span></button>
+                  <button key={it.id} onClick={() => { setPage(it.id); setNavQ(""); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><NI sz={16} c={t.goldText} /><span>{it.l}</span></button>
                 ); })}
                 {matches.length === 0 && <div style={{ padding: "10px", fontSize: 12, color: t.textMut }}>No matching pages</div>}
               </div>
@@ -439,7 +440,7 @@ export default function AdminDashboard() {
           <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
             <button onClick={() => { setUserMenuOpen(o => !o); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px 4px 4px", borderRadius: 22, background: t.inputBg, border: "1px solid " + t.inputBorder, cursor: "pointer" }}>
-              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: GO, fontFamily: FONT_HEAD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
+              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: t.goldText, fontFamily: FONT_HEAD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{user?.firstName}</span>
               <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
             </button>
@@ -489,13 +490,13 @@ function LoginForm({ onLogin, loading, t }) {
     <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? "Signing in..." : "Sign In"}</button>
   </>);}
 
-const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || GO; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? GO : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? GO : cc }}>{tb.count}</span>}</button>; })}</div>;
+const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? t.goldText : cc }}>{tb.count}</span>}</button>; })}</div>;
 
 const DataTable = ({ columns, rows, rowKey, onRowClick, empty = "No records found.", footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
 const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>Showing {from} to {to} of {total}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>Prev</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>Page {cur} / {totalPages}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>Next</button></div></div>; };
 
-const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: GO, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
+const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: t.goldText, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
 
 const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
 
@@ -854,7 +855,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const isEditing = !!profileEdit;
     const pe = profileEdit || {};
     return (<div>
-      <button onClick={closeProfile} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", color: GO, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={GO} /> Back to Staff</button>
+      <button onClick={closeProfile} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 12 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={t.goldText} /> Back to Staff</button>
 
       {/* Profile Header */}
       <ProfileBanner t={t}
@@ -881,15 +882,15 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
-        {ptabs.map(tb => <button key={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? GO : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
+        {ptabs.map(tb => <button key={tb.id} onClick={() => setProfileTab(tb.id)} style={{ padding: "8px 16px", fontSize: 12, fontWeight: profileTab === tb.id ? 700 : 500, color: profileTab === tb.id ? t.goldText : t.textMut, background: "transparent", border: "none", borderBottom: profileTab === tb.id ? "2px solid " + GO : "2px solid transparent", cursor: "pointer", marginBottom: -1 }}>{tb.l}</button>)}
       </div>
 
       {/* INFO TAB */}
       {profileTab === "info" && <div>
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Contact Information</div>
-            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={GO} /> Edit</button>}
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Contact Information</div>
+            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> Edit</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -948,7 +949,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {profileTab === "hr" && <div>
         {hrLoading ? <div style={{ textAlign: "center", padding: 40, color: t.textMut, fontSize: 13 }}>Loading HR files...</div> : <div>
           <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Documents ({hrDocs.length})</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Documents ({hrDocs.length})</div>
             {hrDocs.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No documents on file</div>}
             {hrDocs.map((doc, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ flex: 1 }}>
@@ -959,7 +960,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             </div>)}
           </Crd>
           <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Training Records ({hrTraining.length})</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Training Records ({hrTraining.length})</div>
             {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No training records</div>}
             {hrTraining.map((tr, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div>
@@ -970,7 +971,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             </div>)}
           </Crd>
           {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Onboarding Steps</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Onboarding Steps</div>
             {hrOnboarding.map((step, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
               <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.completed_at ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.completed_at ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.completed_at && <ChkI sz={10} c={GR} />}</div>
               <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.completed_at && <div style={{ fontSize: 9, color: t.textMut }}>Completed {fmtDate(step.completed_at)}</div>}</div>
@@ -983,8 +984,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {profileTab === "assign" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div>
-            <button onClick={() => setAssignForm({ userId: u.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Assign</button>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Site Assignments</div>
+            <button onClick={() => setAssignForm({ userId: u.id, siteId: "", role: "", shift: "", start: "", end: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Assign</button>
           </div>
           {profile.assignments?.filter(a => a.is_active).map((a, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 6 }}>
             <div><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{a.site_name || "Site"}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{a.role_at_site || "No role"} | {a.shift_name || "No shift"}{a.shift_start ? " | " + a.shift_start + " - " + a.shift_end : ""}</div></div>
@@ -998,8 +999,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {profileTab === "certs" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Certifications</div>
-            <button onClick={() => setAddCert({ userId: u.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Certifications</div>
+            <button onClick={() => setAddCert({ userId: u.id, certName: "", certType: "certification", issuingBody: "", issuedDate: "", expiryDate: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Add</button>
           </div>
           {(!profile.certifications || profile.certifications.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No certifications on file</div>}
           {profile.certifications?.map((c, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.greenSubtle, borderRadius: 6, marginBottom: 4, border: "1px solid " + t.greenBorder }}>
@@ -1013,15 +1014,15 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {profileTab === "timeline" && <div>
         <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Activity Timeline ({tlTotal} total)</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Activity Timeline ({tlTotal} total)</div>
             <div style={{ display: "flex", gap: 6 }}>
-              <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
-              <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+              <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
+              <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
             </div>
           </div>
           {/* Category filter chips */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-            {[{ id: "all", l: "All" }, { id: "clock", l: "Clock" }, { id: "tasks", l: "Tasks" }, { id: "inspections", l: "Inspections" }, { id: "issues", l: "Issues" }, { id: "schedule", l: "Schedule" }, { id: "marketplace", l: "Marketplace" }, { id: "documents", l: "Documents" }, { id: "training", l: "Training" }, { id: "profile", l: "Profile" }, { id: "timesheets", l: "Timesheets" }, { id: "supplies", l: "Supplies" }].map(c => <button key={c.id} onClick={() => setTlCategory(c.id)} style={{ padding: "4px 10px", borderRadius: 12, fontSize: 10, fontWeight: tlCategory === c.id ? 700 : 500, background: tlCategory === c.id ? GO + "20" : "transparent", color: tlCategory === c.id ? GO : t.textMut, border: tlCategory === c.id ? "1px solid " + GO : "1px solid " + t.border, cursor: "pointer" }}>{c.l}</button>)}
+            {[{ id: "all", l: "All" }, { id: "clock", l: "Clock" }, { id: "tasks", l: "Tasks" }, { id: "inspections", l: "Inspections" }, { id: "issues", l: "Issues" }, { id: "schedule", l: "Schedule" }, { id: "marketplace", l: "Marketplace" }, { id: "documents", l: "Documents" }, { id: "training", l: "Training" }, { id: "profile", l: "Profile" }, { id: "timesheets", l: "Timesheets" }, { id: "supplies", l: "Supplies" }].map(c => <button key={c.id} onClick={() => setTlCategory(c.id)} style={{ padding: "4px 10px", borderRadius: 12, fontSize: 10, fontWeight: tlCategory === c.id ? 700 : 500, background: tlCategory === c.id ? GO + "20" : "transparent", color: tlCategory === c.id ? t.goldText : t.textMut, border: tlCategory === c.id ? "1px solid " + GO : "1px solid " + t.border, cursor: "pointer" }}>{c.l}</button>)}
           </div>
           {/* Date range filters */}
           <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
@@ -1039,7 +1040,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
               const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
-              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 700, color: GO, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
+              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 700, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
                 <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1051,7 +1052,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
                 </TimelineRow>
               </div>;
             })}
-            {timeline.length < tlTotal && <div style={{ textAlign: "center", padding: 12 }}><button onClick={async () => { try { let url = "/api/users/timeline/" + u.id + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Load More ({tlTotal - timeline.length} remaining)</button></div>}
+            {timeline.length < tlTotal && <div style={{ textAlign: "center", padding: 12 }}><button onClick={async () => { try { let url = "/api/users/timeline/" + u.id + "?limit=200&offset=" + timeline.length; if (tlCategory !== "all") url += "&category=" + tlCategory; if (tlStartDate) url += "&startDate=" + tlStartDate; if (tlEndDate) url += "&endDate=" + tlEndDate; const d = await af(url); setTimeline([...timeline, ...(d.entries || [])]); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 16px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>Load More ({tlTotal - timeline.length} remaining)</button></div>}
           </div>}
         </Crd>
       </div>}
@@ -1062,7 +1063,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Record Detail</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
             <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>
@@ -1075,14 +1076,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         {!tlDetail.found && <div style={{ padding: 16, textAlign: "center", color: t.textMut, fontSize: 12 }}>
           <div style={{ marginBottom: 8 }}>The source record could not be found. It may have been deleted or the entry was logged with a temporary reference.</div>
           {tlDetail.entry?.metadata && Object.keys(tlDetail.entry.metadata).length > 0 && <div>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6, marginTop: 12 }}>Available Metadata</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6, marginTop: 12 }}>Available Metadata</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{k.replace(/_/g, " ")}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(v)}</span></div>)}
             </div>
           </div>}
         </div>}
         {tlDetail.found && tlDetail.record && <div>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Record Fields</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>Record Fields</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
               const isUrl = typeof v === "string" && (v.startsWith("http://") || v.startsWith("https://"));
@@ -1096,14 +1097,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           </div>
           {/* Photos */}
           {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {tlDetail.photos.map((p, i) => <a key={i} href={p.photo_url || p.file_url || ""} target="_blank" rel="noopener noreferrer"><img src={p.photo_url || p.file_url || ""} alt={"Photo " + (i + 1)} style={{ width: 140, height: 100, objectFit: "cover", borderRadius: 6, border: "1px solid " + t.border }} /></a>)}
             </div>
           </div>}
           {/* Related items */}
           {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
             {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: 10, background: t.hover, borderRadius: 6, marginBottom: 4, fontSize: 11 }}>
               {Object.entries(item).filter(([k, v]) => v !== null && v !== undefined && k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 6).map(([k, v]) => <span key={k} style={{ marginRight: 12 }}><span style={{ color: t.textMut }}>{k.replace(/_/g, " ")}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{typeof v === "object" ? JSON.stringify(v).substring(0, 80) : String(v).substring(0, 80)}</span></span>)}
             </div>)}
@@ -1144,7 +1145,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // ============================================================
   return (<div>
     <SecT t={t} action="Add Staff" onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); }}>Staff Management</SecT>
-    <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: staff.length, color: GO }, { id: "active", label: "Active", count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: "Pending", count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: "Inactive", count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
+    <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: staff.length, color: t.goldText }, { id: "active", label: "Active", count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: "Pending", count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: "Inactive", count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: "All roles" }, ...getOpts("staff_roles")]} /></div>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search name, ID, phone, role" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
@@ -1162,13 +1163,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: "Name", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: GO, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{s.email}</div>}</div></div> },
+        { header: "Name", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{s.email}</div>}</div></div> },
         { header: "Phone", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "\u2014" },
         { header: "Status", render: s => <Bdg l={s.status} c={statusColor(s.status)} /> },
         { header: "Role", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleLabels[s.role] || RL[s.role] || s.role },
         { header: "Employment", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? (ET[s.employmentType] || s.employmentType) : "-" },
         { header: "Sites", tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : "No sites" },
-        { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Approve</button>}<button title="Edit" onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title="View profile" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button></div> }
+        { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Approve</button>}<button title="Edit" onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title="View profile" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty="No staff match these filters." footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
@@ -1550,15 +1551,15 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     ];
 
     return (<div>
-      <button onClick={closeProfile} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", background: "none", border: "none", color: GO, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
-        <Ic d="M19 12H5M12 19l-7-7 7-7" sz={16} c={GO} /> Back to Sites
+      <button onClick={closeProfile} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 0", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}>
+        <Ic d="M19 12H5M12 19l-7-7 7-7" sz={16} c={t.goldText} /> Back to Sites
       </button>
 
       <Crd t={t} style={{ marginBottom: 16, padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <MpI sz={24} c={GO} />
+              <MpI sz={24} c={t.goldText} />
               <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.text }}>{s.name}</div>
               <Bdg l={s.status} c={s.status === "active" ? GR : OR} />
             </div>
@@ -1571,7 +1572,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
-          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: GO }}>{sp.staff.length}</div><div style={{ fontSize: 10, color: t.textMut }}>Staff</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.goldText }}>{sp.staff.length}</div><div style={{ fontSize: 10, color: t.textMut }}>Staff</div></div>
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: BL }}>{sp.taskCount}</div><div style={{ fontSize: 10, color: t.textMut }}>Tasks</div></div>
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score (30d)</div></div>
           <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: RD }}>{parseInt(sp.issueSummary?.open_count || 0) + parseInt(sp.issueSummary?.in_progress_count || 0)}</div><div style={{ fontSize: 10, color: t.textMut }}>Open Issues</div></div>
@@ -1579,7 +1580,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       </Crd>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 16, overflowX: "auto", paddingBottom: 4 }}>
-        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} style={{ padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? GO : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
+        {tabs.map(tab => <button key={tab.k} onClick={() => setSiteTab(tab.k)} style={{ padding: "7px 14px", borderRadius: 8, border: siteTab === tab.k ? "1px solid " + GO : "1px solid transparent", background: siteTab === tab.k ? t.goldBg : "transparent", color: siteTab === tab.k ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tab.l}</button>)}
       </div>
 
       {/* GENERAL INFO TAB */}
@@ -1603,7 +1604,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             siteNotes: s.site_notes || "",
             addressLine1: s.address_line1 || "", addressLine2: s.address_line2 || "", city: s.city || "", state: s.state || "", zipCode: s.zip_code || "",
             name: s.name || ""
-          })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, cursor: "pointer" }}>Edit Details</button>}
+          })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>Edit Details</button>}
         </Crd>
 
         <Crd t={t} style={{ marginBottom: 16 }}>
@@ -1662,7 +1663,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {siteTab === "tasks" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Tasks ({st.length})</div>
-          <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={GO} /> Add Task</button>
+          <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> Add Task</button>
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1671,7 +1672,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? "Fl " + tk.floor_number + " | " : ""}{tk.zone} | {cimsLabels[tk.cims_category] || CIMS_LABELS[tk.cims_category] || tk.cims_category} | {tk.priority}{tk.due_date ? " | Due: " + fd(tk.due_date) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 9, cursor: "pointer" }}>Edit</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>Edit</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>Remove</button>
             </div>
           </div>
@@ -1684,7 +1685,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Marketplace Coverage (Last 30 Days)</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: GO }}>{sp.marketplaceSummary?.total_pickups || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Total Pickups</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: t.goldText }}>{sp.marketplaceSummary?.total_pickups || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Total Pickups</div></div>
             <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: GR }}>{sp.marketplaceSummary?.worked || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Worked</div></div>
             <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: OR }}>{sp.marketplaceSummary?.pending || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Pending</div></div>
           </div>
@@ -1713,7 +1714,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Supplies at This Site ({sp.supplies.length})</div>
-            {isAdmin && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={GO} /> Add Supply</button>}
+            {isAdmin && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> Add Supply</button>}
           </div>
           {sp.supplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div>
@@ -1750,7 +1751,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Site Channel Messages {siteChatChannel ? "(" + siteChatChannel.name + ")" : ""}</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={printSiteChat} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={printSiteChat} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
           </div>
         </div>
         {siteChatLoading && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>Loading...</div>}
@@ -1786,7 +1787,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* TIMELINE TAB */}
       {siteTab === "timeline" && <div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); setTlOffset(0); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? GO : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
+          {tlCats.map(c => <button key={c.k} onClick={() => { setTlCat(c.k); setTlOffset(0); }} style={{ padding: "4px 10px", borderRadius: 20, border: tlCat === c.k ? "1px solid " + GO : "1px solid " + t.border, background: tlCat === c.k ? t.goldBg : "transparent", color: tlCat === c.k ? t.goldText : t.textMut, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{c.l}</button>)}
         </div>
         <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
           <Inp t={t} type="date" value={tlDateRange.start} onChange={e => setTlDateRange(prev => ({ ...prev, start: e.target.value }))} style={{ width: 140, fontSize: 11 }} />
@@ -1796,8 +1797,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div style={{ fontSize: 11, color: t.textMut }}>{tlTotal} entries</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
-            <button onClick={printSiteTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
+            <button onClick={printSiteTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
           </div>
         </div>
         {tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>Loading...</div>}
@@ -1823,7 +1824,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             })}
           </div>);
         })()}
-        {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? "Loading..." : "Load More"}</button>}
+        {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? "Loading..." : "Load More"}</button>}
         {!tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>No activity recorded for this site</div>}
       </div>}
 
@@ -1832,7 +1833,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Record Detail</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <button onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
             <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>
@@ -1842,7 +1843,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <div style={{ marginTop: 4 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
         </div>
         {tlDetail.record && <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Record Fields</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Record Fields</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
@@ -1854,11 +1855,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>
         </div>}
         {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
         </div>}
         {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
           {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3, fontSize: 11, color: t.textSec }}>{Object.entries(item).filter(([k]) => k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 4).map(([k, v]) => k.replace(/_/g, " ") + ": " + (v !== null ? String(v).substring(0, 60) : "")).join(" | ")}</div>)}
         </div>}
         {!tlDetail.found && !tlDetailLoading && <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>Source record not found. The original data may have been deleted.</div>}
@@ -1870,12 +1871,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <div style={{ marginBottom: 12 }}><Lbl>Site Name</Lbl><Inp t={t} value={editSite.name} onChange={e => setEditSite({ ...editSite, name: e.target.value })} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Address</Lbl><Inp t={t} value={editSite.addressLine1} onChange={e => setEditSite({ ...editSite, addressLine1: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>City</Lbl><Inp t={t} value={editSite.city} onChange={e => setEditSite({ ...editSite, city: e.target.value })} /></div><div><Lbl>State</Lbl><Inp t={t} value={editSite.state} onChange={e => setEditSite({ ...editSite, state: e.target.value })} /></div><div><Lbl>Zip</Lbl><Inp t={t} value={editSite.zipCode} onChange={e => setEditSite({ ...editSite, zipCode: e.target.value })} /></div></div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: GO, marginBottom: 8, marginTop: 4 }}>Contract</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: t.goldText, marginBottom: 8, marginTop: 4 }}>Contract</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Contract Type</Lbl><Sel t={t} value={editSite.contractType} onChange={e => setEditSite({ ...editSite, contractType: e.target.value })} options={getOpts("contract_types")} /></div><div><Lbl>Prime Contractor</Lbl><Inp t={t} value={editSite.primeContractor} onChange={e => setEditSite({ ...editSite, primeContractor: e.target.value })} /></div></div>
         <div style={{ marginBottom: 12 }}><Lbl>Client Name</Lbl><Inp t={t} value={editSite.clientName} onChange={e => setEditSite({ ...editSite, clientName: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Monthly Value ($)</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div><div><Lbl>Billing</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: "Monthly" }, { v: "weekly", l: "Weekly" }, { v: "biweekly", l: "Bi-Weekly" }, { v: "quarterly", l: "Quarterly" }, { v: "annual", l: "Annual" }]} /></div><div><Lbl>Start Date</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }}><div><Lbl>End Date</Lbl><Inp t={t} type="date" value={editSite.contractEndDate} onChange={e => setEditSite({ ...editSite, contractEndDate: e.target.value })} /></div></div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: GO, marginBottom: 8, marginTop: 4 }}>Client Contact</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: t.goldText, marginBottom: 8, marginTop: 4 }}>Client Contact</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Contact Name</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>Email</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>Phone</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
         <div style={{ marginBottom: 16 }}><Lbl>Site Notes</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSite(null)}>Cancel</Btn><Btn t={t} onClick={async () => {
@@ -1933,7 +1934,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // ---- LIST VIEW ----
   return (<div>
     <SecT t={t} action={isAdmin ? "Add Site" : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>Sites</SecT>
-    {isAdmin && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: sites.length, color: GO }, { id: "active", label: "Active", count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: "Inactive", count: inactiveCount, color: OR }]} />}
+    {isAdmin && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: sites.length, color: t.goldText }, { id: "active", label: "Active", count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: "Inactive", count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search site, address, contract" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -1949,12 +1950,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: "Site", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={GO} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
+        { header: "Site", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
         { header: "Staff", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? s.staff_count + " staff" : "\u2014" },
         { header: "Tasks", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? s.task_count + " tasks" : "\u2014" },
         { header: "Contract", tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => s.contract_type || "\u2014" },
         { header: "Status", render: s => <Bdg l={s.status} c={s.status === "active" ? GR : OR} /> },
-        { header: "Actions", align: "right", render: s => <button title="View site" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button> }
+        { header: "Actions", align: "right", render: s => <button title="View site" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty="No sites found." footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
@@ -1998,7 +1999,7 @@ function OpsPage({ af, t, allStaff }) {
     </Crd>)}
     <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
       <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>No shift started {dayLabel} ({rest.length})</span>
-      <span style={{ fontSize: 11, color: GO, fontWeight: 600 }}>{showRest ? "Hide" : "Show"}</span>
+      <span style={{ fontSize: 11, color: t.goldText, fontWeight: 600 }}>{showRest ? "Hide" : "Show"}</span>
     </button>
     {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] || u.role}</div></div></div>)}
   </div>);
@@ -2016,7 +2017,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast("Select a staff member", "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>Issue Tracker</SecT>
-    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? GO : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={iss.severity} c={sC[iss.severity]} /><Bdg l={iss.status?.replace("_", " ")} c={stC[iss.status] || t.textMut} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
@@ -2038,9 +2039,9 @@ function IssuesPage({ af, showToast, t, allStaff }) {
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>Resolved At<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{sel.assignment_note}</div>}
-      {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photos ({allPhotos.length})</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={"Photo " + (i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? "Original" : "Resolution"}</div></div>)}</div></div>}
-      {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
-      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
+      {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photos ({allPhotos.length})</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={"Photo " + (i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? "Original" : "Resolution"}</div></div>)}</div></div>}
+      {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
         {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "resolution_photo" ? "Resolution Photo" : a.action === "photo_added" ? "Photo Added" : a.action; const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
@@ -2079,15 +2080,15 @@ function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkHasOther }) {
   return (<div>
     <SecT t={t} action={isAdmin ? "Add Supply" : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>Supplies and Inventory</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-      <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? GO : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Inventory ({supplies.length})</button>
-      <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? GO : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Requests {pendingCount > 0 ? "(" + pendingCount + " pending)" : ""}</button>
+      <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Inventory ({supplies.length})</button>
+      <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Requests {pendingCount > 0 ? "(" + pendingCount + " pending)" : ""}</button>
     </div>
     {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt="QR" style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l="Green" c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{s.category} | {s.unit} | Stock: {s.current_stock}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>QR: {s.qr_code}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l="Low Stock" c={RD} />}</div></Crd>))}
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No supplies configured.{isAdmin ? ' Click "Add Supply" to start.' : ""}</div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{r.request_type === "refill" ? "Refill Request" : r.request_type === "damage_report" ? "Damage Report" : r.request_type === "new_gear" ? "New Gear Request" : "New Supply Request"}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || "General"} {r.site_name ? "at " + r.site_name : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Approve</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Deny</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No supply requests yet.</div>}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div><div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category *</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit *</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Supply</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: GO, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}<div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}<div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div></div></Mdl>}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div><div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div></div></Mdl>}
   </div>);
 }
@@ -2128,7 +2129,7 @@ function ChatPage({ af, user, t }) {
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
         {!sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={GO} /></div>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Your messages</div>
             <div style={{ fontSize: 12, marginTop: 4 }}>Pick a conversation on the left to start.</div>
           </div>
@@ -3077,7 +3078,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>No saved reports yet. Use New report to create one.</div></Crd> :
         groupNames.map(cat => (
           <div key={cat} style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{prettyCat(cat)}</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{prettyCat(cat)}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {groups[cat].map(d => (
                 <Crd key={d.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
@@ -3103,14 +3104,14 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         ))}
 
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Quick snapshots</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Quick snapshots</div>
       <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
       <Crd t={t} style={{ marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Task Completion</div>
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
-            <span style={{ fontSize: 12, color: GO, fontWeight: 600 }}>{s.completedTasks} done</span>
+            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{s.completedTasks} done</span>
           </div>
         </div>) : null}
         {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div> : null}
@@ -3193,9 +3194,9 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>Resolved At<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>Resolution: {sel.resolution_note}</div>}
-      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Attached {sel.media_type === "video" ? "Video" : "Photo"}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt="Task" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
-      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div><img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
-      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
+      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Attached {sel.media_type === "video" ? "Video" : "Photo"}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt="Task" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
+      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div><img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
+      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
         {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action; const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>Reassign</Btn>}
@@ -3286,7 +3287,8 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
     showToast("Approved Vendor List exported");
   };
 
-  const statusColor = { approved: GR, pending: OR, probation: BL, inactive: "#8899AA" };
+  const inactiveColor = t.dark ? "#8899AA" : "#556677";
+  const statusColor = { approved: GR, pending: OR, probation: BL, inactive: inactiveColor };
   const emptyForm = { name: "", contactName: "", contactPhone: "", contactEmail: "", website: "", addressLine1: "", city: "", state: "", zipCode: "", productsServices: "", certificationStatus: "", contractTerms: "", approvalStatus: "pending", lastReviewDate: "" };
 
   const renderFormFields = (form, setForm) => (<>
@@ -3318,12 +3320,12 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Vendor Registry</div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={GO} /> Export AVL</button>
+        <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> Export AVL</button>
         {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> Add Vendor</button>}
       </div>
     </div>
 
-    <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: vendors.length, color: GO }, { id: "approved", label: "Approved", count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: "Pending", count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: "Probation", count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: "Inactive", count: vendors.filter(v => v.approval_status === "inactive").length, color: "#8899AA" }]} />
+    <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: vendors.length, color: t.goldText }, { id: "approved", label: "Approved", count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: "Pending", count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: "Probation", count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: "Inactive", count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, contact, phone, email, services" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -3339,12 +3341,12 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: "Vendor", render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: GO, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Reviewed {fd(v.last_review_date)}</div>}</div></div> },
+        { header: "Vendor", render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Reviewed {fd(v.last_review_date)}</div>}</div></div> },
         { header: "Contact", tdStyle: { maxWidth: 220 }, render: v => <div style={{ minWidth: 0 }}>{v.contact_name && <div style={{ fontSize: 12, color: t.textSec, fontWeight: 500 }}>{v.contact_name}</div>}{v.contact_phone && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1 }}>{v.contact_phone}</div>}{v.contact_email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.contact_email}</div>}{!v.contact_name && !v.contact_phone && !v.contact_email && <span style={{ color: t.textMut }}>\u2014</span>}</div> },
         { header: "Status", render: v => <Bdg l={v.approval_status} c={statusColor[v.approval_status] || t.textMut} /> },
-        { header: "Rating", tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: GO, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>\u2014</span> },
+        { header: "Rating", tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: t.goldText, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>\u2014</span> },
         { header: "Supplies", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => v.linked_supply_count > 0 ? v.linked_supply_count + " linked" : "\u2014" },
-        { header: "Actions", align: "right", render: v => <button title="View vendor" onClick={e => { e.stopPropagation(); loadDetail(v.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button> }
+        { header: "Actions", align: "right", render: v => <button title="View vendor" onClick={e => { e.stopPropagation(); loadDetail(v.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? "No vendors yet. Use Add Vendor to start." : "No vendors match these filters."} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
@@ -3370,19 +3372,19 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
           {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>Website<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontSize: 11 }}>View Site</a></div></div>}
           {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>Address<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
         </div>
-        {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Products and Services</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
-        {detail.vendor.certification_status && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Certifications</div><div style={{ fontSize: 12, color: t.textSec }}>{detail.vendor.certification_status}</div></div>}
-        {detail.vendor.contract_terms && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Contract Terms</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.contract_terms}</div></div>}
+        {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Products and Services</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
+        {detail.vendor.certification_status && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Certifications</div><div style={{ fontSize: 12, color: t.textSec }}>{detail.vendor.certification_status}</div></div>}
+        {detail.vendor.contract_terms && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Contract Terms</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.contract_terms}</div></div>}
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Linked Supplies</div>
-            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Link Supply</button>}
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Linked Supplies</div>
+            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Link Supply</button>}
           </div>
           {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No supplies linked yet</div>}
           {detail.linkedSupplies?.map((ls, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? "$" + parseFloat(ls.unit_cost).toFixed(2) + "/unit" : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + ls.lead_time_days + "d lead" : ""}{ls.is_preferred ? <span style={{ color: GO, marginLeft: 6 }}>Preferred</span> : null}</div></div>
+              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? "$" + parseFloat(ls.unit_cost).toFixed(2) + "/unit" : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + ls.lead_time_days + "d lead" : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>Preferred</span> : null}</div></div>
               {isAdmin && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Unlink</button>}
             </div>
           ))}
@@ -3390,14 +3392,14 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Evaluations</div>
-            <button onClick={() => setAddEval({ vendorId: detail.vendor.id, rating: 0, notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Add</button>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Evaluations</div>
+            <button onClick={() => setAddEval({ vendorId: detail.vendor.id, rating: 0, notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Add</button>
           </div>
           {(!detail.evaluations || detail.evaluations.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No evaluations on file</div>}
           {detail.evaluations?.map((ev, i) => (
             <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 14, color: GO, letterSpacing: 2 }}>{"★".repeat(ev.rating)}{"☆".repeat(5 - ev.rating)}</span>
+                <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"★".repeat(ev.rating)}{"☆".repeat(5 - ev.rating)}</span>
                 <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
               </div>
               {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
@@ -3427,7 +3429,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 14 }}><Lbl>Rating *</Lbl>
           <div style={{ display: "flex", gap: 8 }}>
             {[1,2,3,4,5].map(r => (
-              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? GO : t.textMut, fontSize: 20, cursor: "pointer" }}>★</button>
+              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? t.goldText : t.textMut, fontSize: 20, cursor: "pointer" }}>★</button>
             ))}
           </div>
         </div>
@@ -3525,7 +3527,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Service Catalog</div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={GO} /> Export</button>
+        <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> Export</button>
         {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> Add Service</button>}
       </div>
     </div>
@@ -3536,7 +3538,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[s.cims_category] || GO) + "18", border: "1px solid " + (cimsColor[s.cims_category] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[s.cims_category] || GO} />
+                <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[s.cims_category] || t.goldText} />
               </div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
@@ -3563,17 +3565,17 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
         </div>
 
         {detail.service.description && <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Description</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Description</div>
           <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.description}</div>
         </div>}
 
         {detail.service.rate_structure && <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Rate Structure</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Rate Structure</div>
           <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.rate_structure}</div>
         </div>}
 
         {detail.service.required_certifications && <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Required Certifications</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Required Certifications</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
             {detail.service.required_certifications.split(",").map((c, i) => (
               <span key={i} style={{ padding: "3px 8px", borderRadius: 4, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR }}>{c.trim()}</span>
@@ -3583,8 +3585,8 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Active Sites</div>
-            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={GO} /> Link Site</button>}
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Active Sites</div>
+            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Link Site</button>}
           </div>
           {(!detail.linkedSites || detail.linkedSites.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No sites linked yet</div>}
           {detail.linkedSites?.map((ls, i) => (
@@ -3856,12 +3858,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
   const isToday = (d) => d === toISO(new Date());
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
-  const startedLbl = { fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 };
+  const startedLbl = { fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 };
 
   const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid " + t.border }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
-      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? GO : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? GO : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
+      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
     </div>
     <div style={{ display: "flex", flexDirection: "column" }}>
     {pagedStaff.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, alignItems: "stretch", borderBottom: "1px solid " + t.border }}>
@@ -3875,7 +3877,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
         const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.onRoster ? staff.id : "")} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
-          {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+          {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
@@ -3925,8 +3927,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const startedHere = getStartedForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
         return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
-          <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
-          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
+          <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? t.goldText : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
+          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: t.goldText, marginBottom: 1 }}>{sched.length} scheduled</div>}
           {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{startedHere.length} started</div>}
           {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: t.textMut, marginBottom: 1 }}>{pks.filter(p => p.status === "open").length} open</div>}
           {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: OR, marginBottom: 1 }}>{pks.filter(p => p.status === "claimed").length} claimed</div>}
@@ -3940,8 +3942,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
       <SecT t={t} action="Refresh" onAction={() => loadCalendar()}>Schedule</SecT>
       <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? GO : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
-        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? GO : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
+        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
+        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
       </div>
     </div>
@@ -3966,7 +3968,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Shift</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: GO, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
       <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl>
         <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Search staff" style={{ marginBottom: 6, fontSize: 12 }} />
         {(() => {
@@ -4002,9 +4004,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
               <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? NAVY : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
             ))}</div></div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? GO : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
             {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>weeks</span></>)}
-            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? GO : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
             {createForm.repeatMode === "until" && <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />}
           </div>
         </div>)}
@@ -4089,21 +4091,21 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{pickupDetail.status === "requested" ? "Shift Drop Request" : pickupDetail.status === "open" ? "Open Marketplace Shift" : pickupDetail.status === "claimed" ? "Claimed Pickup Shift" : pickupDetail.status === "approved" ? "Approved Shift" : "Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.</div>}
-      {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: GO, fontWeight: 600, marginBottom: 14 }}>This shift is open in the marketplace and available for staff to claim.</div>}
+      {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>This shift is open in the marketplace and available for staff to claim.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
-        {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
-        {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
-        <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
+        {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
+        {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
       </div>
       {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>Overtime risk: claiming this shift may push the worker past 40 weekly hours.</div>}
-      {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
+      {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
       <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
-        <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1 }}><Sel t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: "Select staff member..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
           <Btn t={t} onClick={async () => {
@@ -4352,7 +4354,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <button key={tb.id} onClick={() => setTab(tb.id)} style={{
           padding: "8px 14px", borderRadius: "8px 8px 0 0", border: "none",
           background: tab === tb.id ? t.goldBg : "transparent",
-          color: tab === tb.id ? GO : t.textMut,
+          color: tab === tb.id ? t.goldText : t.textMut,
           fontSize: 12, fontWeight: tab === tb.id ? 700 : 500, cursor: "pointer",
           borderBottom: tab === tb.id ? "2px solid " + GO : "2px solid transparent",
           display: "flex", alignItems: "center", gap: 4
@@ -4385,7 +4387,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             { header: "Shift", render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {fmtTm(s.start_time)} to {fmtTm(s.end_time)}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>Bldg: {s.building_name}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>Floor: {s.floor_number}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: "Status", render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? "Drop Request" : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l="URGENT" c={RD} />}{s.ot_warning && <Bdg l="OT Risk" c={OR} />}</div> },
             { header: "Assigned", render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleLabels[s.claimed_by_role] || RL[s.claimed_by_role] || s.claimed_by_role})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>\u2014</span>) },
-            { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Release</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Cancel</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast("Drop approved"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Deny</button>}<button title="View shift" onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button></div> }
+            { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Release</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Cancel</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast("Drop approved"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Deny</button>}<button title="View shift" onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty="No shifts found for this period and filter." footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
         })()}
@@ -4398,7 +4400,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* Analytics sub-tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
           {[{ id: "overview", l: "Overview" }, { id: "response", l: "Response Time" }, { id: "patterns", l: "Callout Patterns" }, { id: "reliability", l: "Staff Reliability" }].map(at => (
-            <button key={at.id} onClick={() => setAnalyticsTab(at.id)} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: analyticsTab === at.id ? 700 : 500, cursor: "pointer", background: analyticsTab === at.id ? t.goldBg : "transparent", color: analyticsTab === at.id ? GO : t.textMut, border: analyticsTab === at.id ? "1px solid " + t.goldBorder : "1px solid " + t.border }}>{at.l}</button>
+            <button key={at.id} onClick={() => setAnalyticsTab(at.id)} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: analyticsTab === at.id ? 700 : 500, cursor: "pointer", background: analyticsTab === at.id ? t.goldBg : "transparent", color: analyticsTab === at.id ? t.goldText : t.textMut, border: analyticsTab === at.id ? "1px solid " + t.goldBorder : "1px solid " + t.border }}>{at.l}</button>
           ))}
         </div>
 
@@ -4412,7 +4414,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
               { k: "no_show_count", l: "No-Shows", c: RD },
               { k: "extra_coverage_count", l: "Extra Coverage", c: OR },
               { k: "voluntary_drop_count", l: "Voluntary Drops", c: BL },
-              { k: "new_shift_count", l: "New Shifts", c: GO },
+              { k: "new_shift_count", l: "New Shifts", c: t.goldText },
             ].map(r => (
               <div key={r.k} style={{ textAlign: "center", minWidth: 80 }}>
                 <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: r.c }}>{analytics.summary[r.k]}</div>
@@ -4504,7 +4506,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                 const displayVal = m.u === "min" && m.v > 60 ? Math.round(m.v / 60) + "h " + (m.v % 60) + "m" : (m.v || 0) + (m.u ? " " + m.u : "");
                 return (
                   <div key={i} style={{ textAlign: "center", minWidth: 80 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: i === 0 ? BL : i === 1 ? GO : t.text }}>{displayVal}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: i === 0 ? BL : i === 1 ? t.goldText : t.text }}>{displayVal}</div>
                     <div style={{ fontSize: 10, color: t.textMut }}>{m.l}</div>
                   </div>
                 );
@@ -4542,7 +4544,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
               <div style={{ display: "flex", gap: 16 }}>
                 {responseTimeData.by_urgency.map(u => (
                   <div key={u.urgency} style={{ padding: "12px 20px", borderRadius: 8, border: "1px solid " + (u.urgency === "urgent" ? RD : GO) + "40", background: (u.urgency === "urgent" ? RD : GO) + "0A", textAlign: "center", minWidth: 120 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: u.urgency === "urgent" ? RD : GO }}>{u.avg_minutes > 60 ? Math.round(u.avg_minutes / 60) + "h" : u.avg_minutes + "m"}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: u.urgency === "urgent" ? RD : t.goldText }}>{u.avg_minutes > 60 ? Math.round(u.avg_minutes / 60) + "h" : u.avg_minutes + "m"}</div>
                     <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{u.urgency}</div>
                     <div style={{ fontSize: 9, color: t.textMut }}>{u.claimed_count} claims</div>
                   </div>
@@ -4756,21 +4758,21 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
       {!shiftDetail.editing ? (<>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: statusColor[shiftDetail.status] || GO }}>{shiftDetail.status === "requested" ? "Drop Requested" : (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1)}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{fmtDt(shiftDetail.scheduled_date)}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{fmtTm(shiftDetail.start_time)} to {fmtTm(shiftDetail.end_time)}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{originLabel[shiftDetail.origin] || shiftDetail.origin}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Urgency</div><div style={{ fontSize: 13, color: t.text }}>{(shiftDetail.urgency || "normal").charAt(0).toUpperCase() + (shiftDetail.urgency || "normal").slice(1)}</div></div>
-          {shiftDetail.building_name && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Building</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.building_name}</div></div>}
-          {shiftDetail.floor_number && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.floor_number}</div></div>}
-          {shiftDetail.claimed_by_name && shiftDetail.claimed_by_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 13, fontWeight: 600, color: BL }}>{shiftDetail.claimed_by_name}</div></div>}
-          {shiftDetail.original_user_name && shiftDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{shiftDetail.status === "requested" ? "Requested By" : "Originally Assigned"}</div><div style={{ fontSize: 13, color: t.textSec }}>{shiftDetail.original_user_name}</div></div>}
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: goldToText(t, statusColor[shiftDetail.status] || GO) }}>{shiftDetail.status === "requested" ? "Drop Requested" : (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1)}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{fmtDt(shiftDetail.scheduled_date)}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{fmtTm(shiftDetail.start_time)} to {fmtTm(shiftDetail.end_time)}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{originLabel[shiftDetail.origin] || shiftDetail.origin}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Urgency</div><div style={{ fontSize: 13, color: t.text }}>{(shiftDetail.urgency || "normal").charAt(0).toUpperCase() + (shiftDetail.urgency || "normal").slice(1)}</div></div>
+          {shiftDetail.building_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Building</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.building_name}</div></div>}
+          {shiftDetail.floor_number && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.floor_number}</div></div>}
+          {shiftDetail.claimed_by_name && shiftDetail.claimed_by_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 13, fontWeight: 600, color: BL }}>{shiftDetail.claimed_by_name}</div></div>}
+          {shiftDetail.original_user_name && shiftDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{shiftDetail.status === "requested" ? "Requested By" : "Originally Assigned"}</div><div style={{ fontSize: 13, color: t.textSec }}>{shiftDetail.original_user_name}</div></div>}
         </div>
-        {shiftDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{shiftDetail.notes}</div></div>}
+        {shiftDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{shiftDetail.notes}</div></div>}
 
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: siteStaff.length > 0 ? "Staff at this site..." : "Select staff member..." }, ...(siteStaff.length > 0 ? siteStaff : staff.filter(s => s.role !== "admin")).map(s => ({ v: s.id || s.user_id, l: staffName(s) }))]} /></div>
             <Btn t={t} onClick={async () => {
@@ -5233,7 +5235,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
         {[["templates", "Templates"], ["scheduled", "Scheduled"], ["completed", "Completed"], ["reports", "Reports"]].map(([tb, lbl]) => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? GO : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
         ))}
       </div>
 
@@ -5297,7 +5299,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                 )}
               </div>
               <Crd t={t} style={{ padding: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
                 <div style={{ marginBottom: 8 }}><Lbl>Item Label *</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder="e.g. Toilets scrubbed and sanitized" onKeyDown={e => e.key === "Enter" && addItem()} /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <div><Lbl>Zone</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: z }))} /></div>
@@ -5317,7 +5319,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
             <Btn t={t} onClick={() => setScheduleModal(true)}>Schedule Inspection</Btn>
           </div>
-          <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: "All", count: scheduled.length, color: GO }, { id: "scheduled", label: "Scheduled", count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: "In Progress", count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
+          <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: "All", count: scheduled.length, color: t.goldText }, { id: "scheduled", label: "Scheduled", count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: "In Progress", count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -5337,7 +5339,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: "Scheduled", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: "Assigned", render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>Unassigned</span> },
               { header: "Status", render: si => <Bdg l={si.status.replace("_", " ")} c={STATUS_C[si.status] || BL} /> },
-              { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button>{isAdmin && <button title="Edit" onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title="Edit" onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? "No pending inspections." : "No inspections match these filters."} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
           })()}
@@ -5365,7 +5367,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: "Scheduled", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: "Assigned", render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>\u2014</span> },
               { header: "Score", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>\u2014</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{si.total_score}/{si.max_possible_score} pts</div></div>; } },
-              { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={GO} /></button>{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? "No completed inspections yet." : "No inspections match this search."} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
@@ -5395,7 +5397,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                   dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
                   showToast("Exported " + rows.length + " rows");
                 }).catch(e => showToast(e.message, "error"));
-              }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={GO} /> Export CSV</button>
+              }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={t.goldText} /> Export CSV</button>
             </div>
           </div>
 
@@ -5844,12 +5846,12 @@ function PermissionsMatrixPanel({ t }) {
         <div style={{ fontSize: 12.5, color: t.textSec, maxWidth: 620, lineHeight: 1.5 }}>
           Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.
         </div>
-        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: GO, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
+        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
       </div>
 
       {PERMISSION_GROUPS.map((g, gi) => (
         <Crd key={gi} t={t} style={{ marginBottom: 14, padding: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
           <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr" }}>
             <div style={headCell}>Capability</div>
             {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tier.label}</div>)}
@@ -5869,7 +5871,7 @@ function PermissionsMatrixPanel({ t }) {
         <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.textSec, marginBottom: 8 }}>Notes</div>
         {PERMISSION_NOTES.map((n, i) => (
           <div key={i} style={{ fontSize: 11.5, color: t.textMut, marginBottom: 5, paddingLeft: 12, position: "relative" }}>
-            <span style={{ position: "absolute", left: 0, color: GO }}>-</span>{n}
+            <span style={{ position: "absolute", left: 0, color: t.goldText }}>-</span>{n}
           </div>
         ))}
       </Crd>
@@ -6125,10 +6127,10 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
     <div>
       <SecT t={t}>Settings</SecT>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-        <button onClick={() => setTab("company")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "company" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "company" ? t.goldBg : "transparent", color: tab === "company" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Company</button>
-        <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
-        <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
-        <button onClick={() => setTab("permissions")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "permissions" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "permissions" ? t.goldBg : "transparent", color: tab === "permissions" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Roles and Permissions</button>
+        <button onClick={() => setTab("company")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "company" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "company" ? t.goldBg : "transparent", color: tab === "company" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Company</button>
+        <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
+        <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
+        <button onClick={() => setTab("permissions")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "permissions" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "permissions" ? t.goldBg : "transparent", color: tab === "permissions" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Roles and Permissions</button>
       </div>
 
       {tab === "company" && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
@@ -6140,13 +6142,13 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
         <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Categories ({cats.length})</div>
-            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
           </div>
           <div style={{ maxHeight: 500, overflowY: "auto" }}>
             {cats.map(c => (
               <div key={c.id} onClick={() => setSelCat(c.id)} style={{ padding: "8px 14px", cursor: "pointer", background: selCat === c.id ? t.goldBg : "transparent", borderLeft: selCat === c.id ? "3px solid " + GO : "3px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? GO : t.text }}>{c.label}</div>
+                  <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? t.goldText : t.text }}>{c.label}</div>
                   <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {c.values?.length || 0} values</div>
                 </div>
                 {!c.is_active && <Bdg l="off" c={t.textMut} />}
@@ -6163,7 +6165,7 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || "No description"}{activeCat.is_system ? " | System category" : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 10, cursor: "pointer" }}>Edit</button>
+              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Edit</button>
               <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? "Deactivate" : "Activate"}</button>
               {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>Delete</button>}
               <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add Value</button>
@@ -6183,7 +6185,7 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
-                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>Edit</button>
                   <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
                 </div>
               </div>
@@ -6200,7 +6202,7 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
         {selSite && <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {["zone", "building", "floor"].map(st => (
-              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{siteTypeLabel[st]} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
+              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{siteTypeLabel[st]} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
             ))}
           </div>
           <Crd t={t} style={{ padding: 0 }}>
@@ -6220,7 +6222,7 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
-                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: GO, fontSize: 8, cursor: "pointer" }}>Edit</button>
+                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>Edit</button>
                   <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
                 </div>
               </div>
@@ -7115,7 +7117,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         {tabs.map(tb => (
-          <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? GO : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
+          <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
         <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           {tab === "library" && <Btn t={t} v="ghost" onClick={syncForms} disabled={syncingForms} style={{ fontSize: 12, padding: "8px 14px" }}>{syncingForms ? "Syncing..." : "Sync Forms from Jotform"}</Btn>}
@@ -7180,7 +7182,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fmtDT(f.last_synced_at)}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <button onClick={() => syncSubmissions(f.id)} disabled={syncingSubs} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>Pull</button>
-                    <button onClick={() => setEditForm({ ...f })} style={{ background: "none", border: "none", color: GO, cursor: "pointer", fontSize: 12 }}>Edit</button>
+                    <button onClick={() => setEditForm({ ...f })} style={{ background: "none", border: "none", color: t.goldText, cursor: "pointer", fontSize: 12 }}>Edit</button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -7331,7 +7333,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
               <div style={{ marginTop: 12 }}>
                 <div style={{ padding: "10px 14px", borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, marginBottom: 12 }}>
                   <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Recommendation</div>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: GO, marginBottom: 4 }}>{diagnosticResult.recommendation}</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.goldText, marginBottom: 4 }}>{diagnosticResult.recommendation}</div>
                   <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{diagnosticResult.recommendationReason}</div>
                 </div>
 
@@ -7713,7 +7715,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
                     <div style={{ padding: "10px 16px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: t.hover }}>
                       <div>
                         <span style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>{g.first_name} {g.last_name}</span>
-                        {g.employee_id && <span style={{ marginLeft: 8, fontSize: 9, fontFamily: "monospace", color: GO, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{g.employee_id}</span>}
+                        {g.employee_id && <span style={{ marginLeft: 8, fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{g.employee_id}</span>}
                         {g.email && <span style={{ marginLeft: 10, fontSize: 11, color: t.textMut }}>{g.email}</span>}
                         {g.user_status !== "active" && <Bdg l={g.user_status} c={OR} />}
                       </div>
@@ -8097,7 +8099,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
   ];
 
   const chip = (label, active, onClick, color) => (
-    <button onClick={onClick} style={{ padding: "5px 12px", borderRadius: 16, border: "1px solid " + (active ? (color || GO) : t.border), background: active ? ((color || GO) + "22") : "transparent", color: active ? (color || GO) : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
+    <button onClick={onClick} style={{ padding: "5px 12px", borderRadius: 16, border: "1px solid " + (active ? (color || GO) : t.border), background: active ? ((color || GO) + "22") : "transparent", color: active ? goldToText(t, color || GO) : t.textSec, fontSize: 11, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{label}</button>
   );
 
   return (
@@ -8153,7 +8155,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role || "No role"}{e.status !== "active" ? " . " + e.status : ""}{e.is_test_account ? " . TEST" : ""}</div>
-                    {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: GO, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
+                    {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: t.goldText, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border, margin: "0 -16px 12px", padding: "10px 16px" }}>
@@ -8313,8 +8315,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   return (
     <div>
       {/* Header: back + employee profile + add document */}
-      <button onClick={onBack} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: GO, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-        <Ic d="M15 18l-6-6 6-6" sz={14} c={GO} /> Back to Employees
+      <button onClick={onBack} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+        <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> Back to Employees
       </button>
       <ProfileBanner t={t}
         avatar={e.profile_photo_url
@@ -8329,7 +8331,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
-        <button onClick={() => setActiveCategory("all")} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (activeCategory === "all" ? GO : t.border), background: activeCategory === "all" ? t.goldBg : "transparent", color: activeCategory === "all" ? GO : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+        <button onClick={() => setActiveCategory("all")} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (activeCategory === "all" ? GO : t.border), background: activeCategory === "all" ? t.goldBg : "transparent", color: activeCategory === "all" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
           All ({totalItems})
         </button>
         {categoryEntries.map(c => {
@@ -8613,7 +8615,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
     <div style={{ animation: "fadeIn 0.3s ease" }}>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
         {tabs.map(tb => (
-          <button key={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? GO : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
+          <button key={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
         {tab !== "employees" && (
           <div style={{ marginLeft: "auto", minWidth: 200 }}>
@@ -8740,7 +8742,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
             const cats = [...new Set(onboarding.map(s => s.step_category))];
             return cats.map(cat => (
               <div key={cat} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: GO, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{onbCatMap[cat] || cat}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{onbCatMap[cat] || cat}</div>
                 <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
                   {onboarding.filter(s => s.step_category === cat).map(step => (
                     <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: "1px solid " + t.border }}>
