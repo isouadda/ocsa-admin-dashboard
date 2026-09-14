@@ -3778,9 +3778,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   };
 
   useEffect(() => {
-    sites.forEach(site => loadSiteLocations(site.id));
     af("/api/users?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
-    loadCalendar();
   }, []);
   useEffect(() => { if (sites.length > 0) sites.forEach(site => loadSiteLocations(site.id)); }, [sites]);
   useEffect(() => { loadCalendar(); const iv = setInterval(() => loadCalendar(), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
