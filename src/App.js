@@ -523,10 +523,9 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
     <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 700, marginBottom: 2, color: t.text }}>Welcome back, {user?.firstName || "Admin"}</div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>Operations overview.</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> Refresh</button></div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-      <SC t={t} label="On Site" value={stats.clockedInNow} sub={"of " + stats.activeStaff + " active"} color={GR} icon={CkI} />
+      <SC t={t} label="Started today" value={stats.clockedInNow} sub={"of " + stats.activeStaff + " active"} color={GR} icon={CkI} />
       <SC t={t} label="Open Issues" value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
       {isAdmin && <SC t={t} label="Pending" value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
-      <SC t={t} label="Week Hours" value={stats.weekHoursTotal + "h"} color={GO} icon={BrI} />
     </div>
     <SecT t={t}>Started today</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
@@ -546,8 +545,8 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
         </ChartCard>
       </div>
       <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-        <ChartCard t={t} title="Staff on site" sub="Right now">
-          <RadialW t={t} value={stats.activeStaff > 0 ? (stats.clockedInNow / stats.activeStaff) * 100 : 0} valueText={stats.clockedInNow + " / " + stats.activeStaff} label="On site" color={GR} height={270} />
+        <ChartCard t={t} title="Started today" sub="Since midnight">
+          <RadialW t={t} value={stats.activeStaff > 0 ? (stats.clockedInNow / stats.activeStaff) * 100 : 0} valueText={stats.clockedInNow + " / " + stats.activeStaff} label="Started" color={GR} height={270} />
         </ChartCard>
       </div>
     </div>    {((isAdmin && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
