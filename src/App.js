@@ -1207,7 +1207,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
         { header: "Name", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{s.email}</div>}</div></div> },
-        { header: "Phone", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "\u2014" },
+        { header: "Phone", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
         { header: "Status", render: s => <Bdg l={s.status} c={statusColor(s.status)} /> },
         { header: "Role", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleLabels[s.role] || RL[s.role] || s.role },
         { header: "Employment", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? (ET[s.employmentType] || s.employmentType) : "-" },
@@ -1994,9 +1994,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
         { header: "Site", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
-        { header: "Staff", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? s.staff_count + " staff" : "\u2014" },
-        { header: "Tasks", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? s.task_count + " tasks" : "\u2014" },
-        { header: "Contract", tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => s.contract_type || "\u2014" },
+        { header: "Staff", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? s.staff_count + " staff" : "-" },
+        { header: "Tasks", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? s.task_count + " tasks" : "-" },
+        { header: "Contract", tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => s.contract_type || "-" },
         { header: "Status", render: s => <Bdg l={s.status} c={s.status === "active" ? GR : OR} /> },
         { header: "Actions", align: "right", render: s => <button title="View site" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
