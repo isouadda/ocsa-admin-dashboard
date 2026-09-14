@@ -3804,7 +3804,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   };
 
   const staffForSite = (() => {
-    let list = filterSite ? staffList.filter(s => s.id) : staffList.filter(s => s.role !== "admin");
+    let list = filterSite ? staffList.filter(s => s.role === "admin" || (Array.isArray(s.sites) && s.sites.some(x => x && String(x.siteId) === String(filterSite)))) : staffList.filter(s => s.role !== "admin");
     if (searchStaff) list = list.filter(s => staffSearchMatch(s, searchStaff));
     return list;
   })();
