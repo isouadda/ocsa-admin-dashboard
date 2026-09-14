@@ -3647,7 +3647,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [schedPage, setSchedPage] = useState(1);
   const [schedRows, setSchedRows] = useState(10);
   const staffList = allStaff;
-  const [calData, setCalData] = useState({ scheduled_shifts: [], actual_shifts: [], inspections: [] });
+  const [calData, setCalData] = useState({ scheduled_shifts: [], inspections: [] });
+  const [startedByDay, setStartedByDay] = useState({});
+  const [startedDetail, setStartedDetail] = useState(null);
   const [openShifts, setOpenShifts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [createModal, setCreateModal] = useState(null);
@@ -3688,10 +3690,39 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     return [{ v: "", l: "Select floor..." }, ...loc.floors[building].map(f => ({ v: f, l: "Floor " + f }))];
   };
 
+  // The Started lane. One call per visible range to GET /api/shift-sessions/by-site, grouped by
+  // sessionDate in the client. Over a range the API returns one row per person per day, so a person
+  // who started on two days appears under both and is never collapsed to one. The day is never
+  // derived from startedAt, which is a timestamp in another zone; sessionDate is the plain
+  // YYYY-MM-DD string the API projects for exactly this purpose.
+  const STARTED_MAX_DAYS = 31;
+  const loadStarted = async (range) => {
+    const r = range || dateRange;
+    if (!r.start || !r.end || r.end < r.start) { setStartedByDay({}); return; }
+    const startMs = Date.parse(r.start + "T00:00:00Z");
+    let end = r.end;
+    if (Math.round((Date.parse(end + "T00:00:00Z") - startMs) / 86400000) + 1 > STARTED_MAX_DAYS) end = toISO(new Date(startMs + (STARTED_MAX_DAYS - 1) * 86400000));
+    try {
+      const d = await af("/api/shift-sessions/by-site?start_date=" + r.start + "&end_date=" + end);
+      const byDay = {};
+      (d.sites || []).forEach(site => (site.people || []).forEach(p => {
+        if (!p.sessionDate) return;
+        if (!byDay[p.sessionDate]) byDay[p.sessionDate] = [];
+        byDay[p.sessionDate].push({ ...p, siteId: site.siteId, siteName: site.siteName });
+      }));
+      setStartedByDay(byDay);
+    } catch (e) {
+      // A 400 (INVALID_DATE_RANGE) or any other failure leaves the lane empty and quiet. The planned lane is unaffected.
+      setStartedByDay({});
+      console.warn("Load started shifts:", e.message);
+    }
+  };
+
   const loadCalendar = async (range) => {
     setLoading(true);
+    const r = range || dateRange;
+    loadStarted(r);
     try {
-      const r = range || dateRange;
       let url = "/api/schedule/calendar?start_date=" + r.start + "&end_date=" + r.end;
       if (filterSite) url += "&site_id=" + filterSite;
       const [d, pk] = await Promise.all([
@@ -3716,7 +3747,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
 
   const getShiftsForDay = (dateStr) => calData.scheduled_shifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr && s.status !== "cancelled");
-  const getActualForDay = (dateStr) => calData.actual_shifts.filter(s => s.clock_in_time?.slice(0, 10) === dateStr);
+  const getStartedForDay = (dateStr) => (startedByDay[dateStr] || []).filter(p => !filterSite || String(p.siteId) === String(filterSite));
   const getInspForDay = (dateStr) => calData.inspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getPickupsForDay = (dateStr) => openShifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
 
@@ -3797,6 +3828,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
   const isToday = (d) => d === toISO(new Date());
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
+  const startedLbl = { fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 };
   const weekDays = getWeekDays();
 
   const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
@@ -3809,12 +3841,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, background: t.cardAlt, borderRadius: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={30} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>{staff.role && <div style={{ fontSize: 9, color: t.textMut, textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.role}</div>}</div></div>
       {weekDays.map(d => {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
-        const actual = getActualForDay(d).filter(s => s.user_id === staff.id);
+        const startedHere = getStartedForDay(d).filter(p => String(p.userId) === String(staff.id));
         const dayPickups = getPickupsForDay(d);
         const openHere = dayPickups.filter(p => p.status === "open" && String(p.original_user_id) === String(staff.id));
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
-        const hasAny = sched.length > 0 || actual.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
+        const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
@@ -3822,9 +3854,11 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
           </div>))}
-          {actual.map(a => (<div key={a.id} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
-            {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
-            {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
+          {startedHere.map(p => (<div key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
+            Started {fmtSessionStart(p.startedAt)}
+            {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " F" + p.floorNumber : ""}</span>}
+            {p.siteName && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.siteName}</div>}
+            {p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.tasksCompleted} of {p.tasksTotal} tasks</div>}
           </div>))}
           {openHere.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
@@ -3862,11 +3896,11 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
-      {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const actual = getActualForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
+      {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const startedHere = getStartedForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
         return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? GO : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
           {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GO, marginBottom: 1 }}>{sched.length} scheduled</div>}
-          {actual.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{actual.length} actual</div>}
+          {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{startedHere.length} started</div>}
           {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: t.textMut, marginBottom: 1 }}>{pks.filter(p => p.status === "open").length} open</div>}
           {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: OR, marginBottom: 1 }}>{pks.filter(p => p.status === "claimed").length} claimed</div>}
           {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
@@ -3892,7 +3926,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
     {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Actual" }, { c: t.textMut, l: "Open" }, { c: "#F1C40F", l: "Drop Req" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
+      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Started" }, { c: t.textMut, l: "Open" }, { c: "#F1C40F", l: "Drop Req" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
           <span style={{ fontSize: 9, color: t.textMut, fontWeight: 600 }}>{lg.l}</span>
@@ -3980,7 +4014,22 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       </div>
     </div></Mdl>}
 
-    {/* ACTUAL SHIFT DETAIL MODAL */}
+    {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
+    {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Started Shift</div><button onClick={() => setStartedDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+        <div><div style={startedLbl}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
+        <div><div style={startedLbl}>Date</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
+        <div><div style={startedLbl}>Building</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
+        <div><div style={startedLbl}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? "Floor " + startedDetail.floorNumber : "-"}</div></div>
+        <div><div style={startedLbl}>Started</div><div style={{ fontSize: 13, fontWeight: 600, color: GR }}>{fmtSessionStart(startedDetail.startedAt) || "-"}</div></div>
+        <div><div style={startedLbl}>Task progress</div>{(() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{done} of {total}</span></div>); })()}</div>
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 16 }}>Recorded when the person started the shift in the portal. There is no end time and no hours here.</div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setStartedDetail(null)}>Close</Btn></div>
+    </div></Mdl>}
+
     {/* INSPECTION RESCHEDULE MODAL */}
     {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Inspection Details</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
