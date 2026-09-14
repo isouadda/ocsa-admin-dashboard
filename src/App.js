@@ -27,6 +27,9 @@ const AUTH_KEY = "ocsa_auth";
 const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!raw) return null; const d = JSON.parse(raw); return d && typeof d.token === "string" && d.token ? d : null; } catch { return null; } };
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
+// Every page id the render switch knows. The URL hash is checked against this list before it is used.
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings"];
+const pageFromHash = () => { const h = window.location.hash.replace(/^#/, ""); return PAGE_IDS.includes(h) ? h : "overview"; };
 function dlCSV(fn, hds, rows) {
   const csv = [hds.join(","), ...rows.map(r => r.map(c => '"' + String(c || "").replace(/"/g, '""') + '"').join(","))].join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = fn; a.click();
@@ -220,7 +223,7 @@ function DateRangePicker({ value, onChange, t, presets }) {
 export default function AdminDashboard() {
   const [token, setToken] = useState(null); const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(() => readAuth() !== null);
-  const [page, setPage] = useState("overview"); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(() => pageFromHash()); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
   const [themeMode, setThemeMode] = useState(() => { try { return localStorage.getItem("ocsa-theme") || "dark"; } catch { return "dark"; } });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
@@ -260,6 +263,16 @@ export default function AdminDashboard() {
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
   const lkHasOther = useCallback((slug, val) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return false; const v = (cat.values || []).find(x => x.value === val); return v?.show_other_input || false; }, [lookups]);
   useEffect(() => { const h = () => { clearAuth(); setToken(null); setUser(null); }; window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, []);
+  // The active page rides in the URL hash, nothing else does. A refresh reopens the same page and
+  // the browser back and forward buttons move between pages. The hash is validated against PAGE_IDS
+  // and is not a permission: a page shows exactly what it showed the role before.
+  useEffect(() => {
+    if (!token) return;
+    const cur = window.location.hash.replace(/^#/, "");
+    if (cur === page) return;
+    if (cur === "") window.history.replaceState(null, "", "#" + page); else window.location.hash = page;
+  }, [page, token]);
+  useEffect(() => { const h = () => { const next = pageFromHash(); setPage(prev => (prev === next ? prev : next)); }; window.addEventListener("hashchange", h); return () => window.removeEventListener("hashchange", h); }, []);
   useEffect(() => {
     const stored = readAuth();
     if (!stored) return;
