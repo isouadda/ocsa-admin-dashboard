@@ -3654,6 +3654,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [inspForm, setInspForm] = useState({ assigned_to: "", scheduled_date: "" });
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
+  const [pickerSearch, setPickerSearch] = useState("");
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -3745,21 +3746,52 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const getInspForDay = (dateStr) => calData.inspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getPickupsForDay = (dateStr) => openShifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
 
+  // One matcher for both staff searches, the toolbar box and the picker in the Schedule Shift modal.
+  // Both sides are lowercased. It reads first name, last name, the two joined, and the employee id.
+  const staffSearchMatch = (s, q) => {
+    const needle = (q || "").trim().toLowerCase();
+    if (!needle) return true;
+    const first = s.firstName || s.first_name || "";
+    const last = s.lastName || s.last_name || "";
+    return [first, last, (first + " " + last).trim(), s.name, s.employeeId || s.employee_id].some(f => String(f || "").toLowerCase().includes(needle));
+  };
+
   const staffForSite = (() => {
     let list = filterSite ? staffList.filter(s => s.id) : staffList.filter(s => s.role !== "admin");
-    if (searchStaff) { const q = searchStaff.toLowerCase(); list = list.filter(s => (s.name || (s.firstName + " " + s.lastName)).toLowerCase().includes(q)); }
+    if (searchStaff) list = list.filter(s => staffSearchMatch(s, searchStaff));
     return list;
   })();
 
-  const schedTotalPages = Math.max(1, Math.ceil(staffForSite.length / schedRows));
+  // The week grid draws a row for anybody with something on it over the visible week: the roster
+  // above, plus anyone with a scheduled shift or a started session who is not on it, such as an
+  // admin under All Sites or a person no longer in the active list. Both extra groups come from data
+  // already in hand, calData.scheduled_shifts and startedByDay. No second request is made.
+  const weekDays = getWeekDays();
+  const weekRows = (() => {
+    const rows = staffForSite.map(s => ({ ...s, onRoster: true }));
+    const seen = new Set(rows.map(s => String(s.id)));
+    const add = (id, name, role) => { if (id === null || id === undefined || seen.has(String(id))) return; seen.add(String(id)); rows.push({ id, name, role, onRoster: false }); };
+    weekDays.forEach(d => {
+      getShiftsForDay(d).forEach(s => add(s.user_id, s.user_name || s.staff_name || [s.first_name, s.last_name].filter(Boolean).join(" ") || "Staff " + s.user_id, s.role || s.user_role));
+      getStartedForDay(d).forEach(p => add(p.userId, p.name || "Staff " + p.userId, p.role));
+    });
+    return rows.filter(s => s.onRoster || staffSearchMatch(s, searchStaff));
+  })();
+
+  const schedTotalPages = Math.max(1, Math.ceil(weekRows.length / schedRows));
   const schedCur = Math.min(schedPage, schedTotalPages);
-  const pagedStaff = staffForSite.slice((schedCur - 1) * schedRows, schedCur * schedRows);
+  const pagedStaff = weekRows.slice((schedCur - 1) * schedRows, schedCur * schedRows);
+
+  // The toolbar's Schedule Shift button opens on today when today is in the visible range, and on
+  // the first day of the range otherwise. A day cell passes its own date and is unaffected.
+  const createDateForRange = () => { const today = toISO(new Date()); return today >= dateRange.start && today <= dateRange.end ? today : dateRange.start; };
 
   const openCreate = (date, userId) => {
     const dayOfWeek = new Date(date + "T00:00:00").getDay();
     const sId = filterSite || "";
     setCreateForm({ userId: userId || "", siteId: sId, startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
     if (sId) loadSiteLocations(sId);
+    setPickerSearch("");
     setCreateModal({ date, userId });
   };
   const toggleRepeatDay = (dayNum) => { setCreateForm(prev => { const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum]; return { ...prev, repeatDays: days }; }); };
@@ -3823,7 +3855,6 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const isToday = (d) => d === toISO(new Date());
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
   const startedLbl = { fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 };
-  const weekDays = getWeekDays();
 
   const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid " + t.border }}>
@@ -3841,7 +3872,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
         const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
-        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.id)} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
+        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.onRoster ? staff.id : "")} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: statusColors[s.status] || GO, border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
@@ -3879,7 +3910,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
       {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
     </div>)}
-    {staffForSite.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={staffForSite.length} onPage={setSchedPage} />}
+    {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
   </div>);
 
   const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
@@ -3909,7 +3940,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? GO : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? GO : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
-        <Btn t={t} onClick={() => openCreate(toISO(new Date()), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
+        <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
       </div>
     </div>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
@@ -3934,7 +3965,19 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Shift</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: GO, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffForSite.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl>
+        <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Search staff" style={{ marginBottom: 6, fontSize: 12 }} />
+        {(() => {
+          const matches = staffForSite.filter(s => staffSearchMatch(s, pickerSearch));
+          const picked = createForm.userId ? staffForSite.find(s => String(s.id) === String(createForm.userId)) : null;
+          const opts = picked && !matches.includes(picked) ? [picked, ...matches] : matches;
+          const noMatch = pickerSearch.trim().length > 0 && matches.length === 0;
+          return (<>
+            {(!noMatch || opts.length > 0) && <Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...opts.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} />}
+            {noMatch && <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No staff match that search</div>}
+          </>);
+        })()}
+      </div>
       <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div><Lbl>Start Time *</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
