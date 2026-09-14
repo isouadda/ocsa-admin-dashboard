@@ -3747,9 +3747,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
   const getMonthDays = () => { const start = new Date(dateRange.start + "T00:00:00"); const year = start.getFullYear(); const month = start.getMonth(); const firstDay = new Date(year, month, 1); const lastDay = new Date(year, month + 1, 0); const startOff = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1; const days = []; for (let i = -startOff; i <= lastDay.getDate() + (6 - (lastDay.getDay() === 0 ? 6 : lastDay.getDay() - 1)); i++) { const d = new Date(year, month, i + 1); days.push(toISO(d)); } return days; };
 
-  const getShiftsForDay = (dateStr) => calData.scheduled_shifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr && s.status !== "cancelled");
+  const getShiftsForDay = (dateStr) => (calData.scheduled_shifts || []).filter(s => s.scheduled_date?.slice(0, 10) === dateStr && s.status !== "cancelled");
   const getStartedForDay = (dateStr) => (startedByDay[dateStr] || []).filter(p => !filterSite || String(p.siteId) === String(filterSite));
-  const getInspForDay = (dateStr) => calData.inspections.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
+  const getInspForDay = (dateStr) => (calData.inspections || []).filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
   const getPickupsForDay = (dateStr) => openShifts.filter(s => s.scheduled_date?.slice(0, 10) === dateStr);
 
   // One matcher for both staff searches, the toolbar box and the picker in the Schedule Shift modal.
@@ -3912,7 +3912,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       })}
     </div>))}
     </div>
-    {calData.inspections.length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
+    {(calData.inspections || []).length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
       {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
     </div>)}
