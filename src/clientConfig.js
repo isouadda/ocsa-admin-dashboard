@@ -16,6 +16,7 @@ const clientConfig = {
     gold: '#E7B017',
     navyDark: '#0F1D32',
     blueDeep: '#0D2C93',
+    panelLight: '#15558F',
   },
   employee: {
     idPrefix: 'OCSA',
