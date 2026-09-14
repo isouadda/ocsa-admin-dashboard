@@ -258,7 +258,7 @@ export default function AdminDashboard() {
     try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
-  if (!token) return (<div style={{ width: "100%", minHeight: "100vh", background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
+  if (!token) return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet" />
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
@@ -269,7 +269,7 @@ export default function AdminDashboard() {
     </div>
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-  </div>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
+  </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
   const HsI = p => <Ic d="M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8" {...p} />;
