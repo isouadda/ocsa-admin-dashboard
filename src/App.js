@@ -296,14 +296,14 @@ export default function AdminDashboard() {
     ]},
     { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
     { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
-    { label: "Time", items: [{ id: "timesheets", l: "Timesheets", i: CkI }, { id: "schedule", l: "Schedule", i: CalI }, { id: "marketplace", l: "Shift Pickup", i: SwpI }, { id: "clockhistory", l: "Clock History", i: HsI }] },
-    { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }, { id: "labor", l: "Labor Reports", i: DlrI }] },
+    { label: "Time", items: [{ id: "schedule", l: "Schedule", i: CalI }, { id: "marketplace", l: "Shift Pickup", i: SwpI }] },
+    { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
     ...(isAdmin ? [{ label: "Integrations", items: [{ id: "forms", l: "Forms", i: FmI }] }] : []),
     ...(isAdmin ? [{ label: null, items: [{ id: "settings", l: "Settings", i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", timesheets: "Timesheets", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", clockhistory: "Clock History", chat: "Messages", reports: "Reports", inspections: "Inspections", labor: "Labor Reports", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings" };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -465,19 +465,17 @@ export default function AdminDashboard() {
         {page === "staff" && isAdmin && <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}       {page === "timesheets" && <TimesheetsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} />}
+        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "clockhistory" && <ClockHistoryPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} allStaff={allStaff} sites={sites} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "labor" && <LaborReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
         {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} />}
       </div>
@@ -505,15 +503,19 @@ const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) =
 
 const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
 
+// Shift session helpers. GET /api/shift-sessions/by-site returns { date, sites: [{ siteId, siteName, people: [...] }] }.
+// A session records who started a shift where. There is no end time, so these never claim who is on site right now.
+const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName })));
+const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", ");
+
 function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
-  const [stats, setStats] = useState(null); const [active, setActive] = useState([]);
+  const [stats, setStats] = useState(null); const [started, setStarted] = useState([]);
   const [inspSummary, setInspSummary] = useState([]);
-  const [laborDash, setLaborDash] = useState(null);
   const loadDash = () => {
     af("/api/reports/overview").then(setStats).catch(e => console.warn(e.message));
-    af("/api/clock/active").then(setActive).catch(e => console.warn(e.message));
+    af("/api/shift-sessions/by-site").then(d => setStarted(flattenSessions(d))).catch(e => console.warn(e.message));
     af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(e => console.warn(e.message));
-    af("/api/labor/dashboard").then(setLaborDash).catch(e => console.warn(e.message));
   };
   useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
@@ -525,15 +527,14 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
       <SC t={t} label="Open Issues" value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
       {isAdmin && <SC t={t} label="Pending" value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
       <SC t={t} label="Week Hours" value={stats.weekHoursTotal + "h"} color={GO} icon={BrI} />
-      {laborDash && <SC t={t} label="Week Cost" value={"$" + Number(laborDash.current_week.total_cost).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})} sub={laborDash.cost_change_pct !== 0 ? (laborDash.cost_change_pct > 0 ? "+" : "") + laborDash.cost_change_pct + "% vs last week" : "same as last week"} color={GO} icon={DlrI} />}
     </div>
-    <SecT t={t}>Live Operations</SecT>
+    <SecT t={t}>Started today</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
-      {active.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>No staff on site right now.</div>}
-      {active.map(s => { const h = Math.floor(s.elapsedMinutes / 60), m = s.elapsedMinutes % 60, pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
-        <div key={s.shiftId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
-          <Ini name={s.name} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{s.siteName}</div></div>
-          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{h}h {m}m</div><div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{s.tasksCompleted}/{s.tasksTotal}</span></div></div>
+      {started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>No shifts started yet today.</div>}
+      {started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
+        <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
+          <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>Started {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{s.tasksCompleted} of {s.tasksTotal}</span></div></div>
         </div>); })}
     </Crd>
     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
@@ -1976,16 +1977,35 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
 
 function OpsPage({ af, t, allStaff }) {
-  const [active, setActive] = useState([]); const all = allStaff;
-  const loadOps = () => { af("/api/clock/active").then(setActive).catch(e => console.warn("Load active:", e.message)); };
-  useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, []);
-  const onIds = new Set(active.map(a => a.userId)); const off = all.filter(s => !onIds.has(s.id));
-  return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Live Operations</SecT>
-    <div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>On Site ({active.length})</div>
-    {active.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>No staff on site.</div></Crd>}
-    {active.map(s => { const h = Math.floor(s.elapsedMinutes / 60), m = s.elapsedMinutes % 60, pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return <Crd key={s.shiftId} t={t} style={{ marginBottom: 8, padding: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><Ini name={s.name} sz={40} color={GR} /><div style={{ flex: 1 }}><div style={{ display: "flex", justifyContent: "space-between" }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><Bdg l="On Site" c={GR} /></div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{s.siteName}</div><div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 6 }}><span style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{h}h {m}m</span><div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{pct}%</span></div></div></div></div></Crd>; })}
-    <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginTop: 20, marginBottom: 8 }}>Off Site ({off.length})</div>
-    {off.map(s => <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={s.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{s.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[s.role]}</div></div><Bdg l="Off" c={t.textMut} /></div>)}
+  const [date, setDate] = useState(() => toISO(new Date()));
+  const [board, setBoard] = useState({ date: "", sites: [] });
+  const [showRest, setShowRest] = useState(false);
+  const loadOps = () => { af("/api/shift-sessions/by-site?date=" + date).then(d => setBoard({ date: d.date, sites: d.sites || [] })).catch(e => console.warn("Load shift sessions:", e.message)); };
+  useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
+  const isToday = date === toISO(new Date());
+  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const startedIds = new Set(board.sites.flatMap(site => site.people.map(p => p.userId)));
+  const rest = allStaff.filter(u => !startedIds.has(u.id));
+  return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Started {dayLabel}</SecT>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Date</span>
+      <div style={{ width: 170 }}><Inp t={t} type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} /></div>
+      <span style={{ fontSize: 12, color: t.textSec }}>{startedIds.size} started {dayLabel}</span>
+    </div>
+    {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? "No shifts started yet today." : "No shifts started " + dayLabel + "."}</div></Crd>}
+    {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{site.siteName}</div><Bdg l={site.people.length + " started"} c={GR} /></div>
+      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
+        <Ini name={p.name} sz={36} color={GR} />
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] || p.role}{place ? ", " + place : ""}</div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>Started {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{p.tasksCompleted} of {p.tasksTotal} tasks</span></div></div>
+      </div>; })}
+    </Crd>)}
+    <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
+      <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>No shift started {dayLabel} ({rest.length})</span>
+      <span style={{ fontSize: 11, color: GO, fontWeight: 600 }}>{showRest ? "Hide" : "Show"}</span>
+    </button>
+    {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] || u.role}</div></div></div>)}
   </div>);
 }
 
@@ -3010,7 +3030,6 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   useEffect(() => { af("/api/settings").then(setSettings).catch(() => {}); }, []);
   useEffect(() => { loadSnapshots(); }, [dateRange]);
 
-  const expHrs = async () => { setExp(true); try { const d = await af("/api/reports/hours?start_date=" + dateRange.start + "&end_date=" + dateRange.end); dlCSV("ocsa-hours.csv", ["Staff", "Role", "Site", "Clock In", "Clock Out", "Duration (min)"], d.data.map(r => [r.staff_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
 
@@ -3111,9 +3130,9 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
       </Crd>
       <Crd t={t}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 4, color: t.text }}>Export data (CSV)</div>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for payroll, audits, and clients.</div>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for audits and clients.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[{ l: "Payroll Hours", a: expHrs }, { l: "Issues Report", a: expIss }, { l: "Chemical Usage", a: expChem }].map(r => (
+          {[{ l: "Issues Report", a: expIss }, { l: "Chemical Usage", a: expChem }].map(r => (
             <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}>
               <DlI sz={14} c="currentColor" />{r.l}
             </button>
@@ -3121,373 +3140,6 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         </div>
       </Crd>
     </div>
-  </div>);
-}
-
-function LaborReportsPage({ af, showToast, isAdmin, t, sites }) {
-  const [dateRange, setDateRange] = useState(() => PRESETS.last30());
-  const [tab, setTab] = useState("overview");
-  const [siteFilter, setSiteFilter] = useState("");
-  const [summary, setSummary] = useState(null);
-  const [bySite, setBySite] = useState([]);
-  const [byStaff, setByStaff] = useState([]);
-  const [overtime, setOvertime] = useState(null);
-  const [byRole, setByRole] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [exporting, setExporting] = useState(false);
-
-  const fmtHrs = (mins) => { const h = Math.floor(mins / 60); const m = mins % 60; return h + "h " + (m > 0 ? m + "m" : ""); };
-  const fmtMoney = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtDt = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  const fmtTm = (d) => new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-
-  const load = async (range) => {
-    setLoading(true);
-    const r = range || dateRange;
-    const q = "?start_date=" + r.start + "&end_date=" + r.end;
-    const sq = q + (siteFilter ? "&site_id=" + siteFilter : "");
-    try {
-      const [sum, siteData, staffData, otData, roleData] = await Promise.all([
-        af("/api/labor/summary" + q),
-        af("/api/labor/by-site" + q),
-        af("/api/labor/by-staff" + sq),
-        af("/api/labor/overtime" + q),
-        af("/api/labor/by-role" + q)
-      ]);
-      setSummary(sum);
-      setBySite(siteData);
-      setByStaff(staffData);
-      setOvertime(otData);
-      setByRole(roleData);
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-  useEffect(() => { load(); }, [dateRange, siteFilter]);
-
-  const exportCSV = async () => {
-    setExporting(true);
-    try {
-      const d = await af("/api/labor/export?start_date=" + dateRange.start + "&end_date=" + dateRange.end);
-      dlCSV("ocsa-labor-report-" + dateRange.start + ".csv",
-        ["Last Name", "First Name", "Role", "Site", "Clock In", "Clock Out", "Total Min", "Rate", "Regular Pay", "OT Min", "OT Pay", "Total Pay", "Status", "Manual"],
-        d.data.map(r => [r.last_name, r.first_name, r.role, r.site_name, r.clock_in_time, r.clock_out_time, r.duration_minutes, r.hourly_rate, r.regular_pay, r.ot_minutes, r.ot_pay, r.total_pay, r.approval_status, r.is_manual_entry ? "Yes" : "No"])
-      );
-      showToast("Labor report downloaded");
-    } catch (e) { showToast(e.message, "error"); }
-    setExporting(false);
-  };
-
-  const printReport = () => {
-    const w = window.open("", "_blank");
-    if (!w) { showToast("Please allow popups", "error"); return; }
-    let html = '<html><head><title>' + clientConfig.company.brandTag + ' Labor Report</title><style>body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:' + NAVY + '}h1{color:' + NAVY + ';border-bottom:3px solid ' + GOLD + ';padding-bottom:8px;font-size:22px}h2{color:' + NAVY + ';font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;margin:10px 0}th,td{border:1px solid #ddd;padding:6px 10px;font-size:12px;text-align:left}th{background:' + NAVY + ';color:' + GOLD + ';font-weight:600}tr:nth-child(even){background:#f9f9f9}.summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}.summary-card{background:#f5f5f0;border:1px solid #ddd;border-radius:8px;padding:14px;text-align:center}.summary-card .val{font-size:24px;font-weight:700;color:' + NAVY + '}.summary-card .lbl{font-size:10px;color:#888;text-transform:uppercase;margin-top:4px}.footer{margin-top:30px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888;text-align:center}@media print{body{margin:15px}}</style></head><body>';
-    html += '<h1>' + clientConfig.company.name + ' - Labor Report</h1>';
-    html += '<p style="font-size:12px;color:#666">Period: ' + dateRange.start + ' to ' + dateRange.end + ' | Generated: ' + new Date().toLocaleDateString() + '</p>';
-    if (summary) {
-      html += '<div class="summary-grid">';
-      html += '<div class="summary-card"><div class="val">' + fmtHrs(summary.total_minutes) + '</div><div class="lbl">Total Hours</div></div>';
-      html += '<div class="summary-card"><div class="val">' + fmtMoney(summary.total_cost) + '</div><div class="lbl">Total Cost</div></div>';
-      html += '<div class="summary-card"><div class="val">' + summary.total_shifts + '</div><div class="lbl">Shifts</div></div>';
-      html += '<div class="summary-card"><div class="val">' + summary.unique_staff + '</div><div class="lbl">Staff</div></div>';
-      html += '</div>';
-    }
-    if (bySite.length > 0) {
-      html += '<h2>Cost by Site</h2><table><tr><th>Site</th><th>Hours</th><th>Shifts</th><th>Staff</th><th>Cost</th><th>OT Hours</th></tr>';
-      bySite.forEach(s => { html += '<tr><td>' + s.site_name + '</td><td>' + fmtHrs(s.total_minutes) + '</td><td>' + s.shift_count + '</td><td>' + s.staff_count + '</td><td>' + fmtMoney(s.total_cost) + '</td><td>' + fmtHrs(s.ot_minutes) + '</td></tr>'; });
-      html += '</table>';
-    }
-    if (byStaff.length > 0) {
-      html += '<h2>Cost by Staff</h2><table><tr><th>Name</th><th>Role</th><th>Rate</th><th>Hours</th><th>Shifts</th><th>Cost</th><th>OT Hours</th></tr>';
-      byStaff.forEach(s => { html += '<tr><td>' + s.staff_name + '</td><td>' + (RL[s.role] || s.role) + '</td><td>' + fmtMoney(s.hourly_rate) + '/hr</td><td>' + fmtHrs(s.total_minutes) + '</td><td>' + s.shift_count + '</td><td>' + fmtMoney(s.total_cost) + '</td><td>' + fmtHrs(s.ot_minutes) + '</td></tr>'; });
-      html += '</table>';
-    }
-    if (overtime && (overtime.perShiftCount > 0 || overtime.weeklyCount > 0)) {
-      html += '<h2>Overtime Analysis</h2>';
-      if (overtime.weeklyCount > 0) {
-        html += '<h3 style="font-size:13px;color:#666">Weekly Overtime (>40 hours)</h3><table><tr><th>Staff</th><th>Week Of</th><th>Total Hours</th><th>OT Hours</th><th>OT Premium</th></tr>';
-        overtime.weekly.forEach(w => { html += '<tr><td>' + w.staff_name + '</td><td>' + w.week_start + '</td><td>' + fmtHrs(w.week_minutes) + '</td><td>' + fmtHrs(w.ot_minutes) + '</td><td>' + fmtMoney(w.ot_premium) + '</td></tr>'; });
-        html += '</table>';
-      }
-      if (overtime.perShiftCount > 0) {
-        html += '<h3 style="font-size:13px;color:#666">Per-Shift Overtime (>8 hours)</h3><table><tr><th>Staff</th><th>Date</th><th>Site</th><th>Duration</th><th>OT</th><th>Premium</th></tr>';
-        overtime.perShift.forEach(s => { html += '<tr><td>' + s.staff_name + '</td><td>' + fmtDt(s.clock_in_time) + '</td><td>' + s.site_name + '</td><td>' + fmtHrs(s.duration_minutes) + '</td><td>' + fmtHrs(s.ot_minutes) + '</td><td>' + fmtMoney(s.ot_premium) + '</td></tr>'; });
-        html += '</table>';
-      }
-    }
-    html += '<div class="footer">' + clientConfig.company.name + ' | Labor Report | Confidential</div></body></html>';
-    w.document.write(html);
-    w.document.close();
-    w.print();
-  };
-
-  const tabs = [
-    { id: "overview", l: "Overview" },
-    { id: "site", l: "By Site" },
-    { id: "staff", l: "By Staff" },
-    { id: "overtime", l: "Overtime" },
-    { id: "role", l: "By Role" },
-  ];
-
-  return (<div>
-    <SecT t={t}>Labor Reports</SecT>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
-      { key: "thisWeek", label: "This Week" },
-      { key: "lastWeek", label: "Last Week" },
-      { key: "thisMonth", label: "This Month" },
-      { key: "last30", label: "Last 30 Days" },
-      { key: "last90", label: "Last 90 Days" },
-    ]} />
-
-    {/* Filters and actions row */}
-    <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-      <div style={{ flex: "0 0 200px" }}>
-        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
-      </div>
-      <div style={{ flex: 1 }} />
-      <button onClick={exportCSV} disabled={exporting} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}>
-        <DlI sz={14} c="currentColor" />{exporting ? "Exporting..." : "Export CSV"}
-      </button>
-      <button onClick={printReport} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-        Print Report
-      </button>
-    </div>
-
-    {/* Summary cards */}
-    {summary && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-      <SC t={t} label="Total Hours" value={fmtHrs(summary.total_minutes)} color={GO} icon={CkI} />
-      <SC t={t} label="Total Cost" value={fmtMoney(summary.total_cost)} color={GR} icon={DlrI} />
-      <SC t={t} label="Shifts" value={summary.total_shifts} sub={summary.approved_shifts + " approved, " + summary.pending_shifts + " pending"} color={BL} icon={ClI} />
-      <SC t={t} label="Staff" value={summary.unique_staff} sub={"Avg " + fmtHrs(summary.avg_shift_minutes) + "/shift"} color={OR} icon={UsI} />
-    </div>}
-
-    {/* OT callout */}
-    {summary && summary.total_ot_minutes > 0 && (
-      <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-        <AlI sz={16} c={OR} />
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: OR }}>Overtime Detected: {fmtHrs(summary.total_ot_minutes)}</div>
-          <div style={{ fontSize: 10, color: t.textMut }}>Per-shift overtime premium: {fmtMoney(summary.total_ot_premium)}</div>
-        </div>
-      </div>
-    )}
-
-    {/* Tab buttons */}
-    <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 2 }}>
-      {tabs.map(tb => (
-        <button key={tb.id} onClick={() => setTab(tb.id)} style={{
-          padding: "8px 16px", borderRadius: "8px 8px 0 0", border: "none",
-          background: tab === tb.id ? t.goldBg : "transparent",
-          color: tab === tb.id ? GO : t.textMut,
-          fontSize: 12, fontWeight: tab === tb.id ? 700 : 500, cursor: "pointer",
-          borderBottom: tab === tb.id ? "2px solid " + GO : "2px solid transparent"
-        }}>{tb.l}</button>
-      ))}
-    </div>
-
-    {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading...</div>}
-
-    {/* OVERVIEW TAB */}
-    {!loading && tab === "overview" && summary && (
-      <div>
-        <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Approval Status</div>
-          <div style={{ display: "flex", gap: 20 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: GR }}>Approved</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: GR }}>{summary.approved_shifts}</span>
-              </div>
-              <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 3, background: GR, width: (summary.total_shifts > 0 ? (summary.approved_shifts / summary.total_shifts * 100) : 0) + "%" }} />
-              </div>
-            </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: OR }}>Pending</span>
-                <span style={{ fontSize: 11, fontWeight: 600, color: OR }}>{summary.pending_shifts}</span>
-              </div>
-              <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 3, background: OR, width: (summary.total_shifts > 0 ? (summary.pending_shifts / summary.total_shifts * 100) : 0) + "%" }} />
-              </div>
-            </div>
-          </div>
-        </Crd>
-
-        {bySite.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Cost by Site</div>
-          {bySite.map((s, i) => {
-            const maxCost = Math.max(...bySite.map(x => Number(x.total_cost)));
-            const pct = maxCost > 0 ? (Number(s.total_cost) / maxCost * 100) : 0;
-            return (
-              <div key={s.site_id} style={{ marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.site_name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: GO }}>{fmtMoney(s.total_cost)}</span>
-                </div>
-                <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
-                  <div style={{ height: "100%", borderRadius: 4, background: GO, width: pct + "%", transition: "width 0.4s ease" }} />
-                </div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{fmtHrs(s.total_minutes)} across {s.shift_count} shifts with {s.staff_count} staff</div>
-              </div>
-            );
-          })}
-        </Crd>}
-      </div>
-    )}
-
-    {/* BY SITE TAB */}
-    {!loading && tab === "site" && (
-      <div>
-        {bySite.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>No shift data for this period.</div>}
-        {bySite.map(s => (
-          <Crd key={s.site_id} t={t} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{s.site_name}</div>
-                <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{s.staff_count} staff, {s.shift_count} shifts</div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: GO }}>{fmtMoney(s.total_cost)}</div>
-                <div style={{ fontSize: 11, color: t.textMut }}>{fmtHrs(s.total_minutes)}</div>
-              </div>
-            </div>
-            {s.ot_minutes > 0 && (
-              <div style={{ marginTop: 8, padding: "6px 10px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
-                <span style={{ fontSize: 10, color: OR, fontWeight: 600 }}>OT: {fmtHrs(s.ot_minutes)} (+{fmtMoney(s.ot_premium)} premium)</span>
-              </div>
-            )}
-          </Crd>
-        ))}
-      </div>
-    )}
-
-    {/* BY STAFF TAB */}
-    {!loading && tab === "staff" && (
-      <div>
-        {byStaff.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>No shift data for this period.</div>}
-        {byStaff.map(s => (
-          <Crd key={s.user_id} t={t} style={{ marginBottom: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <Ini name={s.staff_name} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.staff_name}</div>
-                <div style={{ display: "flex", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
-                  <Bdg l={RL[s.role] || s.role} c={GO} />
-                  {s.hourly_rate > 0 && <span style={{ fontSize: 10, color: t.textMut }}>{fmtMoney(s.hourly_rate)}/hr</span>}
-                  <span style={{ fontSize: 10, color: t.textMut }}>{s.shift_count} shifts</span>
-                </div>
-              </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: GO }}>{fmtMoney(s.total_cost)}</div>
-                <div style={{ fontSize: 11, color: t.textSec }}>{fmtHrs(s.total_minutes)}</div>
-              </div>
-            </div>
-            {s.ot_minutes > 0 && (
-              <div style={{ marginTop: 8, padding: "6px 10px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
-                <span style={{ fontSize: 10, color: OR, fontWeight: 600 }}>OT: {fmtHrs(s.ot_minutes)} (+{fmtMoney(s.ot_premium)} premium)</span>
-              </div>
-            )}
-          </Crd>
-        ))}
-      </div>
-    )}
-
-    {/* OVERTIME TAB */}
-    {!loading && tab === "overtime" && overtime && (
-      <div>
-        {overtime.weeklyCount === 0 && overtime.perShiftCount === 0 && (
-          <Crd t={t}><div style={{ padding: 20, textAlign: "center", color: t.textMut }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: GR, marginBottom: 4 }}>No Overtime</div>
-            <div style={{ fontSize: 12 }}>No overtime was recorded during this period.</div>
-          </div></Crd>
-        )}
-
-        {overtime.weeklyCount > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <AlI sz={14} c={OR} /> Weekly Overtime (&gt;40 hours)
-              <Bdg l={overtime.weeklyCount + " instance" + (overtime.weeklyCount !== 1 ? "s" : "")} c={OR} />
-            </div>
-            {overtime.weekly.map((w, i) => (
-              <Crd key={i} t={t} style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{w.staff_name}</div>
-                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Week of {fmtDt(w.week_start)} | {w.shift_count} shifts</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{fmtHrs(w.week_minutes)} total</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: OR }}>{fmtHrs(w.ot_minutes)} OT (+{fmtMoney(w.ot_premium)})</div>
-                  </div>
-                </div>
-              </Crd>
-            ))}
-          </div>
-        )}
-
-        {overtime.perShiftCount > 0 && (
-          <div>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <CkI sz={14} c={RD} /> Per-Shift Overtime (&gt;8 hours)
-              <Bdg l={overtime.perShiftCount + " shift" + (overtime.perShiftCount !== 1 ? "s" : "")} c={RD} />
-            </div>
-            {overtime.perShift.map((s, i) => (
-              <Crd key={i} t={t} style={{ marginBottom: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.staff_name}</div>
-                    <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{fmtDt(s.clock_in_time)} | {s.site_name}</div>
-                    <div style={{ fontSize: 10, color: t.textSec, marginTop: 1 }}>{fmtTm(s.clock_in_time)} to {fmtTm(s.clock_out_time)}</div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{fmtHrs(s.duration_minutes)} total</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: RD }}>{fmtHrs(s.ot_minutes)} OT (+{fmtMoney(s.ot_premium)})</div>
-                  </div>
-                </div>
-              </Crd>
-            ))}
-          </div>
-        )}
-      </div>
-    )}
-
-    {/* BY ROLE TAB */}
-    {!loading && tab === "role" && (
-      <div>
-        {byRole.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>No shift data for this period.</div>}
-        {byRole.map((r, i) => {
-          const maxCost = Math.max(...byRole.map(x => Number(x.total_cost)));
-          const pct = maxCost > 0 ? (Number(r.total_cost) / maxCost * 100) : 0;
-          return (
-            <Crd key={i} t={t} style={{ marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-                <div>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{RL[r.role] || r.role}</div>
-                  <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{r.staff_count} staff, {r.shift_count} shifts</div>
-                  {r.avg_rate > 0 && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Avg rate: {fmtMoney(r.avg_rate)}/hr</div>}
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: GO }}>{fmtMoney(r.total_cost)}</div>
-                  <div style={{ fontSize: 11, color: t.textMut }}>{fmtHrs(r.total_minutes)}</div>
-                </div>
-              </div>
-              <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 4, background: GO, width: pct + "%", transition: "width 0.4s ease" }} />
-              </div>
-              {r.ot_minutes > 0 && (
-                <div style={{ marginTop: 6, fontSize: 10, color: OR, fontWeight: 600 }}>Includes {fmtHrs(r.ot_minutes)} overtime</div>
-              )}
-            </Crd>
-          );
-        })}
-      </div>
-    )}
   </div>);
 }
 
@@ -3576,300 +3228,6 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>Create and Assign</Btn></div>
     </div></Mdl>}
-  </div>);
-}
-
-function TimesheetsPage({ af, showToast, isAdmin, t, sites, allStaff }) {
-  const [data, setData] = useState(null);
-  const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
-  const [filterUser, setFilterUser] = useState("");
-  const [filterSite, setFilterSite] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
-  const [expandedUser, setExpandedUser] = useState(null);
-  const [selectedShifts, setSelectedShifts] = useState(new Set());
-  const [rejectForm, setRejectForm] = useState(null);
-  const [rejectReason, setRejectReason] = useState("");
-  const [bulkRejectForm, setBulkRejectForm] = useState(false);
-  const [bulkRejectReason, setBulkRejectReason] = useState("");
-  const [exporting, setExporting] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const staff = allStaff;
-
-  const load = async (range) => {
-    setLoading(true);
-    try {
-      const r = range || dateRange;
-      let url = "/api/timesheets?start_date=" + r.start + "&end_date=" + r.end;
-      if (filterUser) url += "&user_id=" + filterUser;
-      if (filterSite) url += "&site_id=" + filterSite;
-      if (filterStatus) url += "&status=" + filterStatus;
-      const d = await af(url);
-      setData(d);
-      setSelectedShifts(new Set());
-    } catch (e) {
-      showToast(e.message, "error");
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  useEffect(() => { load(); }, [dateRange, filterUser, filterSite, filterStatus]);
-
-  const approveShift = async (shiftId) => {
-    try {
-      await af("/api/timesheets/" + shiftId + "/approve", { method: "PATCH" });
-      showToast("Shift approved");
-      load();
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const rejectShift = async () => {
-    if (!rejectReason.trim()) { showToast("Reason is required", "error"); return; }
-    try {
-      await af("/api/timesheets/" + rejectForm + "/reject", { method: "PATCH", body: { reason: rejectReason.trim() } });
-      showToast("Shift rejected");
-      setRejectForm(null);
-      setRejectReason("");
-      load();
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const resetShift = async (shiftId) => {
-    try {
-      await af("/api/timesheets/" + shiftId + "/reset", { method: "PATCH" });
-      showToast("Shift reset to pending");
-      load();
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const bulkApprove = async () => {
-    if (selectedShifts.size === 0) { showToast("Select shifts first", "error"); return; }
-    try {
-      const d = await af("/api/timesheets/bulk-approve", { method: "POST", body: { shiftIds: [...selectedShifts] } });
-      showToast(d.message);
-      setSelectedShifts(new Set());
-      load();
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const bulkReject = async () => {
-    if (selectedShifts.size === 0) { showToast("Select shifts first", "error"); return; }
-    if (!bulkRejectReason.trim()) { showToast("Reason is required", "error"); return; }
-    try {
-      const d = await af("/api/timesheets/bulk-reject", { method: "POST", body: { shiftIds: [...selectedShifts], reason: bulkRejectReason.trim() } });
-      showToast(d.message);
-      setSelectedShifts(new Set());
-      setBulkRejectForm(false);
-      setBulkRejectReason("");
-      load();
-    } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const exportTimesheets = async () => {
-    setExporting(true);
-    try {
-      const d = await af("/api/timesheets/export", { method: "POST", body: { start_date: dateRange.start, end_date: dateRange.end } });
-      showToast(d.message);
-      const headers = ["Last Name", "First Name", "Role", "Phone", "Email", "Site", "Clock In", "Clock Out", "Hours", "Rate", "Gross Pay", "Manual Entry"];
-      const rows = d.data.map(r => [r.lastName, r.firstName, r.role, r.phone, r.email, r.siteName, r.clockIn, r.clockOut, r.durationHours, r.hourlyRate, r.grossPay, r.isManualEntry ? "Yes" : "No"]);
-      dlCSV("ocsa-timesheets-" + dateRange.start + ".csv", headers, rows);
-      load();
-    } catch (e) { showToast(e.message, "error"); }
-    setExporting(false);
-  };
-
-  const toggleShiftSelect = (shiftId) => {
-    setSelectedShifts(prev => {
-      const n = new Set(prev);
-      if (n.has(shiftId)) n.delete(shiftId); else n.add(shiftId);
-      return n;
-    });
-  };
-
-  const selectAllPending = () => {
-    if (!data) return;
-    const pendingIds = [];
-    data.users.forEach(u => u.shifts.forEach(s => { if (s.approvalStatus === "pending") pendingIds.push(s.id); }));
-    setSelectedShifts(new Set(pendingIds));
-  };
-
-  const selectAllForUser = (userId) => {
-    if (!data) return;
-    const user = data.users.find(u => u.userId === userId);
-    if (!user) return;
-    const pendingIds = user.shifts.filter(s => s.approvalStatus === "pending").map(s => s.id);
-    setSelectedShifts(prev => {
-      const n = new Set(prev);
-      const allSelected = pendingIds.every(id => n.has(id));
-      if (allSelected) { pendingIds.forEach(id => n.delete(id)); }
-      else { pendingIds.forEach(id => n.add(id)); }
-      return n;
-    });
-  };
-
-  const fmtDt = (d) => d ? new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "";
-  const fmtTm = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "---";
-  const fmtDur = (min) => { if (!min) return "---"; const h = Math.floor(min / 60); const m = min % 60; return h + "h " + m + "m"; };
-
-  const statusColor = { pending: OR, approved: GR, rejected: RD, exported: BL };
-  const exColor = { missed_clockout: RD, overtime_shift: OR, short_shift: OR, overtime_weekly: "#9B59B6" };
-  const exLabel = { missed_clockout: "No Clock-Out", overtime_shift: ">8hr Shift", short_shift: "<2hr Shift", overtime_weekly: ">40hr Week" };
-
-  const summary = data?.summary;
-  const users = data?.users || [];
-
-  return (<div>
-    {/* Date Range */}
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
-        { key: "thisWeek", label: "This Week" },
-        { key: "lastWeek", label: "Last Week" },
-        { key: "thisMonth", label: "This Month" },
-        { key: "last30", label: "Last 30 Days" },
-      ]} />
-      <div style={{ display: "flex", gap: 6 }}>
-        {isAdmin && <Btn t={t} onClick={exportTimesheets} style={{ opacity: exporting ? 0.6 : 1 }}><DlI sz={13} c={NAVY} /> {exporting ? "Exporting..." : "Export for ADP"}</Btn>}
-      </div>
-    </div>
-
-    {/* Filters */}
-    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-      <Sel t={t} value={filterUser} onChange={e => setFilterUser(e.target.value)} options={[{ v: "", l: "All Staff" }, ...staff.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
-      <Sel t={t} value={filterSite} onChange={e => setFilterSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
-      <Sel t={t} value={filterStatus} onChange={e => setFilterStatus(e.target.value)} options={[{ v: "", l: "All Status" }, { v: "pending", l: "Pending" }, { v: "approved", l: "Approved" }, { v: "rejected", l: "Rejected" }, { v: "exported", l: "Exported" }]} style={{ flex: 1, minWidth: 110 }} />
-    </div>
-
-    {/* Summary Cards */}
-    {summary && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-      <SC t={t} label="Shifts" value={summary.totalShifts} sub={summary.totalStaff + " staff"} color={GO} icon={CkI} />
-      <SC t={t} label="Pending" value={summary.pendingCount} color={summary.pendingCount > 0 ? OR : GR} icon={CkI} />
-      <SC t={t} label="Approved" value={summary.approvedCount} color={GR} icon={CkI} />
-      <SC t={t} label="Exceptions" value={summary.exceptionsCount} color={summary.exceptionsCount > 0 ? RD : GR} icon={AlI} />
-    </div>}
-
-    {/* Bulk Actions */}
-    {selectedShifts.size > 0 && <Crd t={t} style={{ marginBottom: 14, padding: 12, border: "1px solid " + GO }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: GO }}>{selectedShifts.size} shift{selectedShifts.size !== 1 ? "s" : ""} selected</div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <Btn t={t} onClick={bulkApprove} style={{ padding: "6px 14px", fontSize: 11, background: GR, color: "#F8F7F4" }}>Approve All</Btn>
-          <Btn t={t} v="ghost" onClick={() => setBulkRejectForm(true)} style={{ padding: "6px 14px", fontSize: 11, border: "1px solid " + RD, color: RD }}>Reject All</Btn>
-          <Btn t={t} v="ghost" onClick={() => setSelectedShifts(new Set())} style={{ padding: "6px 14px", fontSize: 11 }}>Clear</Btn>
-        </div>
-      </div>
-    </Crd>}
-
-    {/* Quick Actions */}
-    {summary && summary.pendingCount > 0 && selectedShifts.size === 0 && (
-      <div style={{ marginBottom: 14 }}>
-        <button onClick={selectAllPending} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + t.goldBorder, background: t.goldBg, color: GO, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Select All Pending ({summary.pendingCount})</button>
-      </div>
-    )}
-
-    {/* Loading */}
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading timesheets...</div>}
-
-    {/* Empty State */}
-    {!loading && users.length === 0 && <Crd t={t} style={{ padding: 40, textAlign: "center" }}><CkI sz={32} c={t.textMut} /><div style={{ fontSize: 14, color: t.textMut, marginTop: 12 }}>No shifts found for this week.</div></Crd>}
-
-    {/* Staff Groups */}
-    {!loading && users.map(user => {
-      const isExpanded = expandedUser === user.userId;
-      const totalHours = (user.totalMinutes / 60).toFixed(1);
-      const hasExceptions = user.exceptions.length > 0;
-      const userPendingIds = user.shifts.filter(s => s.approvalStatus === "pending").map(s => s.id);
-      const allUserSelected = userPendingIds.length > 0 && userPendingIds.every(id => selectedShifts.has(id));
-
-      return (<Crd key={user.userId} t={t} style={{ marginBottom: 10, padding: 0 }}>
-        <button onClick={() => setExpandedUser(isExpanded ? null : user.userId)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", background: "none", border: "none", cursor: "pointer", color: t.text, textAlign: "left" }}>
-          {userPendingIds.length > 0 && <div onClick={e => { e.stopPropagation(); selectAllForUser(user.userId); }} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (allUserSelected ? GO : t.textMut), background: allUserSelected ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer" }}>{allUserSelected && <ChkI sz={10} c={NAVY} />}</div>}
-          <Ini name={user.staffName} sz={36} />
-          <div style={{ flex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 14, fontWeight: 600 }}>{user.staffName}</span>
-              {user.exceptions.map(ex => <span key={ex} style={{ fontSize: 8, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: (exColor[ex] || OR) + "18", color: exColor[ex] || OR }}>{exLabel[ex] || ex}</span>)}
-            </div>
-            <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{user.shifts.length} shift{user.shifts.length !== 1 ? "s" : ""} | {totalHours}h total{user.hourlyRate > 0 ? " | $" + (user.totalMinutes / 60 * user.hourlyRate).toFixed(2) : ""}</div>
-            <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-              {user.totalPending > 0 && <span style={{ fontSize: 9, color: OR }}>{user.totalPending} pending</span>}
-              {user.totalApproved > 0 && <span style={{ fontSize: 9, color: GR }}>{user.totalApproved} approved</span>}
-              {user.totalRejected > 0 && <span style={{ fontSize: 9, color: RD }}>{user.totalRejected} rejected</span>}
-            </div>
-          </div>
-          <Ic d={isExpanded ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"} sz={16} c={t.textMut} />
-        </button>
-
-        {isExpanded && <div style={{ borderTop: "1px solid " + t.border, padding: "0 16px 16px" }}>
-          {user.shifts.map(shift => {
-            const isSelected = selectedShifts.has(shift.id);
-            const isPending = shift.approvalStatus === "pending";
-            const hasEx = shift.exceptions.length > 0;
-
-            return (<div key={shift.id} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
-              {isPending && <div onClick={() => toggleShiftSelect(shift.id)} style={{ width: 16, height: 16, borderRadius: 3, border: "2px solid " + (isSelected ? GO : t.textMut), background: isSelected ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0, marginTop: 2 }}>{isSelected && <ChkI sz={8} c={NAVY} />}</div>}
-              {!isPending && <div style={{ width: 16, flexShrink: 0 }} />}
-
-              <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{fmtDt(shift.clockInTime)}</span>
-                  <span style={{ fontSize: 11, color: t.textSec }}>{fmtTm(shift.clockInTime)} - {fmtTm(shift.clockOutTime)}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: GO }}>{fmtDur(shift.durationMinutes)}</span>
-                  <Bdg l={shift.approvalStatus} c={statusColor[shift.approvalStatus] || t.textMut} />
-                  {shift.isManualEntry && <Bdg l="Manual" c={BL} />}
-                  {shift.exceptions.map(ex => <span key={ex} style={{ fontSize: 7, fontWeight: 700, padding: "1px 4px", borderRadius: 2, background: (exColor[ex] || OR) + "18", color: exColor[ex] || OR }}>{exLabel[ex]}</span>)}
-                </div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{shift.siteName}{shift.hourlyRate > 0 ? " | $" + shift.hourlyRate + "/hr" : ""}{shift.durationMinutes && shift.hourlyRate ? " | $" + (shift.durationMinutes / 60 * shift.hourlyRate).toFixed(2) : ""}</div>
-                {shift.rejectionReason && <div style={{ fontSize: 10, color: RD, marginTop: 3, fontStyle: "italic" }}>Rejected: {shift.rejectionReason}</div>}
-                {shift.manualEntryNotes && <div style={{ fontSize: 10, color: BL, marginTop: 3 }}>Note: {shift.manualEntryNotes}</div>}
-              </div>
-
-              <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                {isPending && <button onClick={() => approveShift(shift.id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, fontWeight: 600, cursor: "pointer" }}>Approve</button>}
-                {isPending && <button onClick={() => { setRejectForm(shift.id); setRejectReason(""); }} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, fontWeight: 600, cursor: "pointer" }}>Reject</button>}
-                {(shift.approvalStatus === "approved" || shift.approvalStatus === "rejected") && <button onClick={() => resetShift(shift.id)} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textMut, fontSize: 9, cursor: "pointer" }}>Reset</button>}
-              </div>
-            </div>);
-          })}
-
-          {/* User-level quick approve */}
-          {user.totalPending > 0 && <div style={{ marginTop: 10, display: "flex", gap: 6 }}>
-            <button onClick={() => {
-              const pendingIds = user.shifts.filter(s => s.approvalStatus === "pending").map(s => s.id);
-              af("/api/timesheets/bulk-approve", { method: "POST", body: { shiftIds: pendingIds } })
-                .then(d => { showToast(d.message); load(); })
-                .catch(e => showToast(e.message, "error"));
-            }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve All for {user.staffName.split(" ")[0]}</button>
-          </div>}
-        </div>}
-      </Crd>);
-    })}
-
-    {/* Reject Modal */}
-    {rejectForm && <Mdl t={t} onClose={() => setRejectForm(null)}>
-      <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 12 }}>Reject Shift</div>
-        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Provide a reason for rejecting this timesheet entry. The staff member may need to re-submit or correct their clock times.</div>
-        <div style={{ marginBottom: 16 }}><Lbl>Reason *</Lbl><TArea t={t} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Incorrect clock-out time, please verify" rows={3} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn t={t} v="ghost" onClick={() => setRejectForm(null)}>Cancel</Btn>
-          <Btn t={t} v="danger" onClick={rejectShift}>Reject Shift</Btn>
-        </div>
-      </div>
-    </Mdl>}
-
-    {/* Bulk Reject Modal */}
-    {bulkRejectForm && <Mdl t={t} onClose={() => setBulkRejectForm(false)}>
-      <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 12 }}>Reject {selectedShifts.size} Shifts</div>
-        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Provide a reason that will apply to all {selectedShifts.size} selected shifts.</div>
-        <div style={{ marginBottom: 16 }}><Lbl>Reason *</Lbl><TArea t={t} value={bulkRejectReason} onChange={e => setBulkRejectReason(e.target.value)} placeholder="Reason for rejection..." rows={3} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn t={t} v="ghost" onClick={() => setBulkRejectForm(false)}>Cancel</Btn>
-          <Btn t={t} v="danger" onClick={bulkReject}>Reject All</Btn>
-        </div>
-      </div>
-    </Mdl>}
   </div>);
 }
 
@@ -4279,140 +3637,6 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
     </Mdl>}
   </div>);
 }
-function ClockHistoryPage({ af, showToast, isAdmin, t, allStaff, sites }) {
-  const [hours, setHours] = useState(null);
-  const staffList = allStaff;
-  const [clockHistory, setClockHistory] = useState([]);
-  const [histFilter, setHistFilter] = useState({ userId: "", siteId: "" });
-  const [manualEntry, setManualEntry] = useState(null);
-  const [editShift, setEditShift] = useState(null);
-  const [dateRange, setDateRange] = useState(() => PRESETS.last7());
-
-  const loadHours = (range) => {
-    const r = range || dateRange;
-    af("/api/reports/hours?group_by=user&start_date=" + r.start + "&end_date=" + r.end).then(setHours).catch(e => console.warn("Load hours:", e.message));
-  };
-
-  const loadHistory = async (filters, range) => {
-    const r = range || dateRange;
-    const params = new URLSearchParams();
-    if (filters?.userId) params.set("user_id", filters.userId);
-    if (filters?.siteId) params.set("site_id", filters.siteId);
-    params.set("start_date", r.start);
-    params.set("end_date", r.end);
-    params.set("limit", "100");
-    try { const d = await af("/api/clock/history?" + params.toString()); setClockHistory(d); } catch (e) { showToast(e.message, "error"); }
-  };
-
-  useEffect(() => {
-    loadHours(); loadHistory(histFilter);
-  }, []);
-
-  useEffect(() => { loadHours(); loadHistory(histFilter); }, [dateRange]);
-
-  const onDateChange = (r) => { setDateRange(r); };
-
-  const submitManual = async () => {
-    if (!manualEntry.userId || !manualEntry.siteId || !manualEntry.clockIn) { showToast("User, site, and clock-in time required", "error"); return; }
-    try { const d = await af("/api/clock/manual-entry", { method: "POST", body: { userId: manualEntry.userId, siteId: manualEntry.siteId, clockInTime: manualEntry.clockIn, clockOutTime: manualEntry.clockOut || undefined, notes: manualEntry.notes || undefined } }); showToast(d.message); setManualEntry(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const submitEditShift = async () => {
-    try { await af("/api/clock/shifts/" + editShift.id, { method: "PATCH", body: { clockInTime: editShift.clockIn, clockOutTime: editShift.clockOut || undefined } }); showToast("Shift updated"); setEditShift(null); loadHistory(histFilter); } catch (e) { showToast(e.message, "error"); }
-  };
-
-  const fmtDt = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Active";
-  const fmtTm = (d) => d ? new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true }) : "";
-  const fmtInput = (d) => d ? new Date(d).toISOString().slice(0, 16) : "";
-
-  return (<div>
-    <SecT t={t}>Clock History</SecT>
-    <DateRangePicker value={dateRange} onChange={onDateChange} t={t} presets={[
-      { key: "last7", label: "Last 7 Days" },
-      { key: "thisWeek", label: "This Week" },
-      { key: "lastWeek", label: "Last Week" },
-      { key: "last30", label: "Last 30 Days" },
-    ]} />
-
-    <Crd t={t} style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Hours by Staff</div>
-      </div>
-      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Total: {hours?.summary?.totalHours || 0}h across {hours?.summary?.totalShifts || 0} shifts</div>
-      {hours?.data?.map((s, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 100, fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: t.text }}>{s.name}</div>
-          <div style={{ flex: 1, height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 4, background: "linear-gradient(90deg," + GO + "," + GL + ")", width: (hours.summary.totalMinutes > 0 ? s.total_minutes / hours.summary.totalMinutes * 100 : 0) + "%" }} />
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 600, color: GO, width: 50, textAlign: "right" }}>{s.total_hours}h</span>
-        </div>
-      ))}
-      {(!hours?.data || hours.data.length === 0) && <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
-    </Crd>
-
-    <Crd t={t} style={{ marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Clock Records</div>
-        {isAdmin && <button onClick={() => setManualEntry({ userId: "", siteId: "", clockIn: "", clockOut: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={NAVY} /> Manual Entry</button>}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-        <Sel t={t} value={histFilter.userId} onChange={e => { const f = { ...histFilter, userId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
-        <Sel t={t} value={histFilter.siteId} onChange={e => { const f = { ...histFilter, siteId: e.target.value }; setHistFilter(f); loadHistory(f); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 140 }} />
-      </div>
-      {clockHistory.length > 0 && <div style={{ maxHeight: 360, overflowY: "auto" }}>
-        {(() => {
-          const sorted = [...clockHistory].sort((a, b) => new Date(b.clock_in_time) - new Date(a.clock_in_time));
-          return sorted.map((sh, i) => {
-            const dt = new Date(sh.clock_in_time);
-            const prev = i > 0 ? new Date(sorted[i - 1].clock_in_time) : null;
-            const showHeader = !prev || dt.toDateString() !== prev.toDateString();
-            return <div key={sh.id}>{showHeader && <div style={{ fontSize: 10, fontWeight: 700, color: GO, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>}
-              <TimelineRow t={t} last={i === sorted.length - 1} node={<Ini name={sh.staff_name} sz={32} />}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, color: t.text, fontSize: 12 }}>{sh.staff_name}</div>
-                    <div style={{ color: t.textMut, fontSize: 11, marginTop: 1 }}>{sh.site_name}</div>
-                  </div>
-                  <div style={{ textAlign: "right", fontSize: 11 }}>
-                    <div style={{ color: t.textSec }}>{fmtTm(sh.clock_in_time)}</div>
-                    <div style={{ color: sh.clock_out_time ? t.textSec : OR, marginTop: 1 }}>{sh.clock_out_time ? fmtTm(sh.clock_out_time) : "Still clocked in"}</div>
-                  </div>
-                  <div style={{ minWidth: 46, textAlign: "right" }}><div style={{ fontWeight: 600, color: GO, fontSize: 12 }}>{sh.duration_minutes ? sh.duration_minutes + "m" : "--"}</div></div>
-                  {isAdmin && <button onClick={() => setEditShift({ id: sh.id, clockIn: fmtInput(sh.clock_in_time), clockOut: fmtInput(sh.clock_out_time), name: sh.staff_name })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 9, cursor: "pointer", flexShrink: 0 }}>Edit</button>}
-                </div>
-              </TimelineRow>
-            </div>;
-          });
-        })()}
-      </div>}
-      {clockHistory.length === 0 && <div style={{ fontSize: 11, color: t.textMut }}>No clock records found for the selected date range.</div>}
-    </Crd>
-
-    {manualEntry && <Mdl t={t} onClose={() => setManualEntry(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Manual Clock Entry</div><button onClick={() => setManualEntry(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Use this to add a clock entry for a staff member who forgot to clock in or out.</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl><Sel t={t} value={manualEntry.userId} onChange={e => setManualEntry({ ...manualEntry, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={manualEntry.siteId} onChange={e => setManualEntry({ ...manualEntry, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Clock In *</Lbl><Inp t={t} type="datetime-local" value={manualEntry.clockIn} onChange={e => setManualEntry({ ...manualEntry, clockIn: e.target.value })} /></div>
-        <div><Lbl>Clock Out</Lbl><Inp t={t} type="datetime-local" value={manualEntry.clockOut} onChange={e => setManualEntry({ ...manualEntry, clockOut: e.target.value })} /></div>
-      </div>
-      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={manualEntry.notes} onChange={e => setManualEntry({ ...manualEntry, notes: e.target.value })} placeholder="Reason for manual entry" /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setManualEntry(null)}>Cancel</Btn><Btn t={t} onClick={submitManual}>Add Entry</Btn></div>
-    </div></Mdl>}
-
-    {editShift && <Mdl t={t} onClose={() => setEditShift(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Shift</div><button onClick={() => setEditShift(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14 }}>Editing shift for: <span style={{ fontWeight: 600, color: t.text }}>{editShift.name}</span></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-        <div><Lbl>Clock In</Lbl><Inp t={t} type="datetime-local" value={editShift.clockIn} onChange={e => setEditShift({ ...editShift, clockIn: e.target.value })} /></div>
-        <div><Lbl>Clock Out</Lbl><Inp t={t} type="datetime-local" value={editShift.clockOut} onChange={e => setEditShift({ ...editShift, clockOut: e.target.value })} /></div>
-      </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditShift(null)}>Cancel</Btn><Btn t={t} onClick={submitEditShift}>Save Changes</Btn></div>
-    </div></Mdl>}
-  </div>);
-}
 
 // ===== SCHEDULE PAGE =====
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
@@ -4429,7 +3653,6 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [loading, setLoading] = useState(false);
   const [createModal, setCreateModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
-  const [shiftDetail, setShiftDetail] = useState(null);
   const [createForm, setCreateForm] = useState({ userId: "", siteId: "", startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
   const [siteLocations, setSiteLocations] = useState({});
   const [inspModal, setInspModal] = useState(null);
@@ -4600,7 +3823,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
           </div>))}
-          {actual.map(a => (<div key={a.id} onClick={e => { e.stopPropagation(); setShiftDetail(a); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
+          {actual.map(a => (<div key={a.id} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, background: a.shift_status === "active" ? GR + "18" : GR + "10", color: GR, border: "1px solid " + GR + "30" }}>
             {a.clock_in_time ? new Date(a.clock_in_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : ""}{a.clock_out_time ? "-" + new Date(a.clock_out_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : a.shift_status === "active" ? " (live)" : ""}
             {a.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{a.site_name}</div>}
           </div>))}
@@ -4759,84 +3982,6 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div></Mdl>}
 
     {/* ACTUAL SHIFT DETAIL MODAL */}
-    {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Shift Details</div><button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      {!shiftDetail.editing ? (<>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Staff</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.first_name} {shiftDetail.last_name}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock In</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "N/A"}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Clock Out</div><div style={{ fontSize: 13, color: shiftDetail.clock_out_time ? t.text : OR }}>{shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "Still clocked in"}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Duration</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.duration_minutes ? Math.floor(shiftDetail.duration_minutes / 60) + "h " + (shiftDetail.duration_minutes % 60) + "m" : "In progress"}</div></div>
-          <div><div style={{ fontSize: 10, color: GO, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Approval</div><div style={{ fontSize: 13, color: shiftDetail.approval_status === "approved" ? GR : shiftDetail.approval_status === "rejected" ? RD : OR, fontWeight: 600 }}>{(shiftDetail.approval_status || "pending").charAt(0).toUpperCase() + (shiftDetail.approval_status || "pending").slice(1)}</div></div>
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>
-          {isAdmin && <Btn t={t} onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editClockIn: shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "", editClockOut: shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "", editApproval: shiftDetail.approval_status || "pending", editSite: shiftDetail.site_id || "", editUser: shiftDetail.user_id || "" })}>Edit Shift</Btn>}
-        </div>
-        {!shiftDetail.pickupForm && (
-          <div style={{ marginTop: 10, borderTop: "1px solid " + t.border, paddingTop: 10 }}>
-            <button onClick={() => setShiftDetail({ ...shiftDetail, pickupForm: { origin: "callout", urgency: "urgent", date: new Date().toISOString().split("T")[0], startTime: shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "08:00", endTime: shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "16:00", notes: "" } })} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer", width: "100%" , justifyContent: "center" }}><SwpI sz={13} c={TL} />Post Coverage Pickup for This Site</button>
-          </div>
-        )}
-        {shiftDetail.pickupForm && (
-          <div style={{ marginTop: 10, padding: 12, borderRadius: 8, background: t.cardAlt, border: "1px solid " + TL + "40" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: TL, marginBottom: 8 }}>Post Open Pickup Shift</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <div><Lbl>Date *</Lbl><Inp t={t} type="date" value={shiftDetail.pickupForm.date} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, date: e.target.value } })} /></div>
-              <div><Lbl>Start</Lbl><Inp t={t} type="time" value={shiftDetail.pickupForm.startTime} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, startTime: e.target.value } })} /></div>
-              <div><Lbl>End</Lbl><Inp t={t} type="time" value={shiftDetail.pickupForm.endTime} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, endTime: e.target.value } })} /></div>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-              <div><Lbl>Reason</Lbl><Sel t={t} value={shiftDetail.pickupForm.origin} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, origin: e.target.value } })} options={getOpts("shift_origins")} /></div>
-              <div><Lbl>Urgency</Lbl><Sel t={t} value={shiftDetail.pickupForm.urgency} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, urgency: e.target.value } })} options={[{ v: "urgent", l: "Urgent" }, { v: "normal", l: "Normal" }]} /></div>
-            </div>
-            <div style={{ marginBottom: 10 }}><Lbl>Notes</Lbl><Inp t={t} value={shiftDetail.pickupForm.notes} onChange={e => setShiftDetail({ ...shiftDetail, pickupForm: { ...shiftDetail.pickupForm, notes: e.target.value } })} placeholder="e.g. Need coverage for tomorrow" /></div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, pickupForm: null })} style={{ fontSize: 11, padding: "6px 12px" }}>Cancel</Btn>
-              <Btn t={t} onClick={async () => {
-                try {
-                  const pf = shiftDetail.pickupForm;
-                  await af("/api/pickups", { method: "POST", body: { site_id: shiftDetail.site_id, scheduled_date: pf.date, start_time: pf.startTime, end_time: pf.endTime, origin: pf.origin, urgency: pf.urgency, notes: pf.notes } });
-                  showToast("Pickup shift posted");
-                  setShiftDetail(null);
-                  loadCalendar();
-                } catch (e) { showToast(e.message, "error"); }
-              }} style={{ fontSize: 11, padding: "6px 12px" }}>Post Pickup</Btn>
-            </div>
-          </div>
-        )}
-      </>) : (<>
-        <div style={{ padding: "10px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 14 }}>Editing this shift. Changes to clock times will recalculate duration automatically.</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Staff</Lbl><Sel t={t} value={shiftDetail.editUser} onChange={e => setShiftDetail({ ...shiftDetail, editUser: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-          <div><Lbl>Site</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => setShiftDetail({ ...shiftDetail, editSite: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Clock In</Lbl><input type="datetime-local" value={shiftDetail.editClockIn} onChange={e => setShiftDetail({ ...shiftDetail, editClockIn: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY }} /></div>
-          <div><Lbl>Clock Out</Lbl><input type="datetime-local" value={shiftDetail.editClockOut} onChange={e => setShiftDetail({ ...shiftDetail, editClockOut: e.target.value })} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY }} /></div>
-        </div>
-        <div style={{ marginBottom: 12 }}><Lbl>Approval Status</Lbl><Sel t={t} value={shiftDetail.editApproval} onChange={e => setShiftDetail({ ...shiftDetail, editApproval: e.target.value })} options={[{ v: "pending", l: "Pending" }, { v: "approved", l: "Approved" }, { v: "rejected", l: "Rejected" }]} /></div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-          <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: false })}>Cancel</Btn>
-          <Btn t={t} onClick={async () => {
-            try {
-              const body = {};
-              if (shiftDetail.editClockIn !== (shiftDetail.clock_in_time ? new Date(shiftDetail.clock_in_time).toISOString().slice(0, 16) : "")) body.clockInTime = shiftDetail.editClockIn;
-              if (shiftDetail.editClockOut !== (shiftDetail.clock_out_time ? new Date(shiftDetail.clock_out_time).toISOString().slice(0, 16) : "")) body.clockOutTime = shiftDetail.editClockOut;
-              if (shiftDetail.editApproval !== (shiftDetail.approval_status || "pending")) {
-                if (shiftDetail.editApproval === "approved") { await af("/api/timesheets/" + shiftDetail.id + "/approve", { method: "PATCH" }); }
-                else if (shiftDetail.editApproval === "rejected") { await af("/api/timesheets/" + shiftDetail.id + "/reject", { method: "PATCH", body: { reason: "Updated from schedule view" } }); }
-                else if (shiftDetail.editApproval === "pending") { await af("/api/timesheets/" + shiftDetail.id + "/reset", { method: "PATCH" }); }
-              }
-              if (body.clockInTime || body.clockOutTime) { await af("/api/clock/shifts/" + shiftDetail.id, { method: "PATCH", body }); }
-              showToast("Shift updated"); setShiftDetail(null); loadCalendar();
-            } catch (e) { showToast(e.message, "error"); }
-          }}>Save Changes</Btn>
-        </div>
-      </>)}
-    </div></Mdl>}
-
     {/* INSPECTION RESCHEDULE MODAL */}
     {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Inspection Details</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
