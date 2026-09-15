@@ -3707,6 +3707,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
 
   const loadSiteLocations = async (siteId) => {
     if (!siteId || siteLocations[siteId]) return;
+    setSiteLocations(prev => ({ ...prev, [siteId]: { loading: true } }));
     try {
       const tasks = await af("/api/sites/" + siteId + "/tasks");
       const bSet = new Set(); const fMap = {};
@@ -3718,17 +3719,18 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       const floors = {};
       Object.keys(fMap).forEach(b => { floors[b] = [...fMap[b]].sort(); });
       setSiteLocations(prev => ({ ...prev, [siteId]: { buildings: [...bSet].sort(), floors } }));
-    } catch (e) { console.error("Load site locations error:", e); }
+    } catch (e) { console.error("Load site locations error:", e); setSiteLocations(prev => { const next = { ...prev }; delete next[siteId]; return next; }); }
   };
 
   const getBuildingOpts = (siteId) => {
     const loc = siteLocations[siteId];
+    if (loc && loc.loading) return [{ v: "", l: "Loading buildings..." }];
     if (!loc || loc.buildings.length === 0) return [{ v: "", l: "No buildings configured" }];
     return [{ v: "", l: "Select building..." }, ...loc.buildings.map(b => ({ v: b, l: b }))];
   };
   const getFloorOpts = (siteId, building) => {
     const loc = siteLocations[siteId];
-    if (!loc || !building || !loc.floors[building] || loc.floors[building].length === 0) return [{ v: "", l: "Select floor..." }];
+    if (!loc || loc.loading || !building || !loc.floors[building] || loc.floors[building].length === 0) return [{ v: "", l: "Select floor..." }];
     return [{ v: "", l: "Select floor..." }, ...loc.floors[building].map(f => ({ v: f, l: "Floor " + f }))];
   };
 
@@ -3778,11 +3780,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   };
 
   useEffect(() => {
-    sites.forEach(site => loadSiteLocations(site.id));
     af("/api/users?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
-    loadCalendar();
   }, []);
-  useEffect(() => { if (sites.length > 0) sites.forEach(site => loadSiteLocations(site.id)); }, [sites]);
   useEffect(() => { loadCalendar(); const iv = setInterval(() => loadCalendar(), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
 
   const getWeekDays = () => { const days = []; const start = new Date(dateRange.start + "T00:00:00"); for (let i = 0; i < 7; i++) { const d = new Date(start); d.setDate(d.getDate() + i); days.push(toISO(d)); } return days; };
@@ -3992,7 +3991,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <Sel t={t} value={filterSite} onChange={e => { setFilterSite(e.target.value); setSchedPage(1); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
       <Inp t={t} value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder="Search staff..." style={{ width: 160, fontSize: 12 }} />
       {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>Show</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{nn} staff</option>)}</select></div>}
     </div>
