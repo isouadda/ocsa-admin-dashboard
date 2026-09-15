@@ -4283,10 +4283,6 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     setLoading(false);
   };
 
-  useEffect(() => {
-    af("/api/pickups?status=requested").then(r => setRequestCount(r.length)).catch(e => console.warn("Load request count:", e.message));
-    load();
-  }, []);
   useEffect(() => { setPkPage(1); load(); const iv = setInterval(() => load(), 45000); return () => clearInterval(iv); }, [dateRange, tab, siteFilter, originFilter]);
 
   const loadSiteLocations = async (siteId) => {
