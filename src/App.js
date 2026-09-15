@@ -28,7 +28,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases"];
 const pageFromHash = () => { const h = window.location.hash.replace(/^#/, ""); return PAGE_IDS.includes(h) ? h : "overview"; };
 function dlCSV(fn, hds, rows) {
   const csv = [hds.join(","), ...rows.map(r => r.map(c => '"' + String(c || "").replace(/"/g, '""') + '"').join(","))].join("\n");
@@ -328,6 +328,7 @@ export default function AdminDashboard() {
     { label: "Staff", items: [
       ...(isAdmin ? [{ id: "staff", l: "Staff Management", i: UsI }] : []),
       { id: "hr", l: "HR Records", i: FolI },
+      ...(isAdmin ? [{ id: "cases", l: "Cases", i: ClpI }] : []),
     ]},
     { label: "Quality", items: [
       { id: "issues", l: "Issues", i: AlI },
@@ -343,7 +344,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings", cases: "Cases" };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -503,6 +504,7 @@ export default function AdminDashboard() {
       <div style={{ flex: 1, padding: "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
+        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} />}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -8479,6 +8481,108 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       )}
     </div>
   );
+}
+
+// Cases raised by staff through the portal. Admin only. The API applies the recusal rule in SQL, so a
+// case about the person looking never arrives here, and this page keeps no count of anything it did not
+// receive. The list shows no summary text; a row is opened to be read.
+function CasesPage({ af, showToast, t }) {
+  const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
+  const OPEN_STATUSES = ["open", "in_review", "escalated"];
+  const statusLabel = { open: "Open", in_review: "In review", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
+  const statusColor = { open: OR, in_review: BL, escalated: RD, resolved: GR, closed: t.textMut };
+  const [cases, setCases] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [accessLog, setAccessLog] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [form, setForm] = useState({ status: "", escalatedTo: "", resolutionNotes: "" });
+  const [saving, setSaving] = useState(false);
+  const actionLabel = { hr_case_read: "Read the case", hr_case_list: "Saw it in the list", hr_case_updated: "Updated the case", hr_case_access_log_read: "Read this log", hr_case_escalation_mail: "Escalation email", hr_case_created: "Raised the case" };
+
+  const load = async (status) => {
+    setLoading(true);
+    try { const d = await af("/api/hr-cases" + (status ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); }
+    catch (e) { showToast(e.message, "error"); }
+    setLoading(false);
+  };
+  useEffect(() => { load(statusFilter); }, [statusFilter]);
+
+  const loadAccessLog = (id) => af("/api/hr-cases/" + id + "/access-log").then(l => setAccessLog(l && Array.isArray(l.entries) ? l.entries : [])).catch(() => setAccessLog([]));
+  // A case the route will not return, for any reason, is reported as not available and nothing more.
+  // The route answers 404 for a recused case on purpose, and this page never says which it was.
+  const openCase = async (c) => {
+    let d;
+    try { d = await af("/api/hr-cases/" + c.id); } catch (e) { showToast("This case is not available.", "error"); return; }
+    setDetail(d); setAccessLog([]); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" });
+    loadAccessLog(d.id);
+    af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
+  };
+  const closeCase = () => { setDetail(null); setAccessLog([]); };
+  // The case's own subject is never offered: the route answers 400 for that choice.
+  const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
+  const save = async () => {
+    if (!detail) return;
+    const body = {};
+    if (form.status !== detail.status) body.status = form.status;
+    if (form.escalatedTo) body.escalated_to = form.escalatedTo;
+    const notes = (form.resolutionNotes || "").trim();
+    if (notes !== (detail.resolutionNotes || "")) body.resolution_notes = notes || null;
+    if (Object.keys(body).length === 0) { showToast("Nothing to update", "error"); return; }
+    setSaving(true);
+    try {
+      const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body });
+      setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" });
+      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id);
+    } catch (e) { showToast(e.message, "error"); }
+    setSaving(false);
+  };
+
+  const isOpen = c => OPEN_STATUSES.includes(c.status);
+  const ageDays = c => Math.max(0, Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000));
+  // Oldest open first: every case still open, in review or escalated comes ahead of the resolved and
+  // closed ones, and inside each group the oldest is first.
+  const rows = [...cases].sort((a, b) => { const ao = isOpen(a) ? 0 : 1; const bo = isOpen(b) ? 0 : 1; if (ao !== bo) return ao - bo; return new Date(a.createdAt) - new Date(b.createdAt); });
+
+  const columns = [
+    { header: "Age", tdStyle: { whiteSpace: "nowrap" }, render: c => { const d = ageDays(c); const l = d + (d === 1 ? " day" : " days"); return isOpen(c) && d > 3 ? <Bdg l={l} c={RD} /> : <span style={{ color: t.textSec }}>{l}</span>; } },
+    { header: "Status", render: c => <Bdg l={statusLabel[c.status] || c.status} c={statusColor[c.status] || t.textMut} /> },
+    { header: "Received", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: c => ff(c.createdAt) },
+    { header: "Subject named", tdStyle: { color: t.textSec }, render: c => c.subject ? "Yes" : "No" },
+    { header: "Held by", tdStyle: { color: t.textSec }, render: c => (c.assignedTo && c.assignedTo.name) || (c.escalatedTo && c.escalatedTo.name) || "-" },
+  ];
+
+  return (<div>
+    <SecT t={t}>Cases</SecT>
+    <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "", label: "All" }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading cases...</div>}
+    {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty="No cases." />}
+
+    {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+        <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Case</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>Received {ff(detail.createdAt)}</span></div></div>
+        <button onClick={closeCase} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ marginBottom: 14 }}><Lbl>Summary</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
+        <div style={{ fontSize: 11, color: t.textMut }}>Reported by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>Subject named<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.subject && detail.subject.name) || "No"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>Held by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.assignedTo && detail.assignedTo.name) || "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>Escalated to<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.escalatedTo && detail.escalatedTo.name) || "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>Last updated<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.updatedAt ? ff(detail.updatedAt) : "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>Resolved<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>Status</Lbl><Sel t={t} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>Escalate to</Lbl><Sel t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: "Do not escalate" }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>Escalating sends that person an email. The email carries no case text.</div></div>
+      <div style={{ marginBottom: 14 }}><Lbl>Resolution notes</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>Close</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Btn></div>
+      <div><Lbl>Access log</Lbl>
+        {accessLog.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No entries yet.</div>}
+        {accessLog.map(e => (<div key={e.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 12 }}><span style={{ color: t.text }}>{e.name || "Unknown"}{e.role ? <span style={{ color: t.textMut }}> ({e.role})</span> : null}<span style={{ color: t.textSec }}> {actionLabel[e.action] || e.action}</span></span><span style={{ color: t.textMut, whiteSpace: "nowrap" }}>{ff(e.at)}</span></div>))}
+      </div>
+    </div></Mdl>}
+  </div>);
 }
 
 function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }) {
