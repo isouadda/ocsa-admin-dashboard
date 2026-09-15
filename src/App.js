@@ -28,7 +28,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases"];
 const pageFromHash = () => { const h = window.location.hash.replace(/^#/, ""); return PAGE_IDS.includes(h) ? h : "overview"; };
 function dlCSV(fn, hds, rows) {
   const csv = [hds.join(","), ...rows.map(r => r.map(c => '"' + String(c || "").replace(/"/g, '""') + '"').join(","))].join("\n");
@@ -328,6 +328,7 @@ export default function AdminDashboard() {
     { label: "Staff", items: [
       ...(isAdmin ? [{ id: "staff", l: "Staff Management", i: UsI }] : []),
       { id: "hr", l: "HR Records", i: FolI },
+      ...(isAdmin ? [{ id: "cases", l: "Cases", i: ClpI }] : []),
     ]},
     { label: "Quality", items: [
       { id: "issues", l: "Issues", i: AlI },
@@ -343,7 +344,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings", cases: "Cases" };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -503,6 +504,7 @@ export default function AdminDashboard() {
       <div style={{ flex: 1, padding: "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
+        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} />}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -8479,6 +8481,48 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       )}
     </div>
   );
+}
+
+// Cases raised by staff through the portal. Admin only. The API applies the recusal rule in SQL, so a
+// case about the person looking never arrives here, and this page keeps no count of anything it did not
+// receive. The list shows no summary text; a row is opened to be read.
+function CasesPage({ af, showToast, t }) {
+  const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
+  const OPEN_STATUSES = ["open", "in_review", "escalated"];
+  const statusLabel = { open: "Open", in_review: "In review", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
+  const statusColor = { open: OR, in_review: BL, escalated: RD, resolved: GR, closed: t.textMut };
+  const [cases, setCases] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = async (status) => {
+    setLoading(true);
+    try { const d = await af("/api/hr-cases" + (status ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); }
+    catch (e) { showToast(e.message, "error"); }
+    setLoading(false);
+  };
+  useEffect(() => { load(statusFilter); }, [statusFilter]);
+
+  const isOpen = c => OPEN_STATUSES.includes(c.status);
+  const ageDays = c => Math.max(0, Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000));
+  // Oldest open first: every case still open, in review or escalated comes ahead of the resolved and
+  // closed ones, and inside each group the oldest is first.
+  const rows = [...cases].sort((a, b) => { const ao = isOpen(a) ? 0 : 1; const bo = isOpen(b) ? 0 : 1; if (ao !== bo) return ao - bo; return new Date(a.createdAt) - new Date(b.createdAt); });
+
+  const columns = [
+    { header: "Age", tdStyle: { whiteSpace: "nowrap" }, render: c => { const d = ageDays(c); const l = d + (d === 1 ? " day" : " days"); return isOpen(c) && d > 3 ? <Bdg l={l} c={RD} /> : <span style={{ color: t.textSec }}>{l}</span>; } },
+    { header: "Status", render: c => <Bdg l={statusLabel[c.status] || c.status} c={statusColor[c.status] || t.textMut} /> },
+    { header: "Received", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: c => ff(c.createdAt) },
+    { header: "Subject named", tdStyle: { color: t.textSec }, render: c => c.subject ? "Yes" : "No" },
+    { header: "Held by", tdStyle: { color: t.textSec }, render: c => (c.assignedTo && c.assignedTo.name) || (c.escalatedTo && c.escalatedTo.name) || "-" },
+  ];
+
+  return (<div>
+    <SecT t={t}>Cases</SecT>
+    <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "", label: "All" }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading cases...</div>}
+    {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} empty="No cases." />}
+  </div>);
 }
 
 function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }) {
