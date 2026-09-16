@@ -264,13 +264,22 @@ export default function AdminDashboard() {
   // Cases page. A failed poll keeps the last count and logs one warning.
   const [caseQueue, setCaseQueue] = useState(null);
   const loadCaseQueue = useCallback(async () => { try { const d = await af("/api/hr-cases/queue-count"); setCaseQueue({ unassigned: Number(d && d.unassigned) || 0, dueSoon: Number(d && d.dueSoon) || 0, overdue: Number(d && d.overdue) || 0 }); } catch (e) { console.warn("Case queue count:", e.message); } }, [af]);
+  // What this person has been told. The count is quiet until the notifications routes are live: any
+  // failure hides it and logs one warning, and nothing ever toasts.
+  const [unread, setUnread] = useState(0);
+  const [bellOpen, setBellOpen] = useState(false);
+  const loadUnread = useCallback(async () => { try { const d = await af("/api/notifications/unread-count"); setUnread(Number(d && d.unread) || 0); } catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); } }, [af]);
+  // One timer drives the bell and the Cases badge together, so the two polls never stack.
   useEffect(() => {
-    if (!token || !isAdmin) { setCaseQueue(null); return; }
-    loadCaseQueue();
-    const iv = setInterval(() => { if (!document.hidden) loadCaseQueue(); }, 60000);
+    if (!token) { setCaseQueue(null); setUnread(0); setBellOpen(false); return; }
+    const tick = () => { loadUnread(); if (isAdmin) loadCaseQueue(); };
+    tick();
+    const iv = setInterval(() => { if (!document.hidden) tick(); }, 60000);
     return () => clearInterval(iv);
-  }, [token, isAdmin, loadCaseQueue]);
+  }, [token, isAdmin, loadUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
+  const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
+  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#F8F7F4", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
   const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? RD : GO, color: caseQueue.overdue > 0 ? "#F8F7F4" : NAVY, fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
@@ -404,6 +413,7 @@ export default function AdminDashboard() {
                     style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
                     {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
+                    {group.items.some(item => item.id === "issues") && <OpenIssuesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                   </button>
                 </div>
               );
@@ -443,6 +453,7 @@ export default function AdminDashboard() {
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
+                    {item.id === "issues" && <OpenIssuesBadge style={{ marginLeft: "auto" }} />}
                   </button>
                 );
               })}
@@ -494,10 +505,13 @@ export default function AdminDashboard() {
               </div>
             ); })()}
           </div>
-          <button onClick={() => setPage("issues")} title="Open issues" style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
-            {notif && notif.openIssues > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{notif.openIssues}</span>}
-          </button>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setBellOpen(o => !o)} aria-label={unread > 0 ? unread + " unread notifications" : "Notifications"} title="Notifications" style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
+              {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
+            </button>
+            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} onOpenPage={id => setPage(id)} />}
+          </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
             <button onClick={() => { setUserMenuOpen(o => !o); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px 4px 4px", borderRadius: 22, background: t.inputBg, border: "1px solid " + t.inputBorder, cursor: "pointer" }}>
@@ -2478,6 +2492,96 @@ function HelpPage({ af, uf, showToast, t }) {
     </Crd>
   </div>);
 }
+// ===== NOTIFICATIONS: the bell's panel =====
+// "5m", "3h", "2d", then a date after 7 days.
+const notifAgo = (iso) => {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (mins < 60) return Math.max(1, mins) + "m";
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h";
+  const days = Math.floor(hrs / 24);
+  return days <= 7 ? days + "d" : fd(iso);
+};
+// A link inside this dashboard opens its page without a reload; anything else opens in a new tab.
+const notifTarget = (link) => {
+  if (!link) return { kind: "none" };
+  let u; try { u = new URL(link, window.location.href); } catch { return { kind: "none" }; }
+  if (u.origin !== window.location.origin) return { kind: "external", href: u.href };
+  const id = (u.hash || "").replace(/^#/, "");
+  return PAGE_IDS.includes(id) ? { kind: "page", page: id } : { kind: "external", href: u.href };
+};
+const NOTIF_PAGE_SIZE = 30;
+function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const boxRef = useRef(null);
+
+  const fetchPage = useCallback(async (before) => {
+    setLoading(true); setFailed(false);
+    try {
+      const d = await af("/api/notifications?limit=" + NOTIF_PAGE_SIZE + (before ? "&before=" + encodeURIComponent(before) : ""));
+      const list = d && Array.isArray(d.notifications) ? d.notifications : [];
+      setRows(prev => before ? [...prev, ...list] : list);
+      setMore(list.length === NOTIF_PAGE_SIZE);
+      if (d && d.unread != null) onUnread(Number(d.unread) || 0);
+    } catch (e) { if (!before) setRows([]); setFailed(true); console.warn("Notifications:", e.message); }
+    setLoading(false);
+  }, [af, onUnread]);
+  useEffect(() => { fetchPage(null); }, [fetchPage]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const openRow = async (n) => {
+    if (busy) return;
+    setBusy(true);
+    if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
+    setBusy(false);
+    const target = notifTarget(n.link);
+    if (target.kind === "page") onOpenPage(target.page);
+    else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
+    onClose();
+  };
+  const markAll = async () => {
+    if (busy || unread === 0) return;
+    setBusy(true);
+    try { await af("/api/notifications/read-all", { method: "POST" }); const now = new Date().toISOString(); setRows(prev => prev.map(r => r.readAt ? r : { ...r, readAt: now })); onUnread(0); }
+    catch (e) { console.warn("Mark all read:", e.message); }
+    setBusy(false);
+  };
+
+  return (<>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
+    <div ref={boxRef} role="dialog" aria-label="Notifications" style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw - 32px))", maxHeight: "70vh", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid " + t.border, position: "sticky", top: 0, background: t.card }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Notifications</div>
+        <button onClick={markAll} disabled={busy || unread === 0} style={{ minHeight: 44, padding: "0 10px", background: "none", border: "none", color: unread === 0 ? t.textMut : t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: unread === 0 ? "default" : "pointer" }}>Mark all read</button>
+      </div>
+      {failed && rows.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>Notifications did not load. <button onClick={() => fetchPage(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+      {!failed && !loading && rows.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>Nothing yet.</div>}
+      {loading && rows.length === 0 && !failed && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>Loading...</div>}
+      {rows.map(n => (
+        <button key={n.id} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: n.readAt ? "transparent" : GO, flexShrink: 0, marginTop: 6 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, fontWeight: n.readAt ? 400 : 700, color: t.text }}>{n.title}</span>
+            {n.body && <span style={{ display: "block", fontSize: 12, color: t.textSec, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{n.body}</span>}
+          </span>
+          <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0, marginTop: 2 }}>{notifAgo(n.createdAt)}</span>
+        </button>
+      ))}
+      {more && <div style={{ padding: 8, textAlign: "center" }}><button onClick={() => fetchPage(rows[rows.length - 1].createdAt)} disabled={loading} style={{ minHeight: 44, padding: "0 14px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{loading ? "Loading..." : "Load more"}</button></div>}
+    </div>
+  </>);
+}
+
 // ===== REPORTING ENGINE: shared helpers, reusable widgets, builder =====
 const num = (v, f) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : f; };
 const fmtDurMin = (m) => {
