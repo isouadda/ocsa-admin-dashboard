@@ -551,7 +551,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
-        {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} />}
+        {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} />}
       </div>
     </div>
 
@@ -2492,6 +2492,124 @@ function HelpPage({ af, uf, showToast, t }) {
     </Crd>
   </div>);
 }
+// ===== WHO GETS TOLD: the people and addresses told about each kind of report =====
+const RECIPIENTS_INTRO = "Choose who hears about each kind of report. People get an email and a notice in the app. Outside addresses get email only. When nobody is set, every admin gets a notice in the app.";
+const HR_CASE_NOTE = "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.";
+const HR_FALLBACK_NOTE = "Told when everyone else on the team is named in a report.";
+const FORM_SUB_NOTE = "These people are told about this form as well as anyone under Every form.";
+const BOTH_OFF = "Keep at least one of Email or In app on.";
+function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [picks, setPicks] = useState({});
+  const [emails, setEmails] = useState({});
+  const [confirming, setConfirming] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setFailed("");
+    try { const d = await af("/api/notification-recipients"); setData(d || {}); }
+    catch (e) { setData(null); setFailed(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+
+  const slotKey = (type, key) => type + "|" + (key || "");
+  const setErr = (slot, msg) => setErrors(p => ({ ...p, [slot]: msg }));
+  const after = (slot) => { setErr(slot, ""); showToast("Saved"); load(); };
+  const post = async (slot, body) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, "");
+    try { await af("/api/notification-recipients", { method: "POST", body }); setPicks(p => ({ ...p, [slot]: "" })); setEmails(p => ({ ...p, [slot]: "" })); after(slot); }
+    catch (e) { setErr(slot, e.message || "Request failed"); }
+    setBusy(false);
+  };
+  const patch = async (slot, id, body) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, "");
+    try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "PATCH", body }); after(slot); }
+    catch (e) { setErr(slot, e.message || "Request failed"); }
+    setBusy(false);
+  };
+  const remove = async (slot, id) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, "");
+    try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "DELETE" }); setConfirming(null); after(slot); }
+    catch (e) { setErr(slot, e.message || "Request failed"); setConfirming(null); }
+    setBusy(false);
+  };
+  const toggle = (slot, r, field) => {
+    const next = { viaEmail: r.viaEmail, viaInApp: r.viaInApp, [field]: !r[field] };
+    if (!next.viaEmail && !next.viaInApp) { setErr(slot, BOTH_OFF); return; }
+    patch(slot, r.id, { [field]: !r[field] });
+  };
+
+  const rowsFor = (type, key) => ((data && data.recipients) || []).filter(r => r.isActive && r.subjectType === type && String(r.subjectKey || "") === String(key || ""));
+  const staffOptions = (slot, rows) => {
+    const taken = new Set(rows.filter(r => r.user).map(r => String(r.user.id)));
+    return allStaff.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active") && !taken.has(String(u.id)))
+      .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + u.role + ")" : "") }));
+  };
+
+  const renderSection = ({ type, key2, title, note, allowEmail, ariaName }) => {
+    const slot = slotKey(type, key2);
+    const rows = rowsFor(type, key2);
+    const opts = staffOptions(slot, rows);
+    const err = errors[slot];
+    return (<div key={slot} style={{ marginTop: title ? 14 : 0 }}>
+      {title && <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 2 }}>{title}</div>}
+      {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
+      {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>Nobody set. Every admin gets a notice in the app.</div>}
+      {rows.map(r => {
+        const who = r.user ? r.user.name + (r.user.role ? " (" + r.user.role + ")" : "") : r.email;
+        return (<div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ flex: 1, minWidth: 140, fontSize: 13, color: t.text }}>{who}</div>
+          {r.user ? (<>
+            <button onClick={() => toggle(slot, r, "viaEmail")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaEmail ? GO : t.border), background: r.viaEmail ? t.goldBg : "transparent", color: r.viaEmail ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Email</button>
+            <button onClick={() => toggle(slot, r, "viaInApp")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaInApp ? GO : t.border), background: r.viaInApp ? t.goldBg : "transparent", color: r.viaInApp ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>In app</button>
+          </>) : <span style={{ fontSize: 12, color: t.textMut }}>Email only</span>}
+          <button onClick={() => setConfirming({ slot, id: r.id, who })} disabled={busy} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Remove</button>
+        </div>);
+      })}
+      {confirming && confirming.slot === slot && <div style={{ padding: "8px 0", fontSize: 12, color: t.text }}>
+        <div style={{ marginBottom: 6 }}>Stop telling {confirming.who} about this?</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn t={t} v="danger" aria-label={"Remove " + confirming.who} onClick={() => remove(slot, confirming.id)} disabled={busy} style={{ minHeight: 44 }}>Remove</Btn>
+          <Btn t={t} v="ghost" aria-label={"Cancel removing " + confirming.who} onClick={() => setConfirming(null)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+        </div>
+      </div>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={"Add a person to " + ariaName} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: "Add a person" }, ...opts]} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>Add</Btn>
+      </div>
+      {allowEmail && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+        <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" aria-label={"Add an email address to " + ariaName} placeholder="Add an email address" value={emails[slot] || ""} onChange={e => setEmails(p => ({ ...p, [slot]: e.target.value }))} style={{ minHeight: 44 }} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), email: (emails[slot] || "").trim() })} disabled={busy || !(emails[slot] || "").trim()} style={{ minHeight: 44 }}>Add</Btn>
+      </div>}
+      {err && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{err}</div>}
+    </div>);
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
+  if (failed) return <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{failed} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>;
+  const types = (data && Array.isArray(data.types) ? data.types : []);
+  const forms = (data && Array.isArray(data.forms) ? data.forms : []);
+  return (<div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{RECIPIENTS_INTRO}</div>
+    {types.map(ty => (<Crd t={t} key={ty.type} style={{ marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{ty.label}</div>
+      {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE}</div>}
+      {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
+      {ty.keyed && ty.type === "form" ? (<>
+        {renderSection({ type: ty.type, key2: "", title: "Every form", allowEmail: ty.allowOutsideEmail, ariaName: "Every form" })}
+        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")" }))}
+      </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: ty.label })}
+    </Crd>))}
+  </div>);
+}
+
 // ===== NOTIFICATIONS: the bell's panel =====
 // "5m", "3h", "2d", then a date after 7 days.
 const notifAgo = (iso) => {
@@ -6448,7 +6566,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [] }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
   const [tab, setTab] = useState("company");
@@ -6552,11 +6670,14 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
         <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
         <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
         <button onClick={() => setTab("permissions")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "permissions" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "permissions" ? t.goldBg : "transparent", color: tab === "permissions" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Roles and Permissions</button>
+        <button onClick={() => setTab("recipients")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "recipients" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "recipients" ? t.goldBg : "transparent", color: tab === "recipients" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>Who gets told</button>
       </div>
 
       {tab === "company" && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
       {tab === "permissions" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
+
+      {tab === "recipients" && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
 
       {tab === "global" && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
