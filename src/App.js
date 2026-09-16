@@ -4197,6 +4197,11 @@ const patternDays = (days) => (Array.isArray(days) ? days : []).slice().sort((a,
 const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); let h = Number(m[1]); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + m[2] + " " + ap; };
 const patternHours = (p) => patternTime(p.startTime) + " to " + patternTime(p.endTime) + (p.overnight ? " ends next day" : "");
 const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+// An end time earlier than the start time means the shift runs into the next morning, so the day
+// chosen is the day it starts. Zero-padded HH:MM compares correctly as text. Equal times are not
+// overnight; the API refuses those on its own.
+const runsPastMidnight = (start, end) => !!start && !!end && String(end) < String(start);
+const OVERNIGHT_NOTE = "This shift runs past midnight. Pick the day it starts.";
 const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
 
 function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenOther }) {
@@ -4285,6 +4290,7 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
           {PATTERN_DAY_KEYS.map(k => <button key={k} onClick={() => toggleDay(k)} aria-label={PATTERN_DAY_LABELS[k]} aria-pressed={form.days.includes(k)} style={{ width: 44, height: 44, borderRadius: 6, fontSize: 11, fontWeight: form.days.includes(k) ? 700 : 500, cursor: "pointer", background: form.days.includes(k) ? GO : "transparent", color: form.days.includes(k) ? NAVY : t.textMut, border: "1px solid " + (form.days.includes(k) ? GO : t.border), fontFamily: FONT_BODY }}>{PATTERN_DAY_LABELS[k]}</button>)}
         </div>
+        {runsPastMidnight(form.startTime, form.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{OVERNIGHT_NOTE}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div><Lbl>Start time</Lbl><Inp t={t} type="time" aria-label="Start time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} /></div>
           <div><Lbl>End time</Lbl><Inp t={t} type="time" aria-label="End time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} /></div>
@@ -4772,7 +4778,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
           <div style={{ marginBottom: 10 }}><Lbl>Repeat on</Lbl><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {[{ label: "Sun", val: 0 }, { label: "Mon", val: 1 }, { label: "Tue", val: 2 }, { label: "Wed", val: 3 }, { label: "Thu", val: 4 }, { label: "Fri", val: 5 }, { label: "Sat", val: 6 }].map(d => (
               <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? NAVY : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
-            ))}</div></div>
+            ))}</div>
+            {runsPastMidnight(createForm.startTime, createForm.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{OVERNIGHT_NOTE}</div>}
+          </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
             {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>weeks</span></>)}
