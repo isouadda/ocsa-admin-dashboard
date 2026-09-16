@@ -4587,7 +4587,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       showToast("Schedule updated"); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
-  const deleteShift = async (id) => { if (!window.confirm("Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
+  const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
+  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? "Cancel this shift? The pattern will not add it again." : "Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? "Shift cancelled" : "Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
@@ -4644,6 +4646,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
+            {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>Repeats</div>}
           </div>))}
           {startedHere.map(p => (<div key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
             Started {fmtSessionStart(p.startedAt)}
@@ -4792,6 +4795,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     {/* EDIT SCHEDULED SHIFT MODAL */}
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Shift</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>Part of a weekly pattern. Changes here apply to this date only. <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open the pattern</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>Staff</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -4823,7 +4827,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
 
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
+          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? "Cancel this date" : "Delete"}</Btn>
           {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />Pickup</button>}
         </div>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div>
