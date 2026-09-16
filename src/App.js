@@ -2226,6 +2226,11 @@ const agentMessageFrom = (m, i) => {
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
 const agentMissingFrom = (err) => { const b = err && err.body; const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]); return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null; };
+// A reply may carry numbered steps ("1. ...") and bold ("**text**"). This turns it into lines, each a
+// step with its number or a plain line, and each made of inline parts that are plain or bold. An
+// unmatched ** stays as literal text; bold never spans lines; blank lines are kept as spacing.
+const agentInlineParts = (line) => { const parts = []; let rest = String(line); while (rest.length) { const a = rest.indexOf("**"); const b = a < 0 ? -1 : rest.indexOf("**", a + 2); if (a < 0 || b < 0) { parts.push({ bold: false, text: rest }); break; } if (a > 0) parts.push({ bold: false, text: rest.slice(0, a) }); parts.push({ bold: true, text: rest.slice(a + 2, b) }); rest = rest.slice(b + 2); } return parts; };
+const agentReplyParts = (text) => String(text == null ? "" : text).split(/\r?\n/).map(line => { const m = line.match(/^\s*(\d{1,2})\.\s+(.+)$/); return m ? { step: Number(m[1]), parts: agentInlineParts(m[2]) } : { step: null, parts: agentInlineParts(line) }; });
 // AGENT_HELPERS_END
 const AGENT_MAX_PHOTOS = 3;
 const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -2421,7 +2426,11 @@ function HelpPage({ af, uf, showToast, t }) {
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
               <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>
                 {isMe && m.photos && m.photos.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 6 : 0 }}>{m.photos.map((p, i) => <img key={i} src={p.url} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, display: "block" }} />)}</div>}
-                {m.text}
+                {isMe ? m.text : agentReplyParts(m.text).map((line, li) => {
+                  const inline = line.parts.map((part, pi) => part.bold ? <strong key={pi}>{part.text}</strong> : <Fragment key={pi}>{part.text}</Fragment>);
+                  if (line.step !== null) return <div key={li} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}><span style={{ flexShrink: 0, minWidth: 18, textAlign: "right" }}>{line.step}.</span><span style={{ minWidth: 0 }}>{inline}</span></div>;
+                  return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
+                })}
               </div>
               {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Based on {m.citedDocs.join(", ")}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Working from the written procedure only right now.</div>}
