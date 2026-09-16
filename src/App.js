@@ -114,6 +114,7 @@ const AlI = p => <Ic d="M12 2L2 22h20L12 2zm0 7v5m0 3h.01" {...p} />;
 const PlI = p => <Ic d="M12 5v14M5 12h14" {...p} />;
 const CkI = p => <Ic d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0v10l4 4" {...p} />;
 const XI = p => <Ic d="M18 6L6 18M6 6l12 12" {...p} />;
+const CamI = p => <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" {...p} />;
 const SnI = p => <Ic d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" {...p} />;
 const LoI = p => <Ic d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p} />;
 const DlI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M7 10l5 5 5-5 M12 15V3" {...p} />; const ChkI = p => <Ic d="M20 6L9 17l-5-5" {...p} />;
@@ -518,7 +519,7 @@ export default function AdminDashboard() {
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
-        {page === "help" && <HelpPage af={af} showToast={showToast} t={t} />}
+        {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
         {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} />}
@@ -2226,7 +2227,33 @@ const agentMessageFrom = (m, i) => {
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
 const agentMissingFrom = (err) => { const b = err && err.body; const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]); return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null; };
 // AGENT_HELPERS_END
-function HelpPage({ af, showToast, t }) {
+const AGENT_MAX_PHOTOS = 3;
+const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+const AGENT_PHOTO_MAX_EDGE = 1568;
+const AGENT_PHOTO_UNREADABLE = "This photo could not be read here. Choose a JPEG or PNG, or take a screenshot of it.";
+// Prepares a picked image in the browser before upload: decoded with the orientation baked in, drawn
+// to a canvas with the long edge at most 1568 pixels and never enlarged, exported as JPEG at 0.85,
+// then 0.7, then 0.5 if still over 5 MB. Drawing through a canvas drops the photo's location and camera
+// data, which is intended. Throws when the image will not decode.
+async function agentPreparePhoto(file) {
+  let source = null, bitmap = null, w = 0, h = 0;
+  try { bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }); source = bitmap; w = bitmap.width; h = bitmap.height; }
+  catch {
+    source = await new Promise((resolve, reject) => { const url = URL.createObjectURL(file); const img = new Image(); img.onload = () => { URL.revokeObjectURL(url); resolve(img); }; img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode")); }; img.src = url; });
+    w = source.naturalWidth; h = source.naturalHeight;
+  }
+  if (!w || !h) throw new Error("decode");
+  const scale = Math.min(1, AGENT_PHOTO_MAX_EDGE / Math.max(w, h));
+  const cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement("canvas"); canvas.width = cw; canvas.height = ch;
+  const ctx = canvas.getContext("2d"); ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, cw, ch); ctx.drawImage(source, 0, 0, cw, ch);
+  if (bitmap && bitmap.close) bitmap.close();
+  const encode = (q) => new Promise((resolve, reject) => canvas.toBlob(b => b ? resolve(b) : reject(new Error("encode")), "image/jpeg", q));
+  let blob = null;
+  for (const q of [0.85, 0.7, 0.5]) { blob = await encode(q); if (blob.size <= AGENT_PHOTO_MAX_BYTES) break; }
+  return blob;
+}
+function HelpPage({ af, uf, showToast, t }) {
   const [drafts, setDrafts] = useState([]);
   const [thread, setThread] = useState([]);
   const [conversationId, setConversationId] = useState(null);
@@ -2234,15 +2261,24 @@ function HelpPage({ af, showToast, t }) {
   const [missing, setMissing] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [text, setText] = useState("");
+  const [photos, setPhotos] = useState([]);
+  const [photoNote, setPhotoNote] = useState("");
   const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resuming, setResuming] = useState(false);
   const busy = sending || submitting || resuming;
   const endRef = useRef(null);
   const composerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const seq = useRef(0);
   const convRef = useRef(null);
   convRef.current = conversationId;
+  const photosRef = useRef([]);
+  photosRef.current = photos;
+  const urlsRef = useRef(new Set());
+  const uploadChain = useRef(Promise.resolve());
+  // Nothing is kept in the browser: every object URL is revoked when its photo is removed and when the page unmounts.
+  useEffect(() => () => { urlsRef.current.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); urlsRef.current.clear(); }, []);
 
   const loadDrafts = useCallback(async () => {
     try { const res = await af("/api/agent/drafts"); setDrafts(agentListFrom(res, ["drafts", "items", "rows"]).map(agentDraftFrom)); }
@@ -2252,13 +2288,52 @@ function HelpPage({ af, showToast, t }) {
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread.length, sending]);
 
   const patchMsg = (id, patch) => setThread(p => p.map(m => m.id === id ? { ...m, ...patch } : m));
+  const patchPhoto = (key, patch) => setPhotos(p => p.map(x => x.key === key ? { ...x, ...patch } : x));
+  const dropUrl = (url) => { if (!url) return; try { URL.revokeObjectURL(url); } catch {} urlsRef.current.delete(url); };
 
-  const sendText = async (id, body) => {
+  // Step one of the contract: POST /api/uploads?bucket=agent-photos&ext=jpg with the raw JPEG bytes. Only path is kept.
+  const uploadPhoto = async (key, blob) => {
+    patchPhoto(key, { status: "uploading", error: "" });
+    try {
+      const r = await uf(new File([blob], "photo.jpg", { type: "application/octet-stream" }), "agent-photos");
+      if (r && r.path) patchPhoto(key, { status: "done", path: String(r.path), error: "" });
+      else patchPhoto(key, { status: "failed", error: "Upload failed" });
+    } catch (e) { patchPhoto(key, { status: "failed", error: e.message || "Upload failed" }); }
+  };
+  // Each picked image is prepared as soon as it is picked; uploads run one at a time in the order picked.
+  const addFiles = (files) => {
+    setPhotoNote("");
+    const room = AGENT_MAX_PHOTOS - photosRef.current.length;
+    Array.from(files || []).slice(0, Math.max(0, room)).forEach(file => {
+      const key = "p" + (++seq.current);
+      const prep = agentPreparePhoto(file).then(blob => { const url = URL.createObjectURL(blob); urlsRef.current.add(url); return { blob, url }; });
+      prep.catch(() => {});
+      setPhotos(p => [...p, { key, url: "", blob: null, status: "uploading", path: "", error: "" }]);
+      uploadChain.current = uploadChain.current.then(async () => {
+        let prepared;
+        try { prepared = await prep; } catch { setPhotos(p => p.filter(x => x.key !== key)); setPhotoNote(AGENT_PHOTO_UNREADABLE); return; }
+        if (!photosRef.current.some(x => x.key === key)) { dropUrl(prepared.url); return; }
+        patchPhoto(key, { blob: prepared.blob, url: prepared.url });
+        await uploadPhoto(key, prepared.blob);
+      });
+    });
+  };
+  const removePhoto = (key) => { const p = photosRef.current.find(x => x.key === key); if (p) dropUrl(p.url); setPhotos(cur => cur.filter(x => x.key !== key)); };
+  const retryUpload = (p) => { if (!p.blob) return; uploadChain.current = uploadChain.current.then(() => uploadPhoto(p.key, p.blob)); };
+  const onPick = (e) => { const files = e.target.files; if (files && files.length) addFiles(files); e.target.value = ""; };
+  const onPaste = (e) => {
+    const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+    const files = items.filter(i => i.kind === "file" && /^image\//.test(i.type)).map(i => i.getAsFile()).filter(Boolean);
+    if (files.length) { e.preventDefault(); addFiles(files); }
+  };
+
+  // Step two of the contract: POST /api/agent/message with text, photoPaths in thumbnail order, and the conversation id.
+  const sendText = async (id, body, paths, keys) => {
     if (busy) return;
     setSending(true);
     patchMsg(id, { status: "sending", error: "" });
     try {
-      const payload = { text: body }; if (convRef.current) payload.conversationId = convRef.current;
+      const payload = { text: body }; if (paths && paths.length) payload.photoPaths = paths; if (convRef.current) payload.conversationId = convRef.current;
       const d = await af("/api/agent/message", { method: "POST", body: payload });
       const r = d || {};
       if (r.conversationId) setConversationId(r.conversationId);
@@ -2266,17 +2341,24 @@ function HelpPage({ af, showToast, t }) {
       if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
       setThread(p => [...p.map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
       setText(cur => cur === body ? "" : cur);
+      if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
     } catch (e) {
       patchMsg(id, { status: "failed", error: e.message || "Request failed" });
     } finally { setSending(false); }
   };
+  const allUploaded = photos.every(p => p.status === "done");
+  const canSend = !busy && allUploaded && (text.trim().length > 0 || photos.length > 0);
   const send = () => {
-    const body = text; if (!body.trim() || busy) return;
+    if (!canSend) return;
+    const body = text;
+    const sent = photos.map(p => ({ key: p.key, url: p.url, path: p.path }));
+    const paths = sent.map(p => p.path), keys = sent.map(p => p.key);
     const id = "u" + (++seq.current);
-    setThread(p => [...p, { id, role: "user", text: body, status: "sending", error: "" }]);
-    sendText(id, body);
+    setThread(p => [...p, { id, role: "user", text: body, photos: sent, photoPaths: paths, photoKeys: keys, status: "sending", error: "" }]);
+    sendText(id, body, paths, keys);
   };
-  const retry = (m) => sendText(m.id, m.text);
+  // Retry re-sends the same text and the same paths. Nothing is uploaded again.
+  const retry = (m) => sendText(m.id, m.text, m.photoPaths || [], m.photoKeys || []);
 
   const resume = async (d) => {
     if (busy) return;
@@ -2309,6 +2391,8 @@ function HelpPage({ af, showToast, t }) {
   const cardLine = formResponse ? agentAnsweredLine(agentPick(formResponse, ["answered", "answeredCount", "answered_count"]), agentPick(formResponse, ["remaining", "remainingCount", "remaining_count"])) : "";
   const canSubmit = !!formResponse && !busy && !(Number(formResponse.remaining) > 0);
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+  const photosFull = photos.length >= AGENT_MAX_PHOTOS;
+  const canPick = !busy && !photosFull;
 
   return (<div>
     <SecT t={t}>Help</SecT>
@@ -2335,7 +2419,10 @@ function HelpPage({ af, showToast, t }) {
         {thread.map(m => { const isMe = m.role === "user"; return (
           <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
-              <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>{m.text}</div>
+              <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>
+                {isMe && m.photos && m.photos.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 6 : 0 }}>{m.photos.map((p, i) => <img key={i} src={p.url} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, display: "block" }} />)}</div>}
+                {m.text}
+              </div>
               {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Based on {m.citedDocs.join(", ")}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Working from the written procedure only right now.</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>Not sent. {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Retry</button></div>}
@@ -2343,9 +2430,26 @@ function HelpPage({ af, showToast, t }) {
           </div>); })}
         <div ref={endRef} />
       </div>
-      <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border, alignItems: "flex-end" }}>
-        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} disabled={busy} rows={1} placeholder="Describe what happened" aria-label="Describe what happened" style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
-        <button onClick={send} aria-label="Send" disabled={busy || !text.trim()} style={{ width: 44, height: 44, borderRadius: "50%", background: (!busy && text.trim()) ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: (!busy && text.trim()) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={(!busy && text.trim()) ? NAVY : t.textMut} /></button>
+      {(photos.length > 0 || photoNote) && <div style={{ padding: "10px 16px 0", borderTop: "1px solid " + t.border }}>
+        {photos.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {photos.map(p => (
+            <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: 4, borderRadius: R.sm, border: "1px solid " + (p.status === "failed" ? RD : t.border), background: t.cardAlt, maxWidth: "100%" }}>
+              {p.url ? <img src={p.url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, display: "block", flexShrink: 0 }} /> : <div style={{ width: 56, height: 56, borderRadius: 6, background: t.hover, flexShrink: 0 }} />}
+              <div style={{ fontSize: 11, minWidth: 0, maxWidth: 160 }}>
+                {p.status === "uploading" && <div style={{ color: t.textMut }}>Uploading...</div>}
+                {p.status === "failed" && <div style={{ color: RD, wordBreak: "break-word" }}>{p.error} <button onClick={() => retryUpload(p)} disabled={busy || !p.blob} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Try again</button></div>}
+              </div>
+              <button onClick={() => removePhoto(p.key)} aria-label="Remove photo" disabled={busy} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", cursor: busy ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textSec} /></button>
+            </div>
+          ))}
+        </div>}
+        {photoNote && <div style={{ fontSize: 11, color: RD, marginTop: photos.length > 0 ? 8 : 0 }}>{photoNote}</div>}
+      </div>}
+      <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: photos.length > 0 || photoNote ? "none" : "1px solid " + t.border, alignItems: "flex-end" }}>
+        <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onPick} style={{ display: "none" }} />
+        <button onClick={() => fileInputRef.current?.click()} aria-label="Add a photo" disabled={!canPick} title={photosFull ? "You can send up to 3 photos with one message." : "Add a photo"} style={{ width: 44, height: 44, borderRadius: "50%", background: t.cardAlt, border: "1px solid " + t.border, cursor: canPick ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: canPick ? 1 : 0.5 }}><CamI sz={18} c={t.textSec} /></button>
+        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} disabled={busy} rows={1} placeholder="Describe what happened" aria-label="Describe what happened" style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
+        <button onClick={send} aria-label="Send" disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
   </div>);
