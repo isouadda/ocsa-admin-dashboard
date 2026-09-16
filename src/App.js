@@ -29,7 +29,10 @@ const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.s
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
 const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help"];
-const pageFromHash = () => { const h = window.location.hash.replace(/^#/, ""); return PAGE_IDS.includes(h) ? h : "overview"; };
+const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
+const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
+// What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
+const subFromHash = () => { const parts = hashParts(); return PAGE_IDS.includes(parts[0]) ? parts.slice(1) : []; };
 function dlCSV(fn, hds, rows) {
   const csv = [hds.join(","), ...rows.map(r => r.map(c => '"' + String(c || "").replace(/"/g, '""') + '"').join(","))].join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" })); a.download = fn; a.click();
@@ -224,7 +227,7 @@ function DateRangePicker({ value, onChange, t, presets }) {
 export default function AdminDashboard() {
   const [token, setToken] = useState(null); const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(() => readAuth() !== null);
-  const [page, setPage] = useState(() => pageFromHash()); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(() => pageFromHash()); const [route, setRoute] = useState(() => subFromHash()); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
   const [themeMode, setThemeMode] = useState(() => { try { return localStorage.getItem("ocsa-theme") || "dark"; } catch { return "dark"; } });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
@@ -295,10 +298,12 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!token) return;
     const cur = window.location.hash.replace(/^#/, "");
-    if (cur === page) return;
+    if (cur === page || cur.split("/")[0] === page) return;
     if (cur === "") window.history.replaceState(null, "", "#" + page); else window.location.hash = page;
   }, [page, token]);
-  useEffect(() => { const h = () => { const next = pageFromHash(); setPage(prev => (prev === next ? prev : next)); }; window.addEventListener("hashchange", h); return () => window.removeEventListener("hashchange", h); }, []);
+  useEffect(() => { const h = () => { const next = pageFromHash(); setPage(prev => (prev === next ? prev : next)); setRoute(subFromHash()); }; window.addEventListener("hashchange", h); return () => window.removeEventListener("hashchange", h); }, []);
+  // Replacing the hash adds no history entry and fires no hashchange, so the route is set here too.
+  const replaceRoute = useCallback((parts) => { const h = "#" + [page, ...parts].join("/"); window.history.replaceState(null, "", h); setRoute(parts); }, [page]);
   useEffect(() => {
     const stored = readAuth();
     if (!stored) return;
@@ -513,7 +518,7 @@ export default function AdminDashboard() {
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} onOpenPage={id => setPage(id)} />}
+            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
@@ -553,7 +558,7 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
+        {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} />}
         {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} />}
       </div>
     </div>
@@ -2634,7 +2639,7 @@ const notifTarget = (link) => {
   return PAGE_IDS.includes(id) ? { kind: "page", page: id } : { kind: "external", href: u.href };
 };
 const NOTIF_PAGE_SIZE = 30;
-function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage }) {
+function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -2665,6 +2670,8 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage }) {
     setBusy(true);
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
+    // A form notice carries the report it is about, so it opens that report rather than the page.
+    if (n.subjectType === "form" && n.subjectId) { onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") onOpenPage(target.page);
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -7141,10 +7148,18 @@ function IncidentReportsTab({ af, t, sites = [], openId, openRow, onOpen, onClos
   </div>);
 }
 
-function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
-  const [tab, setTab] = useState("library");
-  const [irOpenId, setIrOpenId] = useState(null);
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute }) {
+  const [tab, setTab] = useState(() => (route[0] === "reports" ? "incident_reports" : "library"));
+  const [irOpenId, setIrOpenId] = useState(() => (route[0] === "reports" && route[1] ? route[1] : null));
   const [irOpenRow, setIrOpenRow] = useState(null);
+  // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well. #forms alone
+  // behaves as it always has.
+  useEffect(() => {
+    if (route[0] !== "reports") return;
+    setTab("incident_reports");
+    setIrOpenId(prev => (route[1] ? route[1] : null));
+    if (!route[1]) setIrOpenRow(null);
+  }, [route]);
   const [config, setConfig] = useState(null);
   const [forms, setForms] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -8318,7 +8333,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
       )}
 
       {/* ================ SESSION 27: ALIASES TAB ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
       {tab === "aliases" && (
         <div>
