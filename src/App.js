@@ -6985,10 +6985,80 @@ function JotformPickerField({ af, form, setForm, t }) {
 // once per opening. Nothing here prefetches, refetches on a re-render, or polls.
 const IR_PAGE_SIZE = 50;
 const IR_NO_ACCESS = "Your account cannot read incident reports.";
+const IR_NOT_FOUND = "This report could not be found, or your account cannot open it.";
+const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
 
-function IncidentReportsTab({ af, t, sites = [] }) {
+function IncidentReportWindow({ af, t, id, row, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const fetchedRef = useRef(null);
+
+  useEffect(() => {
+    if (!id || fetchedRef.current === id) return;
+    fetchedRef.current = id;
+    let alive = true;
+    setLoading(true); setError(""); setData(null);
+    af("/api/forms/responses/" + encodeURIComponent(id))
+      .then(d => { if (alive) { setData(d || null); setLoading(false); } })
+      .catch(e => { if (alive) { setError(e && e.status === 404 ? IR_NOT_FOUND : (e.message || "Request failed")); setLoading(false); } });
+    return () => { alive = false; };
+  }, [af, id]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const draft = data && data.draft;
+  const fields = data && Array.isArray(data.fields) ? data.fields : [];
+  const agentFields = fields.filter(f => f.half === "agent");
+  const supervisorFields = fields.filter(f => f.half === "supervisor");
+  const submitted = draft && draft.status === "submitted";
+  // The label comes from the API and is shown as sent: some carry required federal wording.
+  const fieldRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+    {f.displayValue == null || f.displayValue === ""
+      ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>Not answered</div>
+      : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+  </div>);
+
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{(draft && draft.formName) || "Report"}</div>
+        {draft && <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Bdg l={submitted ? "Submitted" : "Unfinished"} c={submitted ? GR : OR} />
+          <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || "No site"}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? "Filed " + irWhen(draft.submittedAt) : "Started " + irWhen(draft.createdAt)}</span>
+          {row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>Filed by {row.userName}</span>}
+        </div>}
+        {draft && !submitted && <div style={{ fontSize: 11, color: t.textSec, marginTop: 6 }}>{Number(draft.answered) || 0} answered, {Number(draft.remaining) || 0} to go</div>}
+      </div>
+      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading...</div>}
+    {error && <div style={{ padding: 20, textAlign: "center", color: RD, fontSize: 13 }}>{error}</div>}
+    {!loading && !error && draft && (<>
+      <div style={{ marginBottom: 18 }}>
+        <Lbl>What was reported</Lbl>
+        {agentFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>Nothing reported yet.</div>}
+        {agentFields.map(fieldRow)}
+      </div>
+      <div>
+        <Lbl>Supervisor section</Lbl>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_NOTE}</div>
+        {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+        {supervisorFields.map(fieldRow)}
+      </div>
+    </>)}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+  </div></Mdl>);
+}
+
+function IncidentReportsTab({ af, t, sites = [], openId, openRow, onOpen, onClose }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -7065,13 +7135,16 @@ function IncidentReportsTab({ af, t, sites = [] }) {
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading reports...</div>}
     {!loading && error && error.status === 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{IR_NO_ACCESS}</div>}
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
-    {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} empty={status === "submitted" ? "No reports filed yet." : "No unfinished reports."} />}
+    {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? "No reports filed yet." : "No unfinished reports."} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? "Loading..." : "Load more"}</button></div>}
+    {openId && <IncidentReportWindow af={af} t={t} id={openId} row={openRow} onClose={onClose} />}
   </div>);
 }
 
 function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
   const [tab, setTab] = useState("library");
+  const [irOpenId, setIrOpenId] = useState(null);
+  const [irOpenRow, setIrOpenRow] = useState(null);
   const [config, setConfig] = useState(null);
   const [forms, setForms] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -8245,7 +8318,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
       )}
 
       {/* ================ SESSION 27: ALIASES TAB ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); }} />}
 
       {tab === "aliases" && (
         <div>
