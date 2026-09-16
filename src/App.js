@@ -975,7 +975,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Contact Information</div>
-            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> Edit</button>}
+            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> Edit</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -985,7 +985,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div style={{ fontSize: 11, color: t.textMut }}>Hire Date<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hireDate ? fmtDate(u.hireDate) : "Not set"}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>Birthday<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.birthday ? fmtDate(u.birthday) : "Not set"}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>Hourly Rate<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : "Not set"}</div></div>
-              <div style={{ fontSize: 11, color: t.textMut }}>Preferred Language<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.preferredLanguage || "English"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Preferred Language<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{langLabel(u.preferredLanguage)}</div></div>
             </div>
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 11, color: t.textMut }}>Address</div>
@@ -1023,7 +1023,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>Emergency Contact</Lbl><Inp t={t} value={pe.emergencyContactName || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactName: e.target.value })} placeholder="Full name" /></div>
               <div><Lbl>Emergency Phone</Lbl><Inp t={t} value={pe.emergencyContactPhone || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactPhone: e.target.value })} placeholder="Phone number" /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><Lbl>Preferred Language</Lbl><Inp t={t} value={pe.preferredLanguage || ""} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} /></div>
+            <div style={{ marginBottom: 10 }}><Lbl>Preferred Language</Lbl><Sel t={t} aria-label="Preferred Language" value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={LANG_OPTS} /></div>
             <div style={{ marginBottom: 14 }}><Lbl>Notes</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder="Internal notes about this employee..." /></div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setEmpIdError(""); setProfileEdit(null); }}>Cancel</Btn><Btn t={t} onClick={saveProfileInfo}>Save Changes</Btn></div>
           </div>}
@@ -4190,6 +4190,195 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 }
 
 // ===== SCHEDULE PAGE =====
+// ===== WEEKLY PATTERNS: a standing pattern the API keeps and refills ahead =====
+const PATTERN_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const PATTERN_DAY_LABELS = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+const patternDays = (days) => (Array.isArray(days) ? days : []).slice().sort((a, b) => PATTERN_DAY_KEYS.indexOf(a) - PATTERN_DAY_KEYS.indexOf(b)).map(d => PATTERN_DAY_LABELS[d] || d).join(", ");
+const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); let h = Number(m[1]); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + m[2] + " " + ap; };
+const patternHours = (p) => patternTime(p.startTime) + " to " + patternTime(p.endTime) + (p.overnight ? " ends next day" : "");
+const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+// An end time earlier than the start time means the shift runs into the next morning, so the day
+// chosen is the day it starts. Zero-padded HH:MM compares correctly as text. Equal times are not
+// overnight; the API refuses those on its own.
+// The API accepts "en" or "es" and refuses anything else, so every stored spelling is read down to
+// one of the two. Blank, unknown or a full language name all resolve; "espa" catches espanol with
+// or without its accent.
+const LANG_OPTS = [{ v: "en", l: "English" }, { v: "es", l: "Spanish" }];
+const langCode = (v) => { const x = String(v == null ? "" : v).trim().toLowerCase(); return (x === "es" || x === "spanish" || x.indexOf("espa") === 0) ? "es" : "en"; };
+const langLabel = (v) => langCode(v) === "es" ? "Spanish" : "English";
+const runsPastMidnight = (start, end) => !!start && !!end && String(end) < String(start);
+const OVERNIGHT_NOTE = "This shift runs past midnight. Pick the day it starts.";
+const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
+
+function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenOther }) {
+  const [pattern, setPattern] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState(null);
+  const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
+  const [lastDate, setLastDate] = useState(todayISO());
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const d = await af("/api/schedule/patterns/" + encodeURIComponent(id));
+      const p = (d && d.pattern) || null;
+      setPattern(p);
+      if (p) setForm({ days: Array.isArray(p.days) ? p.days.slice() : [], startTime: p.startTime || "", endTime: p.endTime || "", buildingName: p.buildingName || "", floorNumber: p.floorNumber == null ? "" : String(p.floorNumber), serviceCategory: p.serviceCategory || "", notes: p.notes || "" });
+    } catch (e) { setError(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const toggleDay = (k) => setForm(f => ({ ...f, days: f.days.includes(k) ? f.days.filter(d => d !== k) : [...f.days, k] }));
+  const showResult = (r) => {
+    setResult({
+      created: Number(r && r.created) || 0, removed: Number(r && r.removed) || 0, keptCount: Number(r && r.keptCount) || 0,
+      kept: Array.isArray(r && r.kept) ? r.kept : [], skipped: Array.isArray(r && r.skipped) ? r.skipped : [], skippedCount: Number(r && r.skippedCount) || 0,
+    });
+    if (r && r.pattern) setPattern(r.pattern);
+    if (onChanged) onChanged();
+  };
+  // Only what changed is sent, plus the date the change starts from.
+  const save = async () => {
+    if (!pattern || !form || busy) return;
+    const body = {};
+    const sameDays = form.days.length === (pattern.days || []).length && form.days.every(d => (pattern.days || []).includes(d));
+    if (!sameDays) body.days = PATTERN_DAY_KEYS.filter(k => form.days.includes(k));
+    if (form.startTime !== (pattern.startTime || "")) body.startTime = form.startTime;
+    if (form.endTime !== (pattern.endTime || "")) body.endTime = form.endTime;
+    if (form.buildingName !== (pattern.buildingName || "")) body.buildingName = form.buildingName || null;
+    if (form.floorNumber !== (pattern.floorNumber == null ? "" : String(pattern.floorNumber))) body.floorNumber = form.floorNumber || null;
+    if (form.serviceCategory !== (pattern.serviceCategory || "")) body.serviceCategory = form.serviceCategory || null;
+    if (form.notes !== (pattern.notes || "")) body.notes = form.notes || null;
+    if (Object.keys(body).length === 0) { setError("Nothing changed yet."); return; }
+    body.effectiveFrom = effectiveFrom;
+    setBusy(true); setError(""); setResult(null);
+    try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body })); }
+    catch (e) { setError(e.message || "Request failed"); }
+    setBusy(false);
+  };
+  const endPattern = async () => {
+    if (!pattern || busy) return;
+    setBusy(true); setError(""); setResult(null); setConfirming(false);
+    try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id) + "/end", { method: "POST", body: { lastDate } })); }
+    catch (e) { setError(e.message || "Request failed"); }
+    setBusy(false);
+  };
+
+  const started = pattern && pattern.startsOn && String(pattern.startsOn) <= todayISO();
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Weekly pattern</div>
+        {pattern && <div style={{ marginTop: 6, fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
+          <div>{pattern.userName} at {pattern.siteName}</div>
+          <div>{patternDays(pattern.days)} {patternHours(pattern)}</div>
+          <div>Starts {patternDate(pattern.startsOn)}, {pattern.endsOn ? "ends " + patternDate(pattern.endsOn) : "No end"}</div>
+          <div>Filled through {patternDate(pattern.generatedThrough)}</div>
+          {pattern.replacesPatternId && <button onClick={() => onOpenOther(pattern.replacesPatternId)} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 0" }}>Replaces an earlier pattern</button>}
+        </div>}
+      </div>
+      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading...</div>}
+    {!loading && pattern && form && (<>
+      <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <Lbl>Change</Lbl>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+          {PATTERN_DAY_KEYS.map(k => <button key={k} onClick={() => toggleDay(k)} aria-label={PATTERN_DAY_LABELS[k]} aria-pressed={form.days.includes(k)} style={{ width: 44, height: 44, borderRadius: 6, fontSize: 11, fontWeight: form.days.includes(k) ? 700 : 500, cursor: "pointer", background: form.days.includes(k) ? GO : "transparent", color: form.days.includes(k) ? NAVY : t.textMut, border: "1px solid " + (form.days.includes(k) ? GO : t.border), fontFamily: FONT_BODY }}>{PATTERN_DAY_LABELS[k]}</button>)}
+        </div>
+        {runsPastMidnight(form.startTime, form.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{OVERNIGHT_NOTE}</div>}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div><Lbl>Start time</Lbl><Inp t={t} type="time" aria-label="Start time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} /></div>
+          <div><Lbl>End time</Lbl><Inp t={t} type="time" aria-label="End time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div><Lbl>Building</Lbl><Inp t={t} aria-label="Building" value={form.buildingName} onChange={e => setForm({ ...form, buildingName: e.target.value })} /></div>
+          <div><Lbl>Floor</Lbl><Inp t={t} aria-label="Floor" value={form.floorNumber} onChange={e => setForm({ ...form, floorNumber: e.target.value })} /></div>
+        </div>
+        <div style={{ marginBottom: 10 }}><Lbl>Service category</Lbl><Inp t={t} aria-label="Service category" value={form.serviceCategory} onChange={e => setForm({ ...form, serviceCategory: e.target.value })} /></div>
+        <div style={{ marginBottom: 10 }}><Lbl>Notes</Lbl><Inp t={t} aria-label="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+        <div style={{ marginBottom: 8 }}><Lbl>Changes start on</Lbl><Inp t={t} type="date" aria-label="Changes start on" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} style={{ width: 170 }} /></div>
+        <Btn t={t} onClick={save} disabled={busy} style={{ minHeight: 44 }}>Save changes</Btn>
+        {started && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.</div>}
+      </div>
+      <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <Lbl>End</Lbl>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div><Lbl>Last day</Lbl><Inp t={t} type="date" aria-label="Last day" value={lastDate} onChange={e => setLastDate(e.target.value)} style={{ width: 170 }} /></div>
+          <Btn t={t} v="danger" onClick={() => setConfirming(true)} disabled={busy} style={{ minHeight: 44 }}>End pattern</Btn>
+        </div>
+        {confirming && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}>
+          <div style={{ marginBottom: 6 }}>End this pattern after {patternDate(lastDate)}? Future shifts it added are removed, except ones changed by hand.</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn t={t} v="danger" aria-label="Confirm ending this pattern" onClick={endPattern} disabled={busy} style={{ minHeight: 44 }}>End pattern</Btn>
+            <Btn t={t} v="ghost" aria-label="Cancel ending this pattern" onClick={() => setConfirming(false)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+          </div>
+        </div>}
+      </div>
+    </>)}
+    {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
+    {result && <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{result.created} added, {result.removed} removed, {result.keptCount} kept</div>
+      {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
+      {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
+    </div>}
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+  </div></Mdl>);
+}
+
+function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, onOpen, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [userId, setUserId] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [status, setStatus] = useState("active");
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    const q = ["status=" + encodeURIComponent(status)];
+    if (userId) q.push("userId=" + encodeURIComponent(userId));
+    if (siteId) q.push("siteId=" + encodeURIComponent(siteId));
+    try { const d = await af("/api/schedule/patterns?" + q.join("&")); setRows(d && Array.isArray(d.patterns) ? d.patterns : []); }
+    catch (e) { setRows([]); setError(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af, status, userId, siteId]);
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const columns = [
+    { header: "Person", render: p => <span style={{ color: t.text }}>{p.userName}</span> },
+    { header: "Site", tdStyle: { color: t.textSec }, render: p => p.siteName },
+    { header: "Days", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDays(p.days) },
+    { header: "Hours", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternHours(p) },
+    { header: "Starts", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDate(p.startsOn) },
+    { header: "Ends", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => p.endsOn ? patternDate(p.endsOn) : "No end" },
+    { header: "Upcoming", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => Number(p.upcomingShifts) || 0 },
+  ];
+  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>;
+
+  return (<div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <Sel t={t} aria-label="Person" value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: "All people" }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <Sel t={t} aria-label="Site" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active")}{statusBtn("ended", "Ended")}{statusBtn("all", "All")}</div>
+    </div>
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading patterns...</div>}
+    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={p => p.id} onRowClick={p => onOpen(p.id)} empty="No patterns yet. Turn on Repeat when adding a shift to create one." />}
+    {openId && <PatternWindow af={af} t={t} id={openId} sites={sites} allStaff={allStaff} onClose={onClose} onChanged={load} onOpenOther={onOpen} />}
+  </div>);
+}
+
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const SERVICE_CATS = [{ v: "", l: "No specific service" }, ...getOpts("service_categories")];
   const [view, setView] = useState("week");
@@ -4213,6 +4402,11 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [patternError, setPatternError] = useState("");
+  const [patternConflictId, setPatternConflictId] = useState("");
+  const [patternSkipped, setPatternSkipped] = useState(null);
+  const [patternsRefresh, setPatternsRefresh] = useState(0);
+  const [patternOpenId, setPatternOpenId] = useState(null);
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -4349,13 +4543,40 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     setCreateForm({ userId: userId || "", siteId: sId, startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
     if (sId) loadSiteLocations(sId);
     setPickerSearch("");
+    setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     setCreateModal({ date, userId });
   };
   const toggleRepeatDay = (dayNum) => { setCreateForm(prev => { const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum]; return { ...prev, repeatDays: days }; }); };
 
   const submitCreate = async () => {
     if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) { showToast("Staff, site, start time, and end time are required", "error"); return; }
+    setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     try {
+      // A repeat with no end, or one that runs until a date, is a pattern the API keeps and refills.
+      // "For X weeks" still writes each shift once through /bulk, exactly as before.
+      if (createForm.repeat && createForm.repeatDays.length > 0 && createForm.repeatMode !== "weeks") {
+        const body = {
+          userId: createForm.userId, siteId: createForm.siteId,
+          days: createForm.repeatDays.slice().sort((a, b) => a - b).map(d => PATTERN_DAY_KEYS[d]),
+          startTime: createForm.startTime, endTime: createForm.endTime, startsOn: createModal.date,
+        };
+        if (createForm.repeatMode === "until" && createForm.repeatUntil) body.endsOn = createForm.repeatUntil;
+        if (createForm.buildingName) body.buildingName = createForm.buildingName;
+        if (createForm.floorNumber) body.floorNumber = createForm.floorNumber;
+        if (createForm.serviceCategory) body.serviceCategory = createForm.serviceCategory;
+        if (createForm.notes) body.notes = createForm.notes;
+        try {
+          const r = await af("/api/schedule/patterns", { method: "POST", body });
+          showToast("Pattern saved. " + (Number(r && r.created) || 0) + " shifts added through " + patternDate(r && r.pattern && r.pattern.generatedThrough) + ".");
+          loadCalendar(); setPatternsRefresh(n => n + 1);
+          if (Number(r && r.skippedCount) > 0) { setPatternSkipped(Array.isArray(r.skipped) ? r.skipped : []); return; }
+          setCreateModal(null);
+        } catch (e) {
+          setPatternError(e.message || "Request failed");
+          setPatternConflictId(e && e.body && e.body.patternId ? String(e.body.patternId) : "");
+        }
+        return;
+      }
       if (createForm.repeat && createForm.repeatDays.length > 0) {
         const body = { user_id: createForm.userId, site_id: createForm.siteId, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined, repeat_days: createForm.repeatDays, start_date: createModal.date };
         if (createForm.repeatMode === "until" && createForm.repeatUntil) body.repeat_until = createForm.repeatUntil; else body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
@@ -4378,7 +4599,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       showToast("Schedule updated"); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
-  const deleteShift = async (id) => { if (!window.confirm("Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast("Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
+  const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
+  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? "Cancel this shift? The pattern will not add it again." : "Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? "Shift cancelled" : "Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
@@ -4435,6 +4658,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
+            {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>Repeats</div>}
           </div>))}
           {startedHere.map(p => (<div key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
             Started {fmtSessionStart(p.startedAt)}
@@ -4497,9 +4721,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
+        <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>Patterns</button>
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
       </div>
     </div>
+    {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
+    {view !== "patterns" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
@@ -4517,6 +4744,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div>}
     {!loading && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
     {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
+
+    </>}
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
@@ -4548,20 +4777,30 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: createForm.repeat ? 12 : 0 }}>
-          <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c={NAVY} />}</button>
+          <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat, repeatMode: !createForm.repeat ? "none" : createForm.repeatMode })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c={NAVY} />}</button>
           <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Repeat this shift</span>
         </div>
         {createForm.repeat && (<div>
           <div style={{ marginBottom: 10 }}><Lbl>Repeat on</Lbl><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
             {[{ label: "Sun", val: 0 }, { label: "Mon", val: 1 }, { label: "Tue", val: 2 }, { label: "Wed", val: 3 }, { label: "Thu", val: 4 }, { label: "Fri", val: 5 }, { label: "Sat", val: 6 }].map(d => (
               <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? NAVY : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
-            ))}</div></div>
+            ))}</div>
+            {runsPastMidnight(createForm.startTime, createForm.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{OVERNIGHT_NOTE}</div>}
+          </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
             {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>weeks</span></>)}
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
             {createForm.repeatMode === "until" && <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />}
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "none" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "none" ? 700 : 500, background: createForm.repeatMode === "none" ? t.goldBg : "transparent", color: createForm.repeatMode === "none" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "none" ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>No end date</button>
           </div>
+          {createForm.repeatMode === "none" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.</div>}
+          {patternError && <div style={{ fontSize: 12, color: RD, marginTop: 10 }}>{patternError}{patternConflictId ? " " : ""}{patternConflictId && <button onClick={() => { setCreateModal(null); setView("patterns"); setPatternOpenId(patternConflictId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open that pattern</button>}</div>}
+          {patternSkipped && <div style={{ fontSize: 12, color: t.text, marginTop: 10 }}>
+            <div style={{ color: OR, fontWeight: 600, marginBottom: 4 }}>{patternSkipped.length} dates were skipped because this person is already scheduled at that time:</div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>{patternSkipped.map((sk, i) => <li key={i}>{patternDate(sk.date)}</li>)}</ul>
+            <div style={{ marginTop: 8 }}><Btn t={t} onClick={() => { setPatternSkipped(null); setCreateModal(null); }} style={{ minHeight: 44 }}>Done</Btn></div>
+          </div>}
         </div>)}
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>{createForm.repeat ? "Schedule All" : "Schedule Shift"}</Btn></div>
@@ -4570,6 +4809,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     {/* EDIT SCHEDULED SHIFT MODAL */}
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Shift</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>Part of a weekly pattern. Changes here apply to this date only. <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open the pattern</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>Staff</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
@@ -4601,7 +4841,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
 
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Delete</Btn>
+          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? "Cancel this date" : "Delete"}</Btn>
           {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />Pickup</button>}
         </div>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div>
