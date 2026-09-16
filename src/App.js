@@ -8754,7 +8754,7 @@ function CasesPage({ af, showToast, t }) {
   const statusLabel = { open: "Open", in_review: "In review", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
   const statusColor = { open: OR, in_review: BL, escalated: RD, resolved: GR, closed: t.textMut };
   const [cases, setCases] = useState([]);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("needs_response");
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState(null);
   const [accessLog, setAccessLog] = useState([]);
@@ -8765,7 +8765,7 @@ function CasesPage({ af, showToast, t }) {
 
   const load = async (status) => {
     setLoading(true);
-    try { const d = await af("/api/hr-cases" + (status ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); }
+    try { const d = await af("/api/hr-cases" + (status && status !== "needs_response" ? "?status=" + status : "")); setCases(d && Array.isArray(d.cases) ? d.cases : []); }
     catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
@@ -8802,22 +8802,40 @@ function CasesPage({ af, showToast, t }) {
   };
 
   const isOpen = c => OPEN_STATUSES.includes(c.status);
-  const ageDays = c => Math.max(0, Math.floor((Date.now() - new Date(c.createdAt).getTime()) / 86400000));
-  // Oldest open first: every case still open, in review or escalated comes ahead of the resolved and
-  // closed ones, and inside each group the oldest is first.
-  const rows = [...cases].sort((a, b) => { const ao = isOpen(a) ? 0 : 1; const bo = isOpen(b) ? 0 : 1; if (ao !== bo) return ao - bo; return new Date(a.createdAt) - new Date(b.createdAt); });
+  // The response clock. The team has 72 hours from filing to respond; the API sends ageHours and clock.
+  const ageHoursOf = c => { const a = Number(c.ageHours); return Number.isFinite(a) ? a : Math.max(0, (Date.now() - new Date(c.createdAt).getTime()) / 3600000); };
+  const clockInfo = c => {
+    const h = ageHoursOf(c);
+    if (c.clock === "on_time") return { label: "On time", detail: Math.max(0, Math.round(72 - h)) + "h left", color: t.text };
+    if (c.clock === "due_soon") return { label: "Due soon", detail: Math.max(0, Math.round(72 - h)) + "h left", color: t.goldText };
+    if (c.clock === "overdue") return { label: "Overdue", detail: Math.max(0, Math.round(h - 72)) + "h past", color: RD };
+    if (c.clock === "responded") return { label: "Responded", detail: "", color: t.textMut };
+    if (c.clock === "closed_without_response") return { label: "Closed, no response", detail: "", color: t.textMut };
+    return { label: "", detail: "", color: t.textMut };
+  };
+  const needsResponse = c => c.clock === "on_time" || c.clock === "due_soon" || c.clock === "overdue";
+  const ageText = c => { const h = Math.floor(ageHoursOf(c)); const d = Math.floor(h / 24); const r = h % 24; return d > 0 ? d + "d " + r + "h" : r + "h"; };
+  const CLOCK_RANK = { overdue: 0, due_soon: 1, on_time: 2 };
+  // Overdue first, then due soon, then on time, each oldest first; then the responded and closed cases,
+  // oldest open first as before.
+  const rows = [...cases].filter(c => statusFilter !== "needs_response" || needsResponse(c)).sort((a, b) => {
+    const ar = CLOCK_RANK[a.clock] ?? 3, br = CLOCK_RANK[b.clock] ?? 3; if (ar !== br) return ar - br;
+    const ao = isOpen(a) ? 0 : 1, bo = isOpen(b) ? 0 : 1; if (ao !== bo) return ao - bo;
+    return new Date(a.createdAt) - new Date(b.createdAt);
+  });
 
   const columns = [
-    { header: "Age", tdStyle: { whiteSpace: "nowrap" }, render: c => { const d = ageDays(c); const l = d + (d === 1 ? " day" : " days"); return isOpen(c) && d > 3 ? <Bdg l={l} c={RD} /> : <span style={{ color: t.textSec }}>{l}</span>; } },
+    { header: "Response", tdStyle: { whiteSpace: "nowrap" }, render: c => { const k = clockInfo(c); return <span style={{ color: k.color, fontWeight: 600 }}>{k.label}{k.detail ? <span style={{ fontWeight: 400 }}> {k.detail}</span> : null}</span>; } },
+    { header: "Age", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: c => ageText(c) },
     { header: "Status", render: c => <Bdg l={statusLabel[c.status] || c.status} c={statusColor[c.status] || t.textMut} /> },
     { header: "Received", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: c => ff(c.createdAt) },
     { header: "Subject named", tdStyle: { color: t.textSec }, render: c => c.subject ? "Yes" : "No" },
-    { header: "Held by", tdStyle: { color: t.textSec }, render: c => (c.assignedTo && c.assignedTo.name) || (c.escalatedTo && c.escalatedTo.name) || "-" },
+    { header: "Held by", tdStyle: { color: t.textSec }, render: c => (c.assignedTo && c.assignedTo.name) ? c.assignedTo.name : <span style={{ color: t.goldText, fontWeight: 600 }}>Unheld</span> },
   ];
 
   return (<div>
     <SecT t={t}>Cases</SecT>
-    <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "", label: "All" }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
+    <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: "Needs response" }, { id: "", label: "All" }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading cases...</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty="No cases." />}
 
