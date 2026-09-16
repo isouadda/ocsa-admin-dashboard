@@ -39,3 +39,11 @@ class RootErrorBoundary extends React.Component {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<React.StrictMode><RootErrorBoundary><App /></RootErrorBoundary></React.StrictMode>);
+
+// Production only. The worker at public/sw.js caches nothing; it exists so Android browsers
+// offer to install the app. Registration failure is silent: the app works the same without it.
+if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(process.env.PUBLIC_URL + '/sw.js').catch(() => {});
+  });
+}
