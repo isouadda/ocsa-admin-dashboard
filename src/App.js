@@ -6980,6 +6980,96 @@ function JotformPickerField({ af, form, setForm, t }) {
 }
 
 // ===== FORMS PAGE (Session 20: Jotform Integration, Session 21: PDF + Diagnostic) =====
+// ===== INCIDENT REPORTS: the reports staff file through the Help chat =====
+// Every read of a report writes an audit row, so a report is fetched only when a person opens one,
+// once per opening. Nothing here prefetches, refetches on a re-render, or polls.
+const IR_PAGE_SIZE = 50;
+const IR_NO_ACCESS = "Your account cannot read incident reports.";
+const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+
+function IncidentReportsTab({ af, t, sites = [] }) {
+  const [status, setStatus] = useState("submitted");
+  const [formCode, setFormCode] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [rows, setRows] = useState([]);
+  const [forms, setForms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [paging, setPaging] = useState(false);
+
+  // The form list is read once, when the tab first opens. A failure leaves the select with All forms
+  // and never stops the list from loading.
+  useEffect(() => {
+    let alive = true;
+    af("/api/forms?locale=en")
+      .then(d => { if (alive) setForms(d && Array.isArray(d.forms) ? d.forms : []); })
+      .catch(e => { console.warn("Form list:", e.message); if (alive) setForms([]); });
+    return () => { alive = false; };
+  }, [af]);
+
+  const query = useCallback((before) => {
+    const q = ["status=" + encodeURIComponent(status), "limit=" + IR_PAGE_SIZE];
+    if (formCode) q.push("formCode=" + encodeURIComponent(formCode));
+    if (siteId) q.push("siteId=" + encodeURIComponent(siteId));
+    if (before) q.push("before=" + encodeURIComponent(before));
+    return "/api/forms/responses?" + q.join("&");
+  }, [status, formCode, siteId]);
+
+  const load = useCallback(async (before) => {
+    if (before) setPaging(true); else { setLoading(true); setError(null); }
+    try {
+      const d = await af(query(before));
+      const list = d && Array.isArray(d.responses) ? d.responses : [];
+      setRows(prev => before ? [...prev, ...list] : list);
+      setHasMore(list.length === IR_PAGE_SIZE);
+      setError(null);
+    } catch (e) {
+      if (!before) setRows([]);
+      setError({ status: e && e.status, message: e.message || "Request failed" });
+    }
+    setLoading(false); setPaging(false);
+  }, [af, query]);
+  useEffect(() => { load(null); }, [load]);
+
+  const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
+
+  const submittedCols = [
+    { header: "Filed", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
+    { header: "Form", render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: "Site", tdStyle: { color: t.textSec }, render: r => r.siteName || "No site" },
+    { header: "Filed by", tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
+  ];
+  const draftCols = [
+    { header: "Started", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
+    { header: "Form", render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: "Site", tdStyle: { color: t.textSec }, render: r => r.siteName || "No site" },
+    { header: "Started by", tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
+    { header: "Answered", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (Number(r.answered) || 0) + " of " + ((Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
+    { header: "Due", tdStyle: { whiteSpace: "nowrap" }, render: r => {
+      if (!r.dueAt) return <span style={{ color: t.textSec }}>--</span>;
+      const past = new Date(r.dueAt).getTime() < Date.now();
+      return past ? <span style={{ color: RD, fontWeight: 600 }}>Past due {irDay(r.dueAt)}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
+    } },
+  ];
+
+  const sw = (v, l) => (<button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (status === v ? GO : t.border), background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
+
+  return (<div>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", "Submitted")}{sw("draft", "Unfinished")}</div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label="Form" value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: "All forms" }, ...forms.map(f => ({ v: f.code, l: f.title }))]} /></div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label="Site" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+    </div>
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading reports...</div>}
+    {!loading && error && error.status === 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{IR_NO_ACCESS}</div>}
+    {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+    {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} empty={status === "submitted" ? "No reports filed yet." : "No unfinished reports."} />}
+    {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? "Loading..." : "Load more"}</button></div>}
+  </div>);
+}
+
 function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
   const [tab, setTab] = useState("library");
   const [config, setConfig] = useState(null);
@@ -7648,6 +7738,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
     { id: "settings", l: "Settings" },
     { id: "sync_diagnostic", l: "Sync Diagnostic" },
     { id: "aliases", l: "Aliases" },
+    { id: "incident_reports", l: "Incident reports" },
   ];
 
   return (
@@ -8154,6 +8245,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user }) {
       )}
 
       {/* ================ SESSION 27: ALIASES TAB ================ */}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} />}
+
       {tab === "aliases" && (
         <div>
           {/* HEADER */}
