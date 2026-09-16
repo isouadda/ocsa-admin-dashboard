@@ -506,7 +506,7 @@ export default function AdminDashboard() {
       <div style={{ flex: 1, padding: "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
-        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} />}
+        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} />}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -8748,7 +8748,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 // Cases raised by staff through the portal. Admin only. The API applies the recusal rule in SQL, so a
 // case about the person looking never arrives here, and this page keeps no count of anything it did not
 // receive. The list shows no summary text; a row is opened to be read.
-function CasesPage({ af, showToast, t }) {
+function CasesPage({ af, showToast, t, allStaff = [], user }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
   const statusLabel = { open: "Open", in_review: "In review", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
@@ -8761,7 +8761,10 @@ function CasesPage({ af, showToast, t }) {
   const [subjects, setSubjects] = useState([]);
   const [form, setForm] = useState({ status: "", escalatedTo: "", resolutionNotes: "" });
   const [saving, setSaving] = useState(false);
-  const actionLabel = { hr_case_read: "Read the case", hr_case_list: "Saw it in the list", hr_case_updated: "Updated the case", hr_case_access_log_read: "Read this log", hr_case_escalation_mail: "Escalation email", hr_case_created: "Raised the case" };
+  const [handTo, setHandTo] = useState("");
+  const [holdBusy, setHoldBusy] = useState(false);
+  const [holdError, setHoldError] = useState("");
+  const actionLabel = { hr_case_read: "Read the case", hr_case_list: "Saw it in the list", hr_case_updated: "Updated the case", hr_case_access_log_read: "Read this log", hr_case_escalation_mail: "Escalation email", hr_case_created: "Raised the case", hr_case_filed_mail: "Filing email to the team", hr_case_assignment_mail: "Assignment email", hr_case_due_soon_mail: "48 hour reminder to the team", hr_case_overdue_mail: "72 hour reminder to the team" };
 
   const load = async (status) => {
     setLoading(true);
@@ -8777,7 +8780,7 @@ function CasesPage({ af, showToast, t }) {
   const openCase = async (c) => {
     let d;
     try { d = await af("/api/hr-cases/" + c.id); } catch (e) { showToast("This case is not available.", "error"); return; }
-    setDetail(d); setAccessLog([]); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" });
+    setDetail(d); setAccessLog([]); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo(""); setHoldError("");
     loadAccessLog(d.id);
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
   };
@@ -8800,6 +8803,24 @@ function CasesPage({ af, showToast, t }) {
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
   };
+  // Take, hand over or release: one PATCH carrying assigned_to alone. Handing to someone else emails
+  // them; taking it yourself or releasing it emails nobody. Any successful save stops the response clock.
+  const holdSave = async (assignedTo) => {
+    if (!detail || holdBusy) return;
+    setHoldBusy(true); setHoldError("");
+    try {
+      const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } });
+      setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo("");
+      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id);
+    } catch (e) { setHoldError(e.message || "Request failed"); }
+    setHoldBusy(false);
+  };
+  const myId = user && user.id != null ? String(user.id) : "";
+  const holderId = detail && detail.assignedTo && detail.assignedTo.id != null ? String(detail.assignedTo.id) : "";
+  const iHold = !!myId && holderId === myId;
+  // Every active admin the dashboard already loaded, minus the case's subject and minus the caller.
+  const handOptions = detail ? allStaff.filter(p => p && p.role === "admin" && (!p.status || p.status === "active") && String(p.id) !== myId && !(detail.subject && String(p.id) === String(detail.subject.id))) : [];
+  const handChosen = handOptions.find(p => String(p.id) === handTo);
 
   const isOpen = c => OPEN_STATUSES.includes(c.status);
   // The response clock. The team has 72 hours from filing to respond; the API sends ageHours and clock.
@@ -8844,11 +8865,28 @@ function CasesPage({ af, showToast, t }) {
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Case</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>Received {ff(detail.createdAt)}</span></div></div>
         <button onClick={closeCase} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
       </div>
+      {(() => { const k = clockInfo(detail); return (
+      <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
+        <div style={{ fontSize: 11, color: t.textMut }}>Held by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.assignedTo && detail.assignedTo.name) || "Nobody yet"}</div></div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 8 }}>{detail.firstResponseAt ? <span>Responded {ff(detail.firstResponseAt)}</span> : <span><span style={{ color: k.color, fontWeight: 600 }}>{k.label}{k.detail ? " " + k.detail : ""}</span> The team promised a response within 72 hours of filing.</span>}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+          {!iHold && <Btn t={t} onClick={() => holdSave(user.id)} disabled={holdBusy || !myId}>Take this case</Btn>}
+          {iHold && <Btn t={t} v="ghost" onClick={() => holdSave(null)} disabled={holdBusy}>Release</Btn>}
+          {iHold && <span style={{ fontSize: 11, color: t.textMut }}>The case goes back to the team.</span>}
+        </div>
+        <div style={{ marginTop: 12 }}><Lbl>Hand to</Lbl>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <Sel t={t} aria-label="Hand to" value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: "Choose a person" }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
+            <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>Hand over</Btn>
+          </div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>They will get an email. The email carries no case text.</div>
+        </div>
+        {holdError && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{holdError}</div>}
+      </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>Summary</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>Reported by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>Subject named<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.subject && detail.subject.name) || "No"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Held by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.assignedTo && detail.assignedTo.name) || "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>Escalated to<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.escalatedTo && detail.escalatedTo.name) || "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>Last updated<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.updatedAt ? ff(detail.updatedAt) : "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>Resolved<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
@@ -8859,7 +8897,7 @@ function CasesPage({ af, showToast, t }) {
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>Close</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Btn></div>
       <div><Lbl>Access log</Lbl>
         {accessLog.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No entries yet.</div>}
-        {accessLog.map(e => (<div key={e.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 12 }}><span style={{ color: t.text }}>{e.name || "Unknown"}{e.role ? <span style={{ color: t.textMut }}> ({e.role})</span> : null}<span style={{ color: t.textSec }}> {actionLabel[e.action] || e.action}</span></span><span style={{ color: t.textMut, whiteSpace: "nowrap" }}>{ff(e.at)}</span></div>))}
+        {accessLog.map(e => (<div key={e.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 12 }}><span style={{ color: t.text }}>{e.name || "OCSA"}{e.role ? <span style={{ color: t.textMut }}> ({e.role})</span> : null}<span style={{ color: t.textSec }}> {actionLabel[e.action] || e.action}</span></span><span style={{ color: t.textMut, whiteSpace: "nowrap" }}>{ff(e.at)}</span></div>))}
       </div>
     </div></Mdl>}
   </div>);
