@@ -264,19 +264,31 @@ export default function AdminDashboard() {
   // Cases page. A failed poll keeps the last count and logs one warning.
   const [caseQueue, setCaseQueue] = useState(null);
   const loadCaseQueue = useCallback(async () => { try { const d = await af("/api/hr-cases/queue-count"); setCaseQueue({ unassigned: Number(d && d.unassigned) || 0, dueSoon: Number(d && d.dueSoon) || 0, overdue: Number(d && d.overdue) || 0 }); } catch (e) { console.warn("Case queue count:", e.message); } }, [af]);
+  // What this person has been told. The count is quiet until the notifications routes are live: any
+  // failure hides it and logs one warning, and nothing ever toasts.
+  const [unread, setUnread] = useState(0);
+  const [bellOpen, setBellOpen] = useState(false);
+  const loadUnread = useCallback(async () => { try { const d = await af("/api/notifications/unread-count"); setUnread(Number(d && d.unread) || 0); } catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); } }, [af]);
+  // One timer drives the bell and the Cases badge together, so the two polls never stack.
   useEffect(() => {
-    if (!token || !isAdmin) { setCaseQueue(null); return; }
-    loadCaseQueue();
-    const iv = setInterval(() => { if (!document.hidden) loadCaseQueue(); }, 60000);
+    if (!token) { setCaseQueue(null); setUnread(0); setBellOpen(false); return; }
+    const tick = () => { loadUnread(); if (isAdmin) loadCaseQueue(); };
+    tick();
+    const iv = setInterval(() => { if (!document.hidden) tick(); }, 60000);
     return () => clearInterval(iv);
-  }, [token, isAdmin, loadCaseQueue]);
+  }, [token, isAdmin, loadUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
+  const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
+  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#F8F7F4", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
   const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? RD : GO, color: caseQueue.overdue > 0 ? "#F8F7F4" : NAVY, fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
   const lkHasOther = useCallback((slug, val) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return false; const v = (cat.values || []).find(x => x.value === val); return v?.show_other_input || false; }, [lookups]);
-  useEffect(() => { const h = () => { clearAuth(); setToken(null); setUser(null); }; window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, []);
+  // One sign-out path, used by every sign-out control and by an expired session: the stored session,
+  // the token, the person, the bell's unread count and its open panel all go together.
+  const signOut = useCallback(() => { clearAuth(); setToken(null); setUser(null); setUnread(0); setBellOpen(false); }, []);
+  useEffect(() => { const h = () => signOut(); window.addEventListener("ocsa-session-expired", h); return () => window.removeEventListener("ocsa-session-expired", h); }, [signOut]);
   // The active page rides in the URL hash, nothing else does. A refresh reopens the same page and
   // the browser back and forward buttons move between pages. The hash is validated against PAGE_IDS
   // and is not a permission: a page shows exactly what it showed the role before.
@@ -404,6 +416,7 @@ export default function AdminDashboard() {
                     style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
                     {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
+                    {group.items.some(item => item.id === "issues") && <OpenIssuesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                   </button>
                 </div>
               );
@@ -443,6 +456,7 @@ export default function AdminDashboard() {
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
+                    {item.id === "issues" && <OpenIssuesBadge style={{ marginLeft: "auto" }} />}
                   </button>
                 );
               })}
@@ -463,10 +477,10 @@ export default function AdminDashboard() {
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
               <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
             </div>
-            <button onClick={() => { clearAuth(); setToken(null); setUser(null); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
+            <button onClick={signOut} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
           </div>
         ) : (
-          <button onClick={() => { clearAuth(); setToken(null); setUser(null); }} title="Logout" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
+          <button onClick={signOut} title="Logout" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
         )}
       </div>
     </div>
@@ -494,10 +508,13 @@ export default function AdminDashboard() {
               </div>
             ); })()}
           </div>
-          <button onClick={() => setPage("issues")} title="Open issues" style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
-            <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
-            {notif && notif.openIssues > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{notif.openIssues}</span>}
-          </button>
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setBellOpen(o => !o)} aria-label={unread > 0 ? unread + " unread notifications" : "Notifications"} title="Notifications" style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
+              {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
+            </button>
+            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} onOpenPage={id => setPage(id)} />}
+          </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
             <button onClick={() => { setUserMenuOpen(o => !o); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px 4px 4px", borderRadius: 22, background: t.inputBg, border: "1px solid " + t.inputBorder, cursor: "pointer" }}>
@@ -509,7 +526,7 @@ export default function AdminDashboard() {
               <div style={{ position: "absolute", top: 48, right: 0, width: 210, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? "Administrator" : "Supervisor"}</div></div>
                 {isAdmin && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
-                <button onClick={() => { clearAuth(); setToken(null); setUser(null); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
+                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
               </div>
             )}
           </div>
@@ -537,7 +554,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
-        {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} />}
+        {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} />}
       </div>
     </div>
 
@@ -2478,6 +2495,214 @@ function HelpPage({ af, uf, showToast, t }) {
     </Crd>
   </div>);
 }
+// ===== WHO GETS TOLD: the people and addresses told about each kind of report =====
+const RECIPIENTS_INTRO = "Choose who hears about each kind of report. People get an email and a notice in the app. Outside addresses get email only. When nobody is set, every admin gets a notice in the app.";
+const HR_CASE_NOTE = "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.";
+const HR_FALLBACK_NOTE = "Told when everyone else on the team is named in a report.";
+const FORM_SUB_NOTE = "These people are told about this form as well as anyone under Every form.";
+const BOTH_OFF = "Keep at least one of Email or In app on.";
+function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [picks, setPicks] = useState({});
+  const [emails, setEmails] = useState({});
+  const [confirming, setConfirming] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setFailed("");
+    try { const d = await af("/api/notification-recipients"); setData(d || {}); }
+    catch (e) { setData(null); setFailed(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+
+  const slotKey = (type, key) => type + "|" + (key || "");
+  const setErr = (slot, msg) => setErrors(p => ({ ...p, [slot]: msg }));
+  const after = (slot) => { setErr(slot, ""); showToast("Saved"); load(); };
+  const post = async (slot, body) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, "");
+    try { await af("/api/notification-recipients", { method: "POST", body }); setPicks(p => ({ ...p, [slot]: "" })); setEmails(p => ({ ...p, [slot]: "" })); after(slot); }
+    catch (e) { setErr(slot, e.message || "Request failed"); }
+    setBusy(false);
+  };
+  const patch = async (slot, id, body) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, "");
+    try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "PATCH", body }); after(slot); }
+    catch (e) { setErr(slot, e.message || "Request failed"); }
+    setBusy(false);
+  };
+  const remove = async (slot, id) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, "");
+    try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "DELETE" }); setConfirming(null); after(slot); }
+    catch (e) { setErr(slot, e.message || "Request failed"); setConfirming(null); }
+    setBusy(false);
+  };
+  const toggle = (slot, r, field) => {
+    const next = { viaEmail: r.viaEmail, viaInApp: r.viaInApp, [field]: !r[field] };
+    if (!next.viaEmail && !next.viaInApp) { setErr(slot, BOTH_OFF); return; }
+    patch(slot, r.id, { [field]: !r[field] });
+  };
+
+  const rowsFor = (type, key) => ((data && data.recipients) || []).filter(r => r.isActive && r.subjectType === type && String(r.subjectKey || "") === String(key || ""));
+  const staffOptions = (slot, rows) => {
+    const taken = new Set(rows.filter(r => r.user).map(r => String(r.user.id)));
+    return allStaff.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active") && !taken.has(String(u.id)))
+      .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + u.role + ")" : "") }));
+  };
+
+  const renderSection = ({ type, key2, title, note, allowEmail, ariaName }) => {
+    const slot = slotKey(type, key2);
+    const rows = rowsFor(type, key2);
+    const opts = staffOptions(slot, rows);
+    const err = errors[slot];
+    return (<div key={slot} style={{ marginTop: title ? 14 : 0 }}>
+      {title && <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 2 }}>{title}</div>}
+      {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
+      {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>Nobody set. Every admin gets a notice in the app.</div>}
+      {rows.map(r => {
+        const who = r.user ? r.user.name + (r.user.role ? " (" + r.user.role + ")" : "") : r.email;
+        return (<div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ flex: 1, minWidth: 140, fontSize: 13, color: t.text }}>{who}</div>
+          {r.user ? (<>
+            <button onClick={() => toggle(slot, r, "viaEmail")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaEmail ? GO : t.border), background: r.viaEmail ? t.goldBg : "transparent", color: r.viaEmail ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Email</button>
+            <button onClick={() => toggle(slot, r, "viaInApp")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaInApp ? GO : t.border), background: r.viaInApp ? t.goldBg : "transparent", color: r.viaInApp ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>In app</button>
+          </>) : <span style={{ fontSize: 12, color: t.textMut }}>Email only</span>}
+          <button onClick={() => setConfirming({ slot, id: r.id, who })} disabled={busy} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Remove</button>
+        </div>);
+      })}
+      {confirming && confirming.slot === slot && <div style={{ padding: "8px 0", fontSize: 12, color: t.text }}>
+        <div style={{ marginBottom: 6 }}>Stop telling {confirming.who} about this?</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Btn t={t} v="danger" aria-label={"Remove " + confirming.who} onClick={() => remove(slot, confirming.id)} disabled={busy} style={{ minHeight: 44 }}>Remove</Btn>
+          <Btn t={t} v="ghost" aria-label={"Cancel removing " + confirming.who} onClick={() => setConfirming(null)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+        </div>
+      </div>}
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
+        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={"Add a person to " + ariaName} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: "Add a person" }, ...opts]} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>Add</Btn>
+      </div>
+      {allowEmail && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
+        <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" aria-label={"Add an email address to " + ariaName} placeholder="Add an email address" value={emails[slot] || ""} onChange={e => setEmails(p => ({ ...p, [slot]: e.target.value }))} style={{ minHeight: 44 }} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), email: (emails[slot] || "").trim() })} disabled={busy || !(emails[slot] || "").trim()} style={{ minHeight: 44 }}>Add</Btn>
+      </div>}
+      {err && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{err}</div>}
+    </div>);
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
+  if (failed) return <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{failed} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>;
+  const types = (data && Array.isArray(data.types) ? data.types : []);
+  const forms = (data && Array.isArray(data.forms) ? data.forms : []);
+  return (<div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{RECIPIENTS_INTRO}</div>
+    {types.map(ty => (<Crd t={t} key={ty.type} style={{ marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{ty.label}</div>
+      {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE}</div>}
+      {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
+      {ty.keyed && ty.type === "form" ? (<>
+        {renderSection({ type: ty.type, key2: "", title: "Every form", allowEmail: ty.allowOutsideEmail, ariaName: "Every form" })}
+        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")" }))}
+      </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: ty.label })}
+    </Crd>))}
+  </div>);
+}
+
+// ===== NOTIFICATIONS: the bell's panel =====
+// "5m", "3h", "2d", then a date after 7 days.
+const notifAgo = (iso) => {
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "";
+  const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (mins < 60) return Math.max(1, mins) + "m";
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + "h";
+  const days = Math.floor(hrs / 24);
+  return days <= 7 ? days + "d" : fd(iso);
+};
+// A link inside this dashboard opens its page without a reload; anything else opens in a new tab.
+const notifTarget = (link) => {
+  if (!link) return { kind: "none" };
+  let u; try { u = new URL(link, window.location.href); } catch { return { kind: "none" }; }
+  if (u.origin !== window.location.origin) return { kind: "external", href: u.href };
+  const id = (u.hash || "").replace(/^#/, "");
+  return PAGE_IDS.includes(id) ? { kind: "page", page: id } : { kind: "external", href: u.href };
+};
+const NOTIF_PAGE_SIZE = 30;
+function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [more, setMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const boxRef = useRef(null);
+
+  const fetchPage = useCallback(async (before) => {
+    setLoading(true); setFailed(false);
+    try {
+      const d = await af("/api/notifications?limit=" + NOTIF_PAGE_SIZE + (before ? "&before=" + encodeURIComponent(before) : ""));
+      const list = d && Array.isArray(d.notifications) ? d.notifications : [];
+      setRows(prev => before ? [...prev, ...list] : list);
+      setMore(list.length === NOTIF_PAGE_SIZE);
+      if (d && d.unread != null) onUnread(Number(d.unread) || 0);
+    } catch (e) { if (!before) setRows([]); setFailed(true); console.warn("Notifications:", e.message); }
+    setLoading(false);
+  }, [af, onUnread]);
+  useEffect(() => { fetchPage(null); }, [fetchPage]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const openRow = async (n) => {
+    if (busy) return;
+    setBusy(true);
+    if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
+    setBusy(false);
+    const target = notifTarget(n.link);
+    if (target.kind === "page") onOpenPage(target.page);
+    else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
+    onClose();
+  };
+  const markAll = async () => {
+    if (busy || unread === 0) return;
+    setBusy(true);
+    try { await af("/api/notifications/read-all", { method: "POST" }); const now = new Date().toISOString(); setRows(prev => prev.map(r => r.readAt ? r : { ...r, readAt: now })); onUnread(0); }
+    catch (e) { console.warn("Mark all read:", e.message); }
+    setBusy(false);
+  };
+
+  return (<>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
+    <div ref={boxRef} role="dialog" aria-label="Notifications" style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw - 32px))", maxHeight: "70vh", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid " + t.border, position: "sticky", top: 0, background: t.card }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Notifications</div>
+        <button onClick={markAll} disabled={busy || unread === 0} style={{ minHeight: 44, padding: "0 10px", background: "none", border: "none", color: unread === 0 ? t.textMut : t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: unread === 0 ? "default" : "pointer" }}>Mark all read</button>
+      </div>
+      {failed && rows.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>Notifications did not load. <button onClick={() => fetchPage(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+      {!failed && !loading && rows.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>Nothing yet.</div>}
+      {loading && rows.length === 0 && !failed && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>Loading...</div>}
+      {rows.map(n => (
+        <button key={n.id} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: n.readAt ? "transparent" : GO, flexShrink: 0, marginTop: 6 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, fontWeight: n.readAt ? 400 : 700, color: t.text }}>{n.title}</span>
+            {n.body && <span style={{ display: "block", fontSize: 12, color: t.textSec, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{n.body}</span>}
+          </span>
+          <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0, marginTop: 2 }}>{notifAgo(n.createdAt)}</span>
+        </button>
+      ))}
+      {more && <div style={{ padding: 8, textAlign: "center" }}><button onClick={() => fetchPage(rows[rows.length - 1].createdAt)} disabled={loading} style={{ minHeight: 44, padding: "0 14px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{loading ? "Loading..." : "Load more"}</button></div>}
+    </div>
+  </>);
+}
+
 // ===== REPORTING ENGINE: shared helpers, reusable widgets, builder =====
 const num = (v, f) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : f; };
 const fmtDurMin = (m) => {
@@ -6344,7 +6569,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [] }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
   const [tab, setTab] = useState("company");
@@ -6448,11 +6673,14 @@ function SettingsPage({ af, showToast, t, sites, uf }) {
         <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
         <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
         <button onClick={() => setTab("permissions")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "permissions" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "permissions" ? t.goldBg : "transparent", color: tab === "permissions" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Roles and Permissions</button>
+        <button onClick={() => setTab("recipients")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "recipients" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "recipients" ? t.goldBg : "transparent", color: tab === "recipients" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>Who gets told</button>
       </div>
 
       {tab === "company" && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
       {tab === "permissions" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
+
+      {tab === "recipients" && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
 
       {tab === "global" && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
