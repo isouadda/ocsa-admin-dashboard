@@ -975,7 +975,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Contact Information</div>
-            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: u.preferredLanguage || "English", personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> Edit</button>}
+            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> Edit</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -985,7 +985,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div style={{ fontSize: 11, color: t.textMut }}>Hire Date<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hireDate ? fmtDate(u.hireDate) : "Not set"}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>Birthday<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.birthday ? fmtDate(u.birthday) : "Not set"}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>Hourly Rate<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : "Not set"}</div></div>
-              <div style={{ fontSize: 11, color: t.textMut }}>Preferred Language<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.preferredLanguage || "English"}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>Preferred Language<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{langLabel(u.preferredLanguage)}</div></div>
             </div>
             <div style={{ marginTop: 14 }}>
               <div style={{ fontSize: 11, color: t.textMut }}>Address</div>
@@ -1023,7 +1023,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>Emergency Contact</Lbl><Inp t={t} value={pe.emergencyContactName || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactName: e.target.value })} placeholder="Full name" /></div>
               <div><Lbl>Emergency Phone</Lbl><Inp t={t} value={pe.emergencyContactPhone || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactPhone: e.target.value })} placeholder="Phone number" /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><Lbl>Preferred Language</Lbl><Inp t={t} value={pe.preferredLanguage || ""} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} /></div>
+            <div style={{ marginBottom: 10 }}><Lbl>Preferred Language</Lbl><Sel t={t} aria-label="Preferred Language" value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={LANG_OPTS} /></div>
             <div style={{ marginBottom: 14 }}><Lbl>Notes</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder="Internal notes about this employee..." /></div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setEmpIdError(""); setProfileEdit(null); }}>Cancel</Btn><Btn t={t} onClick={saveProfileInfo}>Save Changes</Btn></div>
           </div>}
@@ -4200,6 +4200,12 @@ const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00"
 // An end time earlier than the start time means the shift runs into the next morning, so the day
 // chosen is the day it starts. Zero-padded HH:MM compares correctly as text. Equal times are not
 // overnight; the API refuses those on its own.
+// The API accepts "en" or "es" and refuses anything else, so every stored spelling is read down to
+// one of the two. Blank, unknown or a full language name all resolve; "espa" catches espanol with
+// or without its accent.
+const LANG_OPTS = [{ v: "en", l: "English" }, { v: "es", l: "Spanish" }];
+const langCode = (v) => { const x = String(v == null ? "" : v).trim().toLowerCase(); return (x === "es" || x === "spanish" || x.indexOf("espa") === 0) ? "es" : "en"; };
+const langLabel = (v) => langCode(v) === "es" ? "Spanish" : "English";
 const runsPastMidnight = (start, end) => !!start && !!end && String(end) < String(start);
 const OVERNIGHT_NOTE = "This shift runs past midnight. Pick the day it starts.";
 const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
