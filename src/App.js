@@ -17,8 +17,8 @@ async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await fetch(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.error || "Request failed"); }
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
 // The signed-in session, persisted so a refresh or a restored tab does not land on the login card.
