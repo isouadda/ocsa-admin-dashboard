@@ -4199,6 +4199,174 @@ const patternHours = (p) => patternTime(p.startTime) + " to " + patternTime(p.en
 const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
 const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
 
+function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenOther }) {
+  const [pattern, setPattern] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState(null);
+  const [effectiveFrom, setEffectiveFrom] = useState(todayISO());
+  const [lastDate, setLastDate] = useState(todayISO());
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try {
+      const d = await af("/api/schedule/patterns/" + encodeURIComponent(id));
+      const p = (d && d.pattern) || null;
+      setPattern(p);
+      if (p) setForm({ days: Array.isArray(p.days) ? p.days.slice() : [], startTime: p.startTime || "", endTime: p.endTime || "", buildingName: p.buildingName || "", floorNumber: p.floorNumber == null ? "" : String(p.floorNumber), serviceCategory: p.serviceCategory || "", notes: p.notes || "" });
+    } catch (e) { setError(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const toggleDay = (k) => setForm(f => ({ ...f, days: f.days.includes(k) ? f.days.filter(d => d !== k) : [...f.days, k] }));
+  const showResult = (r) => {
+    setResult({
+      created: Number(r && r.created) || 0, removed: Number(r && r.removed) || 0, keptCount: Number(r && r.keptCount) || 0,
+      kept: Array.isArray(r && r.kept) ? r.kept : [], skipped: Array.isArray(r && r.skipped) ? r.skipped : [], skippedCount: Number(r && r.skippedCount) || 0,
+    });
+    if (r && r.pattern) setPattern(r.pattern);
+    if (onChanged) onChanged();
+  };
+  // Only what changed is sent, plus the date the change starts from.
+  const save = async () => {
+    if (!pattern || !form || busy) return;
+    const body = {};
+    const sameDays = form.days.length === (pattern.days || []).length && form.days.every(d => (pattern.days || []).includes(d));
+    if (!sameDays) body.days = PATTERN_DAY_KEYS.filter(k => form.days.includes(k));
+    if (form.startTime !== (pattern.startTime || "")) body.startTime = form.startTime;
+    if (form.endTime !== (pattern.endTime || "")) body.endTime = form.endTime;
+    if (form.buildingName !== (pattern.buildingName || "")) body.buildingName = form.buildingName || null;
+    if (form.floorNumber !== (pattern.floorNumber == null ? "" : String(pattern.floorNumber))) body.floorNumber = form.floorNumber || null;
+    if (form.serviceCategory !== (pattern.serviceCategory || "")) body.serviceCategory = form.serviceCategory || null;
+    if (form.notes !== (pattern.notes || "")) body.notes = form.notes || null;
+    if (Object.keys(body).length === 0) { setError("Nothing changed yet."); return; }
+    body.effectiveFrom = effectiveFrom;
+    setBusy(true); setError(""); setResult(null);
+    try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body })); }
+    catch (e) { setError(e.message || "Request failed"); }
+    setBusy(false);
+  };
+  const endPattern = async () => {
+    if (!pattern || busy) return;
+    setBusy(true); setError(""); setResult(null); setConfirming(false);
+    try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id) + "/end", { method: "POST", body: { lastDate } })); }
+    catch (e) { setError(e.message || "Request failed"); }
+    setBusy(false);
+  };
+
+  const started = pattern && pattern.startsOn && String(pattern.startsOn) <= todayISO();
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Weekly pattern</div>
+        {pattern && <div style={{ marginTop: 6, fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
+          <div>{pattern.userName} at {pattern.siteName}</div>
+          <div>{patternDays(pattern.days)} {patternHours(pattern)}</div>
+          <div>Starts {patternDate(pattern.startsOn)}, {pattern.endsOn ? "ends " + patternDate(pattern.endsOn) : "No end"}</div>
+          <div>Filled through {patternDate(pattern.generatedThrough)}</div>
+          {pattern.replacesPatternId && <button onClick={() => onOpenOther(pattern.replacesPatternId)} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 0" }}>Replaces an earlier pattern</button>}
+        </div>}
+      </div>
+      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading...</div>}
+    {!loading && pattern && form && (<>
+      <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <Lbl>Change</Lbl>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
+          {PATTERN_DAY_KEYS.map(k => <button key={k} onClick={() => toggleDay(k)} aria-label={PATTERN_DAY_LABELS[k]} aria-pressed={form.days.includes(k)} style={{ width: 44, height: 44, borderRadius: 6, fontSize: 11, fontWeight: form.days.includes(k) ? 700 : 500, cursor: "pointer", background: form.days.includes(k) ? GO : "transparent", color: form.days.includes(k) ? NAVY : t.textMut, border: "1px solid " + (form.days.includes(k) ? GO : t.border), fontFamily: FONT_BODY }}>{PATTERN_DAY_LABELS[k]}</button>)}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div><Lbl>Start time</Lbl><Inp t={t} type="time" aria-label="Start time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} /></div>
+          <div><Lbl>End time</Lbl><Inp t={t} type="time" aria-label="End time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div><Lbl>Building</Lbl><Inp t={t} aria-label="Building" value={form.buildingName} onChange={e => setForm({ ...form, buildingName: e.target.value })} /></div>
+          <div><Lbl>Floor</Lbl><Inp t={t} aria-label="Floor" value={form.floorNumber} onChange={e => setForm({ ...form, floorNumber: e.target.value })} /></div>
+        </div>
+        <div style={{ marginBottom: 10 }}><Lbl>Service category</Lbl><Inp t={t} aria-label="Service category" value={form.serviceCategory} onChange={e => setForm({ ...form, serviceCategory: e.target.value })} /></div>
+        <div style={{ marginBottom: 10 }}><Lbl>Notes</Lbl><Inp t={t} aria-label="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+        <div style={{ marginBottom: 8 }}><Lbl>Changes start on</Lbl><Inp t={t} type="date" aria-label="Changes start on" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} style={{ width: 170 }} /></div>
+        <Btn t={t} onClick={save} disabled={busy} style={{ minHeight: 44 }}>Save changes</Btn>
+        {started && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.</div>}
+      </div>
+      <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <Lbl>End</Lbl>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div><Lbl>Last day</Lbl><Inp t={t} type="date" aria-label="Last day" value={lastDate} onChange={e => setLastDate(e.target.value)} style={{ width: 170 }} /></div>
+          <Btn t={t} v="danger" onClick={() => setConfirming(true)} disabled={busy} style={{ minHeight: 44 }}>End pattern</Btn>
+        </div>
+        {confirming && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}>
+          <div style={{ marginBottom: 6 }}>End this pattern after {patternDate(lastDate)}? Future shifts it added are removed, except ones changed by hand.</div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <Btn t={t} v="danger" aria-label="Confirm ending this pattern" onClick={endPattern} disabled={busy} style={{ minHeight: 44 }}>End pattern</Btn>
+            <Btn t={t} v="ghost" aria-label="Cancel ending this pattern" onClick={() => setConfirming(false)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+          </div>
+        </div>}
+      </div>
+    </>)}
+    {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
+    {result && <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{result.created} added, {result.removed} removed, {result.keptCount} kept</div>
+      {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
+      {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
+    </div>}
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+  </div></Mdl>);
+}
+
+function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, onOpen, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [userId, setUserId] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [status, setStatus] = useState("active");
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    const q = ["status=" + encodeURIComponent(status)];
+    if (userId) q.push("userId=" + encodeURIComponent(userId));
+    if (siteId) q.push("siteId=" + encodeURIComponent(siteId));
+    try { const d = await af("/api/schedule/patterns?" + q.join("&")); setRows(d && Array.isArray(d.patterns) ? d.patterns : []); }
+    catch (e) { setRows([]); setError(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af, status, userId, siteId]);
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const columns = [
+    { header: "Person", render: p => <span style={{ color: t.text }}>{p.userName}</span> },
+    { header: "Site", tdStyle: { color: t.textSec }, render: p => p.siteName },
+    { header: "Days", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDays(p.days) },
+    { header: "Hours", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternHours(p) },
+    { header: "Starts", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDate(p.startsOn) },
+    { header: "Ends", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => p.endsOn ? patternDate(p.endsOn) : "No end" },
+    { header: "Upcoming", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => Number(p.upcomingShifts) || 0 },
+  ];
+  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>;
+
+  return (<div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <Sel t={t} aria-label="Person" value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: "All people" }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <Sel t={t} aria-label="Site" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active")}{statusBtn("ended", "Ended")}{statusBtn("all", "All")}</div>
+    </div>
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading patterns...</div>}
+    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={p => p.id} onRowClick={p => onOpen(p.id)} empty="No patterns yet. Turn on Repeat when adding a shift to create one." />}
+    {openId && <PatternWindow af={af} t={t} id={openId} sites={sites} allStaff={allStaff} onClose={onClose} onChanged={load} onOpenOther={onOpen} />}
+  </div>);
+}
+
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const SERVICE_CATS = [{ v: "", l: "No specific service" }, ...getOpts("service_categories")];
   const [view, setView] = useState("week");
@@ -4226,6 +4394,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [patternConflictId, setPatternConflictId] = useState("");
   const [patternSkipped, setPatternSkipped] = useState(null);
   const [patternsRefresh, setPatternsRefresh] = useState(0);
+  const [patternOpenId, setPatternOpenId] = useState(null);
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -4537,9 +4706,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
+        <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>Patterns</button>
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
       </div>
     </div>
+    {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
+    {view !== "patterns" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
@@ -4557,6 +4729,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     </div>}
     {!loading && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
     {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
+
+    </>}
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
@@ -4604,7 +4778,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "none" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "none" ? 700 : 500, background: createForm.repeatMode === "none" ? t.goldBg : "transparent", color: createForm.repeatMode === "none" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "none" ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>No end date</button>
           </div>
           {createForm.repeatMode === "none" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.</div>}
-          {patternError && <div style={{ fontSize: 12, color: RD, marginTop: 10 }}>{patternError}</div>}
+          {patternError && <div style={{ fontSize: 12, color: RD, marginTop: 10 }}>{patternError}{patternConflictId ? " " : ""}{patternConflictId && <button onClick={() => { setCreateModal(null); setView("patterns"); setPatternOpenId(patternConflictId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open that pattern</button>}</div>}
           {patternSkipped && <div style={{ fontSize: 12, color: t.text, marginTop: 10 }}>
             <div style={{ color: OR, fontWeight: 600, marginBottom: 4 }}>{patternSkipped.length} dates were skipped because this person is already scheduled at that time:</div>
             <ul style={{ margin: 0, paddingLeft: 18 }}>{patternSkipped.map((sk, i) => <li key={i}>{patternDate(sk.date)}</li>)}</ul>
