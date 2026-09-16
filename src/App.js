@@ -259,6 +259,19 @@ export default function AdminDashboard() {
   const loadLookups = useCallback(async () => { try { const d = await af("/api/lookups/all"); setLookups(d); } catch (e) { console.warn("Failed to load lookups:", e.message); } }, [af]);
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
   useEffect(() => { if (!token) return; let alive = true; af("/api/reports/overview").then(d => { if (alive) setNotif({ openIssues: d.openIssues, pendingStaff: d.pendingStaff }); }).catch(() => {}); return () => { alive = false; }; }, [token, page]);
+  // How many Speak Up cases are waiting: unheld, due soon or overdue. Admins only. The route writes no
+  // audit row, so it is polled every 60 seconds while the tab is visible and again after a save on the
+  // Cases page. A failed poll keeps the last count and logs one warning.
+  const [caseQueue, setCaseQueue] = useState(null);
+  const loadCaseQueue = useCallback(async () => { try { const d = await af("/api/hr-cases/queue-count"); setCaseQueue({ unassigned: Number(d && d.unassigned) || 0, dueSoon: Number(d && d.dueSoon) || 0, overdue: Number(d && d.overdue) || 0 }); } catch (e) { console.warn("Case queue count:", e.message); } }, [af]);
+  useEffect(() => {
+    if (!token || !isAdmin) { setCaseQueue(null); return; }
+    loadCaseQueue();
+    const iv = setInterval(() => { if (!document.hidden) loadCaseQueue(); }, 60000);
+    return () => clearInterval(iv);
+  }, [token, isAdmin, loadCaseQueue]);
+  const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
+  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? RD : GO, color: caseQueue.overdue > 0 ? "#F8F7F4" : NAVY, fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
@@ -388,8 +401,9 @@ export default function AdminDashboard() {
                   <button
                     title={group.label}
                     onClick={() => { toggleSidebar(); setPage(firstItem.id); setCollapsedGroups(prev => { const next = new Set(prev); next.delete(group.label); return next; }); }}
-                    style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                    style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
+                    {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                   </button>
                 </div>
               );
@@ -428,6 +442,7 @@ export default function AdminDashboard() {
                   <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
+                    {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
                   </button>
                 );
               })}
@@ -506,7 +521,7 @@ export default function AdminDashboard() {
       <div style={{ flex: 1, padding: "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && isAdmin && <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
-        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} />}
+        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} />}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -8748,7 +8763,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 // Cases raised by staff through the portal. Admin only. The API applies the recusal rule in SQL, so a
 // case about the person looking never arrives here, and this page keeps no count of anything it did not
 // receive. The list shows no summary text; a row is opened to be read.
-function CasesPage({ af, showToast, t, allStaff = [], user }) {
+function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
   const statusLabel = { open: "Open", in_review: "In review", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
@@ -8799,7 +8814,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user }) {
     try {
       const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body });
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" });
-      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id);
+      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
   };
@@ -8811,7 +8826,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user }) {
     try {
       const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } });
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo("");
-      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id);
+      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) { setHoldError(e.message || "Request failed"); }
     setHoldBusy(false);
   };
