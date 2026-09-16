@@ -1,6 +1,12 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { applyCanonicalRedirect } from './canonicalRedirect';
 import App from './App';
+import InstallPrompt from './InstallPrompt';
+
+// One address. When the build names a canonical origin and a host to move away from, a page served
+// from that exact host is sent to the same path on the canonical origin before anything renders.
+applyCanonicalRedirect();
 
 // Catches an exception thrown during render anywhere below it, so one bad response or one bad
 // line no longer unmounts the whole application. It imports nothing from App.js on purpose: a
@@ -38,4 +44,14 @@ class RootErrorBoundary extends React.Component {
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<React.StrictMode><RootErrorBoundary><App /></RootErrorBoundary></React.StrictMode>);
+// InstallPrompt sits beside App, so the "add to home screen" sheet appears on every screen
+// including sign-in, and a render error inside the app never takes the sheet down with it.
+root.render(<React.StrictMode><RootErrorBoundary><App /></RootErrorBoundary><InstallPrompt /></React.StrictMode>);
+
+// Production only. The worker at public/sw.js caches nothing; it exists so Android browsers
+// offer to install the app. Registration failure is silent: the app works the same without it.
+if (process.env.NODE_ENV === 'production' && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(process.env.PUBLIC_URL + '/sw.js').catch(() => {});
+  });
+}
