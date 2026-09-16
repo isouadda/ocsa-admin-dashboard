@@ -1,6 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { applyCanonicalRedirect } from './canonicalRedirect';
 import App from './App';
+
+// One address. When the build names a canonical origin and a host to move away from, a page served
+// from that exact host is sent to the same path on the canonical origin before anything renders.
+applyCanonicalRedirect();
 
 // Catches an exception thrown during render anywhere below it, so one bad response or one bad
 // line no longer unmounts the whole application. It imports nothing from App.js on purpose: a
