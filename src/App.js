@@ -28,7 +28,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help"];
 const pageFromHash = () => { const h = window.location.hash.replace(/^#/, ""); return PAGE_IDS.includes(h) ? h : "overview"; };
 function dlCSV(fn, hds, rows) {
   const csv = [hds.join(","), ...rows.map(r => r.map(c => '"' + String(c || "").replace(/"/g, '""') + '"').join(","))].join("\n");
@@ -318,6 +318,7 @@ export default function AdminDashboard() {
   const ClpI = p => <Ic d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 12l2 2 4-4" {...p} />;
   const CalI = p => <Ic d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18" {...p} />;
   const FmI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" {...p} />;
+  const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: "Dashboard", i: HmI }] },
@@ -341,10 +342,10 @@ export default function AdminDashboard() {
     { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
     ...(isAdmin ? [{ label: "Integrations", items: [{ id: "forms", l: "Forms", i: FmI }] }] : []),
     ...(isAdmin ? [{ label: null, items: [{ id: "settings", l: "Settings", i: StgI }] }] : []),
-    { label: null, items: [{ id: "chat", l: "Messages", i: ChI }] },
+    { label: null, items: [{ id: "chat", l: "Messages", i: ChI }, { id: "help", l: "Help", i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings", cases: "Cases" };
+  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings", cases: "Cases", help: "Help" };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -517,6 +518,7 @@ export default function AdminDashboard() {
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
+        {page === "help" && <HelpPage af={af} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} />}
         {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} />}
@@ -2197,6 +2199,153 @@ function ChatPage({ af, user, t }) {
             <button onClick={send} style={{ width: 40, height: 40, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
           </div>
         </>)}
+      </div>
+    </Crd>
+  </div>);
+}
+// ===== HELP: the assistant the staff portal's Help tab talks to. Same four requests, same screen. =====
+// AGENT_HELPERS_START (pure helpers, no React, so they can run as a script against fixtures)
+const agentPick = (row, keys) => { for (const k of keys) { if (row && row[k] !== undefined && row[k] !== null) return row[k]; } return undefined; };
+const agentListFrom = (res, keys) => { if (Array.isArray(res)) return res; if (res && typeof res === "object") { for (const k of keys) { if (Array.isArray(res[k])) return res[k]; } } return []; };
+const agentDraftFrom = (row) => ({
+  id: agentPick(row, ["id", "formResponseId", "form_response_id"]),
+  name: agentPick(row, ["formName", "formTitle", "form_name", "title", "formCode", "form_code"]) || "Report",
+  answered: agentPick(row, ["answered", "answeredCount", "answered_count"]),
+  remaining: agentPick(row, ["remaining", "remainingCount", "remaining_count"]),
+  conversationId: agentPick(row, ["conversationId", "conversation_id"]),
+  formCode: agentPick(row, ["formCode", "form_code"]),
+  status: agentPick(row, ["status"]) || "draft",
+  nextQuestion: agentPick(row, ["nextQuestion", "next_question"]),
+});
+const agentAnsweredLine = (answered, remaining) => (answered === undefined || answered === null || remaining === undefined || remaining === null) ? "" : Number(answered) + " of " + (Number(answered) + Number(remaining)) + " answered";
+const agentMessageFrom = (m, i) => {
+  const role = String(agentPick(m, ["role", "sender"]) || "").toLowerCase() === "user" ? "user" : "assistant";
+  const cited = agentPick(m, ["citedDocs", "cited_doc_codes", "citedDocCodes"]);
+  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
+};
+const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
+const agentMissingFrom = (err) => { const b = err && err.body; const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]); return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null; };
+// AGENT_HELPERS_END
+function HelpPage({ af, showToast, t }) {
+  const [drafts, setDrafts] = useState([]);
+  const [thread, setThread] = useState([]);
+  const [conversationId, setConversationId] = useState(null);
+  const [formResponse, setFormResponse] = useState(null);
+  const [missing, setMissing] = useState(null);
+  const [submitted, setSubmitted] = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const busy = sending || submitting || resuming;
+  const endRef = useRef(null);
+  const composerRef = useRef(null);
+  const seq = useRef(0);
+  const convRef = useRef(null);
+  convRef.current = conversationId;
+
+  const loadDrafts = useCallback(async () => {
+    try { const res = await af("/api/agent/drafts"); setDrafts(agentListFrom(res, ["drafts", "items", "rows"]).map(agentDraftFrom)); }
+    catch (e) { console.warn("Help drafts:", e.message); setDrafts([]); }
+  }, [af]);
+  useEffect(() => { loadDrafts(); }, [loadDrafts]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread.length, sending]);
+
+  const patchMsg = (id, patch) => setThread(p => p.map(m => m.id === id ? { ...m, ...patch } : m));
+
+  const sendText = async (id, body) => {
+    if (busy) return;
+    setSending(true);
+    patchMsg(id, { status: "sending", error: "" });
+    try {
+      const payload = { text: body }; if (convRef.current) payload.conversationId = convRef.current;
+      const d = await af("/api/agent/message", { method: "POST", body: payload });
+      const r = d || {};
+      if (r.conversationId) setConversationId(r.conversationId);
+      const reply = { id: "a" + (++seq.current), role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
+      if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
+      setThread(p => [...p.map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
+      setText(cur => cur === body ? "" : cur);
+    } catch (e) {
+      patchMsg(id, { status: "failed", error: e.message || "Request failed" });
+    } finally { setSending(false); }
+  };
+  const send = () => {
+    const body = text; if (!body.trim() || busy) return;
+    const id = "u" + (++seq.current);
+    setThread(p => [...p, { id, role: "user", text: body, status: "sending", error: "" }]);
+    sendText(id, body);
+  };
+  const retry = (m) => sendText(m.id, m.text);
+
+  const resume = async (d) => {
+    if (busy) return;
+    setFormResponse({ id: d.id, formName: d.name, answered: d.answered, remaining: d.remaining, formCode: d.formCode, status: d.status, nextQuestion: d.nextQuestion });
+    setMissing(null); setSubmitted(false);
+    if (!d.conversationId) { setConversationId(null); setTimeout(() => composerRef.current?.querySelector("textarea")?.focus(), 0); return; }
+    setResuming(true);
+    try {
+      const res = await af("/api/agent/conversations/" + encodeURIComponent(d.conversationId));
+      setThread(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom));
+      setConversationId(d.conversationId);
+    } catch (e) { showToast(e.message || "Request failed", "error"); }
+    finally { setResuming(false); setTimeout(() => composerRef.current?.querySelector("textarea")?.focus(), 0); }
+  };
+
+  const submit = async () => {
+    if (!formResponse || busy) return;
+    setSubmitting(true); setMissing(null);
+    try {
+      await af("/api/agent/drafts/" + encodeURIComponent(formResponse.id) + "/submit", { method: "POST" });
+      setFormResponse(null); setSubmitted(true); loadDrafts();
+    } catch (e) {
+      const list = agentMissingFrom(e);
+      setMissing(list && list.length ? list : [e.message || "Request failed"]);
+    } finally { setSubmitting(false); }
+  };
+
+  const visibleDrafts = drafts.filter(d => !(formResponse && d.id !== undefined && String(d.id) === String(formResponse.id)));
+  const cardName = formResponse ? (agentDraftFrom(formResponse).name) : "";
+  const cardLine = formResponse ? agentAnsweredLine(agentPick(formResponse, ["answered", "answeredCount", "answered_count"]), agentPick(formResponse, ["remaining", "remainingCount", "remaining_count"])) : "";
+  const canSubmit = !!formResponse && !busy && !(Number(formResponse.remaining) > 0);
+  const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
+
+  return (<div>
+    <SecT t={t}>Help</SecT>
+    {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12 }}>
+      <Lbl>Unfinished reports</Lbl>
+      {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining); return (
+        <div key={d.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid " + t.border }}>
+          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{d.name}</div>{line && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{line}</div>}</div>
+          <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>Resume</Btn>
+        </div>); })}
+    </Crd>}
+    {formResponse && <Crd t={t} style={{ marginBottom: 12 }}>
+      <Lbl>Report in progress</Lbl>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 160 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{cardName}</div>{cardLine && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{cardLine}</div>}</div>
+        <Btn t={t} onClick={submit} disabled={!canSubmit} style={{ minHeight: 44, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? "pointer" : "default" }}>{submitting ? "Submitting..." : "Submit report"}</Btn>
+      </div>
+      {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>Still needed before you can submit:</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
+    </Crd>}
+    {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>Report submitted.</div>}
+    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh - 168px)", minHeight: 360 }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
+        {thread.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Tell me what happened and I will tell you what to do.</div>}
+        {thread.map(m => { const isMe = m.role === "user"; return (
+          <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
+            <div style={{ maxWidth: "75%", minWidth: 0 }}>
+              <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>{m.text}</div>
+              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Based on {m.citedDocs.join(", ")}</div>}
+              {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Working from the written procedure only right now.</div>}
+              {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>Not sent. {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Retry</button></div>}
+            </div>
+          </div>); })}
+        <div ref={endRef} />
+      </div>
+      <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border, alignItems: "flex-end" }}>
+        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} disabled={busy} rows={1} placeholder="Describe what happened" aria-label="Describe what happened" style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
+        <button onClick={send} aria-label="Send" disabled={busy || !text.trim()} style={{ width: 44, height: 44, borderRadius: "50%", background: (!busy && text.trim()) ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: (!busy && text.trim()) ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={(!busy && text.trim()) ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
   </div>);
