@@ -4190,6 +4190,15 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 }
 
 // ===== SCHEDULE PAGE =====
+// ===== WEEKLY PATTERNS: a standing pattern the API keeps and refills ahead =====
+const PATTERN_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const PATTERN_DAY_LABELS = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
+const patternDays = (days) => (Array.isArray(days) ? days : []).slice().sort((a, b) => PATTERN_DAY_KEYS.indexOf(a) - PATTERN_DAY_KEYS.indexOf(b)).map(d => PATTERN_DAY_LABELS[d] || d).join(", ");
+const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); let h = Number(m[1]); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + m[2] + " " + ap; };
+const patternHours = (p) => patternTime(p.startTime) + " to " + patternTime(p.endTime) + (p.overnight ? " ends next day" : "");
+const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
+
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const SERVICE_CATS = [{ v: "", l: "No specific service" }, ...getOpts("service_categories")];
   const [view, setView] = useState("week");
@@ -4213,6 +4222,10 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [schedSupervisors, setSchedSupervisors] = useState([]);
   const [pickupDetail, setPickupDetail] = useState(null);
   const [pickerSearch, setPickerSearch] = useState("");
+  const [patternError, setPatternError] = useState("");
+  const [patternConflictId, setPatternConflictId] = useState("");
+  const [patternSkipped, setPatternSkipped] = useState(null);
+  const [patternsRefresh, setPatternsRefresh] = useState(0);
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -4349,13 +4362,40 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
     setCreateForm({ userId: userId || "", siteId: sId, startTime: "08:00", endTime: "16:00", notes: "", buildingName: "", floorNumber: "", serviceCategory: "", repeat: false, repeatDays: [dayOfWeek], repeatMode: "weeks", repeatWeeks: 4, repeatUntil: "" });
     if (sId) loadSiteLocations(sId);
     setPickerSearch("");
+    setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     setCreateModal({ date, userId });
   };
   const toggleRepeatDay = (dayNum) => { setCreateForm(prev => { const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum]; return { ...prev, repeatDays: days }; }); };
 
   const submitCreate = async () => {
     if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) { showToast("Staff, site, start time, and end time are required", "error"); return; }
+    setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     try {
+      // A repeat with no end, or one that runs until a date, is a pattern the API keeps and refills.
+      // "For X weeks" still writes each shift once through /bulk, exactly as before.
+      if (createForm.repeat && createForm.repeatDays.length > 0 && createForm.repeatMode !== "weeks") {
+        const body = {
+          userId: createForm.userId, siteId: createForm.siteId,
+          days: createForm.repeatDays.slice().sort((a, b) => a - b).map(d => PATTERN_DAY_KEYS[d]),
+          startTime: createForm.startTime, endTime: createForm.endTime, startsOn: createModal.date,
+        };
+        if (createForm.repeatMode === "until" && createForm.repeatUntil) body.endsOn = createForm.repeatUntil;
+        if (createForm.buildingName) body.buildingName = createForm.buildingName;
+        if (createForm.floorNumber) body.floorNumber = createForm.floorNumber;
+        if (createForm.serviceCategory) body.serviceCategory = createForm.serviceCategory;
+        if (createForm.notes) body.notes = createForm.notes;
+        try {
+          const r = await af("/api/schedule/patterns", { method: "POST", body });
+          showToast("Pattern saved. " + (Number(r && r.created) || 0) + " shifts added through " + patternDate(r && r.pattern && r.pattern.generatedThrough) + ".");
+          loadCalendar(); setPatternsRefresh(n => n + 1);
+          if (Number(r && r.skippedCount) > 0) { setPatternSkipped(Array.isArray(r.skipped) ? r.skipped : []); return; }
+          setCreateModal(null);
+        } catch (e) {
+          setPatternError(e.message || "Request failed");
+          setPatternConflictId(e && e.body && e.body.patternId ? String(e.body.patternId) : "");
+        }
+        return;
+      }
       if (createForm.repeat && createForm.repeatDays.length > 0) {
         const body = { user_id: createForm.userId, site_id: createForm.siteId, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined, repeat_days: createForm.repeatDays, start_date: createModal.date };
         if (createForm.repeatMode === "until" && createForm.repeatUntil) body.repeat_until = createForm.repeatUntil; else body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
@@ -4548,7 +4588,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
       <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: createForm.repeat ? 12 : 0 }}>
-          <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c={NAVY} />}</button>
+          <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat, repeatMode: !createForm.repeat ? "none" : createForm.repeatMode })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c={NAVY} />}</button>
           <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Repeat this shift</span>
         </div>
         {createForm.repeat && (<div>
@@ -4561,7 +4601,15 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
             {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>weeks</span></>)}
             <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
             {createForm.repeatMode === "until" && <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />}
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "none" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "none" ? 700 : 500, background: createForm.repeatMode === "none" ? t.goldBg : "transparent", color: createForm.repeatMode === "none" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "none" ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>No end date</button>
           </div>
+          {createForm.repeatMode === "none" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.</div>}
+          {patternError && <div style={{ fontSize: 12, color: RD, marginTop: 10 }}>{patternError}</div>}
+          {patternSkipped && <div style={{ fontSize: 12, color: t.text, marginTop: 10 }}>
+            <div style={{ color: OR, fontWeight: 600, marginBottom: 4 }}>{patternSkipped.length} dates were skipped because this person is already scheduled at that time:</div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>{patternSkipped.map((sk, i) => <li key={i}>{patternDate(sk.date)}</li>)}</ul>
+            <div style={{ marginTop: 8 }}><Btn t={t} onClick={() => { setPatternSkipped(null); setCreateModal(null); }} style={{ minHeight: 44 }}>Done</Btn></div>
+          </div>}
         </div>)}
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>{createForm.repeat ? "Schedule All" : "Schedule Shift"}</Btn></div>
