@@ -553,7 +553,7 @@ export default function AdminDashboard() {
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
@@ -4381,7 +4381,78 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
   </div>);
 }
 
-function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
+// ===== TIME OFF: what staff asked for, and the decision the approver makes =====
+// Every YYYY-MM-DD is split into its parts and built as a local date. Handing the string to
+// new Date() reads it as UTC midnight, which is the evening before in Philadelphia, so every
+// date would show a day early. Times are read the same way, by arithmetic, with no Date at all.
+const timeOffLocal = (ymd) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null; };
+const timeOffDate = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""; };
+const timeOffDayMonth = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""; };
+const timeOffWeekday = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""; };
+// One day, one date. Inside a year, the year is said once at the end. Across years, both carry it.
+const timeOffDates = (startsOn, endsOn) => {
+  const s = String(startsOn || ""); const e = String(endsOn || "") || s;
+  if (!s) return "";
+  if (s === e) return timeOffDate(s);
+  if (s.slice(0, 4) === e.slice(0, 4)) return timeOffDayMonth(s) + " to " + timeOffDate(e);
+  return timeOffDate(s) + " to " + timeOffDate(e);
+};
+const timeOffTimes = (r) => r && r.partDay && r.startTime && r.endTime ? patternTime(r.startTime) + " to " + patternTime(r.endTime) : "All day";
+const timeOffHours = (h) => { if (h == null || h === "") return "Not given"; const n = Number(h); if (!isFinite(n)) return "Not given"; return (Math.round(n * 100) / 100) + (n === 1 ? " hour" : " hours"); };
+const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+const TIME_OFF_STATUS_LABELS = { requested: "Requested", approved: "Approved", denied: "Denied", cancelled: "Cancelled" };
+const timeOffStatus = (s) => TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || "");
+const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), patternTime(sh.startTime) + " to " + patternTime(sh.endTime), sh.siteName].filter(Boolean).join(", ");
+const TIME_OFF_LIMIT = 200;
+const timeOffQuery = (status, userId) => "/api/time-off?status=" + encodeURIComponent(status) + "&limit=" + TIME_OFF_LIMIT + (userId ? "&userId=" + encodeURIComponent(userId) : "");
+const TIME_OFF_ORDER_NOTE = "Soonest first. Deciding a request leaves the schedule as it is.";
+const TIME_OFF_CAPPED = "Showing the first " + TIME_OFF_LIMIT + ". Choose a person to narrow the list.";
+
+// The list of requests, with the status buttons and the person picker above it. Every change of a
+// filter is one call. A refused call puts the API's words where the table would be and leaves the
+// filters working, so the person can try another status without reloading the page.
+function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState("requested");
+  const [userId, setUserId] = useState("");
+
+  const load = useCallback(async () => {
+    setLoading(true); setError("");
+    try { const d = await af(timeOffQuery(status, userId)); setRows(d && Array.isArray(d.requests) ? d.requests : []); }
+    catch (e) { setRows([]); setError(e.message || "Request failed"); }
+    setLoading(false);
+  }, [af, status, userId]);
+  useEffect(() => { load(); }, [load]);
+
+  const columns = [
+    { header: "Person", render: r => <span style={{ color: t.text }}>{r.userName}</span> },
+    { header: "Type", tdStyle: { color: t.textSec }, render: r => r.leaveTypeLabel },
+    { header: "Dates", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
+    { header: "Time", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
+    { header: "Hours", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
+    { header: "Shifts", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => Array.isArray(r.shifts) && r.shifts.length > 0 ? r.shifts.length : "None" },
+    { header: "Status", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffStatus(r.status) },
+    { header: "Asked", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
+  ];
+  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>;
+  const empty = status === "requested" ? "No time off is waiting for a decision." : "No time off requests to show.";
+
+  return (<div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{statusBtn("requested", "Requested")}{statusBtn("approved", "Approved")}{statusBtn("denied", "Denied")}{statusBtn("cancelled", "Cancelled")}{statusBtn("all", "All")}</div>
+      <Sel t={t} aria-label="Person" value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: "Everyone" }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+    </div>
+    {status === "requested" && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{TIME_OFF_ORDER_NOTE}</div>}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading time off...</div>}
+    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} empty={empty} />}
+    {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{TIME_OFF_CAPPED}</div>}
+  </div>);
+}
+
+function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
   const SERVICE_CATS = [{ v: "", l: "No specific service" }, ...getOpts("service_categories")];
   const [view, setView] = useState("week");
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
@@ -4409,6 +4480,16 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
   const [patternSkipped, setPatternSkipped] = useState(null);
   const [patternsRefresh, setPatternsRefresh] = useState(0);
   const [patternOpenId, setPatternOpenId] = useState(null);
+  // Time off. One quiet call when the page opens decides whether this person is offered the view:
+  // a 200 means they hold the capability and the count is what is waiting, and any other answer,
+  // a 403 without it or a 404 before the routes are live, leaves the page exactly as it was.
+  const [timeOffWaiting, setTimeOffWaiting] = useState(null);
+  const myId = user && user.id != null ? String(user.id) : "";
+  const loadTimeOffCount = useCallback(async () => {
+    try { const d = await af(timeOffQuery("requested", "")); setTimeOffWaiting(Array.isArray(d && d.requests) ? d.requests.length : 0); }
+    catch (e) { setTimeOffWaiting(null); }
+  }, [af]);
+  useEffect(() => { loadTimeOffCount(); }, [loadTimeOffCount]);
 
   const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -4724,11 +4805,13 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkM
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
         <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>Patterns</button>
+        {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? "Time off (" + timeOffWaiting + ")" : "Time off"}</button>}
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
       </div>
     </div>
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
-    {view !== "patterns" && <>
+    {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} />}
+    {view !== "patterns" && view !== "timeoff" && <>
     {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
