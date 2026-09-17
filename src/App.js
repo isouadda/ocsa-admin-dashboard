@@ -4408,6 +4408,103 @@ const timeOffQuery = (status, userId) => "/api/time-off?status=" + encodeURIComp
 const TIME_OFF_ORDER_NOTE = "Soonest first. Deciding a request leaves the schedule as it is.";
 const TIME_OFF_CAPPED = "Showing the first " + TIME_OFF_LIMIT + ". Choose a person to narrow the list.";
 
+const TIME_OFF_SHIFT_NOTE = "Deciding this request leaves these shifts as they are. Change or cover them on the schedule.";
+const TIME_OFF_OWN = "Someone else has to decide your own request.";
+const TIME_OFF_NOTE_HINT = "The person reads your note in the app. Their notice shows only the dates.";
+const TIME_OFF_NOTE_REQUIRED = "Add a note saying why";
+
+// One request, opened from a row, in the same shell as the Pattern window. Approve and Deny are the
+// only things it sends. A refusal is shown in the window word for word and nothing closes, so the
+// person can read it and try again. A decision that lost a race, answered 409, reloads the request
+// so the window shows what is true now.
+function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
+  const [req, setReq] = useState(seed);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [noteError, setNoteError] = useState("");
+  const sending = useRef(false);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const reload = async () => {
+    try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); }
+    catch (e) { setError(e.message || "Request failed"); }
+  };
+  // One send at a time. The ref closes the gap before the disabled buttons redraw, so a double
+  // click is one request.
+  const decide = async (kind) => {
+    if (sending.current) return;
+    const trimmed = note.trim();
+    if (kind === "deny" && !trimmed) { setNoteError(TIME_OFF_NOTE_REQUIRED); return; }
+    sending.current = true; setBusy(true); setError(""); setNoteError("");
+    try {
+      const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body: trimmed ? { note: trimmed } : {} });
+      if (d && d.request) setReq(d.request);
+      setNote("");
+      showToast(kind === "deny" ? "Time off denied. They get a notice in the app." : "Time off approved. They get a notice in the app.");
+      if (onDecided) onDecided();
+    } catch (e) {
+      setError(e.message || "Request failed");
+      if (e.status === 409) { await reload(); if (onDecided) onDecided(); }
+    }
+    sending.current = false; setBusy(false);
+  };
+
+  const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 86, flexShrink: 0, color: t.textMut }}>{label}</span><span style={{ color: t.text, minWidth: 0 }}>{value}</span></div>;
+  const shifts = Array.isArray(req.shifts) ? req.shifts : [];
+  const decided = req.status === "approved" || req.status === "denied";
+  const mine = !!myId && req.userId != null && String(req.userId) === myId;
+
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Time off request</div>
+      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ marginBottom: 14 }}>
+      {row("Person", req.userName)}
+      {row("Type", req.leaveTypeLabel)}
+      {row("Dates", timeOffDates(req.startsOn, req.endsOn))}
+      {req.partDay ? row("Time", timeOffTimes(req)) : null}
+      {row("Hours", timeOffHours(req.hours))}
+      {row("Status", timeOffStatus(req.status))}
+      {row("Asked", timeOffMoment(req.createdAt))}
+      {row("Reason", req.reason ? String(req.reason) : "No reason given")}
+    </div>
+    <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <Lbl>Shifts on these days</Lbl>
+      {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>No shifts on these days.</div>}
+      {shifts.map((sh, i) => <div key={sh.id || i} style={{ fontSize: 12, color: t.text, marginBottom: 4 }}>{timeOffShiftLine(sh)}{sh.status && sh.status !== "scheduled" ? <span style={{ color: t.textMut }}> {sh.status}</span> : null}</div>)}
+      {shifts.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{TIME_OFF_SHIFT_NOTE}</div>}
+    </div>
+    {decided && <div style={{ marginBottom: 14 }}>
+      {row("Decided by", req.decidedByName || "")}
+      {row("Decided", timeOffMoment(req.decidedAt))}
+      {row("Note", req.decisionNote ? String(req.decisionNote) : "No note")}
+    </div>}
+    {req.status === "cancelled" && <div style={{ marginBottom: 14, fontSize: 12, color: t.text }}>
+      <div style={{ marginBottom: 4 }}>Cancelled by the person who asked</div>
+      <div style={{ color: t.textSec }}>{timeOffMoment(req.cancelledAt)}</div>
+    </div>}
+    {req.status === "requested" && mine && <div style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{TIME_OFF_OWN}</div>}
+    {req.status === "requested" && !mine && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <Lbl>Note</Lbl>
+      <TArea t={t} rows={3} aria-label="Note" value={note} onChange={e => { setNote(e.target.value); if (noteError) setNoteError(""); }} placeholder="Optional when approving. Required when denying." />
+      {noteError && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{noteError}</div>}
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 10 }}>{TIME_OFF_NOTE_HINT}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} onClick={() => decide("approve")} disabled={busy} style={{ minHeight: 44 }}>Approve</Btn>
+        <Btn t={t} v="danger" onClick={() => decide("deny")} disabled={busy} style={{ minHeight: 44 }}>Deny</Btn>
+      </div>
+    </div>}
+    {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+  </div></Mdl>);
+}
+
 // The list of requests, with the status buttons and the person picker above it. Every change of a
 // filter is one call. A refused call puts the API's words where the table would be and leaves the
 // filters working, so the person can try another status without reloading the page.
@@ -4417,6 +4514,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
   const [error, setError] = useState("");
   const [status, setStatus] = useState("requested");
   const [userId, setUserId] = useState("");
+  const [open, setOpen] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -4447,8 +4545,9 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
     {status === "requested" && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{TIME_OFF_ORDER_NOTE}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading time off...</div>}
     {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
-    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} empty={empty} />}
+    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(r)} empty={empty} />}
     {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{TIME_OFF_CAPPED}</div>}
+    {open && <TimeOffWindow af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => setOpen(null)} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
   </div>);
 }
 
