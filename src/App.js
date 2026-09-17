@@ -2269,6 +2269,8 @@ const agentMissingFrom = (err) => { const b = err && err.body; const arr = b && 
 const agentInlineParts = (line) => { const parts = []; let rest = String(line); while (rest.length) { const a = rest.indexOf("**"); const b = a < 0 ? -1 : rest.indexOf("**", a + 2); if (a < 0 || b < 0) { parts.push({ bold: false, text: rest }); break; } if (a > 0) parts.push({ bold: false, text: rest.slice(0, a) }); parts.push({ bold: true, text: rest.slice(a + 2, b) }); rest = rest.slice(b + 2); } return parts; };
 const agentReplyParts = (text) => String(text == null ? "" : text).split(/\r?\n/).map(line => { const m = line.match(/^\s*(\d{1,2})\.\s+(.+)$/); return m ? { step: Number(m[1]), parts: agentInlineParts(m[2]) } : { step: null, parts: agentInlineParts(line) }; });
 // AGENT_HELPERS_END
+// Which app a Help message comes from, so the answer gives steps for this app.
+const AGENT_APP = "dashboard";
 const AGENT_MAX_PHOTOS = 3;
 const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const AGENT_PHOTO_MAX_EDGE = 1568;
@@ -2369,13 +2371,13 @@ function HelpPage({ af, uf, showToast, t }) {
     if (files.length) { e.preventDefault(); addFiles(files); }
   };
 
-  // Step two of the contract: POST /api/agent/message with text, photoPaths in thumbnail order, and the conversation id.
+  // Step two of the contract: POST /api/agent/message with text, the app name, photoPaths in thumbnail order, and the conversation id.
   const sendText = async (id, body, paths, keys) => {
     if (busy) return;
     setSending(true);
     patchMsg(id, { status: "sending", error: "" });
     try {
-      const payload = { text: body }; if (paths && paths.length) payload.photoPaths = paths; if (convRef.current) payload.conversationId = convRef.current;
+      const payload = { text: body, app: AGENT_APP }; if (paths && paths.length) payload.photoPaths = paths; if (convRef.current) payload.conversationId = convRef.current;
       const d = await af("/api/agent/message", { method: "POST", body: payload });
       const r = d || {};
       if (r.conversationId) setConversationId(r.conversationId);
