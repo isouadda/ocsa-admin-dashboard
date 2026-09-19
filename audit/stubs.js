@@ -1,0 +1,881 @@
+// Every API call the dashboard makes is answered here, and nowhere else. The audit lets no request
+// reach the network: a call with no rule below is answered with an empty shape and recorded, so a
+// gap shows up in the run rather than hanging.
+//
+// Values are invented. Shapes follow the real contracts, read off the call sites in src/App.js.
+"use strict";
+const seed = require("./seed");
+
+const clone = (v) => JSON.parse(JSON.stringify(v));
+const S = seed.SITES;
+
+// A refusal the API can answer with. cases/refusals.js arms one at a time.
+// { method, path (substring or RegExp), status, code, error, once }
+function createStubs() {
+  const calls = [];
+  let refusals = [];
+  let signedInAs = "admin";
+  const state = {
+    staff: clone(seed.STAFF),
+    sites: clone(seed.SITES),
+    issues: clone(seed.ISSUES),
+    supplies: null,
+    supplyRequests: null,
+    pickups: null,
+    schedule: null,
+    patterns: null,
+    timeOff: null,
+    overrides: {},
+    lookupValues: null,
+    notifications: null,
+  };
+
+  const person = () => seed.PEOPLE[signedInAs];
+
+  // -------------------------------------------------------------------------
+  // Fixtures built once per run.
+  // -------------------------------------------------------------------------
+  const LOOKUPS = [
+    { id: "lk-1", slug: "cims_categories", name: "Service categories", values: [
+      { id: "lv-1", value: "SD", label: "Service Delivery", is_active: true, sort_order: 1, color: "#24A4F4" },
+      { id: "lv-2", value: "HSE", label: "Health, Safety and Environment", is_active: true, sort_order: 2, color: "#F39C12" },
+      { id: "lv-3", value: "GB", label: "Green Buildings", is_active: true, sort_order: 3, color: "#2ECC71" },
+    ] },
+    { id: "lk-2", slug: "supply_categories", name: "Supply categories", values: [
+      { id: "lv-4", value: "chemical", label: "Chemical", is_active: true, sort_order: 1 },
+      { id: "lv-5", value: "consumable", label: "Consumable", is_active: true, sort_order: 2 },
+      { id: "lv-6", value: "tool", label: "Tool", is_active: true, sort_order: 3, show_other_input: true },
+    ] },
+    { id: "lk-3", slug: "supply_units", name: "Supply units", values: [
+      { id: "lv-7", value: "each", label: "Each", is_active: true, sort_order: 1 },
+      { id: "lv-8", value: "case", label: "Case", is_active: true, sort_order: 2 },
+      { id: "lv-9", value: "gallon", label: "Gallon", is_active: true, sort_order: 3 },
+    ] },
+    { id: "lk-4", slug: "issue_severities", name: "Issue severities", values: [
+      { id: "lv-10", value: "high", label: "High", is_active: true, sort_order: 1, color: "#E74C3C" },
+      { id: "lv-11", value: "medium", label: "Medium", is_active: true, sort_order: 2, color: "#F39C12" },
+      { id: "lv-12", value: "low", label: "Low", is_active: true, sort_order: 3, color: "#2ECC71" },
+    ] },
+    { id: "lk-5", slug: "zones", name: "Zones", values: [
+      { id: "lv-13", value: "Lobby", label: "Lobby", is_active: true, sort_order: 1 },
+      { id: "lv-14", value: "Restroom", label: "Restroom", is_active: true, sort_order: 2 },
+      { id: "lv-15", value: "Dock", label: "Dock", is_active: true, sort_order: 3 },
+    ] },
+    { id: "lk-6", slug: "leave_types", name: "Leave types", values: [
+      { id: "lv-16", value: "vacation", label: "Vacation", is_active: true, sort_order: 1 },
+      { id: "lv-17", value: "sick", label: "Sick", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-7", slug: "task_priorities", name: "Task priorities", values: [
+      { id: "lv-18", value: "standard", label: "Standard", is_active: true, sort_order: 1 },
+      { id: "lv-19", value: "urgent", label: "Urgent", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-8", slug: "document_categories", name: "Document categories", values: [
+      { id: "lv-20", value: "training", label: "Training", is_active: true, sort_order: 1 },
+      { id: "lv-21", value: "compliance", label: "Compliance", is_active: true, sort_order: 2 },
+      { id: "lv-22", value: "other", label: "Other", is_active: true, sort_order: 3 },
+    ] },
+  ];
+
+  const SUPPLIES = [
+    { id: "sp-1", name: "Neutral floor cleaner", category: "chemical", unit: "gallon", current_stock: 44, low_threshold: 10, cost_per_unit: 27.50, is_green_certified: true, green_cert_type: "Third-party", epa_reg_number: "EPA-11-204", qr_code: "QR-SP1", is_active: true },
+    { id: "sp-2", name: "Microfiber cloth pack", category: "tool", unit: "case", current_stock: 8, low_threshold: 12, cost_per_unit: 14.68, is_green_certified: false, qr_code: "QR-SP2", is_active: true },
+    { id: "sp-3", name: "Can liner 40x46", category: "consumable", unit: "case", current_stock: 90, low_threshold: 20, cost_per_unit: 8.24, is_green_certified: false, qr_code: "QR-SP3", is_active: true },
+    { id: "sp-4", name: "Hand soap refill", category: "consumable", unit: "each", current_stock: 35, low_threshold: 15, cost_per_unit: 17.43, is_green_certified: true, green_cert_type: "Third-party", epa_reg_number: "EPA-11-311", qr_code: "QR-SP4", is_active: true },
+  ];
+
+  const SUPPLY_REQUESTS = [
+    { id: "sr-1", supply_name: "Can liner 40x46", supply_id: "sp-3", quantity: 6, unit: "case", status: "pending", requested_by_name: "Tomasz Wisniewski", site_name: S[0].name, notes: "Dock run is short.", requested_at: seed.shift(-1) + "T13:00:00Z", admin_notes: null },
+    { id: "sr-2", supply_name: "Hand soap refill", supply_id: "sp-4", quantity: 4, unit: "each", status: "pending", requested_by_name: "Ngozi Okonkwo", site_name: S[1].name, notes: "", requested_at: seed.shift(-2) + "T09:30:00Z", admin_notes: null },
+    { id: "sr-3", supply_name: "Mop head 24oz", supply_id: "sp-7", quantity: 10, unit: "each", status: "fulfilled", requested_by_name: "Elena Barbosa", site_name: S[2].name, notes: "", requested_at: seed.shift(-11) + "T15:45:00Z", admin_notes: "Delivered." },
+  ];
+
+  const VENDORS = [
+    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
+    { id: "v-2", name: "Brightwater Equipment", status: "approved", category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
+    { id: "v-3", name: "Kestrel Paper Co", status: "pending", category: "consumable", contact_name: "S. Nakamura", contact_email: "hello@kestrelpaper.example.invalid", contact_phone: "2155559003", insurance_expiry: seed.shift(-14), w9_on_file: false, avg_rating: null, evaluation_count: 0, city: "Fairhaven", state: "PA" },
+  ];
+  // hand: 3 vendors, 2 approved. The approved-vendor export writes 2 rows plus a header.
+
+  const SERVICES = [
+    { id: "sv-1", name: "Daily janitorial", slug: "daily-janitorial", description: "Nightly cleaning of occupied floors.", rate_structure: "Per square foot, monthly", required_certifications: "Bloodborne pathogen awareness", cims_category: "SD", linked_sites: 3, is_active: true },
+    { id: "sv-2", name: "Floor restoration", slug: "floor-restoration", description: "Strip, seal and finish hard floors.", rate_structure: "Per project", required_certifications: "Machine operation", cims_category: "GB", linked_sites: 2, is_active: true },
+  ];
+
+  const PICKUPS = [
+    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, posted_at: seed.shift(-1) + "T14:00:00Z" },
+    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", assigned_to_name: null, posted_at: seed.shift(-2) + "T10:00:00Z" },
+    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
+    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", assigned_to_name: null, posted_at: seed.shift(-6) + "T12:00:00Z" },
+  ];
+  // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1.
+
+  const PICKUP_ANALYTICS = {
+    summary: { open_count: 1, fill_rate: 75, avg_time_to_fill_minutes: 95, callout_count: 2, no_show_count: 1, posted_count: 4, filled_count: 3 },
+    // hand: filled 3 of posted 4 = 75 percent, which is fill_rate.
+  };
+
+  const SCHEDULE = [
+    { id: "sh-1", user_id: "u-staff-5", user_name: "Tomasz Wisniewski", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(0), start_time: "18:00", end_time: "02:00", status: "scheduled", building_name: "North Wing", floor_number: "3", notes: "", pattern_id: null, crosses_midnight: true },
+    { id: "sh-2", user_id: "u-staff-6", user_name: "Ngozi Okonkwo", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(0), start_time: "06:00", end_time: "14:00", status: "scheduled", building_name: "Clinic", floor_number: "1", notes: "", pattern_id: "pt-1" },
+    { id: "sh-3", user_id: "u-staff-7", user_name: "Elena Barbosa", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "scheduled", building_name: "Dock A", floor_number: "1", notes: "", pattern_id: null, crosses_midnight: true },
+    { id: "sh-4", user_id: "u-staff-8", user_name: "Rashid Haddad", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "14:00", end_time: "22:00", status: "scheduled", building_name: "South Wing", floor_number: "2", notes: "", pattern_id: "pt-1" },
+  ];
+
+  const PATTERNS = [
+    { id: "pt-1", userId: "u-staff-6", userName: "Ngozi Okonkwo", siteId: S[1].id, siteName: S[1].name, days: [1, 3, 5], startTime: "06:00", endTime: "14:00", startsOn: seed.shift(-30), endsOn: null, buildingName: "Clinic", floorNumber: "1", notes: "", shiftCount: 14, status: "active" },
+    { id: "pt-2", userId: "u-staff-9", userName: "Yuki Tanabe", siteId: S[0].id, siteName: S[0].name, days: [2, 4], startTime: "18:00", endTime: "02:00", startsOn: seed.shift(-14), endsOn: seed.shift(45), buildingName: "North Wing", floorNumber: "2", notes: "Covering nights.", shiftCount: 8, status: "active" },
+  ];
+
+  const TIME_OFF = [
+    { id: "to-1", userId: "u-staff-5", userName: "Tomasz Wisniewski", leaveType: "vacation", leaveTypeLabel: "Vacation", startsOn: seed.shift(9), endsOn: seed.shift(12), partDay: false, hours: 32, status: "requested", reason: "Family trip booked in January.", createdAt: seed.shift(-3) + "T16:20:00Z", shifts: [
+      { id: "sh-90", date: seed.shift(9), startTime: "18:00", endTime: "02:00", siteName: S[0].name, status: "scheduled" },
+      { id: "sh-91", date: seed.shift(11), startTime: "18:00", endTime: "02:00", siteName: S[0].name, status: "scheduled" },
+    ] },
+    { id: "to-2", userId: "u-staff-6", userName: "Ngozi Okonkwo", leaveType: "sick", leaveTypeLabel: "Sick", startsOn: seed.shift(1), endsOn: seed.shift(1), partDay: true, startTime: "06:00", endTime: "10:00", hours: 4, status: "requested", reason: "", createdAt: seed.shift(-1) + "T07:05:00Z", shifts: [] },
+    { id: "to-3", userId: "u-staff-7", userName: "Elena Barbosa", leaveType: "vacation", leaveTypeLabel: "Vacation", startsOn: seed.shift(-20), endsOn: seed.shift(-18), partDay: false, hours: 24, status: "approved", reason: "", createdAt: seed.shift(-40) + "T10:00:00Z", decidedByName: "Dana Whitlock", decidedAt: seed.shift(-38) + "T14:00:00Z", decisionNote: "Covered by the weekend pattern.", shifts: [] },
+    { id: "to-4", userId: "u-staff-8", userName: "Rashid Haddad", leaveType: "sick", leaveTypeLabel: "Sick", startsOn: seed.shift(-9), endsOn: seed.shift(-9), partDay: false, hours: 8, status: "denied", reason: "", createdAt: seed.shift(-12) + "T09:00:00Z", decidedByName: "Dana Whitlock", decidedAt: seed.shift(-11) + "T11:00:00Z", decisionNote: "Two people already off that day.", shifts: [] },
+    { id: "to-5", userId: "u-staff-9", userName: "Yuki Tanabe", leaveType: "vacation", leaveTypeLabel: "Vacation", startsOn: seed.shift(20), endsOn: seed.shift(21), partDay: false, hours: 16, status: "cancelled", reason: "", createdAt: seed.shift(-5) + "T12:00:00Z", cancelledAt: seed.shift(-4) + "T08:00:00Z", shifts: [] },
+  ];
+  // hand: 5 requests. requested 2, approved 1, denied 1, cancelled 1.
+
+  const NOTIFICATIONS = [
+    { id: "n-1", title: "Time off approved", body: "Your request for four days is approved.", subjectType: "time_off", subjectId: "to-3", link: "#schedule", createdAt: seed.shift(0) + "T22:00:00Z", readAt: null },
+    { id: "n-2", title: "Report filed", body: "An incident report was filed at Harbor Point Center.", subjectType: "form", subjectId: "ir-1", link: "#forms", createdAt: seed.shift(0) + "T20:15:00Z", readAt: null },
+    { id: "n-3", title: "Issue reported", body: "Lobby floor scuffed after delivery.", subjectType: "issue", subjectId: "i-1", link: "#issues", createdAt: seed.shift(-1) + "T14:10:00Z", readAt: null },
+    { id: "n-4", title: "Supply request waiting", body: "Can liner 40x46, six cases.", subjectType: "supply_request", subjectId: "sr-1", link: "#supplies", createdAt: seed.shift(-1) + "T13:05:00Z", readAt: seed.shift(-1) + "T18:00:00Z" },
+    { id: "n-5", title: "Shift needs cover", body: "Riverbend Logistics Hub, overnight.", subjectType: "pickup", subjectId: "pk-3", link: "#marketplace", createdAt: seed.shift(-1) + "T08:05:00Z", readAt: null },
+    { id: "n-6", title: "Inspection completed", body: "Monthly quality walk scored 94 percent.", subjectType: "inspection", subjectId: "insp-4", link: "#inspections", createdAt: seed.shift(-7) + "T17:00:00Z", readAt: seed.shift(-7) + "T19:00:00Z" },
+    { id: "n-7", title: "A case was opened", body: "A concern was raised and needs an owner.", subjectType: "hr_case", subjectId: "hc-1", link: "#cases", createdAt: seed.shift(-2) + "T09:00:00Z", readAt: null },
+  ];
+  // hand: 7 notices, 5 unread (n-1, n-2, n-3, n-5, n-7).
+  const UNREAD_COUNT = 5;
+
+  const CAPABILITIES = [
+    { key: "manage_permissions", label: "Manage per-person permissions", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_company_settings", label: "Company settings and branding", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_staff", label: "Staff accounts and approvals", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "decide_time_off", label: "Decide time off requests", group: "Time", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_schedule", label: "Schedule and shift pickups", group: "Time", enforced: false, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "run_reports", label: "Reports and report builder", group: "Reporting", enforced: false, defaults: { admin: true, supervisor: true, staff: false } },
+  ];
+
+  const REPORT_DEFS = [
+    { id: "rd-1", name: "Issue response and resolution", description: "Median response and resolution, with service level compliance.", category: "service_delivery", source: "issues_timing", is_system: true, config: {} },
+    { id: "rd-2", name: "Supply usage and cost", description: "Estimated cost from logged usage at current prices.", category: "supplies", source: "supply_usage", is_system: true, config: {} },
+    { id: "rd-3", name: "Inspection scores and quality", description: "Inspection results over the selected period.", category: "quality", source: "inspection_quality", is_system: true, config: {} },
+    { id: "rd-4", name: "Night shift issue watch", description: "A saved copy narrowed to high severity.", category: "service_delivery", source: "issues_timing", is_system: false, config: { filters: { severity: "high" } } },
+    { id: "rd-5", name: "Labor hours by site", description: "Arrives with the labor workstream.", category: "labor", source: "labor_hours", is_system: true, config: {} },
+  ];
+  // hand: 5 saved reports in 4 categories. 4 are system templates, 1 is custom, 1 source is not live.
+
+  const INSPECTION_TEMPLATES = [
+    { id: "tp-1", name: "Monthly quality walk", description: "Occupied floors, lobby and restrooms.", item_count: 10, max_total_score: 100, is_active: true },
+    { id: "tp-2", name: "Dock area check", description: "Loading dock and waste area.", item_count: 6, max_total_score: 60, is_active: true },
+  ];
+  const INSPECTION_ITEMS = [
+    { id: "it-1", label: "Dock floor markings", zone: "Dock", cims_category: "SD", max_score: 10, sort_order: 1 },
+    { id: "it-2", label: "Stairwell handrails", zone: "Stairwell", cims_category: "HSE", max_score: 10, sort_order: 2 },
+    { id: "it-3", label: "Lobby glass", zone: "Lobby", cims_category: "SD", max_score: 10, sort_order: 3 },
+  ];
+  const SCHEDULED_INSPECTIONS = [
+    { id: "si-1", site_id: S[0].id, site_name: S[0].name, template_id: "tp-1", template_name: "Monthly quality walk", scheduled_date: seed.shift(4), status: "scheduled", assigned_to: "u-sup-1", assigned_to_name: "Marcus Ferreira" },
+    { id: "si-2", site_id: S[2].id, site_name: S[2].name, template_id: "tp-2", template_name: "Dock area check", scheduled_date: seed.shift(6), status: "scheduled", assigned_to: "u-cap-1", assigned_to_name: "Priya Raghunathan" },
+  ];
+
+  const HR_CASES = [
+    { id: "hc-1", case_number: "CASE-0007", subject_type: "workplace_concern", subject_label: "Workplace concern", status: "open", opened_at: seed.shift(-2) + "T09:00:00Z", due_at: seed.shift(5) + "T09:00:00Z", assigned_to_name: null, summary: "A concern was raised about overnight cover.", raised_by_name: "Anonymous" },
+    { id: "hc-2", case_number: "CASE-0006", subject_type: "safety", subject_label: "Safety", status: "held", opened_at: seed.shift(-16) + "T09:00:00Z", due_at: seed.shift(-2) + "T09:00:00Z", assigned_to_name: "Dana Whitlock", summary: "Dock lighting reported dim.", raised_by_name: "Rashid Haddad" },
+  ];
+  // hand: 2 cases, 1 unassigned and 1 overdue, so the Cases badge reads 2.
+  const CASE_QUEUE = { unassigned: 1, dueSoon: 0, overdue: 1 };
+
+  const HR_DOCUMENTS = Array.from({ length: 12 }, (_, i) => ({
+    id: "hd-" + (i + 1),
+    user_id: seed.STAFF[i % seed.STAFF.length].id,
+    user_name: seed.STAFF[i % seed.STAFF.length].name,
+    category: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
+    title: ["Handbook acknowledgement", "Safety briefing", "Equipment sign-out", "Language preference note"][i % 4],
+    file_name: "doc-" + (i + 1) + ".pdf",
+    uploaded_at: seed.shift(-60 + i * 4) + "T12:00:00Z",
+    expires_on: i % 3 === 0 ? seed.shift(20 + i) : null,
+  }));
+  // hand: 12 documents. category other = 3 (i = 3, 7, 11), so the Other tab lists 3.
+
+  const HR_TRAINING = Array.from({ length: 12 }, (_, i) => ({
+    id: "ht-" + (i + 1),
+    user_id: seed.STAFF[i % seed.STAFF.length].id,
+    user_name: seed.STAFF[i % seed.STAFF.length].name,
+    course_name: ["Bloodborne pathogens", "Machine operation", "Chemical handling", "Ladder safety"][i % 4],
+    completed_on: seed.shift(-120 + i * 7),
+    expires_on: i % 2 === 0 ? seed.shift(15 + i * 3) : null,
+    status: "completed",
+  }));
+
+  const SETTINGS = {
+    id: "set-1",
+    legal_name: "Orchard Cove Service Alliance",
+    display_name: "Orchard Cove",
+    short_name: "Orchard Cove",
+    primary_color: "#0A1628",
+    secondary_color: "#E7B017",
+    logo_url: "",
+    ein: "00-0000000",
+    address: "1 Orchard Cove Way, Fairhaven PA 19044",
+    timezone: seed.TIMEZONE,
+    pay_period_start_day: "Saturday",
+    show_ein_on_reports: true,
+    use_company_settings: true,
+  };
+
+  const JOTFORM_FORMS = [
+    { id: "jf-1", form_id: "240000000000001", title: "Incident report", status: "ENABLED", submission_count: 4, last_submission_at: seed.shift(-1) + "T18:00:00Z", locale: "en" },
+    { id: "jf-2", form_id: "240000000000002", title: "New hire packet", status: "ENABLED", submission_count: 9, last_submission_at: seed.shift(-5) + "T10:00:00Z", locale: "en" },
+  ];
+  const JOTFORM_SUBMISSIONS = [
+    { id: "js-1", submission_id: "600000000000001", form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-1) + "T18:00:00Z", user_id: "u-staff-5", user_name: "Tomasz Wisniewski", status: "ACTIVE", has_pdf: true },
+    { id: "js-2", submission_id: "600000000000002", form_id: "240000000000002", form_title: "New hire packet", submitted_at: seed.shift(-5) + "T10:00:00Z", user_id: "u-staff-6", user_name: "Ngozi Okonkwo", status: "ACTIVE", has_pdf: true },
+  ];
+  const PDF_ACCESS_LOG = [
+    { id: "pa-1", submission_id: "600000000000001", user_name: "Dana Whitlock", action: "view", accessed_at: seed.shift(-1) + "T19:00:00Z", ip_address: "198.51.100.7", success: true, form_title: "Incident report" },
+    { id: "pa-2", submission_id: "600000000000002", user_name: "Marcus Ferreira", action: "download", accessed_at: seed.shift(-4) + "T11:00:00Z", ip_address: "198.51.100.9", success: true, form_title: "New hire packet" },
+  ];
+  const INCIDENT_REPORTS = [
+    { id: "ir-1", reference: "IR-0004", status: "submitted", site_id: S[0].id, site_name: S[0].name, occurred_on: seed.shift(-1), submitted_at: seed.shift(-1) + "T18:00:00Z", created_by_name: "Tomasz Wisniewski", summary: "A delivery pallet scuffed the lobby floor." },
+    { id: "ir-2", reference: "IR-0005", status: "draft", site_id: S[1].id, site_name: S[1].name, occurred_on: seed.shift(0), submitted_at: null, created_by_name: "Ngozi Okonkwo", summary: "" },
+  ];
+  // hand: 2 incident reports, 1 submitted and 1 draft.
+
+  const NOTIFICATION_RECIPIENTS = [
+    { id: "nr-1", subject_type: "time_off", channel: "app", user_id: "u-admin-1", user_name: "Dana Whitlock", is_active: true },
+    { id: "nr-2", subject_type: "issue", channel: "app", user_id: "u-sup-1", user_name: "Marcus Ferreira", is_active: true },
+  ];
+
+  const CHAT_CHANNELS = [
+    { id: "ch-1", site_id: S[0].id, name: S[0].name, unread: 2, last_message_at: seed.shift(0) + "T21:00:00Z" },
+    { id: "ch-2", site_id: S[1].id, name: S[1].name, unread: 0, last_message_at: seed.shift(-2) + "T13:00:00Z" },
+  ];
+  const CHAT_MESSAGES = [
+    { id: "cm-1", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Lobby is done for the night.", sentAt: seed.shift(0) + "T20:45:00Z" },
+    { id: "cm-2", senderId: "u-admin-1", senderName: "Dana Whitlock", senderRole: "admin", body: "Thank you, logged.", sentAt: seed.shift(0) + "T21:00:00Z" },
+  ];
+
+  const DM_INBOX = [
+    { channelId: "dm-1", staffId: "u-staff-5", staffName: "Tomasz Wisniewski", staffRole: "custodial_lead", lastMessage: "Lobby is done for the night.", lastAt: seed.shift(0) + "T20:45:00Z", unread: 1 },
+    { channelId: "dm-2", staffId: "u-staff-6", staffName: "Ngozi Okonkwo", staffRole: "custodial_laborer", lastMessage: "Restrooms restocked.", lastAt: seed.shift(-2) + "T13:00:00Z", unread: 0 },
+  ];
+  // hand: 2 private conversations, 1 unread.
+
+  const SHIFT_SESSIONS = {
+    date: seed.TODAY,
+    sites: [
+      { siteId: S[0].id, siteName: S[0].name, people: [
+        { sessionId: "ss-1", userId: "u-staff-5", name: "Tomasz Wisniewski", startedAt: seed.shift(0) + "T22:05:00Z", buildingName: "North Wing", floorNumber: "3", tasksCompleted: 6, tasksTotal: 8 },
+        { sessionId: "ss-2", userId: "u-staff-9", name: "Yuki Tanabe", startedAt: seed.shift(0) + "T22:10:00Z", buildingName: "South Wing", floorNumber: "2", tasksCompleted: 3, tasksTotal: 7 },
+      ] },
+      { siteId: S[1].id, siteName: S[1].name, people: [
+        { sessionId: "ss-3", userId: "u-staff-6", name: "Ngozi Okonkwo", startedAt: seed.shift(0) + "T10:30:00Z", buildingName: "Clinic", floorNumber: "1", tasksCompleted: 9, tasksTotal: 9 },
+      ] },
+      { siteId: S[2].id, siteName: S[2].name, people: [
+        { sessionId: "ss-4", userId: "u-staff-7", name: "Elena Barbosa", startedAt: seed.shift(0) + "T23:00:00Z", buildingName: "Dock A", floorNumber: "1", tasksCompleted: 1, tasksTotal: 5 },
+      ] },
+    ],
+  };
+  // hand: 4 people started today, which is OVERVIEW.clockedInNow.
+
+  const ASSIGNED_TASKS = [
+    { id: "at-1", label: "Strip and refinish lobby", site_id: S[0].id, site_name: S[0].name, zone: "Lobby", building_name: "North Wing", floor_number: "1", user_id: "u-staff-5", assigned_to_name: "Tomasz Wisniewski", status: "in_progress", priority: "urgent", cims_category: "SD", due_date: seed.shift(1) },
+    { id: "at-2", label: "Restock clinic restrooms", site_id: S[1].id, site_name: S[1].name, zone: "Restroom", building_name: "Clinic", floor_number: "1", user_id: "u-staff-6", assigned_to_name: "Ngozi Okonkwo", status: "completed", priority: "standard", cims_category: "SD", due_date: seed.shift(0) },
+    { id: "at-3", label: "Pressure wash dock apron", site_id: S[2].id, site_name: S[2].name, zone: "Dock", building_name: "Dock A", floor_number: "1", user_id: "u-staff-7", assigned_to_name: "Elena Barbosa", status: "pending", priority: "standard", cims_category: "HSE", due_date: seed.shift(3) },
+  ];
+
+  const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
+    id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
+    building_name: t.building_name, floor_number: t.floor_number, assigned_to_name: t.assigned_to_name,
+    media_required: false, description: "",
+  }));
+
+  const timelineRows = (name) => [
+    { id: "tl-1", occurred_at: seed.shift(0) + "T22:05:00Z", category: "shift", action: "Shift started", description: name + " started a shift at " + S[0].name, related_id: "ss-1", related_type: "shift_session" },
+    { id: "tl-2", occurred_at: seed.shift(-1) + "T14:05:00Z", category: "issue", action: "Issue reported", description: "Lobby floor scuffed after delivery", related_id: "i-1", related_type: "issue" },
+    { id: "tl-3", occurred_at: seed.shift(-3) + "T16:20:00Z", category: "time_off", action: "Time off requested", description: "Vacation, four days", related_id: "to-1", related_type: "time_off" },
+  ];
+
+  const userProfile = (id) => {
+    const u = state.staff.find((s) => s.id === id) || state.staff[0];
+    return {
+      user: Object.assign({}, u, {
+        firstName: u.first_name, lastName: u.last_name, employeeId: u.employee_id,
+        hireDate: u.hire_date, preferredLanguage: u.preferred_language,
+        photoUrl: null, pinSetAt: seed.shift(-100) + "T12:00:00Z",
+        emergencyContactName: "T. Almeida", emergencyContactPhone: "2155559100",
+      }),
+      assignments: [
+        { id: "as-1", site_id: S[0].id, site_name: S[0].name, is_active: true, assigned_at: seed.shift(-200), role_at_site: "Lead" },
+        { id: "as-2", site_id: S[1].id, site_name: S[1].name, is_active: false, assigned_at: seed.shift(-400), role_at_site: "Porter" },
+      ],
+      certifications: [
+        { id: "cert-1", name: "Bloodborne pathogen awareness", issued_on: seed.shift(-300), expires_on: seed.shift(60), issuer: "In-house" },
+      ],
+      stats: { shiftsLast30: 14, tasksCompleted: 96, issuesReported: 3 },
+    };
+  };
+
+  const siteProfile = (id) => {
+    const s = state.sites.find((x) => x.id === id) || state.sites[0];
+    return {
+      site: Object.assign({}, s, { supervisor_name: "Marcus Ferreira", floor_plan_url: null, scope_of_work: "Nightly cleaning of occupied floors and daily restroom service." }),
+      tasks: siteTasks(s.id),
+      supplies: SUPPLIES.slice(0, 2).map((sp) => ({ id: "ss-" + sp.id, supply_id: sp.id, supply_name: sp.name, par_level: 12, unit: sp.unit })),
+      shifts: SCHEDULE.filter((sh) => sh.site_id === s.id),
+      staff: state.staff.filter((st) => st.site_id === s.id).map((st) => ({ id: st.id, name: st.name, role: st.role })),
+      stats: { openIssues: 1, tasksToday: 4, lastInspectionPct: 94 },
+    };
+  };
+
+  // -------------------------------------------------------------------------
+  // The router.
+  // -------------------------------------------------------------------------
+  const ok = (json) => ({ status: 200, json });
+  const created = (json) => ({ status: 201, json });
+
+  function matchRefusal(method, path) {
+    for (let i = 0; i < refusals.length; i += 1) {
+      const r = refusals[i];
+      if (r.method && r.method.toUpperCase() !== method.toUpperCase()) continue;
+      const hit = r.path instanceof RegExp ? r.path.test(path) : path.indexOf(r.path) >= 0;
+      if (!hit) continue;
+      if (r.once) refusals.splice(i, 1);
+      return r;
+    }
+    return null;
+  }
+
+  function route(method, path, query, body) {
+    const q = (k) => query.get(k);
+    const idAfter = (prefix) => path.slice(prefix.length).split("/")[0];
+
+    // --- auth -------------------------------------------------------------
+    if (path === "/api/auth/login") {
+      const who = Object.keys(seed.PEOPLE).find((k) => seed.PEOPLE[k].login.phone === (body && body.phone));
+      if (!who || seed.PEOPLE[who].login.pin !== (body && body.pin)) {
+        return { status: 401, json: { error: "Phone number or PIN is incorrect" } };
+      }
+      signedInAs = who;
+      const u = Object.assign({}, seed.PEOPLE[who]);
+      delete u.login;
+      return ok({ token: "audit-token-" + who, user: u });
+    }
+    if (path === "/api/auth/me") { const u = Object.assign({}, person()); delete u.login; return ok({ user: u }); }
+
+    // --- shell ------------------------------------------------------------
+    if (path === "/api/sites" && method === "GET") return ok(state.sites);
+    if (path === "/api/users" && method === "GET") return ok(state.staff);
+    if (path === "/api/lookups/all") return ok(LOOKUPS);
+    if (path === "/api/settings" && method === "GET") return ok(SETTINGS);
+    if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) return ok(Object.assign(SETTINGS, body || {}));
+    if (path === "/api/reports/overview") return ok(seed.OVERVIEW);
+    if (path === "/api/hr-cases/queue-count") return ok(CASE_QUEUE);
+    if (path === "/api/notifications/unread-count") return ok({ unread: state.notifications ? state.notifications.filter((n) => !n.readAt).length : UNREAD_COUNT });
+    if (path === "/api/notifications" && method === "GET") {
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      return ok({ notifications: state.notifications, unread: state.notifications.filter((n) => !n.readAt).length });
+    }
+    if (path === "/api/notifications/read-all" && method === "POST") {
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      state.notifications.forEach((n) => { if (!n.readAt) n.readAt = seed.NOW_ISO; });
+      return ok({ ok: true, unread: 0 });
+    }
+    if (/^\/api\/notifications\/[^/]+\/read$/.test(path) && method === "POST") {
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      const id = path.split("/")[3];
+      const n = state.notifications.find((x) => x.id === id);
+      if (n) n.readAt = seed.NOW_ISO;
+      return ok({ ok: true });
+    }
+
+    // --- staff ------------------------------------------------------------
+    if (path.startsWith("/api/users/profile/photo")) return ok({ url: "" });
+    if (path.startsWith("/api/users/profile/")) return ok(userProfile(idAfter("/api/users/profile/")));
+    if (path.startsWith("/api/users/timeline-detail/")) {
+      return ok({ record: { id: "tl-2", kind: "issue", title: "Lobby floor scuffed after delivery", occurredAt: seed.shift(-1) + "T14:05:00Z", siteName: S[0].name, notes: "Reported on the night round." }, relatedItems: [{ id: "at-1", label: "Strip and refinish lobby", kind: "task" }] });
+    }
+    if (/^\/api\/users\/[^/]+\/timeline/.test(path)) return ok({ rows: timelineRows(person().firstName + " " + person().lastName), total: 3 });
+    if (/^\/api\/users\/[^/]+\/approve$/.test(path)) return ok({ message: "Approved" });
+    if (/^\/api\/users\/[^/]+\/pin$/.test(path)) return ok({ message: "PIN reset" });
+    if (/^\/api\/users\/[^/]+\/assignments/.test(path)) return ok({ message: "Assignment saved" });
+    if (/^\/api\/users\/[^/]+\/certifications/.test(path)) return ok({ message: "Certification saved" });
+    if (/^\/api\/users\/[^/]+\/permissions$/.test(path)) {
+      const id = path.split("/")[3];
+      const u = state.staff.find((s) => s.id === id) || state.staff[0];
+      if (method === "PUT") {
+        state.overrides[id] = Object.assign({}, (body && body.permissions) || {});
+        return ok({ overrides: state.overrides[id], effective: effectiveMap(u, state.overrides[id]) });
+      }
+      const ov = state.overrides[id] || {};
+      return ok({ id: u.id, name: u.name, role: u.role, capabilities: CAPABILITIES, overrides: ov, effective: effectiveMap(u, ov) });
+    }
+    if (/^\/api\/users\/[^/]+$/.test(path) && (method === "PATCH" || method === "PUT")) {
+      const id = path.split("/")[3];
+      const u = state.staff.find((s) => s.id === id);
+      if (u) Object.assign(u, body || {});
+      return ok({ message: "Staff updated" });
+    }
+    if (path === "/api/users" && method === "POST") {
+      const row = Object.assign({ id: "u-new-1", status: "pending", name: ((body && body.firstName) || "New") + " " + ((body && body.lastName) || "Person") }, body || {});
+      state.staff.push(row);
+      return created({ message: "Staff added", user: row });
+    }
+
+    // --- issues -----------------------------------------------------------
+    if (path === "/api/issues" && method === "GET") return ok(state.issues);
+    if (path === "/api/issues" && method === "POST") { const row = Object.assign({ id: "i-new" }, body || {}); state.issues.unshift(row); return created({ message: "Issue reported" }); }
+    if (/^\/api\/issues\/[^/]+\/assign/.test(path)) return ok({ message: "Task created from issue" });
+    if (/^\/api\/issues\/[^/]+$/.test(path) && (method === "PATCH" || method === "PUT")) {
+      const id = path.split("/")[3];
+      const row = state.issues.find((x) => x.id === id);
+      if (row) Object.assign(row, body || {});
+      return ok({ message: "Issue updated" });
+    }
+    if (/^\/api\/issues\/[^/]+$/.test(path) && method === "GET") {
+      const id = path.split("/")[3];
+      const row = state.issues.find((x) => x.id === id) || state.issues[0];
+      return ok(Object.assign({}, row, { photos: [], comments: [] }));
+    }
+
+    // --- supplies ---------------------------------------------------------
+    if (path === "/api/supplies" && method === "GET") { if (!state.supplies) state.supplies = clone(SUPPLIES); return ok(state.supplies); }
+    if (path === "/api/supplies" && method === "POST") { if (!state.supplies) state.supplies = clone(SUPPLIES); const row = Object.assign({ id: "sp-new", is_active: true, current_stock: 0 }, body || {}); state.supplies.push(row); return created({ message: "Supply added", supply: row }); }
+    if (path === "/api/supplies/requests" && method === "GET") { if (!state.supplyRequests) state.supplyRequests = clone(SUPPLY_REQUESTS); return ok(state.supplyRequests); }
+    if (/^\/api\/supplies\/requests\/[^/]+$/.test(path)) {
+      if (!state.supplyRequests) state.supplyRequests = clone(SUPPLY_REQUESTS);
+      const id = path.split("/")[4];
+      const row = state.supplyRequests.find((r) => r.id === id);
+      if (row && body) { row.status = body.status || row.status; row.admin_notes = body.adminNotes != null ? body.adminNotes : row.admin_notes; }
+      return ok({ message: "Request updated" });
+    }
+    if (/^\/api\/supplies\/[^/]+$/.test(path) && method === "DELETE") {
+      if (!state.supplies) state.supplies = clone(SUPPLIES);
+      const id = path.split("/")[3];
+      state.supplies = state.supplies.filter((s) => s.id !== id);
+      return ok({ message: "Supply removed" });
+    }
+    if (/^\/api\/supplies\/[^/]+$/.test(path)) {
+      if (!state.supplies) state.supplies = clone(SUPPLIES);
+      const id = path.split("/")[3];
+      const row = state.supplies.find((s) => s.id === id);
+      if (row && body) Object.assign(row, body);
+      return ok({ message: "Supply updated" });
+    }
+
+    // --- vendors and services --------------------------------------------
+    if (path === "/api/vendors" && method === "GET") return ok(VENDORS);
+    if (path === "/api/vendors" && method === "POST") return created({ message: "Vendor added" });
+    if (/^\/api\/vendors\/[^/]+\/evaluations/.test(path)) return ok({ message: "Evaluation saved" });
+    if (/^\/api\/vendors\/[^/]+\/supplies/.test(path)) return ok({ message: "Supply linked" });
+    if (/^\/api\/vendors\/[^/]+$/.test(path) && method === "GET") {
+      const id = path.split("/")[3];
+      const v = VENDORS.find((x) => x.id === id) || VENDORS[0];
+      return ok({ vendor: v, evaluations: [{ id: "ev-1", rating: 4, notes: "On time, correct paperwork.", evaluated_on: seed.shift(-30), evaluated_by_name: "Dana Whitlock" }], supplies: SUPPLIES.slice(0, 2) });
+    }
+    if (/^\/api\/vendors\/[^/]+$/.test(path)) return ok({ message: "Vendor updated" });
+    if (path === "/api/services" && method === "GET") return ok(SERVICES);
+    if (path === "/api/services" && method === "POST") return created({ message: "Service added" });
+    if (/^\/api\/services\/[^/]+\/sites/.test(path)) return ok({ message: "Site linked" });
+    if (/^\/api\/services\/[^/]+$/.test(path) && method === "GET") {
+      const id = path.split("/")[3];
+      const sv = SERVICES.find((x) => x.id === id) || SERVICES[0];
+      return ok({ service: sv, sites: state.sites.slice(0, 2), supplies: SUPPLIES.slice(0, 2) });
+    }
+    if (/^\/api\/services\/[^/]+$/.test(path)) return ok({ message: "Service updated" });
+
+    // --- sites ------------------------------------------------------------
+    if (path.startsWith("/api/sites/profile/")) return ok(siteProfile(idAfter("/api/sites/profile/")));
+    if (path.startsWith("/api/sites/chat/")) return ok(CHAT_MESSAGES);
+    if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) return ok({ message: "Task saved" });
+    if (/^\/api\/sites\/[^/]+\/timeline/.test(path)) return ok({ rows: timelineRows(S[0].name), total: 3 });
+    if (/^\/api\/sites\/[^/]+\/supplies/.test(path)) return ok({ message: "Supply linked" });
+    if (path === "/api/sites" && method === "POST") { const row = Object.assign({ id: "s-new", status: "active" }, body || {}); state.sites.push(row); return created({ message: "Site added" }); }
+    if (/^\/api\/sites\/[^/]+$/.test(path) && method === "GET") return ok(siteProfile(path.split("/")[3]));
+    if (/^\/api\/sites\/[^/]+$/.test(path)) return ok({ message: "Site updated" });
+
+    // --- schedule, patterns, time off ------------------------------------
+    if (path === "/api/schedule" && method === "GET") { if (!state.schedule) state.schedule = clone(SCHEDULE); return ok(state.schedule); }
+    if (path === "/api/schedule" && method === "POST") {
+      if (!state.schedule) state.schedule = clone(SCHEDULE);
+      const row = Object.assign({ id: "sh-new", status: "scheduled", user_name: "Tomasz Wisniewski", site_name: S[0].name }, body || {});
+      state.schedule.push(row);
+      return created({ message: "Shift scheduled", shift: row });
+    }
+    if (path === "/api/schedule/bulk" && method === "POST") return created({ message: "Shifts scheduled", created: 4 });
+    if (path === "/api/schedule/patterns" && method === "GET") { if (!state.patterns) state.patterns = clone(PATTERNS); return ok({ patterns: state.patterns }); }
+    if (path === "/api/schedule/patterns" && method === "POST") {
+      if (!state.patterns) state.patterns = clone(PATTERNS);
+      const row = Object.assign({ id: "pt-new", shiftCount: 6, status: "active" }, body || {});
+      state.patterns.push(row);
+      return created({ pattern: row, created: 6, message: "Pattern created" });
+    }
+    if (/^\/api\/schedule\/patterns\/[^/]+\/skip/.test(path)) return ok({ message: "That date is cancelled", pattern: (state.patterns || PATTERNS)[0] });
+    if (/^\/api\/schedule\/patterns\/[^/]+$/.test(path) && method === "GET") {
+      if (!state.patterns) state.patterns = clone(PATTERNS);
+      const id = path.split("/")[4];
+      const p = state.patterns.find((x) => x.id === id) || state.patterns[0];
+      return ok({ pattern: p, shifts: (state.schedule || SCHEDULE).filter((s) => s.pattern_id === p.id), skips: [] });
+    }
+    if (/^\/api\/schedule\/patterns\/[^/]+$/.test(path)) {
+      if (!state.patterns) state.patterns = clone(PATTERNS);
+      const id = path.split("/")[4];
+      const p = state.patterns.find((x) => x.id === id);
+      if (p && body) Object.assign(p, body);
+      if (method === "DELETE") { state.patterns = state.patterns.filter((x) => x.id !== id); return ok({ message: "Pattern ended" }); }
+      return ok({ pattern: p, message: "Pattern updated", changed: 4 });
+    }
+    if (/^\/api\/schedule\/[^/]+$/.test(path) && method === "DELETE") {
+      if (!state.schedule) state.schedule = clone(SCHEDULE);
+      const id = path.split("/")[3];
+      state.schedule = state.schedule.filter((s) => s.id !== id);
+      return ok({ message: "Shift removed" });
+    }
+    if (/^\/api\/schedule\/[^/]+$/.test(path)) {
+      if (!state.schedule) state.schedule = clone(SCHEDULE);
+      const id = path.split("/")[3];
+      const row = state.schedule.find((s) => s.id === id);
+      if (row && body) Object.assign(row, body);
+      return ok({ message: "Shift updated" });
+    }
+    if (path === "/api/time-off" && method === "GET") {
+      if (!state.timeOff) state.timeOff = clone(TIME_OFF);
+      const status = q("status") || "requested";
+      const userId = q("userId") || "";
+      let rows = state.timeOff.slice();
+      if (status && status !== "all") rows = rows.filter((r) => r.status === status);
+      if (userId) rows = rows.filter((r) => String(r.userId) === String(userId));
+      return ok({ requests: rows, total: rows.length });
+    }
+    if (/^\/api\/time-off\/[^/]+\/(approve|deny)$/.test(path)) {
+      if (!state.timeOff) state.timeOff = clone(TIME_OFF);
+      const parts = path.split("/");
+      const id = parts[3]; const kind = parts[4];
+      const row = state.timeOff.find((r) => r.id === id);
+      if (!row) return { status: 404, json: { error: "That request is gone" } };
+      if (row.status !== "requested") return { status: 409, json: { error: "Someone else decided this already", code: "already_decided" } };
+      row.status = kind === "deny" ? "denied" : "approved";
+      row.decidedByName = person().firstName + " " + person().lastName;
+      row.decidedAt = seed.NOW_ISO;
+      row.decisionNote = (body && body.note) || null;
+      return ok({ request: row });
+    }
+    if (/^\/api\/time-off\/[^/]+$/.test(path)) {
+      if (!state.timeOff) state.timeOff = clone(TIME_OFF);
+      const id = path.split("/")[3];
+      const row = state.timeOff.find((r) => r.id === id) || state.timeOff[0];
+      return ok({ request: row });
+    }
+
+    // --- shift pickups ----------------------------------------------------
+    if (path === "/api/pickups" && method === "GET") {
+      if (!state.pickups) state.pickups = clone(PICKUPS);
+      const status = q("status");
+      const rows = status ? state.pickups.filter((p) => p.status === status) : state.pickups;
+      return ok(rows);
+    }
+    if (path === "/api/pickups" && method === "POST") {
+      if (!state.pickups) state.pickups = clone(PICKUPS);
+      const row = Object.assign({ id: "pk-new", status: "open", site_name: S[0].name, posted_at: seed.NOW_ISO }, body || {});
+      state.pickups.unshift(row);
+      return created({ message: "Open shift posted", pickup: row });
+    }
+    if (path.startsWith("/api/pickups/analytics")) return ok(PICKUP_ANALYTICS);
+    if (path.startsWith("/api/pickups/convert/")) return ok({ message: "Converted to an open shift" });
+    if (/^\/api\/pickups\/[^/]+\/(approve|deny|approve-drop|deny-drop|release)$/.test(path)) {
+      if (!state.pickups) state.pickups = clone(PICKUPS);
+      const parts = path.split("/");
+      const id = parts[3]; const act = parts[4];
+      const row = state.pickups.find((p) => p.id === id);
+      if (!row) return { status: 404, json: { error: "That shift is gone" } };
+      if (act === "approve") row.status = "approved";
+      if (act === "deny") row.status = "open";
+      if (act === "approve-drop") { row.status = "open"; row.assigned_to_name = null; }
+      if (act === "deny-drop") row.status = "scheduled";
+      if (act === "release") { row.status = "open"; row.claimed_by_name = null; }
+      return ok({ message: "Done", pickup: row });
+    }
+    if (/^\/api\/pickups\/[^/]+$/.test(path) && method === "GET") {
+      if (!state.pickups) state.pickups = clone(PICKUPS);
+      const id = path.split("/")[3];
+      return ok(state.pickups.find((p) => p.id === id) || state.pickups[0]);
+    }
+    if (/^\/api\/pickups\/[^/]+$/.test(path)) return ok({ message: "Shift updated" });
+
+    // --- assigned tasks ---------------------------------------------------
+    if (path.startsWith("/api/clock/tasks/assigned-all")) return ok(ASSIGNED_TASKS);
+    if (path.startsWith("/api/clock/tasks/activity/")) return ok({ rows: [{ id: "ta-1", occurred_at: seed.shift(0) + "T22:40:00Z", action: "Task completed", by_name: "Tomasz Wisniewski", notes: "" }] });
+    if (path.startsWith("/api/shift-sessions/by-site")) return ok(SHIFT_SESSIONS);
+
+    // --- inspections ------------------------------------------------------
+    if (path === "/api/inspections/templates" && method === "GET") return ok(INSPECTION_TEMPLATES);
+    if (path === "/api/inspections/templates" && method === "POST") return created({ message: "Template created", template: { id: "tp-new", name: (body && body.name) || "New template", item_count: 0, max_total_score: 0, is_active: true } });
+    if (/^\/api\/inspections\/templates\/[^/]+\/items/.test(path)) return ok({ message: "Item added" });
+    if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "GET") {
+      const id = path.split("/")[4];
+      const tp = INSPECTION_TEMPLATES.find((x) => x.id === id) || INSPECTION_TEMPLATES[0];
+      return ok({ template: tp, items: INSPECTION_ITEMS });
+    }
+    if (/^\/api\/inspections\/templates\/[^/]+$/.test(path)) return ok({ message: "Template updated" });
+    if (path === "/api/inspections/scheduled" && method === "GET") {
+      const status = q("status");
+      if (status === "completed") return ok(seed.INSPECTION_SCORES);
+      return ok(SCHEDULED_INSPECTIONS);
+    }
+    if (path === "/api/inspections/scheduled" && method === "POST") return created({ message: "Inspection scheduled" });
+    if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "GET") {
+      const id = path.split("/")[4];
+      const found = SCHEDULED_INSPECTIONS.concat(seed.INSPECTION_SCORES).find((x) => x.id === id) || SCHEDULED_INSPECTIONS[0];
+      return ok({
+        inspection: Object.assign({}, found, { template_name: found.template_name || "Monthly quality walk", site_name: found.site_name }),
+        items: INSPECTION_ITEMS,
+        scores: INSPECTION_ITEMS.map((it, i) => ({ item_id: it.id, score: [9, 6, 7][i], notes: i === 1 ? "Handrail needs a wipe." : "", photo_url: null })),
+      });
+    }
+    if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path)) return ok({ message: "Inspection updated" });
+    if (path.startsWith("/api/inspections/analytics/dashboard-summary")) return ok(seed.INSPECTION_DASHBOARD_SUMMARY);
+    if (path.startsWith("/api/inspections/analytics/scores-over-time")) return ok(seed.INSPECTION_SCORES);
+    if (path.startsWith("/api/inspections/analytics/site-comparison")) return ok(seed.INSPECTION_SITE_COMPARISON);
+    if (path.startsWith("/api/inspections/analytics/lowest-items")) return ok(seed.INSPECTION_LOWEST_ITEMS);
+    if (path.startsWith("/api/inspections/analytics/category-breakdown")) {
+      return ok([
+        { cims_category: "SD", avg_score_pct: 88, item_count: 6 },
+        { cims_category: "HSE", avg_score_pct: 71, item_count: 3 },
+        { cims_category: "GB", avg_score_pct: 94, item_count: 1 },
+      ]);
+    }
+    if (path.startsWith("/api/inspections/analytics/export")) {
+      return ok(seed.INSPECTION_SCORES.flatMap((ins) => INSPECTION_ITEMS.map((it, i) => Object.assign({}, ins, {
+        item_label: it.label, item_zone: it.zone, item_cims_category: it.cims_category,
+        item_score: [9, 6, 7][i], item_max_score: it.max_score, item_score_pct: [90, 60, 70][i], item_notes: "",
+      }))));
+    }
+    // hand: 4 inspections x 3 items = 12 export rows, plus one header row = 13 lines.
+
+    // --- report engine ----------------------------------------------------
+    if (path === "/api/report-engine/definitions" && method === "GET") return ok(REPORT_DEFS);
+    if (path === "/api/report-engine/definitions" && method === "POST") return created({ message: "Report saved", definition: Object.assign({ id: "rd-new", is_system: false }, body || {}) });
+    if (/^\/api\/report-engine\/definitions\/[^/]+$/.test(path) && method === "DELETE") return ok({ message: "Report deleted" });
+    if (/^\/api\/report-engine\/definitions\/[^/]+$/.test(path)) return ok({ message: "Report saved", definition: Object.assign({ id: path.split("/")[4] }, body || {}) });
+    if (path === "/api/report-engine/issue-timing") {
+      const sev = q("severity");
+      const site = q("site_id");
+      const d = clone(seed.ISSUE_TIMING);
+      d.bucket = q("bucket") || "week";
+      if (site) d.by_site = d.by_site.filter((r) => r.site_id === site);
+      if (sev) d.summary.open_by_severity = Object.assign({ high: 0, medium: 0, low: 0 }, { [sev]: seed.ISSUE_TIMING.summary.open_by_severity[sev] });
+      return ok(d);
+    }
+    if (path === "/api/report-engine/supply-usage") {
+      const d = clone(seed.SUPPLY_USAGE);
+      d.bucket = q("bucket") || "week";
+      const site = q("site_id");
+      if (site) d.by_site = d.by_site.filter((r) => r.site_id === site);
+      return ok(d);
+    }
+    if (path === "/api/reports/task-completion") return ok(seed.TASK_COMPLETION);
+    if (path === "/api/reports/issues") return ok(seed.ISSUES_SNAPSHOT);
+    if (path === "/api/reports/chemical-usage") {
+      return ok({ chemicals: SUPPLIES.filter((s) => s.category === "chemical").map((s) => ({
+        name: s.name, qr_code: s.qr_code, is_green_certified: s.is_green_certified ? "Yes" : "No",
+        epa_reg_number: s.epa_reg_number || "", site_name: S[0].name, total_quantity: s.current_stock, unit: s.unit,
+      })) });
+    }
+    // hand: 2 of the 4 supplies are chemicals, so the chemical export writes 2 rows plus a header.
+
+    // --- HR ---------------------------------------------------------------
+    if (path.startsWith("/api/hr/documents")) {
+      if (method !== "GET") return ok({ message: "Document saved" });
+      const uid = q("user_id");
+      return ok(uid ? HR_DOCUMENTS.filter((d) => d.user_id === uid) : HR_DOCUMENTS);
+    }
+    if (path.startsWith("/api/hr/training")) {
+      if (method !== "GET") return ok({ message: "Training record saved" });
+      const uid = q("user_id");
+      return ok(uid ? HR_TRAINING.filter((d) => d.user_id === uid) : HR_TRAINING);
+    }
+    if (path === "/api/hr/employees-summary") {
+      return ok(state.staff.map((s) => ({
+        user_id: s.id, name: s.name, role: s.role, status: s.status,
+        document_count: 3, training_count: 2, onboarding_pct: 80,
+        earliest_expiry: s.status === "active" ? seed.shift(25) : null,
+      })));
+    }
+    if (path === "/api/hr/compliance") {
+      return ok([
+        { user_id: state.staff[4].id, user_name: state.staff[4].name, item: "Bloodborne pathogen awareness", status: "expiring", expires_on: seed.shift(19) },
+        { user_id: state.staff[5].id, user_name: state.staff[5].name, item: "Machine operation", status: "valid", expires_on: seed.shift(200) },
+      ]);
+    }
+    if (path.startsWith("/api/hr/employee-folder/")) {
+      const uid = idAfter("/api/hr/employee-folder/");
+      const u = state.staff.find((s) => s.id === uid) || state.staff[0];
+      return ok({ user: u, documents: HR_DOCUMENTS.slice(0, 3), training: HR_TRAINING.slice(0, 2), onboarding: { steps: [], pct: 80 }, submissions: JOTFORM_SUBMISSIONS.slice(0, 1) });
+    }
+    if (path.startsWith("/api/hr/onboarding")) {
+      if (method !== "GET") return ok({ message: "Onboarding updated" });
+      return ok({ steps: [
+        { id: "ob-1", label: "Handbook acknowledged", status: "done", completed_on: seed.shift(-20) },
+        { id: "ob-2", label: "Safety briefing", status: "done", completed_on: seed.shift(-18) },
+        { id: "ob-3", label: "Site walkthrough", status: "pending", completed_on: null },
+      ], pct: 67 });
+    }
+    // hand: 2 of 3 onboarding steps done = 67 percent.
+
+    // --- cases ------------------------------------------------------------
+    if (path === "/api/hr-cases" && method === "GET") return ok(HR_CASES);
+    if (path === "/api/hr-cases" && method === "POST") return created({ message: "Case opened" });
+    if (path === "/api/contacts/case-subjects") return ok([
+      { value: "workplace_concern", label: "Workplace concern" },
+      { value: "safety", label: "Safety" },
+      { value: "pay", label: "Pay" },
+    ]);
+    if (/^\/api\/hr-cases\/[^/]+$/.test(path) && method === "GET") {
+      const id = path.split("/")[3];
+      const c = HR_CASES.find((x) => x.id === id) || HR_CASES[0];
+      return ok(Object.assign({}, c, { notes: [{ id: "cn-1", body: "Left a message for the person who raised it.", created_at: seed.shift(-1) + "T10:00:00Z", author_name: "Dana Whitlock" }] }));
+    }
+    if (/^\/api\/hr-cases\/[^/]+/.test(path)) return ok({ message: "Case updated" });
+
+    // --- forms and Jotform ------------------------------------------------
+    if (path === "/api/jotform/forms" && method === "GET") return ok(JOTFORM_FORMS);
+    if (path === "/api/jotform/forms/sync") return ok({ message: "Synced 2 forms", synced: 2 });
+    if (/^\/api\/jotform\/forms\/[^/]+$/.test(path)) return ok({ message: "Form updated" });
+    if (path.startsWith("/api/jotform/submissions/force-fetch")) return ok({ message: "Fetched 1 submission" });
+    if (path.startsWith("/api/jotform/submissions/sync")) return ok({ message: "Synced 2 submissions", synced: 2 });
+    if (path.startsWith("/api/jotform/submissions?") || path === "/api/jotform/submissions") {
+      const uid = q("user_id");
+      return ok(uid ? JOTFORM_SUBMISSIONS.filter((s) => s.user_id === uid) : JOTFORM_SUBMISSIONS);
+    }
+    if (path.startsWith("/api/jotform/submissions/")) {
+      const id = idAfter("/api/jotform/submissions/");
+      const s = JOTFORM_SUBMISSIONS.find((x) => x.submission_id === id || x.id === id) || JOTFORM_SUBMISSIONS[0];
+      return ok(Object.assign({}, s, { answers: [
+        { qid: "1", text: "Where did it happen", answer: S[0].name },
+        { qid: "2", text: "What happened", answer: "A delivery pallet scuffed the lobby floor." },
+      ] }));
+    }
+    if (path.startsWith("/api/jotform/pdf-access-log")) return ok(PDF_ACCESS_LOG);
+    if (path === "/api/jotform/config") return ok({ api_key_set: true, base_url: "https://api.jotform.example.invalid", auto_link: true, locale: "en" });
+    if (path.startsWith("/api/jotform/diagnostic") || path.startsWith("/api/jotform/sync-diagnostic")) {
+      return ok({ forms: JOTFORM_FORMS.map((f) => ({ form_id: f.form_id, title: f.title, cached: f.submission_count, upstream: f.submission_count, missing: 0 })), checkedAt: seed.NOW_ISO });
+    }
+    if (path.startsWith("/api/jotform/sync-log")) return ok([{ id: "sl-1", ran_at: seed.shift(0) + "T19:00:00Z", kind: "submissions", result: "ok", detail: "2 submissions" }]);
+    if (path.startsWith("/api/jotform/submission-failures")) {
+      if (method !== "GET") return ok({ message: "Marked resolved" });
+      return ok([{ id: "sf-1", form_id: JOTFORM_FORMS[0].form_id, form_title: JOTFORM_FORMS[0].title, submission_id: "600000000000009", reason: "Answer set was empty", failed_at: seed.shift(-3) + "T08:00:00Z", is_resolved: false }]);
+    }
+    if (path === "/api/jotform/user-aliases" && method === "GET") return ok([{ id: "al-1", user_id: state.staff[4].id, user_name: state.staff[4].name, alias: "t.wisniewski", source: "manual" }]);
+    if (path.startsWith("/api/jotform/user-aliases")) return ok({ message: "Alias saved" });
+    if (path === "/api/jotform/users-for-linking") return ok(state.staff.map((s) => ({ id: s.id, name: s.name, email: s.email })));
+    if (path === "/api/jotform/auto-link") return ok({ message: "Linked 1 submission", linked: 1 });
+    if (path === "/api/jotform/pdf-backfill") return ok({ message: "Backfilled 2 PDFs", filled: 2 });
+    if (path.startsWith("/api/jotform/employee-documents/")) return ok(JOTFORM_SUBMISSIONS.slice(0, 1));
+    if (path.startsWith("/api/forms?")) return ok(INCIDENT_REPORTS);
+    if (path.startsWith("/api/forms/responses/")) {
+      const id = idAfter("/api/forms/responses/");
+      const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
+      if (method !== "GET") return ok({ message: "Report saved", response: r });
+      return ok({ response: r, fields: [
+        { id: "f-1", label: "Where did it happen", half: "staff", type: "text", value: r.site_name },
+        { id: "f-2", label: "What happened", half: "staff", type: "textarea", value: r.summary },
+        { id: "f-3", label: "Corrective action", half: "supervisor", type: "textarea", value: "" },
+      ] });
+    }
+
+    // --- settings sub-panels ---------------------------------------------
+    if (path === "/api/lookups/categories" && method === "GET") return ok(LOOKUPS);
+    if (path === "/api/lookups/categories" && method === "POST") return created({ message: "Category added" });
+    if (/^\/api\/lookups\/categories\/[^/]+/.test(path)) return ok({ message: "Category saved" });
+    if (path === "/api/lookups/values" && method === "POST") return created({ message: "Option added" });
+    if (/^\/api\/lookups\/values\/[^/]+/.test(path)) return ok({ message: "Option saved" });
+    if (path === "/api/lookups/reorder") return ok({ message: "Order saved" });
+    if (path.startsWith("/api/lookups/site/")) {
+      if (method !== "GET") return ok({ message: "Site option saved" });
+      return ok([{ id: "sl-1", site_id: S[0].id, slug: "zones", value: "Atrium", label: "Atrium", is_active: true, sort_order: 1 }]);
+    }
+    if (path === "/api/notification-recipients" && method === "GET") return ok(NOTIFICATION_RECIPIENTS);
+    if (path.startsWith("/api/notification-recipients")) return ok({ message: "Recipient saved" });
+
+    // --- messages ---------------------------------------------------------
+    if (path === "/api/chat/dm-inbox") return ok(DM_INBOX);
+    if (path.startsWith("/api/chat/channels/")) {
+      if (method !== "GET") return ok({ message: "Sent" });
+      return ok(CHAT_MESSAGES);
+    }
+    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: [] });
+    if (path === "/api/agent/message") return ok({ reply: "Here is what the dashboard shows for that.", conversationId: "ag-1" });
+    if (path === "/api/agent/drafts" && method === "GET") return ok([]);
+    if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });
+    if (path === "/api/uploads" || path.startsWith("/api/uploads?")) return ok({ url: "", key: "audit-upload" });
+
+    return null;
+  }
+
+  function effectiveMap(user, overrides) {
+    const tier = user.role === "admin" ? "admin" : user.role === "supervisor" ? "supervisor" : "staff";
+    const map = {};
+    CAPABILITIES.forEach((c) => {
+      map[c.key] = Object.prototype.hasOwnProperty.call(overrides || {}, c.key)
+        ? !!overrides[c.key]
+        : !!(c.defaults && c.defaults[tier]);
+      if (user.role === "admin" && c.key === "manage_permissions") map[c.key] = true;
+    });
+    return map;
+  }
+
+  // The single entry point the harness routes every request through.
+  function handle({ method, url, body }) {
+    const u = new URL(url);
+    const path = u.pathname;
+    const record = { method, path, query: u.search, body: body || null };
+    calls.push(record);
+
+    const refusal = matchRefusal(method, path);
+    if (refusal) {
+      record.refused = refusal.status;
+      return { status: refusal.status, json: { error: refusal.error, code: refusal.code } };
+    }
+
+    const answer = route(method, path, u.searchParams, body);
+    if (answer) return answer;
+
+    record.unstubbed = true;
+    // Shape guess for a call with no rule: a list route gets a list, everything else an object.
+    return ok(/s$/.test(path.split("/").pop() || "") ? [] : {});
+  }
+
+  return {
+    handle,
+    calls,
+    setRefusal: (r) => { refusals = [].concat(r); },
+    clearRefusals: () => { refusals = []; },
+    signedInAs: () => signedInAs,
+    setSignedInAs: (k) => { signedInAs = k; },
+    reset: () => {
+      calls.length = 0;
+      refusals = [];
+      state.staff = clone(seed.STAFF);
+      state.sites = clone(seed.SITES);
+      state.issues = clone(seed.ISSUES);
+      state.supplies = null; state.supplyRequests = null; state.pickups = null;
+      state.schedule = null; state.patterns = null; state.timeOff = null;
+      state.overrides = {}; state.notifications = null;
+    },
+    fixtures: {
+      LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
+      SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
+      INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
+      HR_DOCUMENTS, HR_TRAINING, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
+      INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,
+      ASSIGNED_TASKS,
+    },
+    state,
+  };
+}
+
+module.exports = { createStubs };
