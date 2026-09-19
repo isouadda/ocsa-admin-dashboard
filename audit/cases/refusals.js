@@ -4,6 +4,7 @@
 // window stays open with what the person typed still in it, so they can read the reason and try
 // again. A window that vanishes and takes the typing with it fails here.
 "use strict";
+const seed = require("../seed");
 
 const REFUSALS = {
   "refusals/time-off-conflict": {
@@ -20,15 +21,15 @@ const REFUSALS = {
   },
   "refusals/time-off-gone": {
     status: 404, error: "That request is gone",
-    arm: { method: "GET", path: "/api/time-off/" },
+    // The window seeds from the row it opened and reads nothing on open, so the refusal has to land
+    // on the decision the person sends.
+    arm: { method: "POST", path: "/api/time-off/" },
     act: async (d) => {
       await d.goto("schedule");
       await d.clickText("Time off", { exact: false });
       await d.clickRow(0);
-      return true;
+      return d.clickText("Approve", { inModal: true, exact: true });
     },
-    // The window seeds from the row it opened, so the refusal lands on the reload, not the open.
-    whereShown: "modalOrPage",
     staysOpen: true,
   },
   "refusals/supply-request-refused": {
@@ -48,11 +49,16 @@ const REFUSALS = {
     act: async (d) => {
       await d.goto("schedule");
       await d.clickText("Schedule Shift", { exact: false });
-      await d.toggleSwitch("Repeat");
-      return d.clickText("Schedule", { inModal: true, exact: false });
+      await d.pickOption("Tomasz Wisniewski");
+      await d.pickOption(seed.SITES[0].name);
+      await d.fillByLabel("Start Time", "18:00");
+      await d.fillByLabel("End Time", "02:00");
+      await d.toggleSwitch("Repeat this shift");
+      await d.clickText("Mon", { inModal: true, exact: true });
+      return d.clickText("Schedule All", { inModal: true, exact: true });
     },
     staysOpen: true,
-    optional: "the pattern path needs Repeat turned on in the shift window",
+    optional: "the pattern path needs Repeat turned on and a day picked",
   },
   "refusals/shift-create-refused": {
     status: 400, error: "End time has to come after the start time",
@@ -60,7 +66,13 @@ const REFUSALS = {
     act: async (d) => {
       await d.goto("schedule");
       await d.clickText("Schedule Shift", { exact: false });
-      return d.clickText("Schedule", { inModal: true, exact: false });
+      // Staff, site and both times are required at src/App.js:4734, and the window refuses an empty
+      // form before anything is sent, so the API refusal would never be reached.
+      await d.pickOption("Tomasz Wisniewski");
+      await d.pickOption(seed.SITES[0].name);
+      await d.fillByLabel("Start Time", "18:00");
+      await d.fillByLabel("End Time", "02:00");
+      return d.clickText("Schedule Shift", { inModal: true, exact: true });
     },
     staysOpen: true,
   },
@@ -70,7 +82,8 @@ const REFUSALS = {
     act: async (d) => {
       await d.goto("marketplace");
       await d.clickText("Claimed", { exact: true });
-      return d.clickText("Approve", { exact: false });
+      // Exactly "Approve". A loose match lands on the Approved tab, which sends nothing.
+      return d.clickText("Approve", { exact: true });
     },
     whereShown: "toast",
   },
@@ -96,14 +109,14 @@ const REFUSALS = {
       await d.clickText("Add Site", { exact: false });
       await d.fillByLabel("Name", "Cedar Hollow Annex");
       await d.fillByLabel("Address", "77 Millrace Road");
-      return d.clickText("Add Site", { inModal: true, exact: false });
+      return d.clickText("Create", { inModal: true, exact: true });
     },
     whereShown: "toast",
     staysOpen: true,
   },
   "refusals/settings-save-refused": {
     status: 403, error: "Company settings are locked to an owner",
-    arm: { method: "PUT", path: "/api/settings" },
+    arm: { method: "PATCH", path: "/api/settings" },
     act: async (d) => {
       await d.goto("settings");
       return d.clickText("Save Company Settings", { exact: false });
@@ -134,12 +147,19 @@ const REFUSALS = {
   },
   "refusals/list-load-refused": {
     status: 500, error: "The issue list could not be read",
-    arm: { method: "GET", path: "/api/time-off" },
-    act: async (d) => {
+    // Armed by the case itself, after the view is open. The Time off tab is drawn only when the
+    // count call answered 200, and that call is the same path, so arming it up front hides the tab.
+    armLate: { method: "GET", path: "/api/time-off" },
+    act: async (d, stubs) => {
       await d.goto("schedule");
-      return d.clickText("Time off", { exact: false });
+      const opened = await d.clickText("Time off", { exact: false });
+      if (!opened) return false;
+      stubs.setRefusal({ method: "GET", path: "/api/time-off", status: 500, error: "The issue list could not be read" });
+      // Changing the status filter is one call, and that is the one the refusal answers.
+      return d.clickText("Approved", { exact: true });
     },
     whereShown: "page",
+    noArm: true,
   },
   "refusals/session-expired": {
     status: 401, error: "Session expired",
@@ -152,7 +172,7 @@ const REFUSALS = {
     status: 0, error: "Allow pop-ups to export the PDF",
     act: async (d) => {
       await d.goto("reports");
-      await d.clickText("Run", { exact: true });
+      await d.clickRunFor("Issue response and resolution");
       await d.setPopupsBlocked(true);
       const pressed = await d.clickText("Export PDF", { exact: false });
       await d.setPopupsBlocked(false);
@@ -173,21 +193,27 @@ async function run({ d, results, inventory, stubs }) {
     if (!spec) { results.noCase("refusal", id, "declared in audit/inventory.js with no case"); continue; }
 
     stubs.clearRefusals();
+    // A fresh mount before every refusal, so no window and no toast from the case before is read as
+    // this one's answer.
+    await d.ensureSignedIn("admin");
+    await d.reload();
+    await d.waitToastGone();
     if (!spec.noArm) {
       stubs.setRefusal({ method: spec.arm.method, path: spec.arm.path, status: spec.status, code: spec.code, error: spec.error });
     }
 
     let acted = false;
-    try { acted = await spec.act(d); }
+    try { acted = await spec.act(d, stubs); }
     catch (e) { results.fail("refusal", id, "could not be reached: " + String(e.message).split("\n")[0]); stubs.clearRefusals(); await d.recover("admin"); continue; }
     if (await d.crashed()) { results.fail("refusal", id, "the refusal took the app down: " + await d.crashDetail()); stubs.clearRefusals(); await d.recover("admin"); continue; }
 
     // A 401 is the one refusal meant to empty the screen.
     if (spec.expectsSignOut) {
-      const out = await d.has("Admin Dashboard");
+      const out = await d.signedOut();
       results.check("refusal", id, out, out ? "the person is back at the login card" : "a 401 left the dashboard on screen");
       stubs.clearRefusals();
-      await d.signIn("admin");
+      try { await d.ensureSignedIn("admin"); }
+      catch (e) { results.fail("refusal", id + "/sign-back-in", "could not sign back in after the 401: " + String(e.message).split("\n")[0]); }
       continue;
     }
 
@@ -214,6 +240,8 @@ async function run({ d, results, inventory, stubs }) {
     stubs.clearRefusals();
     await d.closeModal();
     if (await d.crashed()) await d.recover("admin");
+    // A refusal that signed the person out leaves nothing for the next case to drive.
+    await d.ensureSignedIn("admin");
   }
 
   stubs.clearRefusals();

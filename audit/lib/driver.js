@@ -61,7 +61,8 @@ async function createDriver({ browser, origin, stubs, viewport }) {
     colorScheme: "dark",
     acceptDownloads: true,
   });
-  await context.clock.install({ time: FIXED });
+  // Only Date is frozen. clock.install replaces setTimeout as well, which pauses the timers the app
+  // fires a print export and a toast dismissal inside, so it is deliberately not used.
   await context.clock.setFixedTime(FIXED);
   await context.addInitScript(INIT);
 
@@ -77,6 +78,16 @@ async function createDriver({ browser, origin, stubs, viewport }) {
     try { const raw = req.postData(); if (raw) body = JSON.parse(raw); } catch (e) { body = req.postData() || null; }
     const answer = stubs.handle({ method: req.method(), url: req.url(), body });
     if (answer.delayMs) await new Promise((r) => setTimeout(r, answer.delayMs));
+    // One route answers a PDF rather than JSON, which the page fetches as a blob.
+    if (answer.pdf) {
+      await route.fulfill({
+        status: answer.status,
+        contentType: "application/pdf",
+        headers: { "Access-Control-Allow-Origin": "*" },
+        body: Buffer.from(String(answer.json), "utf8"),
+      });
+      return;
+    }
     await route.fulfill({
       status: answer.status,
       contentType: "application/json; charset=utf-8",
@@ -99,17 +110,34 @@ async function createDriver({ browser, origin, stubs, viewport }) {
     // ---- session ---------------------------------------------------------
     async signIn(personaKey) {
       const who = seed.PEOPLE[personaKey];
-      // A fresh page load, not a hash change: going from #staff to #overview leaves the app mounted
-      // and still signed in, which would skip the login card entirely.
-      if (page.url().indexOf(origin) !== 0) await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-      else await page.reload({ waitUntil: "domcontentloaded" });
+      // The hash is reset to the Dashboard first. Signing in while the hash still points at another
+      // page lands there instead, which is how a 401 on the Issues page used to hang the sign-in.
+      if (page.url().indexOf(origin) !== 0) {
+        await page.goto(origin + "/#overview", { waitUntil: "domcontentloaded" });
+      } else {
+        await page.evaluate(() => { window.location.hash = "overview"; });
+        await page.reload({ waitUntil: "domcontentloaded" });
+      }
       await page.waitForSelector("text=Admin Dashboard", { timeout: 20000 });
       const inputs = page.locator("input");
       await inputs.nth(0).fill(who.login.phone);
       await inputs.nth(1).fill(who.login.pin);
       await page.getByRole("button", { name: "Sign In" }).click();
-      await page.waitForSelector("text=Welcome back", { timeout: 20000 });
+      // The bell is in the top bar of every page, so it is the signal that the shell is up, whatever
+      // page the hash happens to name.
+      await page.waitForSelector("button[title='Notifications']", { timeout: 20000 });
       await this.settle();
+    },
+
+    // True when the login card is on screen, which is where a 401 leaves the person.
+    async signedOut() {
+      return (await page.locator("button[title='Notifications']").count()) === 0;
+    },
+    // Signs back in only when the person has been signed out, so a case can call it freely.
+    async ensureSignedIn(personaKey) {
+      if (!(await this.signedOut())) return false;
+      await this.signIn(personaKey || "admin");
+      return true;
     },
 
     // Drops the stored session on the app's own origin and leaves the tab blank, so the next
@@ -198,6 +226,24 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       return t0.replace(/\s+/g, " ").trim().length;
     },
     async bodyHas(s0) { return (await this.bodyText()).toLowerCase().indexOf(String(s0).toLowerCase()) >= 0; },
+    // innerText leaves out SVG text, so a chart's own axis labels need textContent.
+    async bodyTextContent() {
+      const box = this.contentBox();
+      if ((await box.count()) === 0) return "";
+      return (await box.evaluate((el) => el.textContent || "")).replace(/\u00a0/g, " ");
+    },
+    async chartHas(s0) { return (await this.bodyTextContent()).toLowerCase().indexOf(String(s0).toLowerCase()) >= 0; },
+    // Every label a chart draws, which is what a NaN where a name belongs shows up in.
+    async chartLabels() {
+      const box = this.contentBox();
+      if ((await box.count()) === 0) return [];
+      const t0 = await box.locator("svg text").allTextContents();
+      // ApexCharts draws each label twice, once for measuring, so the pairs are collapsed.
+      return Array.from(new Set(t0.map((v) => {
+        const half = v.length / 2;
+        return v.slice(0, half) === v.slice(half) ? v.slice(0, half) : v;
+      }))).filter(Boolean);
+    },
     async bodyHasExact(s0) { return (await this.bodyText()).indexOf(s0) >= 0; },
 
     async visibleButtons() {
@@ -283,52 +329,35 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       return true;
     },
 
-    // Several screens show nothing until a person is picked. This picks the first option whose text
-    // holds the name given.
-    async pickPerson(nameFragment) {
-      const picked = await page.evaluate((frag) => {
-        const sels = Array.from(document.querySelectorAll("select")).filter((s0) => s0.offsetParent !== null);
-        for (const s0 of sels) {
-          const opt = Array.from(s0.options).find((o) => o.text.toLowerCase().indexOf(frag.toLowerCase()) >= 0);
-          if (opt) {
-            s0.value = opt.value;
-            s0.dispatchEvent(new Event("change", { bubbles: true }));
-            return true;
-          }
-        }
-        return false;
-      }, nameFragment);
-      await this.settle(320);
-      return picked;
-    },
-
-    // A select on screen, chosen by the label its options carry.
-    async pickOption(optionText) {
-      const picked = await page.evaluate((txt) => {
-        const sels = Array.from(document.querySelectorAll("select")).filter((s0) => s0.offsetParent !== null);
-        for (const s0 of sels) {
-          const opt = Array.from(s0.options).find((o) => o.text.trim() === txt || o.value === txt);
-          if (opt) { s0.value = opt.value; s0.dispatchEvent(new Event("change", { bubbles: true })); return true; }
-        }
-        return false;
-      }, optionText);
-      await this.settle(280);
-      return picked;
-    },
-
-    // The sidebar, on purpose. Everything else clicks inside the page content area.
-    async clickNav(label) {
-      const clicked = await page.evaluate((l) => {
-        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
-        if (!sb) return false;
-        const b = Array.from(sb.querySelectorAll("button")).find((x) =>
-          ((x.innerText || "").trim() === l) || x.getAttribute("title") === l);
-        if (!b) return false;
-        b.click();
+    // Several screens show nothing until a person is picked. Playwright's own selectOption is used
+    // rather than setting value by hand: React tracks a select's value, and assigning it directly is
+    // reverted on the next render, which leaves the form looking filled and sending nothing.
+    async pickOption(optionText, opts) {
+      const o = opts || {};
+      // When a window is open, its own pickers are the ones a person can reach. Without this the
+      // page's filters behind the window get picked instead, and changing one of those re-renders the
+      // window and drops what was already chosen in it.
+      const useModal = o.inModal || (!o.anywhere && (await this.modalOpen()));
+      const scope = useModal ? this.modal() : page;
+      const selects = scope.locator("select");
+      const n = await selects.count();
+      for (let i = 0; i < n; i += 1) {
+        const sel = selects.nth(i);
+        if (!(await sel.isVisible().catch(() => false))) continue;
+        const labels = await sel.locator("option").allTextContents();
+        const hit = labels.findIndex((l) => l.trim() === optionText || l.trim().indexOf(optionText) >= 0);
+        if (hit < 0) continue;
+        try { await sel.selectOption({ label: labels[hit].trim() }); }
+        catch (e) { try { await sel.selectOption({ index: hit }); } catch (e2) { continue; } }
+        await this.settle(260);
         return true;
-      }, label);
-      await this.settle();
-      return clicked;
+      }
+      return false;
+    },
+
+    // The same thing, for a picker whose options carry a person's name.
+    async pickPerson(nameFragment) {
+      return this.pickOption(nameFragment);
     },
 
     // The Run button on a named report card in the library.
@@ -350,9 +379,14 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       return clicked;
     },
 
-    // One of the report editor's output switches, by the words beside it.
-    async toggleReportOutput(fragment) {
-      return this.toggleSwitch(fragment);
+    // Whether a control by that name is on screen and live. A disabled button swallows a click and
+    // times out, so a case asks first.
+    async controlEnabled(label) {
+      return page.evaluate((l) => {
+        const b = Array.from(document.querySelectorAll("button")).find((x) => x.offsetParent !== null
+          && (x.innerText || "").trim().toLowerCase().indexOf(String(l).toLowerCase()) >= 0);
+        return !!b && !b.disabled;
+      }, label);
     },
 
     // ---- the notification bell --------------------------------------------
@@ -376,14 +410,14 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       await this.settle(400);
       return clicked && (await this.has("Mark all read"));
     },
+    // Each notice in the panel is a button carrying its title.
     async tapNotice(title) {
       const clicked = await page.evaluate((t0) => {
         const panel = document.querySelector("div[role=dialog][aria-label=Notifications]");
         if (!panel) return false;
-        const rows = Array.from(panel.querySelectorAll("div")).filter((el) => (el.innerText || "").indexOf(t0) >= 0
-          && (el.getAttribute("style") || "").indexOf("cursor: pointer") >= 0);
-        if (!rows.length) return false;
-        rows[rows.length - 1].click();
+        const row = Array.from(panel.querySelectorAll("button")).find((b) => (b.innerText || "").indexOf(t0) >= 0);
+        if (!row) return false;
+        row.click();
         return true;
       }, title);
       await this.settle(600);
@@ -432,7 +466,6 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       await this.settle(200);
       return done;
     },
-
     // ---- windows ---------------------------------------------------------
     modal() {
       return page.locator("div[style*='z-index: 500']").last();
@@ -534,21 +567,28 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       return filled;
     },
 
-    // A toggle rendered as a pill switch, found by the words beside it.
+    // A toggle beside a label: a pill switch, a checkbox, or the small square the shift window uses
+    // for Repeat. All three are a button or an input with no text of its own, in the same row as the
+    // words. The smallest row holding those words is the one taken, so a toggle further up the window
+    // is never hit by accident.
     async toggleSwitch(labelFragment) {
       const hit = await page.evaluate((frag) => {
         const root = document.querySelector("div[style*='z-index: 500']") || document.body;
+        const want = String(frag).toLowerCase();
         const rows = Array.from(root.querySelectorAll("div")).filter((el) => {
-          const txt = (el.innerText || "").trim();
-          return txt.toLowerCase().indexOf(frag.toLowerCase()) >= 0 && txt.length < 120;
+          const txt = (el.innerText || "").trim().toLowerCase();
+          if (txt.indexOf(want) < 0 || txt.length > 160) return false;
+          return !!el.querySelector("button, input[type=checkbox]");
         });
-        for (let i = rows.length - 1; i >= 0; i -= 1) {
-          const b = rows[i].querySelector("button[style*='border-radius: 12px'], input[type=checkbox]");
-          if (b) { b.click(); return true; }
-        }
-        return false;
+        if (!rows.length) return false;
+        rows.sort((a, b) => (a.innerText || "").length - (b.innerText || "").length);
+        const control = Array.from(rows[0].querySelectorAll("button, input[type=checkbox]"))
+          .find((c) => c.tagName === "INPUT" || !(c.innerText || "").trim());
+        if (!control) return false;
+        control.click();
+        return true;
       }, labelFragment);
-      await this.settle(220);
+      await this.settle(260);
       return hit;
     },
 
@@ -630,6 +670,15 @@ async function createDriver({ browser, origin, stubs, viewport }) {
         return el ? el.innerText.trim() : null;
       });
     },
+    async waitToastGone(ms) {
+      const until = Date.now() + (ms || 3600);
+      while (Date.now() < until) {
+        if (!(await this.toast())) return true;
+        await page.waitForTimeout(120);
+      }
+      return false;
+    },
+
     async waitToast(ms) {
       const until = Date.now() + (ms || 2500);
       while (Date.now() < until) {

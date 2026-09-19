@@ -225,6 +225,7 @@ const REPORTS = [
 // Everything the dashboard can hand a person to keep.
 // ---------------------------------------------------------------------------
 const EXPORTS = [
+  // CSV, eight of them. dlCSV at src/App.js:36 writes six, and two more are written inline.
   { id: "exports/issues-csv", kind: "csv", name: "ocsa-issues.csv" },
   { id: "exports/chemicals-csv", kind: "csv", name: "ocsa-chemicals.csv" },
   { id: "exports/approved-vendors-csv", kind: "csv", name: "OCSA_Approved_Vendor_List" },
@@ -233,13 +234,21 @@ const EXPORTS = [
   { id: "exports/inspection-analytics-csv", kind: "csv", name: "inspection-analytics-" },
   { id: "exports/staff-timeline-csv", kind: "csv", name: "_Timeline_" },
   { id: "exports/site-timeline-csv", kind: "csv", name: "_Timeline_" },
+
+  // Print, thirteen. Each opens a window, writes a document into it and calls print on it.
   { id: "exports/issue-report-pdf", kind: "print", name: "Issue Response and Resolution" },
   { id: "exports/supply-report-pdf", kind: "print", name: "Supply Usage and Cost" },
   { id: "exports/inspection-report-pdf", kind: "print", name: "Inspection" },
-  { id: "exports/permissions-matrix-pdf", kind: "print", name: "Roles and Permissions" },
-  { id: "exports/staff-profile-print", kind: "print", name: "Staff" },
-  { id: "exports/site-profile-print", kind: "print", name: "Site" },
   { id: "exports/inspection-analytics-pdf", kind: "print", name: "Inspection Analytics Report" },
+  { id: "exports/inspection-detail-print", kind: "print", name: "Inspection" },
+  { id: "exports/staff-profile-print", kind: "print", name: "Staff" },
+  { id: "exports/staff-timeline-print", kind: "print", name: "Timeline" },
+  { id: "exports/staff-timeline-detail-print", kind: "print", name: "Record" },
+  { id: "exports/site-timeline-print", kind: "print", name: "Timeline" },
+  { id: "exports/site-timeline-detail-print", kind: "print", name: "Record" },
+  { id: "exports/site-chat-print", kind: "print", name: "Chat History" },
+  { id: "exports/permissions-matrix-pdf", kind: "print", name: "Roles and Permissions" },
+  { id: "exports/submission-pdf-print", kind: "print", name: "" },
 ];
 
 // ---------------------------------------------------------------------------

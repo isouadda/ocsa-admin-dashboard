@@ -61,11 +61,18 @@ async function main() {
       if (only.length && only.indexOf(s.name) < 0) continue;
       const suite = loadSuite(s.mod);
       if (!suite) { results.note("suite " + s.name + " is not present yet"); continue; }
-      if (s.widths.length === 0) { await suite.run(ctx); continue; }
+      if (s.widths.length === 0) {
+        try { await suite.run(ctx); }
+        catch (e) { results.fail("suite", s.name, "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
+        continue;
+      }
       for (const width of s.widths) {
         process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : "1024x900") + "\n");
         const d = await createDriver({ browser, origin: srv.origin, stubs, viewport: width });
+        // A suite that throws fails the run. It does not erase the table, because the other suites
+        // still have something to say.
         try { await suite.run(Object.assign({}, ctx, { d, width })); }
+        catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : ""), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
         finally { await d.close(); }
       }
     }

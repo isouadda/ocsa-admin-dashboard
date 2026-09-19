@@ -9,11 +9,11 @@
       "where": "src/App.js:545, src/App.js:546, src/App.js:561, src/App.js:562"
     },
     {
-      "id": "form-notice-lands-a-supervisor-on-the-empty-forms-page",
-      "match": "^notice/form/supervisor",
-      "shows": "Tapping the filed-report notice in the bell sets the hash to forms/reports/<id> and lands the supervisor on the same empty Forms page.",
-      "why": "NotificationPanel.openRow at src/App.js:2675 routes a form notice straight to the Forms page without checking whether the person can open it, and the Forms page is admin-only at src/App.js:561.",
-      "where": "src/App.js:2675, src/App.js:561"
+      "id": "a-notice-lands-a-supervisor-on-a-page-they-cannot-read",
+      "match": "^notice/(form|hr_case)/supervisor$",
+      "shows": "Tapping the filed-report notice in the bell sets the hash to forms/reports/<id> and lands the supervisor on the empty Forms page. The case notice does the same on the empty Cases page.",
+      "why": "NotificationPanel.openRow at src/App.js:2675 routes a notice by its subject and its link without checking whether the person can open the page it names, and Forms and Cases are admin-only at src/App.js:561 and src/App.js:546.",
+      "where": "src/App.js:2675, src/App.js:561, src/App.js:546"
     },
     {
       "id": "banned-acronym-reaches-eight-screens-and-exports",
@@ -21,6 +21,27 @@
       "shows": "A four-letter certification framework acronym reaches eight places a person reads: two window field labels on the Sites page, a field label and a CSV export column on the Service Catalog, a CSV export column and a field label and a section heading in Inspections, and the green banner over the PDF Access Log.",
       "why": "CLAUDE.md says the acronym must never appear in any screen, label or export that staff or clients see. These eight were written before that rule and were never swept.",
       "where": "src/App.js:1979, src/App.js:1994, src/App.js:4051, src/App.js:4076, src/App.js:5974, src/App.js:6279, src/App.js:6451, src/App.js:8398"
+    },
+    {
+      "id": "manage-permissions-capability-cannot-open-the-screen-it-governs",
+      "match": "^permissions/one-screen-proves-it$",
+      "shows": "A supervisor granted the manage permissions capability opens Settings and gets a 0 character body. The capability the app describes as the way to let someone else open that screen does not let them open it.",
+      "why": "The Settings page is gated on isAdmin in the render switch at src/App.js:562, and the capability is never consulted there. The copy at src/App.js:6941 says an admin can grant the capability to let someone else open this screen, which is not true today.",
+      "where": "src/App.js:562, src/App.js:6941"
+    },
+    {
+      "id": "roles-and-permissions-reference-and-its-export-are-unreachable",
+      "match": "^(permissions/matrix-panel-is-reachable|exports/permissions-matrix-pdf)$",
+      "shows": "The Roles and Permissions tab shows the per-person editor. The reference matrix, its notes and its Export PDF are never drawn, so one of the dashboard's exports cannot be reached from any screen.",
+      "why": "PermissionsMatrixPanel is defined at src/App.js:6781 and no tab mounts it. The permissions tab renders PermissionsEditorPanel at src/App.js:7112 instead.",
+      "where": "src/App.js:6781, src/App.js:7112"
+    },
+    {
+      "id": "every-horizontal-bar-chart-labels-its-bars-NaN",
+      "match": "^reports/(supply-usage/top-supply|inspection-quality/lowest-item-named)$",
+      "shows": "Top supplies by cost, on the supply report, and Lowest-scoring items, on the inspection report, both draw NaN down the side where the supply and item names belong. One NaN per bar. A manager reading either panel cannot tell which supply or which item a bar is.",
+      "why": "BarChartW sets a y axis formatter of Math.round(v) plus a suffix. With horizontal turned on the axes swap, so the category names arrive at that formatter and Math.round of a name is NaN. The fix is to leave the formatter off when horizontal is set.",
+      "where": "src/App.js:164"
     }
   ]
 }

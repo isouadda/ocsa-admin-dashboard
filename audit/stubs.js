@@ -85,7 +85,9 @@ function createStubs() {
     { id: "sp-2", name: "Microfiber cloth pack", category: "tool", unit: "case", current_stock: 8, low_threshold: 12, cost_per_unit: 14.68, is_green_certified: false, qr_code: "QR-SP2", is_active: true },
     { id: "sp-3", name: "Can liner 40x46", category: "consumable", unit: "case", current_stock: 90, low_threshold: 20, cost_per_unit: 8.24, is_green_certified: false, qr_code: "QR-SP3", is_active: true },
     { id: "sp-4", name: "Hand soap refill", category: "consumable", unit: "each", current_stock: 35, low_threshold: 15, cost_per_unit: 17.43, is_green_certified: true, green_cert_type: "Third-party", epa_reg_number: "EPA-11-311", qr_code: "QR-SP4", is_active: true },
+    { id: "sp-5", name: "Glass cleaner concentrate", category: "chemical", unit: "gallon", current_stock: 20, low_threshold: 6, cost_per_unit: 22.75, is_green_certified: false, epa_reg_number: "EPA-11-408", qr_code: "QR-SP5", is_active: true },
   ];
+  // hand: 5 supplies, 2 of them chemicals, so the chemical export writes 2 rows plus a header.
 
   const SUPPLY_REQUESTS = [
     { id: "sr-1", supply_name: "Can liner 40x46", supply_id: "sp-3", quantity: 6, unit: "case", status: "pending", requested_by_name: "Tomasz Wisniewski", site_name: S[0].name, notes: "Dock run is short.", requested_at: seed.shift(-1) + "T13:00:00Z", admin_notes: null },
@@ -93,10 +95,11 @@ function createStubs() {
     { id: "sr-3", supply_name: "Mop head 24oz", supply_id: "sp-7", quantity: 10, unit: "each", status: "fulfilled", requested_by_name: "Elena Barbosa", site_name: S[2].name, notes: "", requested_at: seed.shift(-11) + "T15:45:00Z", admin_notes: "Delivered." },
   ];
 
+  // The list and the approved-vendor export both read approval_status.
   const VENDORS = [
-    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
-    { id: "v-2", name: "Brightwater Equipment", status: "approved", category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
-    { id: "v-3", name: "Kestrel Paper Co", status: "pending", category: "consumable", contact_name: "S. Nakamura", contact_email: "hello@kestrelpaper.example.invalid", contact_phone: "2155559003", insurance_expiry: seed.shift(-14), w9_on_file: false, avg_rating: null, evaluation_count: 0, city: "Fairhaven", state: "PA" },
+    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
+    { id: "v-2", name: "Brightwater Equipment", status: "approved", approval_status: "approved", address_line1: "3 Dockside Lane", zip_code: "19061", products_services: "Autoscrubbers and parts", certification_status: "None", contract_terms: "Net 15", last_review_date: seed.shift(-90), category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
+    { id: "v-3", name: "Kestrel Paper Co", status: "pending", approval_status: "pending", address_line1: "88 Foundry Street", zip_code: "19045", products_services: "Paper and liners", certification_status: "None", contract_terms: "Prepaid", last_review_date: null, category: "consumable", contact_name: "S. Nakamura", contact_email: "hello@kestrelpaper.example.invalid", contact_phone: "2155559003", insurance_expiry: seed.shift(-14), w9_on_file: false, avg_rating: null, evaluation_count: 0, city: "Fairhaven", state: "PA" },
   ];
   // hand: 3 vendors, 2 approved. The approved-vendor export writes 2 rows plus a header.
 
@@ -120,9 +123,9 @@ function createStubs() {
 
   const SCHEDULE = [
     { id: "sh-1", user_id: "u-staff-5", user_name: "Tomasz Wisniewski", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(0), start_time: "18:00", end_time: "02:00", status: "scheduled", building_name: "North Wing", floor_number: "3", notes: "", pattern_id: null, crosses_midnight: true },
-    { id: "sh-2", user_id: "u-staff-6", user_name: "Ngozi Okonkwo", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(0), start_time: "06:00", end_time: "14:00", status: "scheduled", building_name: "Clinic", floor_number: "1", notes: "", pattern_id: "pt-1" },
+    { id: "sh-2", user_id: "u-staff-6", user_name: "Ngozi Okonkwo", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(0), start_time: "06:00", end_time: "14:00", status: "scheduled", building_name: "Clinic", floor_number: "1", notes: "", pattern_id: "pt-1", shift_pattern_id: "pt-1" },
     { id: "sh-3", user_id: "u-staff-7", user_name: "Elena Barbosa", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "scheduled", building_name: "Dock A", floor_number: "1", notes: "", pattern_id: null, crosses_midnight: true },
-    { id: "sh-4", user_id: "u-staff-8", user_name: "Rashid Haddad", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "14:00", end_time: "22:00", status: "scheduled", building_name: "South Wing", floor_number: "2", notes: "", pattern_id: "pt-1" },
+    { id: "sh-4", user_id: "u-staff-8", user_name: "Rashid Haddad", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "14:00", end_time: "22:00", status: "scheduled", building_name: "South Wing", floor_number: "2", notes: "", pattern_id: "pt-1", shift_pattern_id: "pt-1" },
   ];
 
   const PATTERNS = [
@@ -336,11 +339,13 @@ function createStubs() {
   };
   // hand: 4 people started today, which is OVERVIEW.clockedInNow.
 
+  // Keyed on task_id, with resolution_status, which is what the Assigned Tasks page reads.
   const ASSIGNED_TASKS = [
-    { id: "at-1", label: "Strip and refinish lobby", site_id: S[0].id, site_name: S[0].name, zone: "Lobby", building_name: "North Wing", floor_number: "1", user_id: "u-staff-5", assigned_to_name: "Tomasz Wisniewski", status: "in_progress", priority: "urgent", cims_category: "SD", due_date: seed.shift(1) },
-    { id: "at-2", label: "Restock clinic restrooms", site_id: S[1].id, site_name: S[1].name, zone: "Restroom", building_name: "Clinic", floor_number: "1", user_id: "u-staff-6", assigned_to_name: "Ngozi Okonkwo", status: "completed", priority: "standard", cims_category: "SD", due_date: seed.shift(0) },
-    { id: "at-3", label: "Pressure wash dock apron", site_id: S[2].id, site_name: S[2].name, zone: "Dock", building_name: "Dock A", floor_number: "1", user_id: "u-staff-7", assigned_to_name: "Elena Barbosa", status: "pending", priority: "standard", cims_category: "HSE", due_date: seed.shift(3) },
+    { task_id: "at-1", id: "at-1", label: "Strip and refinish lobby", site_id: S[0].id, site_name: S[0].name, zone: "Lobby", building_name: "North Wing", floor_number: "1", user_id: "u-staff-5", assigned_to_name: "Tomasz Wisniewski", created_by_name: "Dana Whitlock", resolution_status: "in_progress", status: "in_progress", priority: "urgent", cims_category: "SD", due_date: seed.shift(1), due_time: "22:00", task_created_at: seed.shift(-2) + "T09:00:00Z", description: "Strip, seal and finish the lobby floor." },
+    { task_id: "at-2", id: "at-2", label: "Restock clinic restrooms", site_id: S[1].id, site_name: S[1].name, zone: "Restroom", building_name: "Clinic", floor_number: "1", user_id: "u-staff-6", assigned_to_name: "Ngozi Okonkwo", created_by_name: "Dana Whitlock", resolution_status: "resolved", status: "completed", priority: "standard", cims_category: "SD", due_date: seed.shift(0), due_time: "14:00", task_created_at: seed.shift(-3) + "T09:00:00Z", resolved_at: seed.shift(0) + "T13:30:00Z", resolution_note: "Restocked all four restrooms.", description: "" },
+    { task_id: "at-3", id: "at-3", label: "Pressure wash dock apron", site_id: S[2].id, site_name: S[2].name, zone: "Dock", building_name: "Dock A", floor_number: "1", user_id: "u-staff-7", assigned_to_name: "Elena Barbosa", created_by_name: "Marcus Ferreira", resolution_status: "pending", status: "pending", priority: "standard", cims_category: "HSE", due_date: seed.shift(3), due_time: "06:00", task_created_at: seed.shift(-1) + "T09:00:00Z", description: "" },
   ];
+  // hand: 3 tasks, one per site. in_progress 1, resolved 1, pending 1.
 
   const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
     id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
@@ -519,6 +524,13 @@ function createStubs() {
     // --- issues -----------------------------------------------------------
     if (path === "/api/issues" && method === "GET") return ok(state.issues);
     if (path === "/api/issues" && method === "POST") { const row = Object.assign({ id: "i-new" }, body || {}); state.issues.unshift(row); return created({ message: "Issue reported" }); }
+    if (/^\/api\/issues\/[^/]+\/activity$/.test(path)) {
+      return ok([
+        { id: "ia-1", action: "reported", created_at: seed.shift(-2) + "T14:05:00Z", user_name: "Tomasz Wisniewski", details: "Reported on the night round." },
+        { id: "ia-2", action: "started_work", created_at: seed.shift(-1) + "T09:00:00Z", user_name: "Marcus Ferreira", details: "" },
+      ]);
+    }
+    if (/^\/api\/issues\/[^/]+\/photos$/.test(path)) return ok([]);
     if (/^\/api\/issues\/[^/]+\/assign/.test(path)) return ok({ message: "Task created from issue" });
     if (/^\/api\/issues\/[^/]+$/.test(path) && (method === "PATCH" || method === "PUT")) {
       const id = path.split("/")[3];
@@ -580,7 +592,9 @@ function createStubs() {
 
     // --- sites ------------------------------------------------------------
     if (path.startsWith("/api/sites/profile/")) return ok(siteProfile(idAfter("/api/sites/profile/")));
-    if (path.startsWith("/api/sites/chat/")) return ok(CHAT_MESSAGES);
+    if (path.startsWith("/api/sites/chat/")) {
+      return ok({ messages: CHAT_MESSAGES, total: CHAT_MESSAGES.length, channel: { id: "ch-1", name: S[0].name } });
+    }
     if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) {
       if (method !== "GET") return ok({ message: "Task saved" });
       const sid = path.split("/")[3];
@@ -723,7 +737,12 @@ function createStubs() {
 
     // --- assigned tasks ---------------------------------------------------
     if (path.startsWith("/api/clock/tasks/assigned-all")) return ok(ASSIGNED_TASKS);
-    if (path.startsWith("/api/clock/tasks/activity/")) return ok({ rows: [{ id: "ta-1", occurred_at: seed.shift(0) + "T22:40:00Z", action: "Task completed", by_name: "Tomasz Wisniewski", notes: "" }] });
+    if (path.startsWith("/api/clock/tasks/activity/")) {
+      return ok([
+        { id: "ta-1", action: "assigned", created_at: seed.shift(-2) + "T09:05:00Z", user_name: "Dana Whitlock", details: "" },
+        { id: "ta-2", action: "started_work", created_at: seed.shift(-1) + "T18:10:00Z", user_name: "Tomasz Wisniewski", details: "" },
+      ]);
+    }
     if (path.startsWith("/api/shift-sessions/by-site")) return ok(SHIFT_SESSIONS);
 
     // --- inspections ------------------------------------------------------
@@ -742,15 +761,31 @@ function createStubs() {
     }
     // hand: 2 pending plus 4 completed = 6 rows in one list, which the page splits by status.
     if (path === "/api/inspections/scheduled" && method === "POST") return created({ message: "Inspection scheduled" });
+    // The detail view reads the row's own fields at the top level plus result, items and scores,
+    // and matches a score to an item by template_item_id.
     if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[4];
-      const found = SCHEDULED_INSPECTIONS.concat(seed.INSPECTION_SCORES).find((x) => x.id === id) || SCHEDULED_INSPECTIONS[0];
-      return ok({
-        inspection: Object.assign({}, found, { template_name: found.template_name || "Monthly quality walk", site_name: found.site_name }),
+      const found = SCHEDULED_INSPECTIONS.concat(seed.INSPECTION_SCORES).find((x) => x.id === id) || seed.INSPECTION_SCORES[0];
+      const scores = INSPECTION_ITEMS.map((it, i) => ({
+        template_item_id: it.id, score: [9, 6, 7][i],
+        notes: i === 1 ? "Handrail needs a wipe." : "", photo_url: null,
+      }));
+      return ok(Object.assign({}, found, {
+        template_name: found.template_name || "Monthly quality walk",
+        assigned_name: found.assigned_to_name || found.completed_by_name || "Marcus Ferreira",
+        status: found.status || "completed",
         items: INSPECTION_ITEMS,
-        scores: INSPECTION_ITEMS.map((it, i) => ({ item_id: it.id, score: [9, 6, 7][i], notes: i === 1 ? "Handrail needs a wipe." : "", photo_url: null })),
-      });
+        scores: scores,
+        result: {
+          total_score: 22, max_possible_score: 30,
+          completed_at: found.scheduled_date + "T18:00:00Z",
+          completed_by_name: found.completed_by_name || "Marcus Ferreira",
+          overall_notes: found.overall_notes || "",
+        },
+      }));
     }
+    // hand: the three item scores 9 + 6 + 7 = 22 of a possible 10 + 10 + 10 = 30, which the detail
+    // view shows as 73 percent and the CSV writes as its TOTAL row.
     if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path)) return ok({ message: "Inspection updated" });
     if (path.startsWith("/api/inspections/analytics/dashboard-summary")) return ok(seed.INSPECTION_DASHBOARD_SUMMARY);
     if (path.startsWith("/api/inspections/analytics/scores-over-time")) return ok(seed.INSPECTION_SCORES);
@@ -800,7 +835,7 @@ function createStubs() {
         epa_reg_number: s.epa_reg_number || "", site_name: S[0].name, total_quantity: s.current_stock, unit: s.unit,
       })) });
     }
-    // hand: 2 of the 4 supplies are chemicals, so the chemical export writes 2 rows plus a header.
+  
 
     // --- HR ---------------------------------------------------------------
     if (path.startsWith("/api/hr/documents")) {
@@ -879,6 +914,10 @@ function createStubs() {
         ] },
         fetchError: null,
       });
+    }
+    // The PDF route answers a binary body, so the driver serves it as a PDF rather than as JSON.
+    if (/^\/api\/jotform\/submissions\/[^/]+\/pdf$/.test(path)) {
+      return { status: 200, pdf: true, json: "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n" };
     }
     if (path.startsWith("/api/jotform/pdf-access-log")) return ok({ entries: PDF_ACCESS_LOG, total: PDF_ACCESS_LOG.length });
     if (path === "/api/jotform/config") return ok({ api_key_set: true, base_url: "https://api.jotform.example.invalid", auto_link: true, locale: "en" });
