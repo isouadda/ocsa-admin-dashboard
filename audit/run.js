@@ -29,6 +29,8 @@ const SUITES = [
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
+// Every suite in SUITES has to load. A missing one used to be a note, which meant a run could print
+// a clean table while a whole suite sat out. It fails the run now.
 function loadSuite(mod) {
   try { return require(mod); } catch (e) {
     if (e && e.code === "MODULE_NOT_FOUND" && String(e.message).indexOf(mod) >= 0) return null;
@@ -60,7 +62,7 @@ async function main() {
     for (const s of SUITES) {
       if (only.length && only.indexOf(s.name) < 0) continue;
       const suite = loadSuite(s.mod);
-      if (!suite) { results.note("suite " + s.name + " is not present yet"); continue; }
+      if (!suite) { results.fail("suite", s.name, "the suite module " + s.mod + " could not be loaded"); continue; }
       if (s.widths.length === 0) {
         try { await suite.run(ctx); }
         catch (e) { results.fail("suite", s.name, "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
