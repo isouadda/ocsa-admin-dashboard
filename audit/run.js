@@ -77,10 +77,12 @@ async function main() {
   const unstubbed = Array.from(new Set(stubs.calls.filter((c) => c.unstubbed).map((c) => c.method + " " + c.path)));
   if (unstubbed.length) results.note("calls with no stub rule, answered with an empty shape: " + unstubbed.join(", "));
 
+  const partialRun = only.length > 0;
+  if (partialRun) results.note("partial run, AUDIT_ONLY=" + only.join(","));
   printDetail(results);
-  printKnown(results);
+  printKnown(results, partialRun);
   printNotes(results);
-  const failures = printTable(results, Math.round((Date.now() - started) / 1000));
+  const failures = printTable(results, Math.round((Date.now() - started) / 1000), partialRun);
   process.exit(failures > 0 ? 1 : 0);
 }
 

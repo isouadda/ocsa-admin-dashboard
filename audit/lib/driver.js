@@ -76,6 +76,7 @@ async function createDriver({ browser, origin, stubs, viewport }) {
     let body = null;
     try { const raw = req.postData(); if (raw) body = JSON.parse(raw); } catch (e) { body = req.postData() || null; }
     const answer = stubs.handle({ method: req.method(), url: req.url(), body });
+    if (answer.delayMs) await new Promise((r) => setTimeout(r, answer.delayMs));
     await route.fulfill({
       status: answer.status,
       contentType: "application/json; charset=utf-8",
@@ -98,25 +99,46 @@ async function createDriver({ browser, origin, stubs, viewport }) {
     // ---- session ---------------------------------------------------------
     async signIn(personaKey) {
       const who = seed.PEOPLE[personaKey];
-      await page.goto(origin + "/#overview", { waitUntil: "domcontentloaded" });
-      await page.waitForSelector("text=Admin Dashboard", { timeout: 15000 });
+      // A fresh page load, not a hash change: going from #staff to #overview leaves the app mounted
+      // and still signed in, which would skip the login card entirely.
+      if (page.url().indexOf(origin) !== 0) await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
+      else await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForSelector("text=Admin Dashboard", { timeout: 20000 });
       const inputs = page.locator("input");
       await inputs.nth(0).fill(who.login.phone);
       await inputs.nth(1).fill(who.login.pin);
       await page.getByRole("button", { name: "Sign In" }).click();
-      await page.waitForSelector("text=Welcome back", { timeout: 15000 });
+      await page.waitForSelector("text=Welcome back", { timeout: 20000 });
       await this.settle();
     },
 
+    // Drops the stored session on the app's own origin and leaves the tab blank, so the next
+    // signIn is a real load.
     async signOutHard() {
-      await page.evaluate(() => { try { localStorage.clear(); } catch (e) {} });
+      if (page.url().indexOf(origin) !== 0) await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
+      await page.evaluate(() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} });
+      await page.goto("about:blank");
     },
 
     // ---- navigation ------------------------------------------------------
     async goto(pageId, sub) {
+      const cur = await page.evaluate(() => window.location.hash.replace(/^#/, "").split("/")[0]);
+      // Setting the same hash changes nothing, so the page keeps whatever tab it was left on. A hop
+      // through another page unmounts it, which is what a person gets when they navigate away.
+      if (cur === pageId) {
+        await page.evaluate((other) => { window.location.hash = other; }, pageId === "overview" ? "help" : "overview");
+        await this.settle(140);
+      }
       const hash = "#" + [pageId].concat(sub ? [].concat(sub) : []).join("/");
       await page.evaluate((h) => { window.location.hash = h; }, hash);
       await this.settle();
+    },
+
+    // A real page load, which is what it takes to refetch the lists the shell holds.
+    async reload() {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.waitForSelector("text=Welcome back", { timeout: 20000 }).catch(() => {});
+      await this.settle(300);
     },
 
     async settle(extraMs) {
@@ -125,24 +147,58 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       await page.waitForTimeout(80);
     },
 
+    // ---- the root error boundary ------------------------------------------
+    // A render exception drops the whole app behind src/index.js's boundary. The suite reports the
+    // case that caused it and then reloads and signs back in, so one broken screen does not blank
+    // every case after it.
+    async crashed() {
+      return this.has("Something went wrong and the page needs reloading");
+    },
+    async crashDetail() {
+      if (!(await this.crashed())) return "";
+      const pre = page.locator("pre").first();
+      if ((await pre.count()) === 0) return "the app dropped behind the root error boundary";
+      const txt = (await pre.innerText()).split("\n")[0];
+      return "the app threw: " + txt.trim();
+    },
+    async recover(personaKey) {
+      if (!(await this.crashed())) return false;
+      await this.signOutHard();
+      await this.signIn(personaKey || "admin");
+      return true;
+    },
+
     // ---- reading the screen ---------------------------------------------
     async text() {
       return (await page.locator("body").innerText()).replace(/ /g, " ");
     },
     async has(s) { return (await this.text()).indexOf(s) >= 0; },
     async absent(s) { return (await this.text()).indexOf(s) < 0; },
+    // Chromium's innerText applies text-transform, and the app upper-cases plenty of headings, so
+    // most assertions compare without case.
+    async hasI(s) { return (await this.text()).toLowerCase().indexOf(String(s).toLowerCase()) >= 0; },
+    async absentI(s) { return (await this.text()).toLowerCase().indexOf(String(s).toLowerCase()) < 0; },
 
     async headerTitle() {
       try { return (await page.locator("h1, [data-page-title]").first().innerText()).trim(); } catch (e) { return ""; }
     },
 
-    // The content area under the page header, which is what a gated page empties out.
-    async bodyLength() {
-      return page.evaluate(() => {
-        const main = document.querySelector("main") || document.body;
-        return main.innerText.replace(/\s+/g, " ").trim().length;
-      });
+    // The page content area, the div the render switch puts a page into. Everything above it, the
+    // header with the page label and the sidebar, is the shell and is read separately.
+    contentBox() {
+      return page.locator("div[style*='padding: 16px 24px 30px']").first();
     },
+    async bodyText() {
+      const box = this.contentBox();
+      if ((await box.count()) === 0) return "";
+      return (await box.innerText()).replace(/\u00a0/g, " ");
+    },
+    async bodyLength() {
+      const t0 = await this.bodyText();
+      return t0.replace(/\s+/g, " ").trim().length;
+    },
+    async bodyHas(s0) { return (await this.bodyText()).toLowerCase().indexOf(String(s0).toLowerCase()) >= 0; },
+    async bodyHasExact(s0) { return (await this.bodyText()).indexOf(s0) >= 0; },
 
     async visibleButtons() {
       return page.evaluate(() => Array.from(document.querySelectorAll("button"))
@@ -156,28 +212,225 @@ async function createDriver({ browser, origin, stubs, viewport }) {
         const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
         if (!sb) return [];
         return Array.from(sb.querySelectorAll("button, a"))
-          .map((b) => (b.innerText || "").trim())
+          .map((b) => ((b.innerText || "").trim() || b.getAttribute("title") || "").trim())
           .filter(Boolean);
       });
+    },
+    async sidebarCollapsed() {
+      return page.evaluate(() => {
+        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+        return sb ? sb.getBoundingClientRect().width < 100 : false;
+      });
+    },
+
+    // ---- the user menu ---------------------------------------------------
+    // The trigger is the avatar chip in the top bar, which carries the person's initials and first
+    // name. The sidebar shows the same first name, so the sidebar is excluded by position.
+    async openUserMenu() {
+      const clicked = await page.evaluate(() => {
+        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+        const btns = Array.from(document.querySelectorAll("button")).filter((b) => {
+          if (sb && sb.contains(b)) return false;
+          if (b.offsetParent === null) return false;
+          const span = b.querySelector("span[style*='border-radius: 50%']");
+          return !!span && /^[A-Z]{2}$/.test((span.innerText || "").trim());
+        });
+        if (!btns.length) return false;
+        btns[btns.length - 1].click();
+        return true;
+      });
+      await this.settle(200);
+      return clicked && (await this.has("Sign Out"));
+    },
+    async signOut() {
+      if (!(await this.has("Sign Out"))) await this.openUserMenu();
+      const ok = await this.clickText("Sign Out", { exact: false });
+      await this.settle(500);
+      return ok;
+    },
+
+    // The collapse toggle in the sidebar head. At 1024 the app starts collapsed, so a case that
+    // reads nav labels expands it first.
+    async expandSidebar() {
+      if (!(await this.sidebarCollapsed())) return true;
+      await page.evaluate(() => {
+        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+        if (!sb) return;
+        const b = sb.querySelector("button");
+        if (b) b.click();
+      });
+      await this.settle(260);
+      return !(await this.sidebarCollapsed());
     },
 
     // ---- clicking --------------------------------------------------------
     async clickText(label, opts) {
       const o = opts || {};
-      const scope = o.inModal ? this.modal() : page;
+      const scope = o.inModal ? this.modal() : (o.anywhere ? page : this.contentBox());
       const exact = o.exact !== false;
       let loc = scope.getByRole("button", { name: label, exact: exact });
       if ((await loc.count()) === 0) loc = scope.locator("button", { hasText: label });
       if ((await loc.count()) === 0) loc = scope.getByText(label, { exact: exact });
+      if ((await loc.count()) === 0 && !o.inModal && !o.anywhere) {
+        // A window is outside the content area, so fall back to the whole page once.
+        return this.clickText(label, Object.assign({}, o, { anywhere: true }));
+      }
       if ((await loc.count()) === 0) return false;
-      await loc.first().click({ timeout: 8000 });
+      const n = o.nth || 0;
+      if ((await loc.count()) <= n) return false;
+      await loc.nth(n).click({ timeout: 8000 });
       await this.settle(o.settle);
       return true;
     },
 
+    // Several screens show nothing until a person is picked. This picks the first option whose text
+    // holds the name given.
+    async pickPerson(nameFragment) {
+      const picked = await page.evaluate((frag) => {
+        const sels = Array.from(document.querySelectorAll("select")).filter((s0) => s0.offsetParent !== null);
+        for (const s0 of sels) {
+          const opt = Array.from(s0.options).find((o) => o.text.toLowerCase().indexOf(frag.toLowerCase()) >= 0);
+          if (opt) {
+            s0.value = opt.value;
+            s0.dispatchEvent(new Event("change", { bubbles: true }));
+            return true;
+          }
+        }
+        return false;
+      }, nameFragment);
+      await this.settle(320);
+      return picked;
+    },
+
+    // A select on screen, chosen by the label its options carry.
+    async pickOption(optionText) {
+      const picked = await page.evaluate((txt) => {
+        const sels = Array.from(document.querySelectorAll("select")).filter((s0) => s0.offsetParent !== null);
+        for (const s0 of sels) {
+          const opt = Array.from(s0.options).find((o) => o.text.trim() === txt || o.value === txt);
+          if (opt) { s0.value = opt.value; s0.dispatchEvent(new Event("change", { bubbles: true })); return true; }
+        }
+        return false;
+      }, optionText);
+      await this.settle(280);
+      return picked;
+    },
+
+    // The sidebar, on purpose. Everything else clicks inside the page content area.
     async clickNav(label) {
-      const ok = await this.clickText(label, { exact: false });
-      return ok;
+      const clicked = await page.evaluate((l) => {
+        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+        if (!sb) return false;
+        const b = Array.from(sb.querySelectorAll("button")).find((x) =>
+          ((x.innerText || "").trim() === l) || x.getAttribute("title") === l);
+        if (!b) return false;
+        b.click();
+        return true;
+      }, label);
+      await this.settle();
+      return clicked;
+    },
+
+    // The Run button on a named report card in the library.
+    async clickRunFor(reportName) {
+      const clicked = await page.evaluate((name) => {
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const cards = Array.from(box.querySelectorAll("div")).filter((el) => {
+          const txt = (el.innerText || "").trim();
+          return txt.toLowerCase().indexOf(name.toLowerCase()) === 0 && txt.indexOf("Run") >= 0 && txt.length < 400;
+        });
+        const card = cards[cards.length - 1];
+        if (!card) return false;
+        const b = Array.from(card.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === "Run");
+        if (!b) return false;
+        b.click();
+        return true;
+      }, reportName);
+      await this.settle(450);
+      return clicked;
+    },
+
+    // One of the report editor's output switches, by the words beside it.
+    async toggleReportOutput(fragment) {
+      return this.toggleSwitch(fragment);
+    },
+
+    // ---- the notification bell --------------------------------------------
+    // The bell's own aria-label carries the unread count, which is what the badge shows.
+    async bellCount() {
+      return page.evaluate(() => {
+        const b = Array.from(document.querySelectorAll("button")).find((x) => x.getAttribute("title") === "Notifications");
+        if (!b) return null;
+        const m = (b.getAttribute("aria-label") || "").match(/^(\d+) unread/);
+        return m ? m[1] : "0";
+      });
+    },
+    async openBell() {
+      if (await this.has("Mark all read")) return true;
+      const clicked = await page.evaluate(() => {
+        const b = Array.from(document.querySelectorAll("button")).find((x) => x.getAttribute("title") === "Notifications" && x.offsetParent !== null);
+        if (!b) return false;
+        b.click();
+        return true;
+      });
+      await this.settle(400);
+      return clicked && (await this.has("Mark all read"));
+    },
+    async tapNotice(title) {
+      const clicked = await page.evaluate((t0) => {
+        const panel = document.querySelector("div[role=dialog][aria-label=Notifications]");
+        if (!panel) return false;
+        const rows = Array.from(panel.querySelectorAll("div")).filter((el) => (el.innerText || "").indexOf(t0) >= 0
+          && (el.getAttribute("style") || "").indexOf("cursor: pointer") >= 0);
+        if (!rows.length) return false;
+        rows[rows.length - 1].click();
+        return true;
+      }, title);
+      await this.settle(600);
+      return clicked;
+    },
+
+    // ---- the permissions editor -------------------------------------------
+    // One capability row, read by the label the API sent for it.
+    async capabilityRow(label) {
+      return page.evaluate((lbl) => {
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const spans = Array.from(box.querySelectorAll("span")).filter((s0) => (s0.innerText || "").trim() === lbl);
+        if (!spans.length) return null;
+        let row = spans[0];
+        while (row && !(row.querySelector("button") || (row.innerText || "").indexOf("Locked on") >= 0)) row = row.parentElement;
+        if (!row) return null;
+        const txt = (row.innerText || "");
+        const buttons = Array.from(row.querySelectorAll("button")).map((b) => (b.innerText || "").trim());
+        const currentlyLine = txt.split("\n").find((l) => l.indexOf("Currently:") === 0) || "";
+        // The chosen state is the button whose background is filled rather than transparent.
+        let state = "default";
+        Array.from(row.querySelectorAll("button")).forEach((b) => {
+          const st = b.getAttribute("style") || "";
+          if (st.indexOf("background: transparent") < 0) {
+            const t0 = (b.innerText || "").trim().toLowerCase();
+            if (t0 === "allow" || t0 === "deny" || t0 === "default") state = t0;
+          }
+        });
+        return { currently: currentlyLine, buttons, state, locked: txt.indexOf("Locked on") >= 0 };
+      }, label);
+    },
+
+    async setCapability(label, which) {
+      const done = await page.evaluate(([lbl, w]) => {
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const spans = Array.from(box.querySelectorAll("span")).filter((s0) => (s0.innerText || "").trim() === lbl);
+        if (!spans.length) return false;
+        let row = spans[0];
+        while (row && !row.querySelector("button")) row = row.parentElement;
+        if (!row) return false;
+        const b = Array.from(row.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === w);
+        if (!b) return false;
+        b.click();
+        return true;
+      }, [label, which]);
+      await this.settle(200);
+      return done;
     },
 
     // ---- windows ---------------------------------------------------------
@@ -206,6 +459,99 @@ async function createDriver({ browser, origin, stubs, viewport }) {
         return tag + (label ? ":" + label : "");
       }));
     },
+    // Icon-only buttons inside the open window, which is how most windows carry their X.
+    async modalIconButtons() {
+      if (!(await this.modalOpen())) return 0;
+      return this.modal().locator("button").evaluateAll((els) => els
+        .filter((b) => b.offsetParent !== null && !(b.innerText || "").trim() && b.querySelector("svg"))
+        .length);
+    },
+
+    // A button identified by its title attribute, which is how the list Actions columns mark theirs.
+    async clickTitle(title) {
+      const clicked = await page.evaluate((t0) => {
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const b = Array.from(box.querySelectorAll("button")).find((x) => x.getAttribute("title") === t0 && x.offsetParent !== null);
+        if (!b) return false;
+        b.click();
+        return true;
+      }, title);
+      await this.settle();
+      return clicked;
+    },
+
+    // One cell of a table, which reaches a row whose own click handler sits on the row.
+    async clickCell(rowIndex, colIndex) {
+      const cell = page.locator("table tbody tr").nth(rowIndex || 0).locator("td").nth(colIndex || 0);
+      if ((await cell.count()) === 0) return false;
+      await cell.click({ timeout: 8000 });
+      await this.settle();
+      return true;
+    },
+
+    // One cell of the Schedule week or month grid, found by the text inside it.
+    async clickGridCell(pattern, notPattern) {
+      const re = pattern instanceof RegExp ? pattern : new RegExp(pattern);
+      const clicked = await page.evaluate((src) => {
+        const rx = new RegExp(src[0], src[1]);
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const cands = Array.from(box.querySelectorAll("div")).filter((el) => {
+          if (el.offsetParent === null) return false;
+          const txt = (el.innerText || "").trim();
+          if (!rx.test(txt) || txt.length > 160) return false;
+          if (src[2] && new RegExp(src[2]).test(txt)) return false;
+          return (el.getAttribute("style") || "").indexOf("cursor: pointer") >= 0;
+        });
+        if (!cands.length) return false;
+        cands[cands.length - 1].click();
+        return true;
+      }, [re.source, re.flags, notPattern ? (notPattern instanceof RegExp ? notPattern.source : notPattern) : ""]);
+      await this.settle();
+      return clicked;
+    },
+
+    // Fill a field in the open window by the label above it, which is steadier than a field index.
+    async fillByLabel(label, value) {
+      const filled = await page.evaluate(([lbl, val]) => {
+        const box = document.querySelector("div[style*='z-index: 500']") || document.body;
+        const fields = Array.from(box.querySelectorAll("input, textarea"));
+        const norm = (s0) => String(s0 || "").replace(/[*\s]+/g, " ").trim().toLowerCase();
+        for (const f of fields) {
+          const wrap = f.closest("div");
+          const text = norm(wrap ? wrap.innerText : "");
+          const ph = norm(f.getAttribute("placeholder"));
+          const al = norm(f.getAttribute("aria-label"));
+          if (text.indexOf(norm(lbl)) === 0 || ph.indexOf(norm(lbl)) >= 0 || al.indexOf(norm(lbl)) >= 0) {
+            const setter = Object.getOwnPropertyDescriptor(f.constructor.prototype, "value").set;
+            setter.call(f, val);
+            f.dispatchEvent(new Event("input", { bubbles: true }));
+            return true;
+          }
+        }
+        return false;
+      }, [label, String(value)]);
+      await this.settle(120);
+      return filled;
+    },
+
+    // A toggle rendered as a pill switch, found by the words beside it.
+    async toggleSwitch(labelFragment) {
+      const hit = await page.evaluate((frag) => {
+        const root = document.querySelector("div[style*='z-index: 500']") || document.body;
+        const rows = Array.from(root.querySelectorAll("div")).filter((el) => {
+          const txt = (el.innerText || "").trim();
+          return txt.toLowerCase().indexOf(frag.toLowerCase()) >= 0 && txt.length < 120;
+        });
+        for (let i = rows.length - 1; i >= 0; i -= 1) {
+          const b = rows[i].querySelector("button[style*='border-radius: 12px'], input[type=checkbox]");
+          if (b) { b.click(); return true; }
+        }
+        return false;
+      }, labelFragment);
+      await this.settle(220);
+      return hit;
+    },
+
     async closeModal() {
       if (!(await this.modalOpen())) return;
       const closed = await this.clickText("Close", { inModal: true }) || await this.clickText("Cancel", { inModal: true });
@@ -246,6 +592,23 @@ async function createDriver({ browser, origin, stubs, viewport }) {
         return el ? el.innerText.trim() : null;
       });
     },
+    // The search box on a list screen. An empty value clears it.
+    async typeSearch(value) {
+      const typed = await page.evaluate((v) => {
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const inputs = Array.from(box.querySelectorAll("input")).filter((i) => i.offsetParent !== null
+          && /search/i.test((i.getAttribute("placeholder") || "") + " " + (i.getAttribute("aria-label") || "")));
+        if (!inputs.length) return false;
+        const f = inputs[0];
+        const setter = Object.getOwnPropertyDescriptor(f.constructor.prototype, "value").set;
+        setter.call(f, v);
+        f.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+      }, String(value));
+      await this.settle(280);
+      return typed;
+    },
+
     async clickRow(i) {
       const rows = page.locator("table tbody tr");
       const n = await rows.count();

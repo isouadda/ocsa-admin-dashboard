@@ -2,6 +2,7 @@
 "use strict";
 
 const pad = (s, n) => String(s) + " ".repeat(Math.max(0, n - String(s).length));
+const label = (k) => k.id || k.case || k.match;
 
 function covered(c) {
   if (!c) return "0 of 0";
@@ -18,14 +19,14 @@ function printDetail(results) {
   });
 }
 
-function printKnown(results) {
+function printKnown(results, partialRun) {
   const live = results.liveKnown();
   const fixed = results.fixedKnown();
-  const stale = results.staleKnown();
+  const stale = partialRun ? [] : results.staleKnown();
   if (live.length) {
     process.stdout.write("\nKnown failures, still true today. These do not fail the run.\n");
     live.forEach((k) => {
-      process.stdout.write("  " + k.case + "\n");
+      process.stdout.write("  " + label(k) + "  (" + k.hits + " cases)\n");
       process.stdout.write("      shows  " + k.shows + "\n");
       process.stdout.write("      why    " + k.why + "\n");
       if (k.where) process.stdout.write("      where  " + k.where + "\n");
@@ -33,15 +34,15 @@ function printKnown(results) {
   }
   if (fixed.length) {
     process.stdout.write("\nKnown failures that now PASS. Take each off audit/known.json.\n");
-    fixed.forEach((k) => process.stdout.write("  " + k.case + "  " + k.why + "\n"));
+    fixed.forEach((k) => process.stdout.write("  " + label(k) + "  " + k.why + "\n"));
   }
   if (stale.length) {
     process.stdout.write("\nKnown entries no case exercised. The case was renamed or removed.\n");
-    stale.forEach((k) => process.stdout.write("  " + k.case + "\n"));
+    stale.forEach((k) => process.stdout.write("  " + label(k) + "\n"));
   }
 }
 
-function printTable(results, seconds) {
+function printTable(results, seconds, partialRun) {
   const c = results.counters;
   const rows = [
     ["pages covered", covered(c.page)],
@@ -55,7 +56,7 @@ function printTable(results, seconds) {
   ];
   const live = results.liveKnown().length;
   const fixed = results.fixedKnown().length;
-  const stale = results.staleKnown().length;
+  const stale = partialRun ? 0 : results.staleKnown().length;
   const failures = results.rows.filter((r) => r.state === "FAIL" || r.state === "NO CASE").length + fixed + stale;
 
   process.stdout.write("\n");

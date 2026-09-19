@@ -37,7 +37,7 @@ const PAGES = [
 const VIEWS = [
   { id: "schedule/week", page: "schedule", click: "Week", expect: "Week" },
   { id: "schedule/month", page: "schedule", click: "Month", expect: "Month" },
-  { id: "schedule/patterns", page: "schedule", click: "Patterns", expect: "pattern" },
+  { id: "schedule/patterns", page: "schedule", click: "Patterns", expect: "Upcoming" },
   { id: "schedule/timeoff", page: "schedule", click: "Time off", expect: "Requested" },
 
   { id: "supplies/inventory", page: "supplies", click: "Inventory", expect: "Inventory" },
@@ -55,20 +55,20 @@ const VIEWS = [
   { id: "marketplace/analytics", page: "marketplace", click: "Analytics", expect: "Fill Rate" },
 
   { id: "inspections/templates", page: "inspections", click: "Templates", expect: "Monthly quality walk" },
-  { id: "inspections/scheduled", page: "inspections", click: "Scheduled", expect: "Site" },
-  { id: "inspections/completed", page: "inspections", click: "Completed", expect: "Site" },
-  { id: "inspections/reports", page: "inspections", click: "Reports", expect: "Average" },
+  { id: "inspections/scheduled", page: "inspections", click: "Scheduled", expect: "Scheduled" },
+  { id: "inspections/completed", page: "inspections", click: "Completed", expect: "Inspection" },
+  { id: "inspections/reports", page: "inspections", click: "Reports", expect: "score" },
 
   { id: "settings/company", page: "settings", click: "Company", expect: "Save Company Settings" },
-  { id: "settings/global", page: "settings", click: "Dropdown Options", expect: "Category" },
-  { id: "settings/site", page: "settings", click: "Site Lookups", expect: "Site" },
-  { id: "settings/permissions", page: "settings", click: "Roles and Permissions", expect: "Capability" },
+  { id: "settings/global", page: "settings", click: "Dropdown Options", expect: "categor" },
+  { id: "settings/site", page: "settings", click: "Site Lookups", expect: "site" },
+  { id: "settings/permissions", page: "settings", click: "Roles and Permissions", expect: "Per-person permissions" },
   { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told" },
 
   { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report" },
-  { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Submissions" },
-  { id: "forms/pdf_access", page: "forms", click: "PDF Access Log", expect: "Access" },
-  { id: "forms/settings", page: "forms", click: "Settings", expect: "Settings" },
+  { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Sync All Submissions" },
+  { id: "forms/pdf_access", page: "forms", click: "PDF Access Log", expect: "access" },
+  { id: "forms/settings", page: "forms", click: "Settings", expect: "Jotform" },
   { id: "forms/sync_diagnostic", page: "forms", click: "Sync Diagnostic", expect: "Diagnostic" },
   { id: "forms/aliases", page: "forms", click: "Aliases", expect: "Alias" },
   { id: "forms/incident_reports", page: "forms", click: "Incident reports", expect: "report" },
@@ -77,7 +77,7 @@ const VIEWS = [
   { id: "hr/documents", page: "hr", click: "Documents", expect: "Document" },
   { id: "hr/training", page: "hr", click: "Training", expect: "Training" },
   { id: "hr/onboarding", page: "hr", click: "Onboarding", expect: "Onboarding" },
-  { id: "hr/compliance", page: "hr", click: "Compliance", expect: "Compliance" },
+  { id: "hr/compliance", page: "hr", click: "Compliance", expect: "Expired Documents" },
   { id: "hr/other", page: "hr", click: "Other", expect: "Other" },
 
   { id: "staff/list", page: "staff", click: null, expect: "Staff Management" },
@@ -97,7 +97,7 @@ const VIEWS = [
   { id: "sites/profile/timeline", page: "sites", openRow: 0, click: "Timeline", expect: "Timeline" },
 
   { id: "overview/single", page: "overview", click: null, expect: "Started today" },
-  { id: "operations/single", page: "operations", click: null, expect: "Live Operations" },
+  { id: "operations/single", page: "operations", click: null, expect: "started today" },
   { id: "issues/single", page: "issues", click: null, expect: "Issue" },
   { id: "assigned/single", page: "assigned", click: null, expect: "Assigned Tasks" },
   { id: "vendors/list", page: "vendors", click: null, expect: "Vendor" },
@@ -113,23 +113,23 @@ const VIEWS = [
 // ---------------------------------------------------------------------------
 const WINDOWS = [
   { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1146] },
-  { id: "staff/timeline-detail", page: "staff", title: "Timeline record", lines: [1147] },
+  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1147] },
   { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1201] },
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1207] },
   { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1214] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1261] },
-  { id: "staff/edit", page: "staff", title: "Edit", lines: [1270] },
+  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1270] },
 
-  { id: "sites/add-supply", page: "sites", title: "Add Supply", lines: [1820] },
-  { id: "sites/timeline-detail", page: "sites", title: "Timeline record", lines: [1917] },
-  { id: "sites/edit", page: "sites", title: "Edit Site", lines: [1954] },
+  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [1820] },
+  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [1917] },
+  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [1954] },
   { id: "sites/add-task", page: "sites", title: "Add Task", lines: [1976] },
   { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [1990] },
-  { id: "sites/delete-confirm", page: "sites", title: "Delete", lines: [2006] },
+  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2006] },
   { id: "sites/add", page: "sites", title: "Add Site", lines: [2048] },
 
-  { id: "issues/detail", page: "issues", title: "Issue detail", lines: [2113] },
-  { id: "issues/assign-task", page: "issues", title: "Create Task", lines: [2138] },
+  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2113] },
+  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2138] },
 
   { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2175] },
   { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2176] },
@@ -137,30 +137,30 @@ const WINDOWS = [
 
   { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [3736] },
   { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [3761] },
-  { id: "assigned/create", page: "assigned", title: "Create Task", lines: [3768] },
+  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [3768] },
 
   { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [3910] },
-  { id: "vendors/detail", page: "vendors", title: "Vendor detail", lines: [3918] },
+  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [3918] },
   { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [3974] },
   { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [3982] },
   { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [3997] },
 
-  { id: "services/detail", page: "services", title: "Service detail", lines: [4113] },
+  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4113] },
   { id: "services/add", page: "services", title: "Add Service", lines: [4167] },
   { id: "services/edit", page: "services", title: "Edit Service", lines: [4175] },
   { id: "services/link-site", page: "services", title: "Link Site", lines: [4183] },
 
   { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4280] },
   { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [4462] },
-  { id: "schedule/create-shift", page: "schedule", title: "Add a shift", lines: [4935] },
-  { id: "schedule/edit-shift", page: "schedule", title: "Edit shift", lines: [4994] },
-  { id: "schedule/started-detail", page: "schedule", title: "Started shift", lines: [5036] },
-  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection", lines: [5052] },
-  { id: "schedule/pickup-detail", page: "schedule", title: "Pickup", lines: [5068] },
+  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [4935] },
+  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [4994] },
+  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5036] },
+  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5052] },
+  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5068] },
 
   { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [5662] },
   { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [5693] },
-  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift detail", lines: [5725] },
+  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [5725] },
 
   // One window, rendered from the template detail view and again from the tab view.
   { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6191, 6544] },
@@ -169,22 +169,22 @@ const WINDOWS = [
 
   { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7212] },
   { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7221] },
-  { id: "settings/add-value", page: "settings", title: "Add Option", lines: [7229] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Option", lines: [7243] },
-  { id: "settings/add-site-value", page: "settings", title: "Add Site Option", lines: [7257] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Option", lines: [7268] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7229] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7243] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7257] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7268] },
 
   { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7459] },
-  { id: "forms/edit-form", page: "forms", title: "Edit", lines: [8914] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission", lines: [8967] },
-  { id: "forms/full-refresh", page: "forms", title: "Full refresh", lines: [9082] },
-  { id: "forms/link-user", page: "forms", title: "Link", lines: [9119] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [8914] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [8967] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9082] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9119] },
 
   { id: "cases/window", page: "cases", title: "Case", lines: [9711] },
 
   { id: "hr/document-window", page: "hr", title: "Document", lines: [10207] },
   { id: "hr/training-window", page: "hr", title: "Training", lines: [10229] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Onboarding step", lines: [10260] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10260] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -193,19 +193,19 @@ const WINDOWS = [
 // one narrowing of the rows on screen.
 // ---------------------------------------------------------------------------
 const TABLES = [
-  { id: "staff/list", page: "staff", paged: true, perPage: 10, filters: ["search", "role"], columns: ["Name", "Role", "Status"] },
-  { id: "sites/list", page: "sites", paged: true, perPage: 10, filters: ["search", "status"], columns: ["Site", "Status"] },
+  { id: "staff/list", page: "staff", paged: true, perPage: 10, filters: ["search", "role"], columns: ["Name", "Phone", "Status", "Role", "Employment", "Sites"] },
+  { id: "sites/list", page: "sites", paged: true, perPage: 10, filters: ["search", "status"], columns: ["Site", "Staff", "Tasks", "Contract", "Status"] },
   { id: "vendors/list", page: "vendors", paged: true, perPage: 10, filters: ["search"], columns: ["Vendor"] },
-  { id: "marketplace/shifts", page: "marketplace", paged: true, perPage: 10, filters: ["search", "tab", "dateRange"], columns: ["Date", "Site"] },
-  { id: "inspections/scheduled", page: "inspections", view: "Scheduled", paged: true, perPage: 10, filters: ["search"], columns: ["Date", "Site"] },
-  { id: "inspections/completed", page: "inspections", view: "Completed", paged: true, perPage: 10, filters: ["search"], columns: ["Date", "Site"] },
-  { id: "hr/documents", page: "hr", view: "Documents", paged: true, perPage: 10, filters: ["search", "person"], columns: ["Title"] },
-  { id: "hr/training", page: "hr", view: "Training", paged: true, perPage: 10, filters: ["search", "person"], columns: ["Course"] },
-  { id: "hr/other", page: "hr", view: "Other", paged: true, perPage: 10, filters: ["search", "person"], columns: ["Title"] },
-  { id: "schedule/patterns", page: "schedule", view: "Patterns", paged: false, filters: ["person", "site"], columns: ["Person", "Site", "Days"] },
+  { id: "marketplace/shifts", page: "marketplace", paged: true, perPage: 10, filters: ["search", "tab", "dateRange"], columns: ["Shift", "Status", "Assigned", "Actions"] },
+  { id: "inspections/scheduled", page: "inspections", view: "Scheduled", paged: true, perPage: 10, filters: ["search"], columns: ["Inspection", "Scheduled", "Assigned", "Status", "Actions"] },
+  { id: "inspections/completed", page: "inspections", view: "Completed", paged: true, perPage: 10, filters: ["search"], columns: ["Inspection", "Scheduled", "Assigned", "Score", "Actions"] },
+  { id: "hr/documents", page: "hr", view: "Documents", paged: true, perPage: 10, filters: ["search", "person"], columns: ["Employee", "Category", "File", "Expiry", "Uploaded By", "Date"] },
+  { id: "hr/training", page: "hr", view: "Training", paged: true, perPage: 10, filters: ["search", "person"], columns: ["Employee", "Training Name", "Type", "Completed", "Expiry", "Score"] },
+  { id: "hr/other", page: "hr", view: "Other", paged: true, perPage: 10, filters: ["search", "person"], columns: ["Employee", "File", "Notes", "Expiry", "Uploaded By", "Date"] },
+  { id: "schedule/patterns", page: "schedule", view: "Patterns", paged: false, filters: ["person", "site", "status"], columns: ["Person", "Site", "Days", "Hours", "Starts", "Ends", "Upcoming"] },
   { id: "schedule/timeoff", page: "schedule", view: "Time off", paged: false, filters: ["status", "person"], columns: ["Person", "Type", "Dates", "Time", "Hours", "Shifts", "Status", "Asked"] },
-  { id: "forms/incident-reports", page: "forms", view: "Incident reports", paged: false, filters: ["status"], columns: ["Reference"] },
-  { id: "cases/list", page: "cases", paged: false, filters: ["status"], columns: ["Case"] },
+  { id: "forms/incident-reports", page: "forms", view: "Incident reports", paged: false, filters: ["status"], columns: ["Filed", "Form", "Site", "Filed by"] },
+  { id: "cases/list", page: "cases", paged: false, filters: ["status"], columns: ["Response", "Age", "Status", "Received", "Subject named", "Held by"] },
 ];
 
 // ---------------------------------------------------------------------------

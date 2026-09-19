@@ -13,7 +13,7 @@ function loadKnown() {
   if (!fs.existsSync(KNOWN_PATH)) return [];
   const raw = JSON.parse(fs.readFileSync(KNOWN_PATH, "utf8"));
   const rows = Array.isArray(raw) ? raw : raw.failures;
-  return (rows || []).map((r) => Object.assign({}, r, { seen: false, stillBroken: false }));
+  return (rows || []).map((r) => Object.assign({}, r, { seen: false, stillBroken: false, hits: 0, passes: 0 }));
 }
 
 function createResults() {
@@ -23,14 +23,17 @@ function createResults() {
   const unclaimed = [];
   const notes = [];
 
-  const knownFor = (id) => known.find((k) => k.case === id) || null;
+  // An entry matches a case id exactly, or by `match`, a regular expression, when one finding shows
+  // up under several case ids: the same gated page for two personas at two widths, for instance.
+  const knownFor = (id) => known.find((k) => (k.case && k.case === id) || (k.match && new RegExp(k.match).test(id))) || null;
 
   function record(kind, id, ok, detail) {
     const k = knownFor(id);
     let state = ok ? "PASS" : "FAIL";
     if (k) {
       k.seen = true;
-      if (ok) { state = "FIXED"; k.stillBroken = false; }
+      k.hits += 1;
+      if (ok) { state = "FIXED"; k.passes += 1; }
       else { state = "KNOWN"; k.stillBroken = true; }
     }
     rows.push({ kind, id, state, detail: detail == null ? "" : String(detail) });
@@ -63,6 +66,8 @@ function createResults() {
 
     // Known entries nobody exercised: the case was renamed or deleted, so the list is stale.
     staleKnown: () => known.filter((k) => !k.seen),
+    // A known failure is fixed only when EVERY case it covers passes. One case still failing keeps
+    // the entry live, so a partial fix does not take an entry off the list by accident.
     fixedKnown: () => known.filter((k) => k.seen && !k.stillBroken),
     liveKnown: () => known.filter((k) => k.seen && k.stillBroken),
 

@@ -14,6 +14,10 @@ const S = seed.SITES;
 function createStubs() {
   const calls = [];
   let refusals = [];
+  // A path held open on purpose, so a window that shows a loading state can be caught in it.
+  let delays = [];
+  // A list route cut to a fixed number of rows, so a table can be driven empty and with one row.
+  let trim = null;
   let signedInAs = "admin";
   const state = {
     staff: clone(seed.STAFF),
@@ -102,10 +106,10 @@ function createStubs() {
   ];
 
   const PICKUPS = [
-    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, posted_at: seed.shift(-1) + "T14:00:00Z" },
-    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", assigned_to_name: null, posted_at: seed.shift(-2) + "T10:00:00Z" },
-    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
-    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", assigned_to_name: null, posted_at: seed.shift(-6) + "T12:00:00Z" },
+    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
+    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
+    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
+    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
   ];
   // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1.
 
@@ -122,8 +126,8 @@ function createStubs() {
   ];
 
   const PATTERNS = [
-    { id: "pt-1", userId: "u-staff-6", userName: "Ngozi Okonkwo", siteId: S[1].id, siteName: S[1].name, days: [1, 3, 5], startTime: "06:00", endTime: "14:00", startsOn: seed.shift(-30), endsOn: null, buildingName: "Clinic", floorNumber: "1", notes: "", shiftCount: 14, status: "active" },
-    { id: "pt-2", userId: "u-staff-9", userName: "Yuki Tanabe", siteId: S[0].id, siteName: S[0].name, days: [2, 4], startTime: "18:00", endTime: "02:00", startsOn: seed.shift(-14), endsOn: seed.shift(45), buildingName: "North Wing", floorNumber: "2", notes: "Covering nights.", shiftCount: 8, status: "active" },
+    { id: "pt-1", userId: "u-staff-6", userName: "Ngozi Okonkwo", siteId: S[1].id, siteName: S[1].name, days: [1, 3, 5], startTime: "06:00", endTime: "14:00", startsOn: seed.shift(-30), endsOn: null, buildingName: "Clinic", floorNumber: "1", notes: "", upcomingShifts: 14, status: "active" },
+    { id: "pt-2", userId: "u-staff-9", userName: "Yuki Tanabe", siteId: S[0].id, siteName: S[0].name, days: [2, 4], startTime: "18:00", endTime: "02:00", startsOn: seed.shift(-14), endsOn: seed.shift(45), buildingName: "North Wing", floorNumber: "2", notes: "Covering nights.", upcomingShifts: 8, status: "active" },
   ];
 
   const TIME_OFF = [
@@ -160,7 +164,8 @@ function createStubs() {
   ];
 
   const REPORT_DEFS = [
-    { id: "rd-1", name: "Issue response and resolution", description: "Median response and resolution, with service level compliance.", category: "service_delivery", source: "issues_timing", is_system: true, config: {} },
+    // The SLA panel is on in this saved definition, so the breach figure is on screen to be checked.
+    { id: "rd-1", name: "Issue response and resolution", description: "Median response and resolution, with service level compliance.", category: "service_delivery", source: "issues_timing", is_system: true, config: { output: { trend: true, by_site: true, severity: true, sla: true } } },
     { id: "rd-2", name: "Supply usage and cost", description: "Estimated cost from logged usage at current prices.", category: "supplies", source: "supply_usage", is_system: true, config: {} },
     { id: "rd-3", name: "Inspection scores and quality", description: "Inspection results over the selected period.", category: "quality", source: "inspection_quality", is_system: true, config: {} },
     { id: "rd-4", name: "Night shift issue watch", description: "A saved copy narrowed to high severity.", category: "service_delivery", source: "issues_timing", is_system: false, config: { filters: { severity: "high" } } },
@@ -182,34 +187,73 @@ function createStubs() {
     { id: "si-2", site_id: S[2].id, site_name: S[2].name, template_id: "tp-2", template_name: "Dock area check", scheduled_date: seed.shift(6), status: "scheduled", assigned_to: "u-cap-1", assigned_to_name: "Priya Raghunathan" },
   ];
 
+  // Shaped to the Cases page: clock, ageHours, subject, assigned, createdAt. The response clock is
+  // 72 hours from filing, so ageHours drives what the Response column says.
   const HR_CASES = [
-    { id: "hc-1", case_number: "CASE-0007", subject_type: "workplace_concern", subject_label: "Workplace concern", status: "open", opened_at: seed.shift(-2) + "T09:00:00Z", due_at: seed.shift(5) + "T09:00:00Z", assigned_to_name: null, summary: "A concern was raised about overnight cover.", raised_by_name: "Anonymous" },
-    { id: "hc-2", case_number: "CASE-0006", subject_type: "safety", subject_label: "Safety", status: "held", opened_at: seed.shift(-16) + "T09:00:00Z", due_at: seed.shift(-2) + "T09:00:00Z", assigned_to_name: "Dana Whitlock", summary: "Dock lighting reported dim.", raised_by_name: "Rashid Haddad" },
+    { id: "hc-1", reference: "CASE-0007", status: "open", clock: "overdue", ageHours: 86, createdAt: seed.shift(-4) + "T09:00:00Z", subject: { id: "u-staff-5", name: "Tomasz Wisniewski" }, assigned: null, summary: "A concern was raised about overnight cover.", subjectNamed: true },
+    { id: "hc-2", reference: "CASE-0006", status: "in_review", clock: "due_soon", ageHours: 60, createdAt: seed.shift(-3) + "T21:00:00Z", subject: null, assigned: { id: "u-admin-1", name: "Dana Whitlock" }, summary: "Dock lighting reported dim.", subjectNamed: false },
+    { id: "hc-3", reference: "CASE-0005", status: "resolved", clock: "responded", ageHours: 300, createdAt: seed.shift(-14) + "T09:00:00Z", subject: { id: "u-staff-7", name: "Elena Barbosa" }, assigned: { id: "u-super-1", name: "Oyelaran Adebayo" }, summary: "Pay question, answered the same week.", subjectNamed: true },
   ];
-  // hand: 2 cases, 1 unassigned and 1 overdue, so the Cases badge reads 2.
+  // hand: 3 cases. 2 need a response (1 overdue, 1 due soon), 1 already answered.
+  // hand: the badge adds unassigned 1 + dueSoon 0 + overdue 1 = 2.
   const CASE_QUEUE = { unassigned: 1, dueSoon: 0, overdue: 1 };
 
+  // 12 documents so the 10-per-page table has a second page. Field names follow the HR page:
+  // category, file_name, expiry_date, created_at, uploaded_by_name.
   const HR_DOCUMENTS = Array.from({ length: 12 }, (_, i) => ({
     id: "hd-" + (i + 1),
     user_id: seed.STAFF[i % seed.STAFF.length].id,
     user_name: seed.STAFF[i % seed.STAFF.length].name,
     category: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
+    document_type: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
     title: ["Handbook acknowledgement", "Safety briefing", "Equipment sign-out", "Language preference note"][i % 4],
     file_name: "doc-" + (i + 1) + ".pdf",
-    uploaded_at: seed.shift(-60 + i * 4) + "T12:00:00Z",
-    expires_on: i % 3 === 0 ? seed.shift(20 + i) : null,
+    created_at: seed.shift(-60 + i * 4) + "T12:00:00Z",
+    uploaded_by_name: "Dana Whitlock",
+    expiry_date: i % 3 === 0 ? seed.shift(20 + i) : null,
   }));
-  // hand: 12 documents. category other = 3 (i = 3, 7, 11), so the Other tab lists 3.
+  // hand: 12 documents. category other = 3 (i = 3, 7, 11), so the Other tab lists 3 and the
+  // Documents tab lists the other 9.
 
   const HR_TRAINING = Array.from({ length: 12 }, (_, i) => ({
     id: "ht-" + (i + 1),
     user_id: seed.STAFF[i % seed.STAFF.length].id,
     user_name: seed.STAFF[i % seed.STAFF.length].name,
-    course_name: ["Bloodborne pathogens", "Machine operation", "Chemical handling", "Ladder safety"][i % 4],
-    completed_on: seed.shift(-120 + i * 7),
-    expires_on: i % 2 === 0 ? seed.shift(15 + i * 3) : null,
-    status: "completed",
+    training_name: ["Bloodborne pathogens", "Machine operation", "Chemical handling", "Ladder safety"][i % 4],
+    training_type: i % 2 === 0 ? "safety" : "equipment",
+    completed_date: seed.shift(-120 + i * 7),
+    expiry_date: i % 2 === 0 ? seed.shift(15 + i * 3) : null,
+    score: 90 + (i % 10),
+    administered_by: "Marcus Ferreira",
   }));
+  // hand: 12 training records, 6 with an expiry date (every other one).
+
+  const HR_ONBOARDING = [
+    { id: "ob-1", step_category: "paperwork", step_name: "Handbook acknowledged", is_completed: true, completed_date: seed.shift(-20), completed_by_name: "Dana Whitlock" },
+    { id: "ob-2", step_category: "paperwork", step_name: "Direct deposit form", is_completed: true, completed_date: seed.shift(-19), completed_by_name: "Dana Whitlock" },
+    { id: "ob-3", step_category: "training", step_name: "Safety briefing", is_completed: true, completed_date: seed.shift(-18), completed_by_name: "Marcus Ferreira" },
+    { id: "ob-4", step_category: "training", step_name: "Site walkthrough", is_completed: false, completed_date: null, completed_by_name: null },
+    { id: "ob-5", step_category: "equipment", step_name: "Keys and badge issued", is_completed: false, completed_date: null, completed_by_name: null },
+  ];
+  // hand: 5 steps in 3 categories, 3 complete, so the line reads "3 of 5 steps complete".
+
+  // The compliance roll-up, shaped to what the Compliance tab reads: five lists, each counted.
+  const HR_COMPLIANCE = {
+    expiredDocs: [HR_DOCUMENTS[0]],
+    expiringDocs: [HR_DOCUMENTS[3], HR_DOCUMENTS[6]],
+    expiredTraining: [HR_TRAINING[0]],
+    expiringTraining: [HR_TRAINING[2]],
+    onboardingProgress: seed.STAFF.slice(4, 8).map((p, i) => ({ user_id: p.id, user_name: p.name, completed_steps: 3 + (i % 2), total_steps: 5 })),
+    staffSummary: seed.STAFF.map((p) => ({
+      id: p.id, user_name: p.name, role: p.role,
+      doc_count: 3, training_count: 2, jotform_count: 1, alias_count: 0,
+      expired_docs: p.id === seed.STAFF[4].id ? 1 : 0,
+      expired_training: p.id === seed.STAFF[4].id ? 1 : 0,
+      onb_completed: 3, onb_total: 5,
+    })),
+  };
+  // hand: expired docs 1, expired training 1, expiring 2 + 1 = 3 in the 30-day tile,
+  // onboarding 4 people, staff summary 12 rows.
 
   const SETTINGS = {
     id: "set-1",
@@ -231,19 +275,29 @@ function createStubs() {
     { id: "jf-1", form_id: "240000000000001", title: "Incident report", status: "ENABLED", submission_count: 4, last_submission_at: seed.shift(-1) + "T18:00:00Z", locale: "en" },
     { id: "jf-2", form_id: "240000000000002", title: "New hire packet", status: "ENABLED", submission_count: 9, last_submission_at: seed.shift(-5) + "T10:00:00Z", locale: "en" },
   ];
+  // Shaped to the Submissions table: submitter_name, first_name, linked_entity_type, expiry_date.
   const JOTFORM_SUBMISSIONS = [
-    { id: "js-1", submission_id: "600000000000001", form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-1) + "T18:00:00Z", user_id: "u-staff-5", user_name: "Tomasz Wisniewski", status: "ACTIVE", has_pdf: true },
-    { id: "js-2", submission_id: "600000000000002", form_id: "240000000000002", form_title: "New hire packet", submitted_at: seed.shift(-5) + "T10:00:00Z", user_id: "u-staff-6", user_name: "Ngozi Okonkwo", status: "ACTIVE", has_pdf: true },
+    { id: "js-1", jotform_form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-1) + "T18:00:00Z", user_id: "u-staff-5", first_name: "Tomasz", last_name: "Wisniewski", user_employee_id: "EMP-1005", submitter_name: "Tomasz Wisniewski", submitter_email: "tomasz.wisniewski@example.invalid", status: "ACTIVE", linked_entity_type: null, expiry_date: null, has_original_pdf: true },
+    { id: "js-2", jotform_form_id: "240000000000002", form_title: "New hire packet", submitted_at: seed.shift(-5) + "T10:00:00Z", user_id: "u-staff-6", first_name: "Ngozi", last_name: "Okonkwo", user_employee_id: "EMP-1006", submitter_name: "Ngozi Okonkwo", submitter_email: "ngozi.okonkwo@example.invalid", status: "ACTIVE", linked_entity_type: "hr_document", expiry_date: seed.shift(90), has_original_pdf: true },
+    { id: "js-3", jotform_form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-9) + "T08:00:00Z", user_id: null, first_name: null, last_name: null, user_employee_id: null, submitter_name: null, submitter_email: null, status: "ACTIVE", linked_entity_type: null, expiry_date: null, has_original_pdf: false },
   ];
+  // hand: 3 submissions, 1 already linked, 1 with nobody matched to it.
+  // Field names follow the PDF Access Log table: first_name, access_type, submitter_name, success.
   const PDF_ACCESS_LOG = [
-    { id: "pa-1", submission_id: "600000000000001", user_name: "Dana Whitlock", action: "view", accessed_at: seed.shift(-1) + "T19:00:00Z", ip_address: "198.51.100.7", success: true, form_title: "Incident report" },
-    { id: "pa-2", submission_id: "600000000000002", user_name: "Marcus Ferreira", action: "download", accessed_at: seed.shift(-4) + "T11:00:00Z", ip_address: "198.51.100.9", success: true, form_title: "New hire packet" },
+    { id: "pa-1", jotform_form_id: "240000000000001", form_title: "Incident report", submission_id: "600000000000001", first_name: "Dana", last_name: "Whitlock", access_type: "view", accessed_at: seed.shift(-1) + "T19:00:00Z", ip_address: "198.51.100.7", success: true, submitter_name: "Tomasz Wisniewski", error_message: null },
+    { id: "pa-2", jotform_form_id: "240000000000002", form_title: "New hire packet", submission_id: "600000000000002", first_name: "Marcus", last_name: "Ferreira", access_type: "download", accessed_at: seed.shift(-4) + "T11:00:00Z", ip_address: "198.51.100.9", success: true, submitter_name: "Ngozi Okonkwo", error_message: null },
+    { id: "pa-3", jotform_form_id: "240000000000001", form_title: "Incident report", submission_id: "600000000000001", first_name: null, last_name: null, access_type: "print", accessed_at: seed.shift(-8) + "T16:00:00Z", ip_address: "198.51.100.4", success: false, submitter_name: null, error_message: "The upstream PDF could not be read" },
   ];
+  // hand: 3 access events, 1 of them a failure, and one with no person left on the row.
+  // Shaped to the Incident reports view: formName, siteName, userName, submittedAt, createdAt,
+  // answered, remaining, dueAt.
   const INCIDENT_REPORTS = [
-    { id: "ir-1", reference: "IR-0004", status: "submitted", site_id: S[0].id, site_name: S[0].name, occurred_on: seed.shift(-1), submitted_at: seed.shift(-1) + "T18:00:00Z", created_by_name: "Tomasz Wisniewski", summary: "A delivery pallet scuffed the lobby floor." },
-    { id: "ir-2", reference: "IR-0005", status: "draft", site_id: S[1].id, site_name: S[1].name, occurred_on: seed.shift(0), submitted_at: null, created_by_name: "Ngozi Okonkwo", summary: "" },
+    { id: "ir-1", formCode: "incident", formName: "Incident report", status: "submitted", siteId: S[0].id, siteName: S[0].name, userName: "Tomasz Wisniewski", createdAt: seed.shift(-1) + "T17:40:00Z", submittedAt: seed.shift(-1) + "T18:00:00Z", answered: 12, remaining: 0, dueAt: null },
+    { id: "ir-2", formCode: "incident", formName: "Incident report", status: "draft", siteId: S[1].id, siteName: S[1].name, userName: "Ngozi Okonkwo", createdAt: seed.shift(0) + "T20:00:00Z", submittedAt: null, answered: 7, remaining: 5, dueAt: seed.shift(-1) + "T23:00:00Z" },
+    { id: "ir-3", formCode: "vehicle", formName: "Vehicle report", status: "draft", siteId: null, siteName: null, userName: "Elena Barbosa", createdAt: seed.shift(-2) + "T11:00:00Z", answered: 3, remaining: 9, dueAt: seed.shift(4) + "T23:00:00Z" },
   ];
-  // hand: 2 incident reports, 1 submitted and 1 draft.
+  // hand: 3 reports. submitted 1, draft 2. The draft rows read "7 of 12" and "3 of 12" answered,
+  // and ir-2 is past due against the fixed clock.
 
   const NOTIFICATION_RECIPIENTS = [
     { id: "nr-1", subject_type: "time_off", channel: "app", user_id: "u-admin-1", user_name: "Dana Whitlock", is_active: true },
@@ -269,14 +323,14 @@ function createStubs() {
     date: seed.TODAY,
     sites: [
       { siteId: S[0].id, siteName: S[0].name, people: [
-        { sessionId: "ss-1", userId: "u-staff-5", name: "Tomasz Wisniewski", startedAt: seed.shift(0) + "T22:05:00Z", buildingName: "North Wing", floorNumber: "3", tasksCompleted: 6, tasksTotal: 8 },
-        { sessionId: "ss-2", userId: "u-staff-9", name: "Yuki Tanabe", startedAt: seed.shift(0) + "T22:10:00Z", buildingName: "South Wing", floorNumber: "2", tasksCompleted: 3, tasksTotal: 7 },
+        { sessionId: "ss-1", userId: "u-staff-5", name: "Tomasz Wisniewski", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T22:05:00Z", buildingName: "North Wing", floorNumber: "3", tasksCompleted: 6, tasksTotal: 8 },
+        { sessionId: "ss-2", userId: "u-staff-9", name: "Yuki Tanabe", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T22:10:00Z", buildingName: "South Wing", floorNumber: "2", tasksCompleted: 3, tasksTotal: 7 },
       ] },
       { siteId: S[1].id, siteName: S[1].name, people: [
-        { sessionId: "ss-3", userId: "u-staff-6", name: "Ngozi Okonkwo", startedAt: seed.shift(0) + "T10:30:00Z", buildingName: "Clinic", floorNumber: "1", tasksCompleted: 9, tasksTotal: 9 },
+        { sessionId: "ss-3", userId: "u-staff-6", name: "Ngozi Okonkwo", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T10:30:00Z", buildingName: "Clinic", floorNumber: "1", tasksCompleted: 9, tasksTotal: 9 },
       ] },
       { siteId: S[2].id, siteName: S[2].name, people: [
-        { sessionId: "ss-4", userId: "u-staff-7", name: "Elena Barbosa", startedAt: seed.shift(0) + "T23:00:00Z", buildingName: "Dock A", floorNumber: "1", tasksCompleted: 1, tasksTotal: 5 },
+        { sessionId: "ss-4", userId: "u-staff-7", name: "Elena Barbosa", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T23:00:00Z", buildingName: "Dock A", floorNumber: "1", tasksCompleted: 1, tasksTotal: 5 },
       ] },
     ],
   };
@@ -294,11 +348,16 @@ function createStubs() {
     media_required: false, description: "",
   }));
 
+  // Timeline entries, shaped to what both timelines read: createdAt, actionType, actorName,
+  // description, entityType, entityId. getTlCategory calls actionType.includes, so actionType is
+  // never absent.
   const timelineRows = (name) => [
-    { id: "tl-1", occurred_at: seed.shift(0) + "T22:05:00Z", category: "shift", action: "Shift started", description: name + " started a shift at " + S[0].name, related_id: "ss-1", related_type: "shift_session" },
-    { id: "tl-2", occurred_at: seed.shift(-1) + "T14:05:00Z", category: "issue", action: "Issue reported", description: "Lobby floor scuffed after delivery", related_id: "i-1", related_type: "issue" },
-    { id: "tl-3", occurred_at: seed.shift(-3) + "T16:20:00Z", category: "time_off", action: "Time off requested", description: "Vacation, four days", related_id: "to-1", related_type: "time_off" },
+    { id: "tl-1", createdAt: seed.shift(0) + "T22:05:00Z", actionType: "clock_in", actorName: name, description: name + " started a shift at " + S[0].name, entityType: "shift_session", entityId: "ss-1", metadata: { site: S[0].name, floor: "3" } },
+    { id: "tl-2", createdAt: seed.shift(-1) + "T14:05:00Z", actionType: "issue_reported", actorName: name, description: "Lobby floor scuffed after delivery", entityType: "issue", entityId: "i-1", metadata: {} },
+    { id: "tl-3", createdAt: seed.shift(-3) + "T16:20:00Z", actionType: "task_completed", actorName: name, description: "Restock clinic restrooms", entityType: "task", entityId: "at-2", metadata: {} },
+    { id: "tl-4", createdAt: seed.shift(-6) + "T09:00:00Z", actionType: "supply_logged", actorName: name, description: "Logged four cases of can liner", entityType: "supply_usage", entityId: "su-1", metadata: {} },
   ];
+  // hand: 4 timeline entries, in four categories: clock, issues, tasks and supplies.
 
   const userProfile = (id) => {
     const u = state.staff.find((s) => s.id === id) || state.staff[0];
@@ -320,17 +379,37 @@ function createStubs() {
     };
   };
 
+  // Shaped to what the site profile reads: site, staff, zones, floorPlans, taskCount,
+  // issueSummary, inspectionSummary, marketplaceSummary, upcomingShifts, supplies.
   const siteProfile = (id) => {
-    const s = state.sites.find((x) => x.id === id) || state.sites[0];
+    const s0 = state.sites.find((x) => x.id === id) || state.sites[0];
+    const staffHere = state.staff.filter((st) => st.site_id === s0.id);
     return {
-      site: Object.assign({}, s, { supervisor_name: "Marcus Ferreira", floor_plan_url: null, scope_of_work: "Nightly cleaning of occupied floors and daily restroom service." }),
-      tasks: siteTasks(s.id),
-      supplies: SUPPLIES.slice(0, 2).map((sp) => ({ id: "ss-" + sp.id, supply_id: sp.id, supply_name: sp.name, par_level: 12, unit: sp.unit })),
-      shifts: SCHEDULE.filter((sh) => sh.site_id === s.id),
-      staff: state.staff.filter((st) => st.site_id === s.id).map((st) => ({ id: st.id, name: st.name, role: st.role })),
-      stats: { openIssues: 1, tasksToday: 4, lastInspectionPct: 94 },
+      site: {
+        id: s0.id, name: s0.name, status: s0.status,
+        address_line: s0.address, city: s0.city, state: s0.state, zip_code: s0.zip,
+        client_name: "Fairhaven Property Group", prime_contractor: "None",
+        client_contact_name: "R. Villanueva", client_contact_email: "contact@fairhavenpg.example.invalid", client_contact_phone: "2155559200",
+        contract_type: "Fixed monthly", contract_value_monthly: 18400, billing_frequency: "Monthly",
+        contract_start_date: seed.shift(-400), contract_end_date: seed.shift(330),
+        site_notes: "Nightly cleaning of occupied floors and daily restroom service.",
+      },
+      staff: staffHere.map((st) => ({ id: st.id, name: st.name, role: st.role, status: st.status })),
+      zones: ["Lobby", "Restroom", "Corridor", "Dock"],
+      floorPlans: [{ id: "fp-1", label: "North Wing, floor 3", file_url: "", uploaded_at: seed.shift(-120) + "T12:00:00Z" }],
+      taskCount: ASSIGNED_TASKS.filter((t0) => t0.site_id === s0.id).length,
+      issueSummary: { open_count: 1, in_progress_count: 1, resolved_count: 2 },
+      inspectionSummary: { avg_score: 90, total: 2, last_inspection: seed.shift(-7) },
+      marketplaceSummary: { total_pickups: 2, worked: 1, pending: 1 },
+      upcomingShifts: (state.schedule || SCHEDULE).filter((sh) => sh.site_id === s0.id).map((sh) => ({
+        id: sh.id, scheduled_date: sh.scheduled_date, start_time: sh.start_time, end_time: sh.end_time,
+        user_name: sh.user_name, status: sh.status,
+      })),
+      supplies: SUPPLIES.slice(0, 2).map((sp0) => ({ id: "ss-" + sp0.id, supply_id: sp0.id, name: sp0.name, par_level: 12, unit: sp0.unit, current_stock: sp0.current_stock })),
     };
   };
+  // hand: Harbor Point Center holds 4 of the 12 staff rows (every third row from the first), one
+  // assigned task, and open issues 1 + 1 = 2 on the tile.
 
   // -------------------------------------------------------------------------
   // The router.
@@ -397,9 +476,20 @@ function createStubs() {
     if (path.startsWith("/api/users/profile/photo")) return ok({ url: "" });
     if (path.startsWith("/api/users/profile/")) return ok(userProfile(idAfter("/api/users/profile/")));
     if (path.startsWith("/api/users/timeline-detail/")) {
-      return ok({ record: { id: "tl-2", kind: "issue", title: "Lobby floor scuffed after delivery", occurredAt: seed.shift(-1) + "T14:05:00Z", siteName: S[0].name, notes: "Reported on the night round." }, relatedItems: [{ id: "at-1", label: "Strip and refinish lobby", kind: "task" }] });
+      return ok({
+        found: true,
+        entry: timelineRows("Tomasz Wisniewski")[1],
+        record: { id: "i-1", title: "Lobby floor scuffed after delivery", site_name: S[0].name, zone: "Lobby", severity: "high", status: "open", reported_at: seed.shift(-1) + "T14:05:00Z" },
+        photos: [],
+        relatedItems: [{ id: "at-1", label: "Strip and refinish lobby", kind: "task", description: "Strip and refinish lobby" }],
+      });
     }
-    if (/^\/api\/users\/[^/]+\/timeline/.test(path)) return ok({ rows: timelineRows(person().firstName + " " + person().lastName), total: 3 });
+    if (path.startsWith("/api/users/timeline/")) {
+      const rows = timelineRows(person().firstName + " " + person().lastName);
+      const cat = q("category");
+      const filtered = cat && cat !== "all" ? rows.filter((r) => r.actionType.indexOf(cat.replace(/s$/, "")) >= 0) : rows;
+      return ok({ entries: filtered, total: filtered.length });
+    }
     if (/^\/api\/users\/[^/]+\/approve$/.test(path)) return ok({ message: "Approved" });
     if (/^\/api\/users\/[^/]+\/pin$/.test(path)) return ok({ message: "PIN reset" });
     if (/^\/api\/users\/[^/]+\/assignments/.test(path)) return ok({ message: "Assignment saved" });
@@ -491,14 +581,30 @@ function createStubs() {
     // --- sites ------------------------------------------------------------
     if (path.startsWith("/api/sites/profile/")) return ok(siteProfile(idAfter("/api/sites/profile/")));
     if (path.startsWith("/api/sites/chat/")) return ok(CHAT_MESSAGES);
-    if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) return ok({ message: "Task saved" });
-    if (/^\/api\/sites\/[^/]+\/timeline/.test(path)) return ok({ rows: timelineRows(S[0].name), total: 3 });
+    if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) {
+      if (method !== "GET") return ok({ message: "Task saved" });
+      const sid = path.split("/")[3];
+      return ok(siteTasks(sid));
+    }
+    if (path.startsWith("/api/sites/timeline/") || /^\/api\/sites\/[^/]+\/timeline/.test(path)) {
+      const rows = timelineRows("Tomasz Wisniewski");
+      const cat = q("category");
+      const filtered = cat && cat !== "all" ? rows.filter((r) => r.actionType.indexOf(cat.replace(/s$/, "")) >= 0) : rows;
+      return ok({ entries: filtered, total: filtered.length });
+    }
+    if (/^\/api\/sites\/[^/]+\/supplies\/available$/.test(path)) return ok(SUPPLIES.slice(2));
     if (/^\/api\/sites\/[^/]+\/supplies/.test(path)) return ok({ message: "Supply linked" });
     if (path === "/api/sites" && method === "POST") { const row = Object.assign({ id: "s-new", status: "active" }, body || {}); state.sites.push(row); return created({ message: "Site added" }); }
     if (/^\/api\/sites\/[^/]+$/.test(path) && method === "GET") return ok(siteProfile(path.split("/")[3]));
     if (/^\/api\/sites\/[^/]+$/.test(path)) return ok({ message: "Site updated" });
 
     // --- schedule, patterns, time off ------------------------------------
+    if (path === "/api/schedule/calendar") {
+      if (!state.schedule) state.schedule = clone(SCHEDULE);
+      const site = q("site_id");
+      const shifts = site ? state.schedule.filter((sh) => sh.site_id === site) : state.schedule;
+      return ok({ scheduled_shifts: shifts, inspections: SCHEDULED_INSPECTIONS });
+    }
     if (path === "/api/schedule" && method === "GET") { if (!state.schedule) state.schedule = clone(SCHEDULE); return ok(state.schedule); }
     if (path === "/api/schedule" && method === "POST") {
       if (!state.schedule) state.schedule = clone(SCHEDULE);
@@ -507,10 +613,19 @@ function createStubs() {
       return created({ message: "Shift scheduled", shift: row });
     }
     if (path === "/api/schedule/bulk" && method === "POST") return created({ message: "Shifts scheduled", created: 4 });
-    if (path === "/api/schedule/patterns" && method === "GET") { if (!state.patterns) state.patterns = clone(PATTERNS); return ok({ patterns: state.patterns }); }
+    if (path === "/api/schedule/patterns" && method === "GET") {
+      if (!state.patterns) state.patterns = clone(PATTERNS);
+      const status = q("status");
+      const userId = q("userId"); const siteId = q("siteId");
+      let rows = state.patterns.slice();
+      if (status && status !== "all") rows = rows.filter((r) => r.status === status);
+      if (userId) rows = rows.filter((r) => String(r.userId) === String(userId));
+      if (siteId) rows = rows.filter((r) => String(r.siteId) === String(siteId));
+      return ok({ patterns: rows });
+    }
     if (path === "/api/schedule/patterns" && method === "POST") {
       if (!state.patterns) state.patterns = clone(PATTERNS);
-      const row = Object.assign({ id: "pt-new", shiftCount: 6, status: "active" }, body || {});
+      const row = Object.assign({ id: "pt-new", upcomingShifts: 6, status: "active" }, body || {});
       state.patterns.push(row);
       return created({ pattern: row, created: 6, message: "Pattern created" });
     }
@@ -622,10 +737,10 @@ function createStubs() {
     }
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path)) return ok({ message: "Template updated" });
     if (path === "/api/inspections/scheduled" && method === "GET") {
-      const status = q("status");
-      if (status === "completed") return ok(seed.INSPECTION_SCORES);
-      return ok(SCHEDULED_INSPECTIONS);
+      const done = seed.INSPECTION_SCORES.map((r) => Object.assign({}, r, { status: "completed", assigned_to_name: r.completed_by_name, template_id: "tp-1" }));
+      return ok(SCHEDULED_INSPECTIONS.concat(done));
     }
+    // hand: 2 pending plus 4 completed = 6 rows in one list, which the page splits by status.
     if (path === "/api/inspections/scheduled" && method === "POST") return created({ message: "Inspection scheduled" });
     if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[4];
@@ -705,41 +820,42 @@ function createStubs() {
         earliest_expiry: s.status === "active" ? seed.shift(25) : null,
       })));
     }
-    if (path === "/api/hr/compliance") {
-      return ok([
-        { user_id: state.staff[4].id, user_name: state.staff[4].name, item: "Bloodborne pathogen awareness", status: "expiring", expires_on: seed.shift(19) },
-        { user_id: state.staff[5].id, user_name: state.staff[5].name, item: "Machine operation", status: "valid", expires_on: seed.shift(200) },
-      ]);
-    }
+    if (path === "/api/hr/compliance") return ok(HR_COMPLIANCE);
     if (path.startsWith("/api/hr/employee-folder/")) {
       const uid = idAfter("/api/hr/employee-folder/");
       const u = state.staff.find((s) => s.id === uid) || state.staff[0];
-      return ok({ user: u, documents: HR_DOCUMENTS.slice(0, 3), training: HR_TRAINING.slice(0, 2), onboarding: { steps: [], pct: 80 }, submissions: JOTFORM_SUBMISSIONS.slice(0, 1) });
+      return ok({ user: u, documents: HR_DOCUMENTS.slice(0, 3), training: HR_TRAINING.slice(0, 2), onboarding: HR_ONBOARDING, submissions: JOTFORM_SUBMISSIONS.slice(0, 1) });
     }
     if (path.startsWith("/api/hr/onboarding")) {
       if (method !== "GET") return ok({ message: "Onboarding updated" });
-      return ok({ steps: [
-        { id: "ob-1", label: "Handbook acknowledged", status: "done", completed_on: seed.shift(-20) },
-        { id: "ob-2", label: "Safety briefing", status: "done", completed_on: seed.shift(-18) },
-        { id: "ob-3", label: "Site walkthrough", status: "pending", completed_on: null },
-      ], pct: 67 });
+      return ok(HR_ONBOARDING);
     }
-    // hand: 2 of 3 onboarding steps done = 67 percent.
 
     // --- cases ------------------------------------------------------------
-    if (path === "/api/hr-cases" && method === "GET") return ok(HR_CASES);
+    if (path === "/api/hr-cases" && method === "GET") {
+      const status = q("status");
+      const rows = status ? HR_CASES.filter((c) => c.status === status) : HR_CASES;
+      return ok({ cases: rows });
+    }
     if (path === "/api/hr-cases" && method === "POST") return created({ message: "Case opened" });
     if (path === "/api/contacts/case-subjects") return ok([
       { value: "workplace_concern", label: "Workplace concern" },
       { value: "safety", label: "Safety" },
       { value: "pay", label: "Pay" },
     ]);
+    if (/^\/api\/hr-cases\/[^/]+\/access-log$/.test(path)) {
+      return ok({ entries: [{ id: "ca-1", at: seed.shift(-1) + "T10:00:00Z", who: "Dana Whitlock", what: "Opened the case" }] });
+    }
     if (/^\/api\/hr-cases\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];
       const c = HR_CASES.find((x) => x.id === id) || HR_CASES[0];
-      return ok(Object.assign({}, c, { notes: [{ id: "cn-1", body: "Left a message for the person who raised it.", created_at: seed.shift(-1) + "T10:00:00Z", author_name: "Dana Whitlock" }] }));
+      return ok(Object.assign({}, c, { notes: [{ id: "cn-1", body: "Left a message for the person who raised it.", createdAt: seed.shift(-1) + "T10:00:00Z", authorName: "Dana Whitlock" }] }));
     }
-    if (/^\/api\/hr-cases\/[^/]+/.test(path)) return ok({ message: "Case updated" });
+    if (/^\/api\/hr-cases\/[^/]+/.test(path)) {
+      const id = path.split("/")[3];
+      const c = HR_CASES.find((x) => x.id === id) || HR_CASES[0];
+      return ok(Object.assign({}, c, body || {}, { message: "Case updated" }));
+    }
 
     // --- forms and Jotform ------------------------------------------------
     if (path === "/api/jotform/forms" && method === "GET") return ok(JOTFORM_FORMS);
@@ -747,19 +863,24 @@ function createStubs() {
     if (/^\/api\/jotform\/forms\/[^/]+$/.test(path)) return ok({ message: "Form updated" });
     if (path.startsWith("/api/jotform/submissions/force-fetch")) return ok({ message: "Fetched 1 submission" });
     if (path.startsWith("/api/jotform/submissions/sync")) return ok({ message: "Synced 2 submissions", synced: 2 });
-    if (path.startsWith("/api/jotform/submissions?") || path === "/api/jotform/submissions") {
+    if (path === "/api/jotform/submissions") {
       const uid = q("user_id");
-      return ok(uid ? JOTFORM_SUBMISSIONS.filter((s) => s.user_id === uid) : JOTFORM_SUBMISSIONS);
+      const rows = uid ? JOTFORM_SUBMISSIONS.filter((x) => x.user_id === uid) : JOTFORM_SUBMISSIONS;
+      return ok({ submissions: rows, total: rows.length });
     }
     if (path.startsWith("/api/jotform/submissions/")) {
       const id = idAfter("/api/jotform/submissions/");
-      const s = JOTFORM_SUBMISSIONS.find((x) => x.submission_id === id || x.id === id) || JOTFORM_SUBMISSIONS[0];
-      return ok(Object.assign({}, s, { answers: [
-        { qid: "1", text: "Where did it happen", answer: S[0].name },
-        { qid: "2", text: "What happened", answer: "A delivery pallet scuffed the lobby floor." },
-      ] }));
+      const row = JOTFORM_SUBMISSIONS.find((x) => x.id === id) || JOTFORM_SUBMISSIONS[0];
+      return ok({
+        meta: row,
+        live: { answers: [
+          { qid: "1", text: "Where did it happen", answer: S[0].name },
+          { qid: "2", text: "What happened", answer: "A delivery pallet scuffed the lobby floor." },
+        ] },
+        fetchError: null,
+      });
     }
-    if (path.startsWith("/api/jotform/pdf-access-log")) return ok(PDF_ACCESS_LOG);
+    if (path.startsWith("/api/jotform/pdf-access-log")) return ok({ entries: PDF_ACCESS_LOG, total: PDF_ACCESS_LOG.length });
     if (path === "/api/jotform/config") return ok({ api_key_set: true, base_url: "https://api.jotform.example.invalid", auto_link: true, locale: "en" });
     if (path.startsWith("/api/jotform/diagnostic") || path.startsWith("/api/jotform/sync-diagnostic")) {
       return ok({ forms: JOTFORM_FORMS.map((f) => ({ form_id: f.form_id, title: f.title, cached: f.submission_count, upstream: f.submission_count, missing: 0 })), checkedAt: seed.NOW_ISO });
@@ -775,15 +896,20 @@ function createStubs() {
     if (path === "/api/jotform/auto-link") return ok({ message: "Linked 1 submission", linked: 1 });
     if (path === "/api/jotform/pdf-backfill") return ok({ message: "Backfilled 2 PDFs", filled: 2 });
     if (path.startsWith("/api/jotform/employee-documents/")) return ok(JOTFORM_SUBMISSIONS.slice(0, 1));
-    if (path.startsWith("/api/forms?")) return ok(INCIDENT_REPORTS);
+    if (path === "/api/forms") return ok({ forms: [{ code: "incident", name: "Incident report" }, { code: "vehicle", name: "Vehicle report" }] });
+    if (path === "/api/forms/responses") {
+      const status = q("status") || "submitted";
+      const rows = INCIDENT_REPORTS.filter((r) => r.status === status);
+      return ok({ responses: rows });
+    }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
-      if (method !== "GET") return ok({ message: "Report saved", response: r });
-      return ok({ response: r, fields: [
-        { id: "f-1", label: "Where did it happen", half: "staff", type: "text", value: r.site_name },
-        { id: "f-2", label: "What happened", half: "staff", type: "textarea", value: r.summary },
-        { id: "f-3", label: "Corrective action", half: "supervisor", type: "textarea", value: "" },
+      if (method !== "GET") return ok({ message: "Report saved", draft: r });
+      return ok({ draft: Object.assign({}, r), fields: [
+        { id: "f-1", key: "where", label: "Where did it happen", half: "staff", type: "text", value: r.siteName || "" },
+        { id: "f-2", key: "what", label: "What happened", half: "staff", type: "textarea", value: "A delivery pallet scuffed the lobby floor." },
+        { id: "f-3", key: "action", label: "Corrective action", half: "supervisor", type: "textarea", value: "" },
       ] });
     }
 
@@ -794,10 +920,21 @@ function createStubs() {
     if (path === "/api/lookups/values" && method === "POST") return created({ message: "Option added" });
     if (/^\/api\/lookups\/values\/[^/]+/.test(path)) return ok({ message: "Option saved" });
     if (path === "/api/lookups/reorder") return ok({ message: "Order saved" });
-    if (path.startsWith("/api/lookups/site/")) {
-      if (method !== "GET") return ok({ message: "Site option saved" });
-      return ok([{ id: "sl-1", site_id: S[0].id, slug: "zones", value: "Atrium", label: "Atrium", is_active: true, sort_order: 1 }]);
+    if (/^\/api\/lookups\/site\/[^/]+\/all$/.test(path)) {
+      if (!state.lookupValues) {
+        state.lookupValues = {
+          zones: [
+            { id: "sl-1", lookup_type: "zone", value: "atrium", label: "Atrium", is_active: true, sort_order: 1 },
+            { id: "sl-2", lookup_type: "zone", value: "loading_bay", label: "Loading Bay", is_active: true, sort_order: 2 },
+          ],
+          buildings: [{ id: "sl-3", lookup_type: "building", value: "north_wing", label: "North Wing", is_active: true, sort_order: 1 }],
+          floors: [{ id: "sl-4", lookup_type: "floor", value: "3", label: "Floor 3", is_active: true, sort_order: 1 }],
+        };
+      }
+      return ok(state.lookupValues);
     }
+    // hand: 2 zones, 1 building, 1 floor for the site picked.
+    if (path.startsWith("/api/lookups/site/")) return ok({ message: "Site option saved" });
     if (path === "/api/notification-recipients" && method === "GET") return ok(NOTIFICATION_RECIPIENTS);
     if (path.startsWith("/api/notification-recipients")) return ok({ message: "Recipient saved" });
 
@@ -828,6 +965,26 @@ function createStubs() {
     return map;
   }
 
+  // Cuts whichever array a response carries down to `keep` rows, leaving its shape alone.
+  const cut = (json, keep, keepIds) => {
+    const take = (arr) => {
+      if (keepIds) return arr.filter((r) => r && keepIds.indexOf(r.id) >= 0);
+      return arr.slice(0, keep);
+    };
+    if (Array.isArray(json)) return take(json);
+    if (json && typeof json === "object") {
+      const out = Object.assign({}, json);
+      Object.keys(out).forEach((k) => { if (Array.isArray(out[k])) out[k] = take(out[k]); });
+      return out;
+    }
+    return json;
+  };
+
+  const delayFor = (path) => {
+    const hit = delays.find((d0) => path.indexOf(d0.path) >= 0);
+    return hit ? hit.ms : 0;
+  };
+
   // The single entry point the harness routes every request through.
   function handle({ method, url, body }) {
     const u = new URL(url);
@@ -842,7 +999,11 @@ function createStubs() {
     }
 
     const answer = route(method, path, u.searchParams, body);
-    if (answer) return answer;
+    if (answer) {
+      answer.delayMs = delayFor(path);
+      if (trim && method === "GET" && path.indexOf(trim.path) >= 0) answer.json = cut(answer.json, trim.keep, trim.keepIds);
+      return answer;
+    }
 
     record.unstubbed = true;
     // Shape guess for a call with no rule: a list route gets a list, everything else an object.
@@ -854,6 +1015,9 @@ function createStubs() {
     calls,
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
+    setDelay: (path, ms) => { delays.push({ path, ms }); },
+    clearDelays: () => { delays = []; },
+    setTrim: (t) => { trim = t; },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -865,12 +1029,13 @@ function createStubs() {
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null;
       state.overrides = {}; state.notifications = null;
+      delays = []; trim = null;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
       SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
-      HR_DOCUMENTS, HR_TRAINING, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
+      HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
       INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,
       ASSIGNED_TASKS,
     },
