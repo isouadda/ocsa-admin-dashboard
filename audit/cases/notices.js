@@ -48,15 +48,18 @@ async function run({ d, results, stubs }) {
       if (!tapped) { results.fail("notice", id, "no notice on screen reading " + JSON.stringify(n.title)); continue; }
 
       const landed = await currentPage(d);
-      const body = await d.bodyText();
       const gatedHere = !isAdmin && (want === "forms" || want === "cases");
 
       if (gatedHere) {
-        // The notice routes there anyway. Whether the person can read it is the point.
-        results.check("notice", id, landed === want && body.replace(/\s+/g, "").length > 20,
-          landed !== want ? "the notice landed on " + landed + ", expected " + want
-            : "the notice landed a " + persona + " on " + want + " with a body of "
-              + body.replace(/\s+/g, " ").trim().length + " characters");
+        // The notice does not move this person to a page they cannot open. It closes the bell and
+        // says one line, and the person stays where they were.
+        const said = await d.waitToast(3000);
+        const stayed = landed === "overview";
+        results.check("notice", id, stayed && !!said && /for admins/i.test(said),
+          !stayed ? "the notice moved a " + persona + " to " + landed + ", which they cannot read"
+            : !said ? "the notice opened nothing and said nothing"
+              : "the line read " + JSON.stringify(said));
+        await d.waitToastGone(3600);
       } else {
         results.check("notice", id, landed === want,
           landed === want ? "" : "the notice landed on " + landed + ", expected " + want);

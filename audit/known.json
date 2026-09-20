@@ -2,13 +2,6 @@
   "note": "Failures the app has today that this build does not fix, because nothing in src/ changes. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list.",
   "failures": [
     {
-      "id": "gated-admin-pages-show-an-empty-body",
-      "match": "^page/(staff|cases|forms|settings)/(supervisor|capability)",
-      "shows": "The page header still reads Staff Management, Cases, Forms or Settings, and the content area below it is 0 characters. No message, no redirect, nothing to click.",
-      "why": "The nav hides these four items from a supervisor, but the render switch at src/App.js:545, 546, 561 and 562 gates on isAdmin with no else branch, so a supervisor who reaches the hash directly gets the header over an empty body.",
-      "where": "src/App.js:545, src/App.js:546, src/App.js:561, src/App.js:562"
-    },
-    {
       "id": "a-notice-lands-a-supervisor-on-a-page-they-cannot-read",
       "match": "^notice/(form|hr_case)/supervisor$",
       "shows": "Tapping the filed-report notice in the bell sets the hash to forms/reports/<id> and lands the supervisor on the empty Forms page. The case notice does the same on the empty Cases page.",

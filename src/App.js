@@ -29,6 +29,9 @@ const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.s
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
 const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help"];
+// The pages an admin opens and nobody else. A person who reaches one of these another way is told
+// so in the page body rather than left looking at a header over nothing.
+const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings"];
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
 // What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
@@ -147,6 +150,7 @@ const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) =>
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
+const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>This page is for admins.</div><Btn t={t} v="ghost" onClick={onBack}>Back to Dashboard</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
 const CHART_PALETTE = [GO, BL, GR, OR, TL, RD, GL];
@@ -254,6 +258,9 @@ export default function AdminDashboard() {
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
   const isAdmin = user?.role === "admin";
+  // One rule for the pages this person can open. The render switch reads it, so a page is never
+  // open in one place and closed in another.
+  const canOpenPage = useCallback((id) => isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0, [isAdmin]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -542,8 +549,8 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
-        {page === "staff" && isAdmin && <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} />}
-        {page === "cases" && isAdmin && <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} />}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -558,8 +565,8 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "forms" && isAdmin && <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} />}
-        {page === "settings" && isAdmin && <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} />}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 

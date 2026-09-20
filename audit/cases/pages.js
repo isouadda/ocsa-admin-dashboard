@@ -45,7 +45,7 @@ async function run({ d, results, inventory, app, width }) {
         // The page must not render its contents, AND the person must be told why. The page label
         // still sits in the header, so only the content area is read here.
         const leaked = body.indexOf(p.expect) >= 0;
-        const explained = /not available|no access|cannot|ask an admin|only an admin|permission/i.test(body);
+        const explained = /not available|no access|cannot|ask an admin|only an admin|is for admins|permission/i.test(body);
         results.check("page", id, !leaked && explained,
           leaked ? "a " + who + " can read this admin page, the body holds " + JSON.stringify(p.expect) :
             "the body is " + bodyLen + " characters and says nothing about why");

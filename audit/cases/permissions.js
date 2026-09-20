@@ -98,7 +98,7 @@ async function run({ d, results, stubs }) {
     const text = await d.bodyText();
     const reachable = text.indexOf("Access each role has in the platform today") >= 0;
     results.check("permission", id, reachable,
-      reachable ? "" : "PermissionsMatrixPanel is defined at src/App.js:6781 and no tab renders it, so its Export PDF cannot be reached");
+      reachable ? "" : "PermissionsMatrixPanel is defined at src/App.js:6788 and no tab renders it, so its Export PDF cannot be reached");
   }
 }
 
