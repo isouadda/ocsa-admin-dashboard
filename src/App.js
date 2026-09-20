@@ -525,7 +525,7 @@ export default function AdminDashboard() {
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
+            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast("That one is for admins. Ask an admin to take a look.", "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
@@ -2648,7 +2648,7 @@ const notifTarget = (link) => {
   return PAGE_IDS.includes(id) ? { kind: "page", page: id } : { kind: "external", href: u.href };
 };
 const NOTIF_PAGE_SIZE = 30;
-function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash }) {
+function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -2674,15 +2674,18 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // A notice can point at a page this person cannot open. The panel closes and says one line rather
+  // than leaving them on a page that draws nothing for them. The notice itself stays in the list.
+  const refuse = () => { onClose(); onRefused(); };
   const openRow = async (n) => {
     if (busy) return;
     setBusy(true);
     if (!n.readAt) { try { await af("/api/notifications/" + encodeURIComponent(n.id) + "/read", { method: "POST" }); } catch (e) { console.warn("Mark read:", e.message); } }
     setBusy(false);
     // A form notice carries the report it is about, so it opens that report rather than the page.
-    if (n.subjectType === "form" && n.subjectId) { onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
+    if (n.subjectType === "form" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
-    if (target.kind === "page") onOpenPage(target.page);
+    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
     onClose();
   };

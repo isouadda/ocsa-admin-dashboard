@@ -2,13 +2,6 @@
   "note": "Failures the app has today that this build does not fix, because nothing in src/ changes. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list.",
   "failures": [
     {
-      "id": "a-notice-lands-a-supervisor-on-a-page-they-cannot-read",
-      "match": "^notice/(form|hr_case)/supervisor$",
-      "shows": "Tapping the filed-report notice in the bell sets the hash to forms/reports/<id> and lands the supervisor on the empty Forms page. The case notice does the same on the empty Cases page.",
-      "why": "NotificationPanel.openRow at src/App.js:2675 routes a notice by its subject and its link without checking whether the person can open the page it names, and Forms and Cases are admin-only at src/App.js:561 and src/App.js:546.",
-      "where": "src/App.js:2675, src/App.js:561, src/App.js:546"
-    },
-    {
       "id": "banned-acronym-reaches-eight-screens-and-exports",
       "match": "^house-style/banned-acronym",
       "shows": "A four-letter certification framework acronym reaches eight places a person reads: two window field labels on the Sites page, a field label and a CSV export column on the Service Catalog, a CSV export column and a field label and a section heading in Inspections, and the green banner over the PDF Access Log.",
