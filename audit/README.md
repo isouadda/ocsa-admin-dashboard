@@ -58,7 +58,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
-`permissions`, `notices` and `house-style`.
+`permissions`, `notices`, `report-actions` and `house-style`.
 
 ## Known failures
 

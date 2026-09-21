@@ -113,79 +113,79 @@ const VIEWS = [
 // Two entries carry two lines because the app renders one window from two places.
 // ---------------------------------------------------------------------------
 const WINDOWS = [
-  { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1169] },
-  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1170] },
-  { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1224] },
-  { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1230] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1237] },
-  { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1284] },
-  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1293] },
+  { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1184] },
+  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1185] },
+  { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1239] },
+  { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1245] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1252] },
+  { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1299] },
+  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1308] },
 
-  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [1843] },
-  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [1940] },
-  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [1977] },
-  { id: "sites/add-task", page: "sites", title: "Add Task", lines: [1999] },
-  { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [2013] },
-  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2029] },
-  { id: "sites/add", page: "sites", title: "Add Site", lines: [2071] },
+  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [1858] },
+  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [1955] },
+  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [1992] },
+  { id: "sites/add-task", page: "sites", title: "Add Task", lines: [2014] },
+  { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [2028] },
+  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2044] },
+  { id: "sites/add", page: "sites", title: "Add Site", lines: [2086] },
 
-  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2136] },
-  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2161] },
+  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2151] },
+  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2176] },
 
-  { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2198] },
-  { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2199] },
-  { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [2200] },
+  { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2213] },
+  { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2214] },
+  { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [2215] },
 
-  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [3762] },
-  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [3787] },
-  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [3794] },
+  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [3812] },
+  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [3837] },
+  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [3844] },
 
-  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [3936] },
-  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [3944] },
-  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [4000] },
-  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [4008] },
-  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [4023] },
+  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [3986] },
+  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [3994] },
+  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [4050] },
+  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [4058] },
+  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [4073] },
 
-  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4139] },
-  { id: "services/add", page: "services", title: "Add Service", lines: [4193] },
-  { id: "services/edit", page: "services", title: "Edit Service", lines: [4201] },
-  { id: "services/link-site", page: "services", title: "Link Site", lines: [4209] },
+  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4189] },
+  { id: "services/add", page: "services", title: "Add Service", lines: [4243] },
+  { id: "services/edit", page: "services", title: "Edit Service", lines: [4251] },
+  { id: "services/link-site", page: "services", title: "Link Site", lines: [4259] },
 
-  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4306] },
-  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [4488] },
-  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [4961] },
-  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5020] },
-  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5062] },
-  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5078] },
-  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5094] },
+  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4356] },
+  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [4538] },
+  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5011] },
+  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5070] },
+  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5112] },
+  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5128] },
+  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5144] },
 
-  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [5688] },
-  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [5719] },
-  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [5751] },
+  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [5738] },
+  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [5769] },
+  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [5801] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6217, 6570] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6562] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6581] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6267, 6620] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6612] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6631] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7252] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7261] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7269] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7283] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7297] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7308] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7302] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7311] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7319] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7333] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7347] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7358] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7499] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [8954] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9007] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9122] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9159] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7596] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9064] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9117] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9232] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9269] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [9751] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [9861] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10247] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [10269] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10300] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [10357] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [10379] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10410] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -226,7 +226,7 @@ const REPORTS = [
 // Everything the dashboard can hand a person to keep.
 // ---------------------------------------------------------------------------
 const EXPORTS = [
-  // CSV, eight of them. dlCSV at src/App.js:39 writes six, and two more are written inline.
+  // CSV, eight of them. dlCSV at src/App.js:54 writes six, and two more are written inline.
   { id: "exports/issues-csv", kind: "csv", name: "ocsa-issues.csv" },
   { id: "exports/chemicals-csv", kind: "csv", name: "ocsa-chemicals.csv" },
   { id: "exports/approved-vendors-csv", kind: "csv", name: "OCSA_Approved_Vendor_List" },
@@ -271,6 +271,8 @@ const DECISIONS = [
   { id: "decisions/issue-resolve", name: "Resolve an issue" },
   { id: "decisions/claimed-shift-approve", name: "Approve a claimed shift" },
   { id: "decisions/staff-approve", name: "Approve a pending person" },
+  { id: "decisions/form-delivery-pdf", name: "Set a form to attach the filled report as a PDF" },
+  { id: "decisions/form-delivery-app-link", name: "Set a form back to a link to the app" },
 ];
 
 // Refusals the API can answer with, shown one at a time.
@@ -289,10 +291,40 @@ const REFUSALS = [
   { id: "refusals/session-expired", status: 401, error: "Session expired" },
   { id: "refusals/list-load-refused", status: 500, error: "The issue list could not be read" },
   { id: "refusals/popups-blocked", status: 0, error: "Allow pop-ups to export the PDF" },
+  { id: "refusals/form-delivery-unknown-code", status: 400, error: "Unknown form code" },
+  { id: "refusals/form-delivery-bad-choice", status: 400, error: "Choose app_link or pdf" },
+  { id: "refusals/form-delivery-forbidden", status: 403, error: "Insufficient permissions" },
+  { id: "refusals/form-delivery-not-set-up", status: 503, error: "The delivery setting has not been set up yet" },
+  { id: "refusals/report-pdf-not-found", status: 404, error: "Report not found" },
+  { id: "refusals/report-pdf-no-definition", status: 422, error: "No form definition for OCSA-FRM-016" },
+  { id: "refusals/report-pdf-server-error", status: 500, error: "Server error" },
+  { id: "refusals/report-resend-not-found", status: 404, error: "Report not found" },
+  { id: "refusals/report-resend-draft", status: 409, error: "Only a filed report can be sent again" },
+  { id: "refusals/report-resend-no-definition", status: 422, error: "No form definition for OCSA-FRM-016" },
+  { id: "refusals/report-resend-forbidden", status: 403, error: "Insufficient permissions" },
+  { id: "refusals/report-resend-server-error", status: 500, error: "Server error" },
 ];
 
 // The house style bans this acronym from anything staff or a client reads. The suite scans
 // src/App.js for it rather than carrying a list, so a new one is caught.
 const HOUSE_STYLE = { id: "house-style/banned-acronym" };
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE };
+// ---------------------------------------------------------------------------
+// Every state the filed report window can be in past its first draw: what its
+// footer offers, what it asks before it sends, and what it says afterward.
+// ---------------------------------------------------------------------------
+const WINDOW_STATES = [
+  { id: "window-states/report-offers-download", name: "A loaded report offers Download PDF" },
+  { id: "window-states/report-downloading", name: "While the file is in flight the button reads Downloading... and cannot be pressed" },
+  { id: "window-states/report-download-saves-the-file", name: "The file is saved under the name the API chose" },
+  { id: "window-states/report-download-names-the-file-itself", name: "With no name to read off the response, the file is still named for its form and its report" },
+  { id: "window-states/report-offers-send-again", name: "A filed report offers Send again" },
+  { id: "window-states/report-hides-send-again-on-a-draft", name: "An unfinished report does not offer Send again" },
+  { id: "window-states/report-asks-before-sending", name: "Send again asks first, with Send it and Not yet" },
+  { id: "window-states/report-not-yet-sends-nothing", name: "Not yet puts the question away and sends nothing" },
+  { id: "window-states/report-sent-line-with-a-link", name: "The line after a send, when the form carries a link to the app" },
+  { id: "window-states/report-sent-line-with-the-pdf", name: "The line after a send, when the form carries the PDF" },
+  { id: "window-states/report-double-click-sends-once", name: "A double click on Send it sends once" },
+];
+
+module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, WINDOW_STATES };

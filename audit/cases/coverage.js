@@ -7,7 +7,7 @@
 function run({ app, inventory, results }) {
   const claimedPages = new Set(inventory.PAGES.map((p) => p.id));
   app.pages.forEach((id) => {
-    if (!claimedPages.has(id)) results.noCase("coverage", "page " + id, "PAGE_IDS in src/App.js:31");
+    if (!claimedPages.has(id)) results.noCase("coverage", "page " + id, "PAGE_IDS in src/App.js:46");
   });
   inventory.PAGES.forEach((p) => {
     if (app.pages.indexOf(p.id) < 0) {

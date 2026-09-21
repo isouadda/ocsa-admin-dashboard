@@ -13,6 +13,21 @@ async function apiUpload(file, bucket, token) {
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Upload failed"); }
   return res.json();
 }
+// attachment; filename="<code>-<id>.pdf" -> <code>-<id>.pdf. Anything unreadable falls back.
+const filenameFrom = (header, fallback) => {
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(String(header || ""));
+  let name = "";
+  if (m) { try { name = decodeURIComponent(m[1].trim()); } catch (e) { name = m[1].trim(); } }
+  return name || fallback;
+};
+// A response that is a file rather than JSON. The token and the refusal handling are apiFetch's, so a
+// 401 signs out and a refusal arrives with the words the API sent and its status.
+async function apiDownload(path, token, fallbackName) {
+  const r = await fetch(API + path, { headers: { "Authorization": "Bearer " + token } });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
+}
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
@@ -2285,7 +2300,19 @@ const agentMessageFrom = (m, i) => {
   return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
-const agentMissingFrom = (err) => { const b = err && err.body; const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]); return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null; };
+// What is still unanswered, for the line on the Help page. The API names the questions when it can:
+// missingFields carries a label per key, in the same order as missing, and a label is what a person
+// recognizes. Without it, the keys are turned into words the way they always were.
+const agentMissingFrom = (err) => {
+  const b = err && err.body;
+  const named = b && agentPick(b, ["missingFields", "missing_fields"]);
+  if (Array.isArray(named) && named.length) {
+    const labels = named.map(f => (f && typeof f === "object") ? String(agentPick(f, ["label", "title", "name"]) || "").trim() : "").filter(Boolean);
+    if (labels.length === named.length) return labels;
+  }
+  const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]);
+  return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null;
+};
 // A reply may carry numbered steps ("1. ...") and bold ("**text**"). This turns it into lines, each a
 // step with its number or a plain line, and each made of inline parts that are plain or bold. An
 // unmatched ** stays as literal text; bold never spans lines; blank lines are kept as spacing.
@@ -2530,6 +2557,7 @@ const RECIPIENTS_INTRO = "Choose who hears about each kind of report. People get
 const HR_CASE_NOTE = "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.";
 const HR_FALLBACK_NOTE = "Told when everyone else on the team is named in a report.";
 const FORM_SUB_NOTE = "These people are told about this form as well as anyone under Every form.";
+const FORM_PDF_NOTE = "Every email about this form carries everything the report says, to every person and address on these lists.";
 const BOTH_OFF = "Keep at least one of Email or In app on.";
 function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   const [data, setData] = useState(null);
@@ -2540,6 +2568,9 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   const [picks, setPicks] = useState({});
   const [emails, setEmails] = useState({});
   const [confirming, setConfirming] = useState(null);
+  // The choice a form is being moved to, held only while the PATCH is in flight. A refusal drops
+  // it, which puts the control back on what the server holds.
+  const [deliveryPending, setDeliveryPending] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true); setFailed("");
@@ -2573,6 +2604,14 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
     catch (e) { setErr(slot, e.message || "Request failed"); setConfirming(null); }
     setBusy(false);
   };
+  const setFormDelivery = async (slot, code, value) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, ""); setDeliveryPending(p => ({ ...p, [code]: value }));
+    const done = () => setDeliveryPending(p => { const n = { ...p }; delete n[code]; return n; });
+    try { await af("/api/notification-recipients/forms/" + encodeURIComponent(code), { method: "PATCH", body: { delivery: value } }); done(); after(slot); }
+    catch (e) { done(); setErr(slot, e.message || "Request failed"); }
+    setBusy(false);
+  };
   const toggle = (slot, r, field) => {
     const next = { viaEmail: r.viaEmail, viaInApp: r.viaInApp, [field]: !r[field] };
     if (!next.viaEmail && !next.viaInApp) { setErr(slot, BOTH_OFF); return; }
@@ -2586,14 +2625,25 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
       .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + u.role + ")" : "") }));
   };
 
-  const renderSection = ({ type, key2, title, note, allowEmail, ariaName }) => {
+  const deliveryBtn = (slot, form, value, label, ariaName, current) => <button key={value} onClick={() => setFormDelivery(slot, form.code, value)} disabled={busy} aria-label={label + " for " + ariaName} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (current === value ? GO : t.border), background: current === value ? t.goldBg : "transparent", color: current === value ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{label}</button>;
+
+  const renderSection = ({ type, key2, title, note, allowEmail, ariaName, form }) => {
     const slot = slotKey(type, key2);
     const rows = rowsFor(type, key2);
     const opts = staffOptions(slot, rows);
     const err = errors[slot];
+    // How this form's email carries the report. Every form starts on the link to the app.
+    const delivery = form ? (deliveryPending[form.code] || form.delivery || "app_link") : "";
     return (<div key={slot} style={{ marginTop: title ? 14 : 0 }}>
       {title && <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 2 }}>{title}</div>}
       {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
+      {form && <div style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {deliveryBtn(slot, form, "app_link", "Link to the app", ariaName, delivery)}
+          {deliveryBtn(slot, form, "pdf", "Attach the filled report as a PDF", ariaName, delivery)}
+        </div>
+        {delivery === "pdf" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{FORM_PDF_NOTE}</div>}
+      </div>}
       {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>Nobody set. Every admin gets a notice in the app.</div>}
       {rows.map(r => {
         const who = r.user ? r.user.name + (r.user.role ? " (" + r.user.role + ")" : "") : r.email;
@@ -2637,7 +2687,7 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
       {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
       {ty.keyed && ty.type === "form" ? (<>
         {renderSection({ type: ty.type, key2: "", title: "Every form", allowEmail: ty.allowOutsideEmail, ariaName: "Every form" })}
-        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")" }))}
+        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")", form: f }))}
       </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: ty.label })}
     </Crd>))}
   </div>);
@@ -7457,14 +7507,29 @@ function JotformPickerField({ af, form, setForm, t }) {
 const IR_PAGE_SIZE = 50;
 const IR_NO_ACCESS = "Your account cannot read incident reports.";
 const IR_NOT_FOUND = "This report could not be found, or your account cannot open it.";
+const IR_RESEND_ASK = "Send this report again to everyone set for this form?";
+// Built from the answer: how many emails, how many app notices, and what the email carried.
+const irSentLine = (d) => "Sent again: " + (Number(d && d.email) || 0) + " emails and " + (Number(d && d.inApp) || 0)
+  + " app notices, " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
 
-function IncidentReportWindow({ af, t, id, row, onClose }) {
+function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // What the footer's own calls say. The report itself is still read once per opening.
+  const [actionError, setActionError] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  // The report the footer is acting on, read by the download without making it a dependency.
+  const draftRef = useRef(null);
+  const [asking, setAsking] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentLine, setSentLine] = useState("");
+  // One send at a time. The ref closes the gap before the disabled button redraws, so a double click
+  // is one request. This is the guard the Time off window uses.
+  const sendingRef = useRef(false);
   const fetchedRef = useRef(null);
 
   useEffect(() => {
@@ -7483,7 +7548,39 @@ function IncidentReportWindow({ af, t, id, row, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true); setActionError("");
+    try {
+      // A cross-origin response hands JS no Content-Disposition unless the API exposes it, so the
+      // same name the API writes is built here as the fallback: the form code and the report.
+      const fallback = ((draftRef.current && draftRef.current.formCode) || "report") + "-" + String(id).slice(0, 8) + ".pdf";
+      const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(id) + "/pdf", token, fallback);
+      const url = URL.createObjectURL(f.blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) { setActionError(e.message || "Request failed"); }
+    setDownloading(false);
+  };
+
+  const resend = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/resend", { method: "POST", body: {} });
+      setAsking(false);
+      setSentLine(irSentLine(d));
+    } catch (e) {
+      const st = e && e.body && e.body.status;
+      setActionError((e.message || "Request failed") + (st ? " Status: " + st + "." : ""));
+    }
+    sendingRef.current = false; setSending(false);
+  };
+
   const draft = data && data.draft;
+  draftRef.current = draft;
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
   const agentFields = fields.filter(f => f.half === "agent");
   const supervisorFields = fields.filter(f => f.half === "supervisor");
@@ -7525,11 +7622,24 @@ function IncidentReportWindow({ af, t, id, row, onClose }) {
         {supervisorFields.map(fieldRow)}
       </div>
     </>)}
-    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+    {asking && <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>{IR_RESEND_ASK}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} onClick={resend} disabled={sending} style={{ minHeight: 44 }}>{sending ? "Sending..." : "Send it"}</Btn>
+        <Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={sending} style={{ minHeight: 44 }}>Not yet</Btn>
+      </div>
+    </div>}
+    {sentLine && <div style={{ fontSize: 12, color: GR, marginTop: 14 }}>{sentLine}</div>}
+    {actionError && <div style={{ fontSize: 12, color: RD, marginTop: 14 }}>{actionError}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+      {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? "Downloading..." : "Download PDF"}</Btn>}
+      {!loading && !error && submitted && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>Send again</Btn>}
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn>
+    </div>
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, t, sites = [], openId, openRow, onOpen, onClose }) {
+function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen, onClose }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -7608,7 +7718,7 @@ function IncidentReportsTab({ af, t, sites = [], openId, openRow, onOpen, onClos
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? "No reports filed yet." : "No unfinished reports."} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? "Loading..." : "Load more"}</button></div>}
-    {openId && <IncidentReportWindow af={af} t={t} id={openId} row={openRow} onClose={onClose} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} />}
   </div>);
 }
 
@@ -8797,7 +8907,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ SESSION 27: ALIASES TAB ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
       {tab === "aliases" && (
         <div>
