@@ -9,13 +9,6 @@
       "where": "src/App.js:1979, src/App.js:1994, src/App.js:4051, src/App.js:4076, src/App.js:5974, src/App.js:6279, src/App.js:6451, src/App.js:8398"
     },
     {
-      "id": "manage-permissions-capability-cannot-open-the-screen-it-governs",
-      "match": "^permissions/one-screen-proves-it$",
-      "shows": "A supervisor granted the manage permissions capability opens Settings and gets a 0 character body. The capability the app describes as the way to let someone else open that screen does not let them open it.",
-      "why": "The Settings page is gated on isAdmin in the render switch at src/App.js:562, and the capability is never consulted there. The copy at src/App.js:6941 says an admin can grant the capability to let someone else open this screen, which is not true today.",
-      "where": "src/App.js:562, src/App.js:6941"
-    },
-    {
       "id": "roles-and-permissions-reference-and-its-export-are-unreachable",
       "match": "^(permissions/matrix-panel-is-reachable|exports/permissions-matrix-pdf)$",
       "shows": "The Roles and Permissions tab shows the per-person editor. The reference matrix, its notes and its Export PDF are never drawn, so one of the dashboard's exports cannot be reached from any screen.",

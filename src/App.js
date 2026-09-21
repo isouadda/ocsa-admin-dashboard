@@ -258,9 +258,16 @@ export default function AdminDashboard() {
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
   const isAdmin = user?.role === "admin";
-  // One rule for the pages this person can open. The render switch reads it, so a page is never
-  // open in one place and closed in another.
-  const canOpenPage = useCallback((id) => isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0, [isAdmin]);
+  // The manage permissions capability opens the Roles and Permissions screen, which is the screen it
+  // names. One quiet call when the session starts asks the API for this person's own effective
+  // capabilities: a 200 answers it, and any other answer leaves them with what their role gives.
+  const [canManagePermissions, setCanManagePermissions] = useState(false);
+  // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
+  // the notice panel read it, so a page is never open in one place and closed in another.
+  const canOpenPage = useCallback((id) => {
+    if (id === "settings") return isAdmin || canManagePermissions;
+    return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
+  }, [isAdmin, canManagePermissions]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -268,6 +275,15 @@ export default function AdminDashboard() {
   const loadStaff = useCallback(async () => { try { const s = await af("/api/users?status=active"); setAllStaff(s); return s; } catch (e) { console.warn("Failed to load staff:", e.message); return []; } }, [af]);
   const loadLookups = useCallback(async () => { try { const d = await af("/api/lookups/all"); setLookups(d); } catch (e) { console.warn("Failed to load lookups:", e.message); } }, [af]);
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
+  useEffect(() => {
+    const id = user && user.id != null ? String(user.id) : "";
+    if (!token || !id || isAdmin) { setCanManagePermissions(false); return; }
+    let alive = true;
+    af("/api/users/" + encodeURIComponent(id) + "/permissions")
+      .then(d => { if (alive) setCanManagePermissions(!!(d && d.effective && d.effective.manage_permissions)); })
+      .catch(e => { if (alive) setCanManagePermissions(false); console.warn("Own capabilities:", e.message); });
+    return () => { alive = false; };
+  }, [token, user, isAdmin, af]);
   useEffect(() => { if (!token) return; let alive = true; af("/api/reports/overview").then(d => { if (alive) setNotif({ openIssues: d.openIssues, pendingStaff: d.pendingStaff }); }).catch(() => {}); return () => { alive = false; }; }, [token, page]);
   // How many Speak Up cases are waiting: unheld, due soon or overdue. Admins only. The route writes no
   // audit row, so it is polled every 60 seconds while the tab is visible and again after a save on the
@@ -379,7 +395,7 @@ export default function AdminDashboard() {
     { label: "Time", items: [{ id: "schedule", l: "Schedule", i: CalI }, { id: "marketplace", l: "Shift Pickup", i: SwpI }] },
     { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
     ...(isAdmin ? [{ label: "Integrations", items: [{ id: "forms", l: "Forms", i: FmI }] }] : []),
-    ...(isAdmin ? [{ label: null, items: [{ id: "settings", l: "Settings", i: StgI }] }] : []),
+    ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: "Settings", i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: "Messages", i: ChI }, { id: "help", l: "Help", i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
@@ -537,7 +553,7 @@ export default function AdminDashboard() {
             {userMenuOpen && (
               <div style={{ position: "absolute", top: 48, right: 0, width: 210, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? "Administrator" : "Supervisor"}</div></div>
-                {isAdmin && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
+                {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
                 <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
               </div>
             )}
@@ -566,7 +582,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -7010,10 +7026,20 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [] }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
-  const [tab, setTab] = useState("company");
+  // Every tab here is an admin tab but one: the manage permissions capability opens Roles and
+  // Permissions and nothing else, so that is the tab it draws and the tab it starts on.
+  const TABS = [
+    { id: "company", label: "Company", adminOnly: true },
+    { id: "global", label: "Dropdown Options", adminOnly: true },
+    { id: "site", label: "Site Lookups", adminOnly: true },
+    { id: "permissions", label: "Roles and Permissions", adminOnly: false },
+    { id: "recipients", label: "Who gets told", adminOnly: true, style: { fontFamily: FONT_BODY } },
+  ];
+  const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
+  const [tab, setTab] = useState(isAdmin ? "company" : "permissions");
   const [addCatForm, setAddCatForm] = useState(null);
   const [editCatForm, setEditCatForm] = useState(null);
   const [addValForm, setAddValForm] = useState(null);
@@ -7025,7 +7051,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [] }) {
   const [addSiteVal, setAddSiteVal] = useState(null);
   const [editSiteVal, setEditSiteVal] = useState(null);
 
-  const load = async () => { try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
+  const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
   useEffect(() => { load(); }, []);
 
   const loadSiteLookups = async (sId) => { if (!sId) return; try { const d = await af("/api/lookups/site/" + sId + "/all"); setSiteLookups(d); } catch (e) { showToast(e.message, "error"); } };
@@ -7110,20 +7136,16 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [] }) {
     <div>
       <SecT t={t}>Settings</SecT>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
-        <button onClick={() => setTab("company")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "company" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "company" ? t.goldBg : "transparent", color: tab === "company" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Company</button>
-        <button onClick={() => setTab("global")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "global" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "global" ? t.goldBg : "transparent", color: tab === "global" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Dropdown Options</button>
-        <button onClick={() => setTab("site")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "site" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "site" ? t.goldBg : "transparent", color: tab === "site" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Site Lookups</button>
-        <button onClick={() => setTab("permissions")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "permissions" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "permissions" ? t.goldBg : "transparent", color: tab === "permissions" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Roles and Permissions</button>
-        <button onClick={() => setTab("recipients")} style={{ padding: "6px 14px", borderRadius: 6, border: tab === "recipients" ? "2px solid " + GO : "1px solid " + t.border, background: tab === "recipients" ? t.goldBg : "transparent", color: tab === "recipients" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>Who gets told</button>
+        {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
-      {tab === "company" && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
+      {tab === "company" && isAdmin && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
       {tab === "permissions" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
-      {tab === "recipients" && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
+      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
 
-      {tab === "global" && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      {tab === "global" && isAdmin && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
         <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -7181,7 +7203,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [] }) {
         </Crd>}
       </div>}
 
-      {tab === "site" && <div>
+      {tab === "site" && isAdmin && <div>
         <div style={{ marginBottom: 12 }}>
           <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
         </div>

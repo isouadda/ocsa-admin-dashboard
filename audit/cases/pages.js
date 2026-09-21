@@ -22,15 +22,16 @@ async function run({ d, results, inventory, app, width }) {
     // sidebar collapsed to one icon per group, so it is expanded first and the labels read there.
     await d.expandSidebar();
     const nav = (await d.visibleNavItems()).join(" | ");
-    const missing = ADMIN_ONLY_NAV.filter((l) => nav.indexOf(l) < 0);
-    const present = ADMIN_ONLY_NAV.filter((l) => nav.indexOf(l) >= 0);
-    if (isAdmin) {
-      results.check("page", "nav/" + persona + suffix, missing.length === 0,
-        missing.length ? "an admin is missing " + missing.join(", ") : "all four admin items present");
-    } else {
-      results.check("page", "nav/" + persona + suffix, present.length === 0,
-        present.length ? "a " + who + " can see " + present.join(", ") : "none of the four admin items present");
-    }
+    // The manage permissions capability opens Settings, so the person holding it is expected to
+    // have that one item and none of the other three.
+    const opensSettings = seed.PEOPLE[persona].singleCapability === "manage_permissions";
+    const allowed = isAdmin ? ADMIN_ONLY_NAV : opensSettings ? ["Settings"] : [];
+    const missing = allowed.filter((l) => nav.indexOf(l) < 0);
+    const present = ADMIN_ONLY_NAV.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
+    results.check("page", "nav/" + persona + suffix, missing.length === 0 && present.length === 0,
+      missing.length ? "a " + who + " is missing " + missing.join(", ")
+        : present.length ? "a " + who + " can see " + present.join(", ")
+          : allowed.length ? allowed.join(", ") + " present, the rest absent" : "none of the four admin items present");
 
     for (const p of inventory.PAGES) {
       const id = "page/" + p.id + "/" + persona + suffix;
@@ -41,7 +42,11 @@ async function run({ d, results, inventory, app, width }) {
       const bodyLen = await d.bodyLength();
       const header = shellText.indexOf(p.label) >= 0;
 
-      if (p.gated && !isAdmin) {
+      // A gated page opens for an admin, and Settings also opens for the person whose capability
+      // names that screen.
+      const opens = !p.gated || isAdmin
+        || (p.id === "settings" && seed.PEOPLE[persona].singleCapability === "manage_permissions");
+      if (!opens) {
         // The page must not render its contents, AND the person must be told why. The page label
         // still sits in the header, so only the content area is read here.
         const leaked = body.indexOf(p.expect) >= 0;
