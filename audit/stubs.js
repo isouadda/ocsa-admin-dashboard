@@ -19,6 +19,16 @@ function createStubs() {
   // A list route cut to a fixed number of rows, so a table can be driven empty and with one row.
   let trim = null;
   let signedInAs = "admin";
+  // The seed gives the capability persona exactly one override. The permissions routes answer from
+  // here, so what the seed says that person carries is what the app reads back.
+  function seededOverrides() {
+    const out = {};
+    Object.keys(seed.PEOPLE).forEach((k) => {
+      const p = seed.PEOPLE[k];
+      if (p.singleCapability) out[p.id] = { [p.singleCapability]: true };
+    });
+    return out;
+  }
   const state = {
     staff: clone(seed.STAFF),
     sites: clone(seed.SITES),
@@ -29,7 +39,7 @@ function createStubs() {
     schedule: null,
     patterns: null,
     timeOff: null,
-    overrides: {},
+    overrides: seededOverrides(),
     lookupValues: null,
     notifications: null,
   };
@@ -1067,7 +1077,7 @@ function createStubs() {
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null;
-      state.overrides = {}; state.notifications = null;
+      state.overrides = seededOverrides(); state.notifications = null;
       delays = []; trim = null;
     },
     fixtures: {

@@ -21,7 +21,7 @@ const shift = (days) => {
 
 // ---------------------------------------------------------------------------
 // People. Four kinds sign in, and every one is admin or supervisor, because
-// src/App.js:329 turns any other role away at the login card.
+// src/App.js:352 turns any other role away at the login card.
 // ---------------------------------------------------------------------------
 const PEOPLE = {
   admin: {

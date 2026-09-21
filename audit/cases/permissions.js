@@ -80,25 +80,28 @@ async function run({ d, results, stubs }) {
     await d.signIn("capability");
     await d.goto("settings");
     const seen = await d.bodyText();
-    // Settings is admin-only in the render switch, so a supervisor holding the capability still
-    // cannot open it. That is the finding, recorded rather than papered over.
     results.check("permission", id, seen.indexOf("Per-person permissions") >= 0,
       seen.indexOf("Per-person permissions") >= 0 ? "the capability holder can open the tab"
-        : "the person holding manage_permissions still cannot open Settings: the body is "
+        : "the person holding manage_permissions cannot open Settings: the body is "
           + seen.replace(/\s+/g, " ").trim().length + " characters");
+    // And only that tab. The other four are an admin's, on the tab bar and on the render.
+    const otherTabs = ["Dropdown Options", "Site Lookups", "Who gets told", "Save Company Settings"].filter((tb) => seen.indexOf(tb) >= 0);
+    results.check("permission", id + "/other-tabs-absent", otherTabs.length === 0,
+      otherTabs.length ? "the capability holder can also see " + otherTabs.join(", ") : "the other four tabs are absent");
     await d.signOutHard();
     await d.signIn("admin");
   }
 
-  // The reference matrix the app defines and never renders.
+  // The reference matrix, on the second view of the tab that holds it.
   {
     const id = "permissions/matrix-panel-is-reachable";
     await d.goto("settings");
     await d.clickText("Roles and Permissions", { exact: false });
+    await d.clickText("Role reference", { exact: false });
     const text = await d.bodyText();
     const reachable = text.indexOf("Access each role has in the platform today") >= 0;
     results.check("permission", id, reachable,
-      reachable ? "" : "PermissionsMatrixPanel is defined at src/App.js:6781 and no tab renders it, so its Export PDF cannot be reached");
+      reachable ? "" : "the Role reference view on the Roles and Permissions tab does not draw the matrix");
   }
 }
 

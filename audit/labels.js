@@ -2,9 +2,10 @@
 //
 //   node audit/labels.js
 //
-// This build changes no screen, so this list is what the app guide is written from: the page names,
-// the view names, the window titles, the table columns, the buttons the suite presses, the toasts it
-// reads back and the refusals it shows word for word.
+// This list is what the app guide is written from: the page names, the view names, the window
+// titles, the table columns, the buttons the suite presses, the toasts it reads back and the
+// refusals it shows word for word. It is read out of the cases and the inventory at run time, so it
+// follows the screens as they are changed rather than being kept by hand beside them.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -40,7 +41,7 @@ function section(title, rows) {
 
 function main() {
   process.stdout.write("# Every label the audit drives\n");
-  process.stdout.write("\nThis build changes no screen. Everything below already exists in src/App.js.\n");
+  process.stdout.write("\nEverything below is what the suite drives in src/App.js today.\n");
 
   section("Pages", inv.PAGES.map((p) => p.label + "  (#" + p.id + (p.gated ? ", admin only" : "") + ")"));
   section("Views", inv.VIEWS.map((v) => v.id + (v.click ? "  opened by " + JSON.stringify(v.click) : "  the page's own first screen")));

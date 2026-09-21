@@ -13,7 +13,7 @@ const ROUTES = {
   "staff/add": {
     open: async (d) => { await d.goto("staff"); return d.clickText("Add Staff", { exact: false }); },
     fields: ["First", "Last", "Phone", "Email"],
-    // First name, phone and email are required at src/App.js:664.
+    // First name, phone and email are required at src/App.js:687.
     send: { fillLabels: [["First Name", "Adaeze"], ["Last Name", "Nwachukwu"], ["Phone", "2155559911"], ["Email", "adaeze.nwachukwu@example.invalid"]], press: "Add Staff", expect: { path: "/api/users", method: "POST", toast: /added|staff/i } },
   },
   "staff/edit": {
@@ -54,7 +54,7 @@ const ROUTES = {
 
   "sites/add": {
     open: async (d) => { await d.goto("sites"); return d.clickText("Add Site", { exact: false }); },
-    // Name and address are both required at src/App.js:1440.
+    // Name and address are both required at src/App.js:1463.
     send: { fillLabels: [["Name", "Cedar Hollow Annex"], ["Address", "77 Millrace Road"]], press: "Create", expect: { path: "/api/sites", method: "POST", toast: /added|site|created/i } },
   },
   "sites/edit": {

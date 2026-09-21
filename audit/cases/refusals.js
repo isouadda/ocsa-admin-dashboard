@@ -66,7 +66,7 @@ const REFUSALS = {
     act: async (d) => {
       await d.goto("schedule");
       await d.clickText("Schedule Shift", { exact: false });
-      // Staff, site and both times are required at src/App.js:4734, and the window refuses an empty
+      // Staff, site and both times are required at src/App.js:4760, and the window refuses an empty
       // form before anything is sent, so the API refusal would never be reached.
       await d.pickOption("Tomasz Wisniewski");
       await d.pickOption(seed.SITES[0].name);
