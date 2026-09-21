@@ -1999,7 +1999,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Task</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>Description *</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder="e.g. Vacuum carpets" /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone *</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Restrooms" /></div></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Service Category</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
         <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions (optional)</Lbl><TArea t={t} value={addTask.desc || ""} onChange={e => setAddTask({ ...addTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes for the cleaner..." rows={3} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={addTask.mediaUrl || ""} onChange={e => setAddTask({ ...addTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
@@ -2014,7 +2014,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>Task Name</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>CIMS</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Service Category</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
         <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><TArea t={t} value={editTask.desc} onChange={e => setEditTask({ ...editTask, desc: e.target.value })} placeholder="Step-by-step instructions, tips, or notes..." rows={4} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Photo/Video</Lbl>
           <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={editTask.mediaUrl} onChange={e => setEditTask({ ...editTask, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
@@ -4074,7 +4074,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
   const exportCatalog = () => {
     if (services.length === 0) { showToast("No services to export", "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + new Date().toISOString().slice(0, 10) + ".csv",
-      ["Service Name", "Description", "Rate Structure", "Required Certifications", "CIMS Category", "Active Sites"],
+      ["Service Name", "Description", "Rate Structure", "Required Certifications", "Service Category", "Active Sites"],
       services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", s.cims_category || "", s.linked_site_count || 0])
     );
     showToast("Service catalog exported");
@@ -4099,7 +4099,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
     <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><TArea t={t} value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Describe what this service covers..." /></div>
     <div style={{ marginBottom: 12 }}><Lbl>Rate Structure</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder="How is this service priced?" /></div>
     <div style={{ marginBottom: 12 }}><Lbl>Required Certifications</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder="Certifications staff must hold..." /></div>
-    <div style={{ marginBottom: 16 }}><Lbl>CIMS Category</Lbl>
+    <div style={{ marginBottom: 16 }}><Lbl>Service Category</Lbl>
       <Sel t={t} value={form.cimsCategory || form.cims_category || "SD"} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
         options={[{ v: "SD", l: "SD - Service Delivery" }, { v: "HSE", l: "HSE - Health Safety Environmental" }, { v: "GB", l: "GB - Green Buildings" }, { v: "QS", l: "QS - Quality System" }, { v: "HR", l: "HR - Human Resources" }, { v: "MC", l: "MC - Management Commitment" }]} />
     </div>
@@ -5997,7 +5997,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
   const exportCSV = (d) => {
     const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
-    const hdr = ["Item", "Zone", "CIMS Category (Full Name)", "Score", "Max Score", "Percent", "Notes", "Photo URL"];
+    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", "Photo URL"];
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
@@ -6302,7 +6302,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                 <div style={{ marginBottom: 8 }}><Lbl>Item Label *</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder="e.g. Toilets scrubbed and sanitized" onKeyDown={e => e.key === "Enter" && addItem()} /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <div><Lbl>Zone</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: z }))} /></div>
-                  <div><Lbl>CIMS Category</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={getOpts("cims_categories")} /></div>
+                  <div><Lbl>Service Category</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={getOpts("cims_categories")} /></div>
                 </div>
                 <div style={{ marginBottom: 10 }}><Lbl>Max Score (points)</Lbl><Inp t={t} type="number" min="1" max="100" value={addItemForm.max_score} onChange={e => setAddItemForm({ ...addItemForm, max_score: parseInt(e.target.value) || 10 })} /></div>
                 <Btn t={t} onClick={addItem} style={{ width: "100%" }}>Add Item</Btn>
@@ -6471,10 +6471,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                 </div>
               )}
 
-              {/* CIMS CATEGORY BREAKDOWN */}
+              {/* SERVICE CATEGORY BREAKDOWN */}
               {catBreakdown.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Score by CIMS Category</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Score by Service Category</div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {catBreakdown.map(cat => {
                       const pct = Number(cat.avg_score_pct);
@@ -8435,7 +8435,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {tab === "pdf_access" && (
         <div>
           <div style={{ padding: "10px 14px", borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14, lineHeight: 1.5 }}>
-            <strong>CIMS Phase 3 evidence.</strong> Every view, download, and print of an original Jotform PDF is recorded here with user, timestamp, IP, and success status. This log is append-only and survives submission deletion via text snapshots.
+            <strong>Proof of who opened each PDF.</strong> Every view, download, and print of an original Jotform PDF is recorded here with user, timestamp, IP, and success status. This log is append-only and survives submission deletion via text snapshots.
           </div>
 
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>

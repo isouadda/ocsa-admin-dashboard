@@ -1,12 +1,4 @@
 {
   "note": "Failures the app has today that this build does not fix, because nothing in src/ changes. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list.",
-  "failures": [
-    {
-      "id": "banned-acronym-reaches-eight-screens-and-exports",
-      "match": "^house-style/banned-acronym",
-      "shows": "A four-letter certification framework acronym reaches eight places a person reads: two window field labels on the Sites page, a field label and a CSV export column on the Service Catalog, a CSV export column and a field label and a section heading in Inspections, and the green banner over the PDF Access Log.",
-      "why": "CLAUDE.md says the acronym must never appear in any screen, label or export that staff or clients see. These eight were written before that rule and were never swept.",
-      "where": "src/App.js:1979, src/App.js:1994, src/App.js:4051, src/App.js:4076, src/App.js:5974, src/App.js:6279, src/App.js:6451, src/App.js:8398"
-    }
-  ]
+  "failures": []
 }
