@@ -1,4 +1,4 @@
 {
-  "note": "Failures the app has today that this build does not fix, because nothing in src/ changes. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list.",
+  "note": "The list is empty. Every failure the suite recorded when it was written has been fixed, and each entry came off as its fix landed. A known failure prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
   "failures": []
 }
