@@ -7495,6 +7495,10 @@ function JotformPickerField({ af, form, setForm, t }) {
 const IR_PAGE_SIZE = 50;
 const IR_NO_ACCESS = "Your account cannot read incident reports.";
 const IR_NOT_FOUND = "This report could not be found, or your account cannot open it.";
+const IR_RESEND_ASK = "Send this report again to everyone set for this form?";
+// Built from the answer: how many emails, how many app notices, and what the email carried.
+const irSentLine = (d) => "Sent again: " + (Number(d && d.email) || 0) + " emails and " + (Number(d && d.inApp) || 0)
+  + " app notices, " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -7506,6 +7510,12 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // What the footer's own calls say. The report itself is still read once per opening.
   const [actionError, setActionError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [asking, setAsking] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sentLine, setSentLine] = useState("");
+  // One send at a time. The ref closes the gap before the disabled button redraws, so a double click
+  // is one request. This is the guard the Time off window uses.
+  const sendingRef = useRef(false);
   const fetchedRef = useRef(null);
 
   useEffect(() => {
@@ -7536,6 +7546,20 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (e) { setActionError(e.message || "Request failed"); }
     setDownloading(false);
+  };
+
+  const resend = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/resend", { method: "POST", body: {} });
+      setAsking(false);
+      setSentLine(irSentLine(d));
+    } catch (e) {
+      const st = e && e.body && e.body.status;
+      setActionError((e.message || "Request failed") + (st ? " Status: " + st + "." : ""));
+    }
+    sendingRef.current = false; setSending(false);
   };
 
   const draft = data && data.draft;
@@ -7580,9 +7604,18 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
         {supervisorFields.map(fieldRow)}
       </div>
     </>)}
+    {asking && <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>{IR_RESEND_ASK}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} onClick={resend} disabled={sending} style={{ minHeight: 44 }}>{sending ? "Sending..." : "Send it"}</Btn>
+        <Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={sending} style={{ minHeight: 44 }}>Not yet</Btn>
+      </div>
+    </div>}
+    {sentLine && <div style={{ fontSize: 12, color: GR, marginTop: 14 }}>{sentLine}</div>}
     {actionError && <div style={{ fontSize: 12, color: RD, marginTop: 14 }}>{actionError}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
       {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? "Downloading..." : "Download PDF"}</Btn>}
+      {!loading && !error && submitted && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>Send again</Btn>}
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn>
     </div>
   </div></Mdl>);
