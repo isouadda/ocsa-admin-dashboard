@@ -92,15 +92,16 @@ async function run({ d, results, stubs }) {
     await d.signIn("admin");
   }
 
-  // The reference matrix the app defines and never renders.
+  // The reference matrix, on the second view of the tab that holds it.
   {
     const id = "permissions/matrix-panel-is-reachable";
     await d.goto("settings");
     await d.clickText("Roles and Permissions", { exact: false });
+    await d.clickText("Role reference", { exact: false });
     const text = await d.bodyText();
     const reachable = text.indexOf("Access each role has in the platform today") >= 0;
     results.check("permission", id, reachable,
-      reachable ? "" : "PermissionsMatrixPanel is defined at src/App.js:6807 and no tab renders it, so its Export PDF cannot be reached");
+      reachable ? "" : "the Role reference view on the Roles and Permissions tab does not draw the matrix");
   }
 }
 

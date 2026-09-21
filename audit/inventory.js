@@ -63,6 +63,7 @@ const VIEWS = [
   { id: "settings/global", page: "settings", click: "Dropdown Options", expect: "categor" },
   { id: "settings/site", page: "settings", click: "Site Lookups", expect: "site" },
   { id: "settings/permissions", page: "settings", click: "Roles and Permissions", expect: "Per-person permissions" },
+  { id: "settings/permissions-matrix", page: "settings", click: ["Roles and Permissions", "Role reference"], expect: "Access each role has in the platform today" },
   { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told" },
 
   { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report" },
@@ -167,24 +168,24 @@ const WINDOWS = [
   { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6562] },
   { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6581] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7244] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7253] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7261] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7275] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7289] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7300] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7252] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7261] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7269] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7283] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7297] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7308] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7491] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [8946] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [8999] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9114] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9151] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7499] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [8954] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9007] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9122] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9159] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [9743] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [9751] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10239] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [10261] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10292] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [10247] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [10269] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10300] },
 ];
 
 // ---------------------------------------------------------------------------

@@ -16,8 +16,12 @@ async function openView(d, v) {
     if (!opened) return { ok: false, why: "no rows to open on the " + v.page + " page" };
   }
   if (!v.click) return { ok: true };
-  const clicked = await d.clickText(v.click, { exact: false });
-  if (!clicked) return { ok: false, why: "no control reading " + JSON.stringify(v.click) };
+  // A view behind a tab and then a second switch is reached the same way a person reaches it, one
+  // control after another.
+  for (const step of [].concat(v.click)) {
+    const clicked = await d.clickText(step, { exact: false });
+    if (!clicked) return { ok: false, why: "no control reading " + JSON.stringify(step) };
+  }
   return { ok: true };
 }
 

@@ -199,7 +199,7 @@ const PRINTS = {
     expect: () => null,
   },
   "exports/permissions-matrix-pdf": {
-    act: async (d) => { await d.goto("settings"); await d.clickText("Roles and Permissions", { exact: false }); return d.clickText("Export PDF", { exact: false }); },
+    act: async (d) => { await d.goto("settings"); await d.clickText("Roles and Permissions", { exact: false }); await d.clickText("Role reference", { exact: false }); return d.clickText("Export PDF", { exact: false }); },
     title: "Roles and Permissions",
     expect: () => null,
   },

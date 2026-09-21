@@ -165,7 +165,7 @@ const chartBase = (t, extra) => ({
   ...extra,
 });
 const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
-const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) + valueSuffix } }, legend: { show: false } })} />;
+const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } })} />;
 const LineChartW = ({ categories, series, height = 260, t, colors }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } } })} />;
 const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 700 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
 const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 700, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
@@ -7040,6 +7040,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   ];
   const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
   const [tab, setTab] = useState(isAdmin ? "company" : "permissions");
+  // The Roles and Permissions tab holds two views: what one person can do, and what each role can do.
+  const [permView, setPermView] = useState("editor");
   const [addCatForm, setAddCatForm] = useState(null);
   const [editCatForm, setEditCatForm] = useState(null);
   const [addValForm, setAddValForm] = useState(null);
@@ -7141,7 +7143,13 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {tab === "company" && isAdmin && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
-      {tab === "permissions" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
+      {tab === "permissions" && <div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          {[{ id: "editor", label: "By person" }, { id: "matrix", label: "Role reference" }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
+        </div>
+        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
+        {permView === "matrix" && <PermissionsMatrixPanel t={t} />}
+      </div>}
 
       {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
 
