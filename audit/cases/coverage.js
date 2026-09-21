@@ -35,4 +35,19 @@ function run({ app, inventory, results }) {
     app.pages.length + " pages, " + app.modals.length + " windows");
 }
 
-module.exports = { run };
+// A page nobody drove in light mode. This runs after the suites, since only the finished run can
+// say which pages were driven in which theme.
+function runLate({ app, results }) {
+  const inLight = new Set();
+  results.rows.forEach((r) => {
+    if (r.id.indexOf(" light") < 0) return;
+    const m = /^page\/([a-z-]+)\//.exec(r.id);
+    if (m) inLight.add(m[1]);
+  });
+  app.pages.forEach((id) => {
+    if (!inLight.has(id)) results.noCase("coverage", "page " + id + " in light", "no light-mode case drove this page");
+  });
+  results.pass("coverage", "every page is driven in light as well as dark", app.pages.length + " pages");
+}
+
+module.exports = { run, runLate };

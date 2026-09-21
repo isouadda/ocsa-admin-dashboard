@@ -16,7 +16,7 @@ const inventory = require("./inventory");
 const seed = require("./seed");
 
 const SUITES = [
-  { name: "pages", mod: "./cases/pages", widths: ["wide", "narrow"] },
+  { name: "pages", mod: "./cases/pages", widths: ["wide", "narrow"], themes: ["dark", "light"] },
   { name: "views", mod: "./cases/views", widths: ["wide"] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
@@ -70,15 +70,20 @@ async function main() {
         continue;
       }
       for (const width of s.widths) {
-        process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : "1024x900") + "\n");
-        const d = await createDriver({ browser, origin: srv.origin, stubs, viewport: width });
-        // A suite that throws fails the run. It does not erase the table, because the other suites
-        // still have something to say.
-        try { await suite.run(Object.assign({}, ctx, { d, width })); }
-        catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : ""), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
-        finally { await d.close(); }
+        for (const theme of (s.themes || ["dark"])) {
+          process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : "1024x900")
+            + " in " + theme + "\n");
+          const d = await createDriver({ browser, origin: srv.origin, stubs, viewport: width, theme });
+          // A suite that throws fails the run. It does not erase the table, because the other suites
+          // still have something to say.
+          try { await suite.run(Object.assign({}, ctx, { d, width, theme })); }
+          catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : "") + (theme === "light" ? " light" : ""), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
+          finally { await d.close(); }
+        }
       }
     }
+    // What only the finished run can prove: every page driven in light as well as dark.
+    if (!only.length || only.indexOf("pages") >= 0) require("./cases/coverage").runLate(ctx);
   } finally {
     await browser.close();
     await srv.close();
