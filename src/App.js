@@ -13,6 +13,21 @@ async function apiUpload(file, bucket, token) {
   if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Upload failed"); }
   return res.json();
 }
+// attachment; filename="<code>-<id>.pdf" -> <code>-<id>.pdf. Anything unreadable falls back.
+const filenameFrom = (header, fallback) => {
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(String(header || ""));
+  let name = "";
+  if (m) { try { name = decodeURIComponent(m[1].trim()); } catch (e) { name = m[1].trim(); } }
+  return name || fallback;
+};
+// A response that is a file rather than JSON. The token and the refusal handling are apiFetch's, so a
+// 401 signs out and a refusal arrives with the words the API sent and its status.
+async function apiDownload(path, token, fallbackName) {
+  const r = await fetch(API + path, { headers: { "Authorization": "Bearer " + token } });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
+}
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
@@ -7484,10 +7499,13 @@ const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app 
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
 
-function IncidentReportWindow({ af, t, id, row, onClose }) {
+function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // What the footer's own calls say. The report itself is still read once per opening.
+  const [actionError, setActionError] = useState("");
+  const [downloading, setDownloading] = useState(false);
   const fetchedRef = useRef(null);
 
   useEffect(() => {
@@ -7505,6 +7523,20 @@ function IncidentReportWindow({ af, t, id, row, onClose }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  const download = async () => {
+    if (downloading) return;
+    setDownloading(true); setActionError("");
+    try {
+      const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(id) + "/pdf", token);
+      const url = URL.createObjectURL(f.blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) { setActionError(e.message || "Request failed"); }
+    setDownloading(false);
+  };
 
   const draft = data && data.draft;
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
@@ -7548,11 +7580,15 @@ function IncidentReportWindow({ af, t, id, row, onClose }) {
         {supervisorFields.map(fieldRow)}
       </div>
     </>)}
-    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+    {actionError && <div style={{ fontSize: 12, color: RD, marginTop: 14 }}>{actionError}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+      {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? "Downloading..." : "Download PDF"}</Btn>}
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn>
+    </div>
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, t, sites = [], openId, openRow, onOpen, onClose }) {
+function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen, onClose }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -7631,7 +7667,7 @@ function IncidentReportsTab({ af, t, sites = [], openId, openRow, onOpen, onClos
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? "No reports filed yet." : "No unfinished reports."} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? "Loading..." : "Load more"}</button></div>}
-    {openId && <IncidentReportWindow af={af} t={t} id={openId} row={openRow} onClose={onClose} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} />}
   </div>);
 }
 
@@ -8820,7 +8856,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ SESSION 27: ALIASES TAB ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
       {tab === "aliases" && (
         <div>
