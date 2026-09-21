@@ -2300,7 +2300,19 @@ const agentMessageFrom = (m, i) => {
   return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
-const agentMissingFrom = (err) => { const b = err && err.body; const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]); return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null; };
+// What is still unanswered, for the line on the Help page. The API names the questions when it can:
+// missingFields carries a label per key, in the same order as missing, and a label is what a person
+// recognizes. Without it, the keys are turned into words the way they always were.
+const agentMissingFrom = (err) => {
+  const b = err && err.body;
+  const named = b && agentPick(b, ["missingFields", "missing_fields"]);
+  if (Array.isArray(named) && named.length) {
+    const labels = named.map(f => (f && typeof f === "object") ? String(agentPick(f, ["label", "title", "name"]) || "").trim() : "").filter(Boolean);
+    if (labels.length === named.length) return labels;
+  }
+  const arr = b && agentPick(b, ["missing", "missingKeys", "missingFields", "missing_keys", "missing_fields"]);
+  return Array.isArray(arr) ? arr.map(agentKeyToWords).filter(Boolean) : null;
+};
 // A reply may carry numbered steps ("1. ...") and bold ("**text**"). This turns it into lines, each a
 // step with its number or a plain line, and each made of inline parts that are plain or bold. An
 // unmatched ** stays as literal text; bold never spans lines; blank lines are kept as spacing.
@@ -7510,6 +7522,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // What the footer's own calls say. The report itself is still read once per opening.
   const [actionError, setActionError] = useState("");
   const [downloading, setDownloading] = useState(false);
+  // The report the footer is acting on, read by the download without making it a dependency.
+  const draftRef = useRef(null);
   const [asking, setAsking] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentLine, setSentLine] = useState("");
@@ -7538,7 +7552,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     if (downloading) return;
     setDownloading(true); setActionError("");
     try {
-      const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(id) + "/pdf", token);
+      // A cross-origin response hands JS no Content-Disposition unless the API exposes it, so the
+      // same name the API writes is built here as the fallback: the form code and the report.
+      const fallback = ((draftRef.current && draftRef.current.formCode) || "report") + "-" + String(id).slice(0, 8) + ".pdf";
+      const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(id) + "/pdf", token, fallback);
       const url = URL.createObjectURL(f.blob);
       const a = document.createElement("a");
       a.href = url; a.download = f.filename;
@@ -7563,6 +7580,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   };
 
   const draft = data && data.draft;
+  draftRef.current = draft;
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
   const agentFields = fields.filter(f => f.half === "agent");
   const supervisorFields = fields.filter(f => f.half === "supervisor");

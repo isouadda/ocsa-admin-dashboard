@@ -83,7 +83,7 @@ async function createDriver({ browser, origin, stubs, viewport }) {
       await route.fulfill({
         status: answer.status,
         contentType: "application/pdf",
-        headers: { "Access-Control-Allow-Origin": "*" },
+        headers: Object.assign({ "Access-Control-Allow-Origin": "*" }, answer.headers || {}),
         body: Buffer.from(String(answer.json), "utf8"),
       });
       return;

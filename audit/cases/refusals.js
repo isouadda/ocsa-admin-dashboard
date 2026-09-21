@@ -6,7 +6,115 @@
 "use strict";
 const seed = require("../seed");
 
+// The three paths the new refusals are met on: the delivery switch on Settings, and the two calls
+// the filed report window makes from its footer.
+const pressDelivery = async (d) => {
+  await d.goto("settings");
+  await d.clickText("Who gets told", { exact: false });
+  return d.clickText("Attach the filled report as a PDF", { exact: true });
+};
+const openAndDownload = async (d) => {
+  await d.goto("forms");
+  await d.clickText("Incident reports", { exact: false });
+  await d.clickRow(0);
+  return d.clickText("Download PDF", { inModal: true, exact: true });
+};
+const openAndResend = async (d) => {
+  await d.goto("forms");
+  await d.clickText("Incident reports", { exact: false });
+  await d.clickRow(0);
+  await d.clickText("Send again", { inModal: true, exact: true });
+  return d.clickText("Send it", { inModal: true, exact: true });
+};
+
 const REFUSALS = {
+  "refusals/form-delivery-unknown-code": {
+    status: 400, error: "Unknown form code",
+    arm: { method: "PATCH", path: "/api/notification-recipients/forms/" },
+    act: pressDelivery,
+    whereShown: "page",
+  },
+  "refusals/form-delivery-bad-choice": {
+    status: 400, error: "Choose app_link or pdf",
+    arm: { method: "PATCH", path: "/api/notification-recipients/forms/" },
+    act: pressDelivery,
+    whereShown: "page",
+  },
+  "refusals/form-delivery-forbidden": {
+    status: 403, error: "Insufficient permissions",
+    arm: { method: "PATCH", path: "/api/notification-recipients/forms/" },
+    act: pressDelivery,
+    whereShown: "page",
+  },
+  "refusals/form-delivery-not-set-up": {
+    status: 503, error: "The delivery setting has not been set up yet",
+    arm: { method: "PATCH", path: "/api/notification-recipients/forms/" },
+    act: pressDelivery,
+    whereShown: "page",
+  },
+  "refusals/report-pdf-not-found": {
+    status: 404, error: "Report not found",
+    arm: { method: "GET", path: "/pdf" },
+    act: openAndDownload,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/report-pdf-no-definition": {
+    status: 422, error: "No form definition for OCSA-FRM-016",
+    arm: { method: "GET", path: "/pdf" },
+    act: openAndDownload,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/report-pdf-server-error": {
+    status: 500, error: "Server error",
+    arm: { method: "GET", path: "/pdf" },
+    act: openAndDownload,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/report-resend-not-found": {
+    status: 404, error: "Report not found",
+    arm: { method: "POST", path: "/resend" },
+    act: openAndResend,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/report-resend-draft": {
+    status: 409, error: "Only a filed report can be sent again",
+    bodyExtra: { status: "draft" },
+    arm: { method: "POST", path: "/resend" },
+    act: openAndResend,
+    whereShown: "window",
+    staysOpen: true,
+    // The 409 carries the status it found, and the window says which one it was.
+    also: async (d, results, id) => {
+      const text = await d.modalText();
+      results.check("refusal", id + "/names-the-status", text.indexOf("Status: draft.") >= 0,
+        "the window does not name the status the 409 carried: " + JSON.stringify(text.slice(-120)));
+    },
+  },
+  "refusals/report-resend-no-definition": {
+    status: 422, error: "No form definition for OCSA-FRM-016",
+    arm: { method: "POST", path: "/resend" },
+    act: openAndResend,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/report-resend-forbidden": {
+    status: 403, error: "Insufficient permissions",
+    arm: { method: "POST", path: "/resend" },
+    act: openAndResend,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/report-resend-server-error": {
+    status: 500, error: "Server error",
+    arm: { method: "POST", path: "/resend" },
+    act: openAndResend,
+    whereShown: "window",
+    staysOpen: true,
+  },
   "refusals/time-off-conflict": {
     status: 409, code: "already_decided", error: "Someone else decided this already",
     arm: { method: "POST", path: "/api/time-off/" },
@@ -66,7 +174,7 @@ const REFUSALS = {
     act: async (d) => {
       await d.goto("schedule");
       await d.clickText("Schedule Shift", { exact: false });
-      // Staff, site and both times are required at src/App.js:4798, and the window refuses an empty
+      // Staff, site and both times are required at src/App.js:4810, and the window refuses an empty
       // form before anything is sent, so the API refusal would never be reached.
       await d.pickOption("Tomasz Wisniewski");
       await d.pickOption(seed.SITES[0].name);
@@ -199,7 +307,7 @@ async function run({ d, results, inventory, stubs }) {
     await d.reload();
     await d.waitToastGone();
     if (!spec.noArm) {
-      stubs.setRefusal({ method: spec.arm.method, path: spec.arm.path, status: spec.status, code: spec.code, error: spec.error });
+      stubs.setRefusal({ method: spec.arm.method, path: spec.arm.path, status: spec.status, code: spec.code, error: spec.error, body: spec.bodyExtra });
     }
 
     let acted = false;
@@ -229,6 +337,9 @@ async function run({ d, results, inventory, stubs }) {
         : "the words " + JSON.stringify(spec.error) + " are nowhere on screen. toast " + JSON.stringify(toast)
           + ", window " + JSON.stringify(modalText.slice(0, 80)));
     if (shownIn) results.pass("refusal", id + "/word-for-word", "shown in the " + shownIn + ": " + JSON.stringify(spec.error));
+
+    // Anything else this refusal has to say, asked by the case that knows about it.
+    if (spec.also) await spec.also(d, results, id);
 
     // Nothing closed underneath it.
     if (spec.staysOpen) {

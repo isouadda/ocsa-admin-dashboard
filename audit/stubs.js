@@ -19,6 +19,9 @@ function createStubs() {
   // A list route cut to a fixed number of rows, so a table can be driven empty and with one row.
   let trim = null;
   let signedInAs = "admin";
+  // A browser reads Content-Disposition off a cross-origin response only when the server exposes it.
+  // The API does; a case turns it off to drive the name the dashboard falls back to.
+  let exposeDisposition = true;
   // The seed gives the capability persona exactly one override. The permissions routes answer from
   // here, so what the seed says that person carries is what the app reads back.
   function seededOverrides() {
@@ -40,6 +43,7 @@ function createStubs() {
     patterns: null,
     timeOff: null,
     overrides: seededOverrides(),
+    formDelivery: {},
     lookupValues: null,
     notifications: null,
   };
@@ -312,10 +316,30 @@ function createStubs() {
   // hand: 3 reports. submitted 1, draft 2. The draft rows read "7 of 12" and "3 of 12" answered,
   // and ir-2 is past due against the fixed clock.
 
-  const NOTIFICATION_RECIPIENTS = [
-    { id: "nr-1", subject_type: "time_off", channel: "app", user_id: "u-admin-1", user_name: "Dana Whitlock", is_active: true },
-    { id: "nr-2", subject_type: "issue", channel: "app", user_id: "u-sup-1", user_name: "Marcus Ferreira", is_active: true },
+  // GET /api/notification-recipients. Every type except the two Speak Up ones takes an outside
+  // address, and the keyed type carries the forms, each with how its email carries the report.
+  // One unfinished report waiting on the Help page, answered to the end.
+  const AGENT_DRAFTS = [{ id: "ad-1", formName: "Safety Incident Report", answered: 12, remaining: 0, status: "draft" }];
+
+  const NOTIFICATION_TYPES = [
+    { type: "time_off", label: "Time off requests", keyed: false, allowOutsideEmail: true },
+    { type: "issue", label: "Issues", keyed: false, allowOutsideEmail: true },
+    { type: "form", label: "Reports filed from the app", keyed: true, allowOutsideEmail: true },
+    { type: "hr_case", label: "Speak Up", keyed: false, allowOutsideEmail: false },
+    { type: "hr_case_fallback", label: "Speak Up fallback", keyed: false, allowOutsideEmail: false },
   ];
+  // Both forms start on the link to the app, which is what the API does.
+  const NOTIFICATION_FORMS = [
+    { code: "OCSA-FRM-016", title: "Safety Incident Report", delivery: "app_link" },
+    { code: "OCSA-FRM-021", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
+  ];
+  const NOTIFICATION_RECIPIENTS = [
+    { id: "nr-1", subjectType: "time_off", subjectKey: "", isActive: true, viaEmail: true, viaInApp: true, user: { id: seed.STAFF[0].id, name: seed.STAFF[0].name, role: seed.STAFF[0].role } },
+    { id: "nr-2", subjectType: "issue", subjectKey: "", isActive: true, viaEmail: false, viaInApp: true, user: { id: seed.STAFF[1].id, name: seed.STAFF[1].name, role: seed.STAFF[1].role } },
+    { id: "nr-3", subjectType: "form", subjectKey: "", isActive: true, viaEmail: true, viaInApp: true, user: { id: seed.STAFF[0].id, name: seed.STAFF[0].name, role: seed.STAFF[0].role } },
+    { id: "nr-4", subjectType: "form", subjectKey: "OCSA-FRM-016", isActive: true, viaEmail: true, viaInApp: false, email: "reports@example.invalid" },
+  ];
+  // hand: 4 rows set, over three kinds. One is an outside address, on one form.
 
   const CHAT_CHANNELS = [
     { id: "ch-1", site_id: S[0].id, name: S[0].name, unread: 2, last_message_at: seed.shift(0) + "T21:00:00Z" },
@@ -951,6 +975,24 @@ function createStubs() {
       const rows = INCIDENT_REPORTS.filter((r) => r.status === status);
       return ok({ responses: rows });
     }
+    if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
+      const rid = path.split("/")[4];
+      const r = INCIDENT_REPORTS.find((x) => x.id === rid) || INCIDENT_REPORTS[0];
+      const name = NOTIFICATION_FORMS[0].code + "-" + String(r.id).slice(0, 8) + ".pdf";
+      const headers = exposeDisposition
+        ? { "Content-Disposition": 'attachment; filename="' + name + '"', "Access-Control-Expose-Headers": "Content-Disposition" }
+        : { "Content-Disposition": 'attachment; filename="' + name + '"' };
+      return { status: 200, pdf: true, headers: headers,
+        json: "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n" };
+    }
+    if (/^\/api\/forms\/responses\/[^/]+\/resend$/.test(path) && method === "POST") {
+      const rid = path.split("/")[4];
+      const r = INCIDENT_REPORTS.find((x) => x.id === rid) || INCIDENT_REPORTS[0];
+      if (r.status !== "submitted") return { status: 409, json: { error: "Only a filed report can be sent again", status: r.status } };
+      const code = NOTIFICATION_FORMS[0].code;
+      // hand: 3 emails and 2 app notices, and the PDF rides along only when the form is set to pdf.
+      return ok({ id: r.id, formCode: code, inApp: 2, email: 3, attached: (state.formDelivery[code] || "app_link") === "pdf" });
+    }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
@@ -984,7 +1026,22 @@ function createStubs() {
     }
     // hand: 2 zones, 1 building, 1 floor for the site picked.
     if (path.startsWith("/api/lookups/site/")) return ok({ message: "Site option saved" });
-    if (path === "/api/notification-recipients" && method === "GET") return ok(NOTIFICATION_RECIPIENTS);
+    if (path === "/api/notification-recipients" && method === "GET") {
+      return ok({
+        types: NOTIFICATION_TYPES,
+        forms: NOTIFICATION_FORMS.map((f) => Object.assign({}, f, { delivery: state.formDelivery[f.code] || f.delivery })),
+        recipients: NOTIFICATION_RECIPIENTS,
+      });
+    }
+    if (/^\/api\/notification-recipients\/forms\/[^/]+$/.test(path) && method === "PATCH") {
+      const code = decodeURIComponent(path.split("/")[4] || "");
+      const form = NOTIFICATION_FORMS.find((f) => f.code === code);
+      if (!form) return { status: 400, json: { error: "Unknown form code" } };
+      const value = body && body.delivery;
+      if (value !== "app_link" && value !== "pdf") return { status: 400, json: { error: "Choose app_link or pdf" } };
+      state.formDelivery[code] = value;
+      return ok({ form: { code: form.code, title: form.title, delivery: value } });
+    }
     if (path.startsWith("/api/notification-recipients")) return ok({ message: "Recipient saved" });
 
     // --- messages ---------------------------------------------------------
@@ -995,7 +1052,7 @@ function createStubs() {
     }
     if (path.startsWith("/api/agent/conversations/")) return ok({ messages: [] });
     if (path === "/api/agent/message") return ok({ reply: "Here is what the dashboard shows for that.", conversationId: "ag-1" });
-    if (path === "/api/agent/drafts" && method === "GET") return ok([]);
+    if (path === "/api/agent/drafts" && method === "GET") return ok(AGENT_DRAFTS);
     if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });
     if (path === "/api/uploads" || path.startsWith("/api/uploads?")) return ok({ url: "", key: "audit-upload" });
 
@@ -1044,7 +1101,7 @@ function createStubs() {
     const refusal = matchRefusal(method, path);
     if (refusal) {
       record.refused = refusal.status;
-      return { status: refusal.status, json: { error: refusal.error, code: refusal.code } };
+      return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
     }
 
     const answer = route(method, path, u.searchParams, body);
@@ -1065,6 +1122,7 @@ function createStubs() {
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },
+    setExposeDisposition: (v) => { exposeDisposition = v !== false; },
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
     signedInAs: () => signedInAs,
@@ -1078,11 +1136,13 @@ function createStubs() {
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null;
       state.overrides = seededOverrides(); state.notifications = null;
-      delays = []; trim = null;
+      state.formDelivery = {};
+      delays = []; trim = null; exposeDisposition = true;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
       SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
+      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
       HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
       INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,

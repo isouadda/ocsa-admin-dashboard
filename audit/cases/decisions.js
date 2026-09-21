@@ -306,6 +306,43 @@ async function run({ d, results, inventory, stubs }) {
   });
   stubs.reset();
 
+  // ---- how a form's email carries the report ----------------------------
+  const openWhoGetsTold = async (dd) => { await dd.goto("settings"); return dd.clickText("Who gets told", { exact: false }); };
+
+  await decide("decisions/form-delivery-pdf", {
+    method: "PATCH", path: "/api/notification-recipients/forms/",
+    act: async (dd) => { await openWhoGetsTold(dd); return dd.clickText("Attach the filled report as a PDF", { exact: true }); },
+    body: (b) => (b && b.delivery === "pdf" ? null : "the body did not carry delivery pdf: " + JSON.stringify(b)),
+    toast: /saved/i,
+    after: async (dd, calls) => {
+      const reread = calls.filter((c) => c.method === "GET" && c.path === "/api/notification-recipients");
+      if (reread.length === 0) return "the tab was not read again after the change";
+      const body = await dd.bodyText();
+      return body.indexOf("Every email about this form carries everything the report says") >= 0 ? null
+        : "the line about what the email carries is not under the control";
+    },
+  });
+  stubs.reset();
+
+  // Put the form on pdf first, outside the decision, so the one under test is the one that takes it
+  // back to a link.
+  await openWhoGetsTold(d);
+  await d.clickText("Attach the filled report as a PDF", { exact: true });
+  await d.settle(600);
+
+  await decide("decisions/form-delivery-app-link", {
+    method: "PATCH", path: "/api/notification-recipients/forms/",
+    act: async (dd) => { await openWhoGetsTold(dd); return dd.clickText("Link to the app", { exact: true }); },
+    body: (b) => (b && b.delivery === "app_link" ? null : "the body did not carry delivery app_link: " + JSON.stringify(b)),
+    toast: /saved/i,
+    after: async (dd) => {
+      const body = await dd.bodyText();
+      return body.indexOf("Every email about this form carries everything the report says") < 0 ? null
+        : "the line about what the email carries is still on screen after the form went back to a link";
+    },
+  });
+  stubs.reset();
+
   // Every declared decision has to have been exercised above.
   const exercised = new Set(results.rows.filter((r) => r.kind === "decision").map((r) => r.id.split("/").slice(0, 2).join("/")));
   inventory.DECISIONS.forEach((dec) => {

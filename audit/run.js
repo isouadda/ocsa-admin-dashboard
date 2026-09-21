@@ -26,6 +26,7 @@ const SUITES = [
   { name: "decisions", mod: "./cases/decisions", widths: ["wide"] },
   { name: "permissions", mod: "./cases/permissions", widths: ["wide"] },
   { name: "notices", mod: "./cases/notices", widths: ["wide"] },
+  { name: "report-actions", mod: "./cases/report-actions", widths: ["wide"] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
