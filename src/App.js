@@ -2530,6 +2530,7 @@ const RECIPIENTS_INTRO = "Choose who hears about each kind of report. People get
 const HR_CASE_NOTE = "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.";
 const HR_FALLBACK_NOTE = "Told when everyone else on the team is named in a report.";
 const FORM_SUB_NOTE = "These people are told about this form as well as anyone under Every form.";
+const FORM_PDF_NOTE = "Every email about this form carries everything the report says, to every person and address on these lists.";
 const BOTH_OFF = "Keep at least one of Email or In app on.";
 function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   const [data, setData] = useState(null);
@@ -2540,6 +2541,9 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   const [picks, setPicks] = useState({});
   const [emails, setEmails] = useState({});
   const [confirming, setConfirming] = useState(null);
+  // The choice a form is being moved to, held only while the PATCH is in flight. A refusal drops
+  // it, which puts the control back on what the server holds.
+  const [deliveryPending, setDeliveryPending] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true); setFailed("");
@@ -2573,6 +2577,14 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
     catch (e) { setErr(slot, e.message || "Request failed"); setConfirming(null); }
     setBusy(false);
   };
+  const setFormDelivery = async (slot, code, value) => {
+    if (busy) return;
+    setBusy(true); setErr(slot, ""); setDeliveryPending(p => ({ ...p, [code]: value }));
+    const done = () => setDeliveryPending(p => { const n = { ...p }; delete n[code]; return n; });
+    try { await af("/api/notification-recipients/forms/" + encodeURIComponent(code), { method: "PATCH", body: { delivery: value } }); done(); after(slot); }
+    catch (e) { done(); setErr(slot, e.message || "Request failed"); }
+    setBusy(false);
+  };
   const toggle = (slot, r, field) => {
     const next = { viaEmail: r.viaEmail, viaInApp: r.viaInApp, [field]: !r[field] };
     if (!next.viaEmail && !next.viaInApp) { setErr(slot, BOTH_OFF); return; }
@@ -2586,14 +2598,25 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
       .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + u.role + ")" : "") }));
   };
 
-  const renderSection = ({ type, key2, title, note, allowEmail, ariaName }) => {
+  const deliveryBtn = (slot, form, value, label, ariaName, current) => <button key={value} onClick={() => setFormDelivery(slot, form.code, value)} disabled={busy} aria-label={label + " for " + ariaName} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (current === value ? GO : t.border), background: current === value ? t.goldBg : "transparent", color: current === value ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{label}</button>;
+
+  const renderSection = ({ type, key2, title, note, allowEmail, ariaName, form }) => {
     const slot = slotKey(type, key2);
     const rows = rowsFor(type, key2);
     const opts = staffOptions(slot, rows);
     const err = errors[slot];
+    // How this form's email carries the report. Every form starts on the link to the app.
+    const delivery = form ? (deliveryPending[form.code] || form.delivery || "app_link") : "";
     return (<div key={slot} style={{ marginTop: title ? 14 : 0 }}>
       {title && <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 2 }}>{title}</div>}
       {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
+      {form && <div style={{ marginBottom: 10 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {deliveryBtn(slot, form, "app_link", "Link to the app", ariaName, delivery)}
+          {deliveryBtn(slot, form, "pdf", "Attach the filled report as a PDF", ariaName, delivery)}
+        </div>
+        {delivery === "pdf" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{FORM_PDF_NOTE}</div>}
+      </div>}
       {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>Nobody set. Every admin gets a notice in the app.</div>}
       {rows.map(r => {
         const who = r.user ? r.user.name + (r.user.role ? " (" + r.user.role + ")" : "") : r.email;
@@ -2637,7 +2660,7 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
       {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
       {ty.keyed && ty.type === "form" ? (<>
         {renderSection({ type: ty.type, key2: "", title: "Every form", allowEmail: ty.allowOutsideEmail, ariaName: "Every form" })}
-        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")" }))}
+        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")", form: f }))}
       </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: ty.label })}
     </Crd>))}
   </div>);
