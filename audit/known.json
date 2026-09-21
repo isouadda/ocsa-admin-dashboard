@@ -1,19 +1,4 @@
 {
-  "note": "Failures the app has today that the commit adding the case does not fix. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
-  "failures": [
-    {
-      "id": "nothing-shows-where-the-keyboard-is",
-      "match": "^page/focus-ring/(input|select|textarea|button|sidebar-item)",
-      "shows": "Moving through a window or the sidebar with the Tab key draws nothing at all. An input, a select, a text area, a button and a sidebar item each report an outline of 0 pixels when the keyboard reaches them, in light mode and in dark, so a person using a keyboard cannot tell where they are.",
-      "why": "outline: \"none\" is set 14 times in src/App.js, on the shared input, select and text area and on every search box, and nothing replaces it. Commit three takes them out and draws a :focus-visible ring in both themes.",
-      "where": "src/App.js:158, src/App.js:159, src/App.js:167, and eleven more search boxes"
-    },
-    {
-      "id": "the-first-frame-is-navy-in-both-themes",
-      "match": "^page/[a-z]+/[A-Za-z]+( @1024)? light/no-dark-backgrounds$",
-      "shows": "Every page in light mode paints #0A1628 on the body element, behind the app. It is the colour the first frame is painted with, and it stays on the body for the life of the page.",
-      "why": "public/index.html sets body { background: %REACT_APP_THEME_COLOR% } and .env sets that to #0A1628, so the first frame is navy whatever the theme is. Commit three reads the stored choice and the computer's own setting before React loads and paints the matching background instead.",
-      "where": "public/index.html:18, .env:1"
-    }
-  ]
+  "note": "The list is empty. Both failures the light and focus cases recorded when they were written are fixed, and each entry came off with its fix. A known failure prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
+  "failures": []
 }

@@ -157,8 +157,8 @@ const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20,
 const Crd = ({ children, style, onClick: oc, t }) => <div onClick={oc} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, cursor: oc ? "pointer" : "default", boxShadow: t.shadow, transition: "transform .15s ease, box-shadow .15s ease", ...style }}>{children}</div>;
 const Bdg = ({ l, c }) => { const t = useT(); return <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px", padding: "3px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c) }}>{l}</span>; };
 const SecT = ({ children, action, onAction, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><PlI sz={13} c={NAVY} /> {action}</button>}</div>;
-const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", fontFamily: FONT_BODY, transition: "border-color .15s ease", ...p.style }} />;
-const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
+const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, transition: "border-color .15s ease", ...p.style }} />;
+const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
 const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
 const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>; };
 const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
@@ -166,7 +166,7 @@ const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return 
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
-const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
+const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
 const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>This page is for admins.</div><Btn t={t} v="ghost" onClick={onBack}>Back to Dashboard</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
@@ -249,7 +249,13 @@ export default function AdminDashboard() {
   const [token, setToken] = useState(null); const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(() => readAuth() !== null);
   const [page, setPage] = useState(() => pageFromHash()); const [route, setRoute] = useState(() => subFromHash()); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
-  const [themeMode, setThemeMode] = useState(() => { try { return localStorage.getItem("ocsa-theme") || "dark"; } catch { return "dark"; } });
+  // A stored choice wins. Without one the computer decides, and dark is the answer when it says
+  // nothing at all.
+  const [themeMode, setThemeMode] = useState(() => {
+    try { const stored = localStorage.getItem("ocsa-theme"); if (stored === "light" || stored === "dark") return stored; } catch {}
+    try { if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light"; } catch {}
+    return "dark";
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [navQ, setNavQ] = useState(""); const [navOpen, setNavOpen] = useState(false); const [userMenuOpen, setUserMenuOpen] = useState(false); const [notif, setNotif] = useState(null);
@@ -270,6 +276,13 @@ export default function AdminDashboard() {
   }, []);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
+  useEffect(() => {
+    try {
+      document.body.style.backgroundColor = t.bg;
+      const m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute("content", t.bg);
+    } catch (e) {}
+  }, [t.bg]);
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
@@ -321,9 +334,13 @@ export default function AdminDashboard() {
     return () => clearInterval(iv);
   }, [token, isAdmin, loadUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
+  // What a badge on the side panel is made of. The light arm is the only thing that changed.
+  const badgeRed = themeMode === "light" ? "#C62828" : RD;
+  const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
+  const badgeRing = themeMode === "light" ? { boxShadow: "0 0 0 2px #FFFFFF" } : {};
   const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
-  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#F8F7F4", fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
-  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? RD : GO, color: caseQueue.overdue > 0 ? "#F8F7F4" : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
+  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
+  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
@@ -379,7 +396,7 @@ export default function AdminDashboard() {
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
     </div>
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -426,6 +443,7 @@ export default function AdminDashboard() {
   const SB_BORDER = themeMode === "light" ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)";
   const SB_TEXT = themeMode === "light" ? "rgba(255,255,255,0.82)" : "#8899AA";
   const SB_TEXT_ACTIVE = themeMode === "light" ? PANEL_LIGHT : GO;
+  const SB_STRIPE = themeMode === "light" ? LIGHT.goldText : GO;
 
   return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
@@ -456,7 +474,7 @@ export default function AdminDashboard() {
                   <button
                     title={group.label}
                     onClick={() => { toggleSidebar(); setPage(firstItem.id); setCollapsedGroups(prev => { const next = new Set(prev); next.delete(group.label); return next; }); }}
-                    style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                    style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
                     {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                     {group.items.some(item => item.id === "issues") && <OpenIssuesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
@@ -472,7 +490,7 @@ export default function AdminDashboard() {
                     const NavI = item.i;
                     return (
                       <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                       </button>
                     );
@@ -495,7 +513,7 @@ export default function AdminDashboard() {
                 const active = page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                  <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
@@ -540,7 +558,7 @@ export default function AdminDashboard() {
           <div style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 14px", width: 200 }}>
               <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder="Search pages" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder="Search pages" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
             </div>
             {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
               <div style={{ position: "absolute", top: 44, right: 0, width: 240, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
@@ -602,7 +620,7 @@ export default function AdminDashboard() {
     </div>
 
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
 }
 
@@ -1271,7 +1289,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: staff.length, color: t.goldText }, { id: "active", label: "Active", count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: "Pending", count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: "Inactive", count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: "All roles" }, ...getOpts("staff_roles")]} /></div>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search name, ID, phone, role" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search name, ID, phone, role" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -2059,7 +2077,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     <SecT t={t} action={isAdmin ? "Add Site" : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>Sites</SecT>
     {isAdmin && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: sites.length, color: t.goldText }, { id: "active", label: "Active", count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: "Inactive", count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search site, address, contract" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search site, address, contract" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -2233,7 +2251,7 @@ function ChatPage({ af, user, t }) {
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Private conversations</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 12px" }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search staff" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search staff" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
@@ -3959,7 +3977,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: vendors.length, color: t.goldText }, { id: "approved", label: "Approved", count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: "Pending", count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: "Probation", count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: "Inactive", count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, contact, phone, email, services" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, contact, phone, email, services" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
 
@@ -5420,7 +5438,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {!loading && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder="Search site, service, staff, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder="Search site, service, staff, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={pkPerPage} onChange={e => { setPkPerPage(Number(e.target.value)); setPkPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -6370,7 +6388,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           </div>
           <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: "All", count: scheduled.length, color: t.goldText }, { id: "scheduled", label: "Scheduled", count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: "In Progress", count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -6399,7 +6417,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       {tab === "completed" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setCompPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -7509,8 +7527,10 @@ const IR_NO_ACCESS = "Your account cannot read incident reports.";
 const IR_NOT_FOUND = "This report could not be found, or your account cannot open it.";
 const IR_RESEND_ASK = "Send this report again to everyone set for this form?";
 // Built from the answer: how many emails, how many app notices, and what the email carried.
-const irSentLine = (d) => "Sent again: " + (Number(d && d.email) || 0) + " emails and " + (Number(d && d.inApp) || 0)
-  + " app notices, " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
+const irCount = (n, one, many) => n + " " + (n === 1 ? one : many);
+const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "email", "emails")
+  + " and " + irCount(Number(d && d.inApp) || 0, "app notice", "app notices")
+  + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -10134,7 +10154,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>+ Add Document</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder="Search employee, category, file, uploaded by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder="Search employee, category, file, uploaded by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setDocPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -10162,7 +10182,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>+ Add Training</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder="Search employee, training, type, administered by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder="Search employee, training, type, administered by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -10346,7 +10366,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>+ Add Other</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder="Search employee, file, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder="Search employee, file, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? "No items filed under Other. Use Add Other to upload." : "No items match this search."} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
