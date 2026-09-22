@@ -336,12 +336,17 @@ export default function AdminDashboard() {
   // names. One quiet call when the session starts asks the API for this person's own effective
   // capabilities: a 200 answers it, and any other answer leaves them with what their role gives.
   const [canManagePermissions, setCanManagePermissions] = useState(false);
+  // Forms holds every filed report now, and the API already decides who may read them. One quiet
+  // call when the session starts asks for the list: a 200 opens the page, and any other answer
+  // leaves this person with what their role gives, which is the line Forms has shown all along.
+  const [canReadFiledForms, setCanReadFiledForms] = useState(false);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
     if (id === "settings") return isAdmin || canManagePermissions;
+    if (id === "forms") return isAdmin || canReadFiledForms;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions]);
+  }, [isAdmin, canManagePermissions, canReadFiledForms]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -358,6 +363,14 @@ export default function AdminDashboard() {
       .catch(e => { if (alive) setCanManagePermissions(false); console.warn("Own capabilities:", e.message); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
+  useEffect(() => {
+    if (!token || isAdmin) { setCanReadFiledForms(false); return; }
+    let alive = true;
+    af("/api/forms/responses?status=submitted&limit=1")
+      .then(() => { if (alive) setCanReadFiledForms(true); })
+      .catch(e => { if (alive) setCanReadFiledForms(false); console.warn("Filed forms:", e.message); });
+    return () => { alive = false; };
+  }, [token, isAdmin, af]);
   useEffect(() => { if (!token) return; let alive = true; af("/api/reports/overview").then(d => { if (alive) setNotif({ openIssues: d.openIssues, pendingStaff: d.pendingStaff }); }).catch(() => {}); return () => { alive = false; }; }, [token, page]);
   // How many Speak Up cases are waiting: unheld, due soon or overdue. Admins only. The route writes no
   // audit row, so it is polled every 60 seconds while the tab is visible and again after a save on the
@@ -7577,6 +7590,7 @@ const irCount = (n, one, many) => n + " " + (n === 1 ? one : many);
 const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "email", "emails")
   + " and " + irCount(Number(d && d.inApp) || 0, "app notice", "app notices")
   + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
+const IR_SUPERVISOR_DESK_NOTE = "Fill this in at your desk. Answers are saved when you press Save, and a sign-off is made with its own button.";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -7597,6 +7611,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // is one request. This is the guard the Time off window uses.
   const sendingRef = useRef(false);
   const fetchedRef = useRef(null);
+  const [signing, setSigning] = useState("");
+  const signingRef = useRef(false);
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -7631,6 +7647,37 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     setDownloading(false);
   };
 
+  // One press sends one request, and nothing is drawn until the API answers: the window is swapped
+  // for the report the API sends back, stamp and all. The ref closes the gap before the disabled
+  // button redraws, which is the guard the footer's Send again uses.
+  const sign = async (key) => {
+    if (signingRef.current) return;
+    signingRef.current = true; setSigning(key); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key } });
+      if (d && d.draft) setData(d);
+    } catch (e) { setActionError(e.message || "Request failed"); }
+    signingRef.current = false; setSigning("");
+  };
+
+  // The supervisor section, filled in at a desk. What a person types is held here by question key
+  // until they press Save, and only those keys are sent, the way the time off window holds a note
+  // and swaps in whatever the API answers.
+  const [sup, setSup] = useState({});
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const saveSupervisor = async () => {
+    if (savingRef.current) return;
+    const keys = Object.keys(sup);
+    if (!keys.length) return;
+    savingRef.current = true; setSaving(true); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers: sup } });
+      if (d && d.draft) { setData(d); setSup({}); }
+    } catch (e) { setActionError(e.message || "Request failed"); }
+    savingRef.current = false; setSaving(false);
+  };
+
   const resend = async () => {
     if (sendingRef.current) return;
     sendingRef.current = true; setSending(true); setActionError(""); setSentLine("");
@@ -7648,16 +7695,137 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const draft = data && data.draft;
   draftRef.current = draft;
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
-  const agentFields = fields.filter(f => f.half === "agent");
+  // Everything that is not the supervisor's half was answered by whoever filed the report. The two
+  // words this platform uses for that half are read the same way, so the answers show either way.
+  const agentFields = fields.filter(f => f.half !== "supervisor");
   const supervisorFields = fields.filter(f => f.half === "supervisor");
   const submitted = draft && draft.status === "submitted";
-  // The label comes from the API and is shown as sent: some carry required federal wording.
-  const fieldRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
+  // What a cell reads as. A ticked box is a word rather than a mark, a picked option is the label
+  // the form offers rather than the value it stores, and everything else is what the API sent.
+  const cellText = (col, raw) => {
+    if (col && col.type === "checkbox") return raw === true || raw === "true" ? "Yes" : "No";
+    if (col && col.type === "select") {
+      const opt = (col.options || []).find(o => String(o.value) === String(raw));
+      if (opt) return opt.label;
+    }
+    return raw == null ? "" : String(raw);
+  };
+  // A column's name comes from the form and is drawn as the API sent it, the way a question's label
+  // is: some of them are wording a person is required to read.
+  const thCell = { textAlign: "left", padding: "7px 10px", fontSize: 11, fontWeight: 600, color: t.textMut, whiteSpace: "nowrap", borderBottom: "1px solid " + t.border };
+  const tdCell = { padding: "7px 10px", fontSize: 12, color: t.text, borderBottom: "1px solid " + t.border, verticalAlign: "top" };
+  // A checklist keeps its items down the side and its columns across the top. A table a person adds
+  // rows to is numbered instead. Either one scrolls inside this box when it is wider than the box,
+  // the way the tables on the pages do.
+  const gridTable = (f, cell) => {
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    const declared = Array.isArray(f.rows) ? f.rows : null;
+    const added = Array.isArray(f.value) ? f.value : [];
+    const body = declared
+      ? declared.map(r => ({ key: r.key, head: r.label, row: (f.value || {})[r.key] || {} }))
+      : added.map((v, i) => ({ key: String(i), head: String(i + 1), row: v || {} }));
+    return (<div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <thead><tr>
+          <th style={thCell}>{declared ? "Item" : "#"}</th>
+          {cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}
+        </tr></thead>
+        <tbody>
+          {body.map(b => (<tr key={b.key}>
+            <td style={Object.assign({}, tdCell, { fontWeight: 500, whiteSpace: "nowrap" })}>{b.head}</td>
+            {cols.map(c => <td key={c.key} style={tdCell}>{cell ? cell(f, b, c) : cellText(c, b.row[c.key])}</td>)}
+          </tr>))}
+          {body.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>Nothing was added.</td></tr>}
+        </tbody>
+      </table>
+    </div>);
+  };
+  // A stamp says who signed and when, read in the company's own day wherever the computer is set.
+  const stampLine = (v) => {
+    if (!v || !v.at) return "Not signed";
+    const tz = clientConfig.company.timeZone;
+    const when = new Date(v.at);
+    const day = when.toLocaleDateString("en-US", { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
+    const time = when.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+    return "Signed by " + (v.name || "someone") + " on " + day + " at " + time;
+  };
+  const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
+  const canWriteSupervisor = !!(data && data.canWriteSupervisor);
+  const supervisorMissing = data && Array.isArray(data.supervisorMissing) ? data.supervisorMissing : [];
+  const signoffRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
-    {f.displayValue == null || f.displayValue === ""
-      ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>Not answered</div>
-      : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontSize: 13, color: f.value && f.value.at ? t.text : t.textMut }}>{stampLine(f.value)}</div>
+      {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? "Signing..." : "Sign"}</Btn>}
+    </div>
   </div>);
+  // What the supervisor section holds right now: what was typed if anything was, and what the API
+  // sent if nothing has been.
+  const supValue = (f) => (Object.prototype.hasOwnProperty.call(sup, f.key) ? sup[f.key] : f.value);
+  const setSupValue = (f, v) => setSup(prev => Object.assign({}, prev, { [f.key]: v }));
+  const setGridCell = (f, b, c, v) => {
+    if (Array.isArray(f.rows)) {
+      const grid = Object.assign({}, supValue(f) || {});
+      grid[b.key] = Object.assign({}, grid[b.key] || {}, { [c.key]: v });
+      setSupValue(f, grid);
+      return;
+    }
+    const arr = (Array.isArray(supValue(f)) ? supValue(f) : []).slice();
+    const i = Number(b.key);
+    arr[i] = Object.assign({}, arr[i] || {}, { [c.key]: v });
+    setSupValue(f, arr);
+  };
+  const supCell = (f, b, c) => {
+    const held = supValue(f);
+    const rowVal = (Array.isArray(held) ? held[Number(b.key)] : (held || {})[b.key]) || {};
+    const raw = rowVal[c.key];
+    if (c.type === "checkbox") {
+      return (<label style={{ display: "flex", minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <input type="checkbox" aria-label={b.head + " " + c.label} checked={raw === true}
+          onChange={e => setGridCell(f, b, c, e.target.checked)} style={{ width: 22, height: 22, cursor: "pointer" }} />
+      </label>);
+    }
+    if (c.type === "select") {
+      return <Sel t={t} aria-label={b.head + " " + c.label} value={raw == null ? "" : String(raw)}
+        onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }}
+        options={[{ v: "", l: "Not answered" }].concat((c.options || []).map(o => ({ v: o.value, l: o.label })))} />;
+    }
+    return <Inp t={t} aria-label={b.head + " " + c.label} type={c.type === "number" ? "number" : "text"}
+      value={raw == null ? "" : String(raw)} onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }} />;
+  };
+  // Each question in its own type, which is what a person expects to type into at a desk. A
+  // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
+  const supervisorInput = (f) => {
+    if (f.type === "signoff") return signoffRow(f);
+    const cur = supValue(f);
+    const box = (inner) => (<div key={f.key} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+      {inner}
+    </div>);
+    if (f.type === "grid") return box(gridTable(f, supCell));
+    if (f.type === "textarea") return box(<TArea t={t} rows={3} aria-label={f.label} value={cur == null ? "" : String(cur)}
+      onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 88 }} />);
+    if (f.type === "select") return box(<Sel t={t} aria-label={f.label} value={cur == null ? "" : String(cur)}
+      onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }}
+      options={[{ v: "", l: "Not answered" }].concat((f.options || []).map(o => ({ v: o.value, l: o.label })))} />);
+    const kind = f.type === "date" || f.type === "time" || f.type === "number" ? f.type : "text";
+    return box(<Inp t={t} type={kind} aria-label={f.label} value={cur == null ? "" : String(cur)}
+      onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }} />);
+  };
+  // The label comes from the API and is shown as sent: some carry required federal wording.
+  const fieldRow = (f) => {
+    if (f.type === "signoff") return signoffRow(f);
+    if (f.type === "grid") return (<div key={f.key} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+      {gridTable(f)}
+    </div>);
+    return (<div key={f.key} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+      {f.displayValue == null || f.displayValue === ""
+        ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>Not answered</div>
+        : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+    </div>);
+  };
 
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
@@ -7683,9 +7851,26 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       </div>
       <div>
         <Lbl>Supervisor section</Lbl>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_NOTE}</div>
-        {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
-        {supervisorFields.map(fieldRow)}
+        {canWriteSupervisor
+          ? (<>
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_DESK_NOTE}</div>
+            {supervisorMissing.length > 0 && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+              <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 4 }}>Still needed in the supervisor section</div>
+              <ul aria-label="Still needed in the supervisor section" style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: t.textSec }}>
+                {supervisorMissing.map(m => <li key={m.key}>{m.label}</li>)}
+              </ul>
+            </div>}
+            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+            {supervisorFields.map(supervisorInput)}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? "Saving..." : "Save"}</Btn>
+            </div>
+          </>)
+          : (<>
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_NOTE}</div>
+            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+            {supervisorFields.map(fieldRow)}
+          </>)}
       </div>
     </>)}
     {asking && <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
@@ -7789,7 +7974,10 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
 }
 
 function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute }) {
-  const [tab, setTab] = useState(() => (route[0] === "reports" ? "incident_reports" : "library"));
+  // Everything on this page but the filed reports is the Jotform machinery, which is an admin's.
+  // Anyone else the API lets in lands on Filed forms and sees that tab alone.
+  const isAdmin = user?.role === "admin";
+  const [tab, setTab] = useState(() => (route[0] === "reports" || !isAdmin ? "incident_reports" : "library"));
   const [irOpenId, setIrOpenId] = useState(() => (route[0] === "reports" && route[1] ? route[1] : null));
   const [irOpenRow, setIrOpenRow] = useState(null);
   // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well. #forms alone
@@ -8124,7 +8312,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     setAliasDeletingId(null);
   }, [af, showToast, loadAliases]);
 
-  useEffect(() => { loadConfig(); }, [loadConfig]);
+  useEffect(() => { if (isAdmin) loadConfig(); }, [loadConfig, isAdmin]);
   useEffect(() => { if (tab === "library") loadForms(); }, [tab, libFilters]);
   useEffect(() => { if (tab === "submissions") loadSubmissions(true); }, [tab, subFilters]);
   useEffect(() => { if (tab === "pdf_access") loadPdfAccessLog(true); }, [tab, pdfFilters]);
@@ -8459,24 +8647,26 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     return <Bdg l={status} c={colors[status] || t.textMut} />;
   };
 
-  const tabs = [
-    { id: "library", l: "Form Library" },
-    { id: "submissions", l: "Submissions" },
-    { id: "pdf_access", l: "PDF Access Log" },
-    { id: "settings", l: "Settings" },
-    { id: "sync_diagnostic", l: "Sync Diagnostic" },
-    { id: "aliases", l: "Aliases" },
-    { id: "incident_reports", l: "Incident reports" },
+  const TABS = [
+    { id: "library", l: "Form Library", adminOnly: true },
+    { id: "submissions", l: "Submissions", adminOnly: true },
+    { id: "pdf_access", l: "PDF Access Log", adminOnly: true },
+    { id: "settings", l: "Settings", adminOnly: true },
+    { id: "sync_diagnostic", l: "Sync Diagnostic", adminOnly: true },
+    { id: "aliases", l: "Aliases", adminOnly: true },
+    // The tab holds every filed form the API lists, whatever kind of form it is.
+    { id: "incident_reports", l: "Filed forms", adminOnly: false },
   ];
+  const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <SecT t={t}>Forms & Jotform Integration</SecT>
+      <SecT t={t}>{isAdmin ? "Forms & Jotform Integration" : "Filed forms"}</SecT>
 
       {/* PII WARNING BANNER */}
-      <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
+      {isAdmin && <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
         <strong>Privacy note.</strong> Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.
-      </div>
+      </div>}
 
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -8493,7 +8683,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       </div>
 
       {/* CONFIG STATUS STRIP */}
-      {config && (
+      {isAdmin && config && (
         <Crd t={t} style={{ marginBottom: 14, padding: 12 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", fontSize: 12 }}>
             <div><span style={{ color: t.textMut }}>Key: </span>{config.hasKey ? (config.keyValid ? <span style={{ color: GR, fontWeight: 600 }}>Valid</span> : <span style={{ color: RD, fontWeight: 600 }}>Invalid</span>) : <span style={{ color: RD, fontWeight: 600 }}>Not set</span>}</div>

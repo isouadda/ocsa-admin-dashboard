@@ -8,6 +8,8 @@ const clientConfig = {
     shortName: 'OCSA Cleaning',
     brandTag: 'OCSA',
     location: COMPANY_LOCATION,
+    // What a stamp means by a date: the company's own day, wherever the computer is set.
+    timeZone: 'America/New_York',
     confidentialLabel: CONFIDENTIAL_LABEL,
     footerLine: `${COMPANY_NAME} | ${COMPANY_LOCATION} | ${CONFIDENTIAL_LABEL}`,
   },

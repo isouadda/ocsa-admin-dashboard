@@ -222,7 +222,7 @@ const ROUTES = {
   },
 
   "forms/incident-report-window": {
-    open: async (d) => { await d.goto("forms"); await d.clickText("Incident reports", { exact: false }); return d.clickRow(0); },
+    open: async (d) => { await d.goto("forms"); await d.clickText("Filed forms", { exact: false }); return d.clickRow(0); },
   },
   "forms/edit-form": {
     open: async (d) => { await d.goto("forms"); return d.clickText("Edit", { exact: true }); },

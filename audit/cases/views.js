@@ -73,12 +73,21 @@ async function run({ d, results, inventory }) {
     inRun ? "" : "Run did not open a report");
 
   // A supervisor reaches no view on a gated page. This records absence, which is the other half.
+  // Forms opens for a supervisor the filed list lets in, so there the question is which tabs they
+  // can reach: Filed forms is the one they are there to read, and the other six are an admin's.
   await d.signOutHard();
   await d.signIn("supervisor");
+  const opensForms = seed.PEOPLE.supervisor.readsFiledForms === true;
   let leaked = [];
   for (const v of inventory.VIEWS) {
     if (!GATED[v.page]) continue;
     await d.goto(v.page);
+    if (v.page === "forms" && opensForms) {
+      if (v.id === "forms/incident_reports") continue;
+      const buttons = await d.visibleButtons();
+      if (buttons.indexOf(v.click) >= 0) leaked.push(v.id);
+      continue;
+    }
     const body = (await d.bodyText()).toLowerCase();
     if (body.indexOf(String(v.expect).toLowerCase()) >= 0) leaked.push(v.id);
   }

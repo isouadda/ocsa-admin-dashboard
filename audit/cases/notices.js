@@ -4,6 +4,7 @@
 // compared with the page that subject belongs to. A notice that opens nothing, or opens a page the
 // person cannot read, fails here.
 "use strict";
+const seed = require("../seed");
 
 // Where each subject type has to land.
 const LANDS_ON = {
@@ -48,7 +49,9 @@ async function run({ d, results, stubs }) {
       if (!tapped) { results.fail("notice", id, "no notice on screen reading " + JSON.stringify(n.title)); continue; }
 
       const landed = await currentPage(d);
-      const gatedHere = !isAdmin && (want === "forms" || want === "cases");
+      // Forms is no longer an admin's alone: a supervisor whose filed list answers 200 opens it,
+      // so a notice about a filed form takes them there.
+      const gatedHere = !isAdmin && ((want === "forms" && seed.PEOPLE[persona].readsFiledForms !== true) || want === "cases");
 
       if (gatedHere) {
         // The notice does not move this person to a page they cannot open. It closes the bell and
