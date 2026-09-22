@@ -84,6 +84,19 @@ function compressImage(file, maxSize, quality) {
 // Both names stay, because the screens are written in terms of them, and both point here.
 const FONT_HEAD = "-apple-system,BlinkMacSystemFont,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const FONT_BODY = FONT_HEAD;
+// Text size. The same four the staff portal offers, applied the same way: one CSS zoom on the root,
+// which scales type, spacing, borders and controls together. Standard is 1, so a person who leaves it
+// alone sees exactly what they saw before.
+const TEXT_SIZES = [
+  { id: "standard", label: "Standard", factor: 1 },
+  { id: "large", label: "Large", factor: 1.15 },
+  { id: "xlarge", label: "Extra large", factor: 1.3 },
+  { id: "largest", label: "Largest", factor: 1.5 },
+];
+const textSizeFactor = (id) => (TEXT_SIZES.find((x) => x.id === id) || TEXT_SIZES[0]).factor;
+// A root that is zoomed is a smaller window in the page's own terms, so anything written against the
+// window is divided by the same number.
+const vh = (n, zoom) => zoom === 1 ? n + "vh" : "calc(" + n + "vh / " + zoom + ")";
 const R = { sm: 8, md: 10, lg: 14, pill: 999 };
 const NAVY = clientConfig.brand.navy;
 const GOLD = clientConfig.brand.gold;
@@ -256,6 +269,15 @@ export default function AdminDashboard() {
     try { if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light"; } catch {}
     return "dark";
   });
+  // How large this person reads. Kept in this browser, the way the theme is.
+  const [textSize, setTextSize] = useState(() => {
+    try { const stored = localStorage.getItem("ocsa-text-size"); if (TEXT_SIZES.some((x) => x.id === stored)) return stored; } catch {}
+    return "standard";
+  });
+  const zoom = textSizeFactor(textSize);
+  // At Standard the property is left off the root altogether, so the page is what it always was.
+  const zoomStyle = zoom === 1 ? {} : { zoom };
+  const chooseTextSize = (id) => { setTextSize(id); try { localStorage.setItem("ocsa-text-size", id); } catch {} };
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [navQ, setNavQ] = useState(""); const [navOpen, setNavOpen] = useState(false); const [userMenuOpen, setUserMenuOpen] = useState(false); const [notif, setNotif] = useState(null);
@@ -267,13 +289,14 @@ export default function AdminDashboard() {
     const userPreference = () => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } };
     const applyResponsive = () => {
       if (typeof window === "undefined") return;
-      if (window.innerWidth < NARROW_BREAKPOINT_PX) setSidebarCollapsed(true);
+      // The page's own width, which is the window's divided by whatever the text is zoomed by.
+      if (window.innerWidth / zoom < NARROW_BREAKPOINT_PX) setSidebarCollapsed(true);
       else setSidebarCollapsed(userPreference());
     };
     applyResponsive();
     window.addEventListener("resize", applyResponsive);
     return () => window.removeEventListener("resize", applyResponsive);
-  }, []);
+  }, [zoom]);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
   useEffect(() => {
@@ -284,6 +307,13 @@ export default function AdminDashboard() {
     } catch (e) {}
   }, [t.bg]);
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
+  const textSizeChoice = (compact) => (<div style={{ padding: compact ? "6px 10px 8px" : 0 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>Text size</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={x.label}
+        style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>); })}
+    </div>
+  </div>);
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
@@ -386,13 +416,14 @@ export default function AdminDashboard() {
     try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
-  if (authChecking) return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>Loading...</div>);
-  if (!token) return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
+  if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>Loading...</div>);
+  if (!token) return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>Admin Dashboard</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />Connected to Live API</div></div>
         <LoginForm onLogin={handleLogin} loading={loading} t={t} />
       </div>
+      <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
     </div>
     {toast && <Tst t={toast} />}
@@ -445,9 +476,9 @@ export default function AdminDashboard() {
   const SB_TEXT_ACTIVE = themeMode === "light" ? PANEL_LIGHT : GO;
   const SB_STRIPE = themeMode === "light" ? LIGHT.goldText : GO;
 
-  return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
-    <div style={{ width: SB_W, height: "100vh", background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
+    <div style={{ width: SB_W, height: vh(100, zoom), background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
 
       {/* Logo + collapse toggle */}
       <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid " + SB_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
@@ -547,7 +578,7 @@ export default function AdminDashboard() {
     </div>
 
     {/* ===== MAIN CONTENT ===== */}
-    <div style={{ flex: 1, marginLeft: SB_W, minHeight: "100vh", display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease" }}>
+    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease" }}>
       {/* Top Bar */}
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>
@@ -587,6 +618,7 @@ export default function AdminDashboard() {
               <div style={{ position: "absolute", top: 48, right: 0, width: 210, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? "Administrator" : "Supervisor"}</div></div>
                 {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
+                <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
                 <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
               </div>
             )}

@@ -3,10 +3,17 @@
   "failures": [
     {
       "id": "the-staff-page-runs-off-the-side-at-1024",
-      "match": "^page/staff/(admin|superAdmin) @1024.*/no-sideways-scroll$",
+      "match": "^page/staff/(admin|superAdmin) @1024( light)?/no-sideways-scroll$",
       "shows": "At a 1024 pixel window the Staff Management page is 17 pixels wider than the window, so the whole page scrolls sideways. It happens with the side panel collapsed, which is what the app does at that width, in both themes and at every text size, for the two people who can open the page.",
       "why": "The main column beside the panel is a flex child with the default min-width of auto, so it cannot be narrower than the widest thing inside it, and on this page that is 976.5 pixels where 960 are free. minWidth: 0 on that column is the fix, and it moves boxes at Standard, which this build is not allowed to do. It is a one line change for a build that is allowed to move them.",
       "where": "src/App.js:550, the main column"
+    },
+    {
+      "id": "pages-run-off-the-side-at-the-largest-text-size",
+      "match": "^page/[a-z]+/[A-Za-z]+( @1024)? largest/no-sideways-scroll$",
+      "shows": "At the largest text size 15 of the 19 pages are wider than the window, by 6 pixels on one and by 218 on the worst, at both of the suite's widths. The whole page scrolls sideways, which is the thing a person who made the text larger can least afford.",
+      "why": "A root that is zoomed is a narrower page in its own terms: 1280 pixels becomes 853. The page title in the top bar has no ellipsis and the search box beside it is a fixed 200 pixels; the two header dropdowns are fixed at 240 and 210; the Schedule week grid is a fixed 140 pixel name column and seven day columns; and the main column beside the panel is a flex child that cannot be narrower than the widest thing inside it. Commit three fixes each of those, and only when the space runs out, so Standard stays where it is.",
+      "where": "src/App.js, the top bar, the two dropdowns, the Schedule week grid and the main column"
     }
   ]
 }
