@@ -7,13 +7,6 @@
       "shows": "At a 1024 pixel window the Staff Management page is 17 pixels wider than the window, so the whole page scrolls sideways. It happens with the side panel collapsed, which is what the app does at that width, in both themes and at every text size, for the two people who can open the page.",
       "why": "The main column beside the panel is a flex child with the default min-width of auto, so it cannot be narrower than the widest thing inside it, and on this page that is 976.5 pixels where 960 are free. minWidth: 0 on that column is the fix, and it moves boxes at Standard, which this build is not allowed to do. It is a one line change for a build that is allowed to move them.",
       "where": "src/App.js:550, the main column"
-    },
-    {
-      "id": "the-supervisor-section-cannot-be-filled-in-at-a-desk",
-      "match": "^(filed-forms/(the-supervisor-section-takes-answers|what-is-still-needed-is-named|save-sends-only-what-changed|save-sends-a-checklist-in-its-shape|the-section-is-swapped-for-the-answer|what-is-still-needed-shrinks)( @1024)?( light)?( largest)?|refusals/supervisor-[a-z-]+)$",
-      "shows": "The supervisor section reads as text under a note that a supervisor completes it at a desk. There are no inputs, no Save, and no line naming the questions still empty, so the twelve refusals the supervisor route can answer with cannot be reached.",
-      "why": "PATCH /api/forms/responses/:id/supervisor is not called from anywhere in the dashboard. Commit four draws the section as inputs when canWriteSupervisor is true, lists supervisorMissing, and sends only what changed.",
-      "where": "src/App.js, IncidentReportWindow's supervisor half"
     }
   ]
 }

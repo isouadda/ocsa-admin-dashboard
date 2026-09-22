@@ -24,6 +24,27 @@ async function openLog(d) {
   return d.clickRow(1);
 }
 
+// The questions the window says are still empty, read from the list itself rather than from the
+// window's text, since a question's label is also drawn beside its input.
+function stillNeeded(d) {
+  return d.page.evaluate(() => {
+    const ul = document.querySelector("div[style*='z-index: 500'] ul[aria-label='Still needed in the supervisor section']");
+    return ul ? Array.from(ul.querySelectorAll("li")).map((li) => li.innerText.trim()) : [];
+  });
+}
+
+// A checkbox inside a table, ticked by its own label.
+function tick(d, label) {
+  return d.page.evaluate((want) => {
+    const box = document.querySelector("div[style*='z-index: 500']");
+    const el = box && Array.from(box.querySelectorAll("input[type=checkbox]"))
+      .find((c) => String(c.getAttribute("aria-label") || "").indexOf(want) === 0);
+    if (!el) return false;
+    el.click();
+    return true;
+  }, label);
+}
+
 // Every table drawn inside the window, as its header row and its cells.
 function tablesIn(d) {
   return d.page.evaluate(() => {
@@ -119,9 +140,10 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     check("filed-forms/the-supervisor-section-takes-answers",
       (await d.modalFields()).length > 0 && (await d.modalButtons()).some((b) => b === "Save"),
       "the supervisor section draws no inputs and no Save");
+    const needed = await stillNeeded(d);
     check("filed-forms/what-is-still-needed-is-named",
-      text.indexOf(STILL_NEEDED) >= 0 && text.indexOf("Date reviewed") >= 0 && text.indexOf("Checks at review") >= 0,
-      "the window does not name the supervisor questions still empty");
+      needed.indexOf("Date reviewed") >= 0 && needed.indexOf("Checks at review") >= 0,
+      "the window lists " + JSON.stringify(needed) + " as still needed");
 
     const g = await windowGeometry(d);
     check("filed-forms/the-window-does-not-run-off-the-side", g.over <= 1,
@@ -140,9 +162,12 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     await openFiledForms(d);
     await d.clickRow(0);
     const text = await d.modalText();
+    const older = { fields: await d.modalFields(), buttons: await d.modalButtons() };
     check("filed-forms/an-older-report-reads-as-it-did",
-      text.indexOf("A delivery pallet scuffed the lobby floor.") >= 0 && text.indexOf("Sign") < 0,
-      "the incident report no longer reads as it did: " + JSON.stringify(text.slice(0, 120)));
+      text.indexOf("A delivery pallet scuffed the lobby floor.") >= 0 && text.indexOf("Sign") < 0
+        && older.fields.length === 0 && older.buttons.indexOf("Save") < 0,
+      "the incident report no longer reads as it did: " + JSON.stringify(text.slice(0, 120))
+        + ", inputs " + JSON.stringify(older.fields) + ", buttons " + JSON.stringify(older.buttons));
     await d.closeModal();
   }
 
@@ -248,7 +273,7 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     await d.reload();
     await openLog(d);
     await d.fillByLabel("What the supervisor found", "Walked it with the lead.");
-    await d.toggleSwitch("Walked the floor");
+    await tick(d, "Walked the floor");
     const mark = d.mark();
     const saved = await d.clickText("Save", { inModal: true, exact: true });
     await d.settle(700);
@@ -262,14 +287,20 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
       !!body && !!body.answers && !!body.answers.checks && body.answers.checks.walkthrough
         && body.answers.checks.walkthrough.ok === true,
       "the checklist went as " + JSON.stringify(body && body.answers ? body.answers.checks : null));
-    const after = await d.modalText();
+    // The section is inputs now, and what an input holds is its value rather than its text, so the
+    // answer is read from the controls themselves.
+    const held = await d.page.evaluate(() => {
+      const box = document.querySelector("div[style*='z-index: 500']");
+      return box ? Array.from(box.querySelectorAll("input, textarea"))
+        .map((f) => (f.type === "checkbox" ? (f.checked ? "[ticked]" : "[empty]") : f.value)) : [];
+    });
     check("filed-forms/the-section-is-swapped-for-the-answer",
-      after.indexOf("Walked it with the lead.") >= 0,
-      "the saved answer is not on screen after the API answered");
+      held.indexOf("Walked it with the lead.") >= 0 && held.indexOf("[ticked]") >= 0,
+      "the window holds " + JSON.stringify(held) + " after the API answered");
+    const left = await stillNeeded(d);
     check("filed-forms/what-is-still-needed-shrinks",
-      after.indexOf(STILL_NEEDED) >= 0 && after.indexOf("Checks at review") < 0
-        && after.indexOf("Date reviewed") >= 0,
-      "the still-needed line did not drop the question that was answered");
+      left.join(",") === "Date reviewed",
+      "the window still lists " + JSON.stringify(left) + " after the checklist was answered");
     await d.closeModal();
     stubs.reset();
     await d.reload();

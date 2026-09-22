@@ -7590,6 +7590,7 @@ const irCount = (n, one, many) => n + " " + (n === 1 ? one : many);
 const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "email", "emails")
   + " and " + irCount(Number(d && d.inApp) || 0, "app notice", "app notices")
   + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
+const IR_SUPERVISOR_DESK_NOTE = "Fill this in at your desk. Answers are saved when you press Save, and a sign-off is made with its own button.";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -7657,6 +7658,24 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       if (d && d.draft) setData(d);
     } catch (e) { setActionError(e.message || "Request failed"); }
     signingRef.current = false; setSigning("");
+  };
+
+  // The supervisor section, filled in at a desk. What a person types is held here by question key
+  // until they press Save, and only those keys are sent, the way the time off window holds a note
+  // and swaps in whatever the API answers.
+  const [sup, setSup] = useState({});
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const saveSupervisor = async () => {
+    if (savingRef.current) return;
+    const keys = Object.keys(sup);
+    if (!keys.length) return;
+    savingRef.current = true; setSaving(true); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers: sup } });
+      if (d && d.draft) { setData(d); setSup({}); }
+    } catch (e) { setActionError(e.message || "Request failed"); }
+    savingRef.current = false; setSaving(false);
   };
 
   const resend = async () => {
@@ -7731,6 +7750,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     return "Signed by " + (v.name || "someone") + " on " + day + " at " + time;
   };
   const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
+  const canWriteSupervisor = !!(data && data.canWriteSupervisor);
+  const supervisorMissing = data && Array.isArray(data.supervisorMissing) ? data.supervisorMissing : [];
   const signoffRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -7738,6 +7759,59 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? "Signing..." : "Sign"}</Btn>}
     </div>
   </div>);
+  // What the supervisor section holds right now: what was typed if anything was, and what the API
+  // sent if nothing has been.
+  const supValue = (f) => (Object.prototype.hasOwnProperty.call(sup, f.key) ? sup[f.key] : f.value);
+  const setSupValue = (f, v) => setSup(prev => Object.assign({}, prev, { [f.key]: v }));
+  const setGridCell = (f, b, c, v) => {
+    if (Array.isArray(f.rows)) {
+      const grid = Object.assign({}, supValue(f) || {});
+      grid[b.key] = Object.assign({}, grid[b.key] || {}, { [c.key]: v });
+      setSupValue(f, grid);
+      return;
+    }
+    const arr = (Array.isArray(supValue(f)) ? supValue(f) : []).slice();
+    const i = Number(b.key);
+    arr[i] = Object.assign({}, arr[i] || {}, { [c.key]: v });
+    setSupValue(f, arr);
+  };
+  const supCell = (f, b, c) => {
+    const held = supValue(f);
+    const rowVal = (Array.isArray(held) ? held[Number(b.key)] : (held || {})[b.key]) || {};
+    const raw = rowVal[c.key];
+    if (c.type === "checkbox") {
+      return (<label style={{ display: "flex", minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <input type="checkbox" aria-label={b.head + " " + c.label} checked={raw === true}
+          onChange={e => setGridCell(f, b, c, e.target.checked)} style={{ width: 22, height: 22, cursor: "pointer" }} />
+      </label>);
+    }
+    if (c.type === "select") {
+      return <Sel t={t} aria-label={b.head + " " + c.label} value={raw == null ? "" : String(raw)}
+        onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }}
+        options={[{ v: "", l: "Not answered" }].concat((c.options || []).map(o => ({ v: o.value, l: o.label })))} />;
+    }
+    return <Inp t={t} aria-label={b.head + " " + c.label} type={c.type === "number" ? "number" : "text"}
+      value={raw == null ? "" : String(raw)} onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }} />;
+  };
+  // Each question in its own type, which is what a person expects to type into at a desk. A
+  // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
+  const supervisorInput = (f) => {
+    if (f.type === "signoff") return signoffRow(f);
+    const cur = supValue(f);
+    const box = (inner) => (<div key={f.key} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+      {inner}
+    </div>);
+    if (f.type === "grid") return box(gridTable(f, supCell));
+    if (f.type === "textarea") return box(<TArea t={t} rows={3} aria-label={f.label} value={cur == null ? "" : String(cur)}
+      onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 88 }} />);
+    if (f.type === "select") return box(<Sel t={t} aria-label={f.label} value={cur == null ? "" : String(cur)}
+      onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }}
+      options={[{ v: "", l: "Not answered" }].concat((f.options || []).map(o => ({ v: o.value, l: o.label })))} />);
+    const kind = f.type === "date" || f.type === "time" || f.type === "number" ? f.type : "text";
+    return box(<Inp t={t} type={kind} aria-label={f.label} value={cur == null ? "" : String(cur)}
+      onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }} />);
+  };
   // The label comes from the API and is shown as sent: some carry required federal wording.
   const fieldRow = (f) => {
     if (f.type === "signoff") return signoffRow(f);
@@ -7777,9 +7851,26 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       </div>
       <div>
         <Lbl>Supervisor section</Lbl>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_NOTE}</div>
-        {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
-        {supervisorFields.map(fieldRow)}
+        {canWriteSupervisor
+          ? (<>
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_DESK_NOTE}</div>
+            {supervisorMissing.length > 0 && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+              <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 4 }}>Still needed in the supervisor section</div>
+              <ul aria-label="Still needed in the supervisor section" style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: t.textSec }}>
+                {supervisorMissing.map(m => <li key={m.key}>{m.label}</li>)}
+              </ul>
+            </div>}
+            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+            {supervisorFields.map(supervisorInput)}
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? "Saving..." : "Save"}</Btn>
+            </div>
+          </>)
+          : (<>
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_NOTE}</div>
+            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+            {supervisorFields.map(fieldRow)}
+          </>)}
       </div>
     </>)}
     {asking && <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
