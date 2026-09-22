@@ -84,6 +84,28 @@ function compressImage(file, maxSize, quality) {
 // Both names stay, because the screens are written in terms of them, and both point here.
 const FONT_HEAD = "-apple-system,BlinkMacSystemFont,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const FONT_BODY = FONT_HEAD;
+// Text size. The same four the staff portal offers, applied the same way: one CSS zoom on the root,
+// which scales type, spacing, borders and controls together. Standard is 1, so a person who leaves it
+// alone sees exactly what they saw before.
+// A zoomed root is a narrower page in its own terms: 1280 pixels of window is 853 of page at the
+// largest size. Under this width a two or three column form grid gives a date field less room than it
+// needs, so the 78 grids written with equal columns, 56 of two and 22 of three, fall to one, and the
+// Schedule week gives its name column back and holds its seven days at a width somebody can read,
+// which makes the grid scroll sideways inside the box it already has. Both rules match the inline
+// style the file already writes, so no screen is rewritten and nothing is written at Standard.
+const ONE_COLUMN_PX = 1000;
+const NARROW_GRID_CSS = '[style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important}'
+  + '[style*="grid-template-columns: 140px repeat(7"]{grid-template-columns:minmax(88px,140px) repeat(7,minmax(84px,1fr)) !important}';
+const TEXT_SIZES = [
+  { id: "standard", label: "Standard", factor: 1 },
+  { id: "large", label: "Large", factor: 1.15 },
+  { id: "xlarge", label: "Extra large", factor: 1.3 },
+  { id: "largest", label: "Largest", factor: 1.5 },
+];
+const textSizeFactor = (id) => (TEXT_SIZES.find((x) => x.id === id) || TEXT_SIZES[0]).factor;
+// A root that is zoomed is a smaller window in the page's own terms, so anything written against the
+// window is divided by the same number.
+const vh = (n, zoom) => zoom === 1 ? n + "vh" : "calc(" + n + "vh / " + zoom + ")";
 const R = { sm: 8, md: 10, lg: 14, pill: 999 };
 const NAVY = clientConfig.brand.navy;
 const GOLD = clientConfig.brand.gold;
@@ -161,7 +183,7 @@ const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10p
 const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
 const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
 const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>; };
-const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
+const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
@@ -256,6 +278,18 @@ export default function AdminDashboard() {
     try { if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light"; } catch {}
     return "dark";
   });
+  // How large this person reads. Kept in this browser, the way the theme is.
+  const [textSize, setTextSize] = useState(() => {
+    try { const stored = localStorage.getItem("ocsa-text-size"); if (TEXT_SIZES.some((x) => x.id === stored)) return stored; } catch {}
+    return "standard";
+  });
+  const zoom = textSizeFactor(textSize);
+  // At Standard the property is left off the root altogether, so the page is what it always was.
+  // Published to the subtree as well: a height or width written against the window is in the
+  // window's own pixels, which the zoom then multiplies, so every one of them divides by this.
+  const zoomStyle = zoom === 1 ? {} : { zoom, "--zoom": String(zoom) };
+  const chooseTextSize = (id) => { setTextSize(id); try { localStorage.setItem("ocsa-text-size", id); } catch {} };
+  const [pageNarrow, setPageNarrow] = useState(() => { try { return window.innerWidth / zoom < ONE_COLUMN_PX; } catch (e) { return false; } });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [navQ, setNavQ] = useState(""); const [navOpen, setNavOpen] = useState(false); const [userMenuOpen, setUserMenuOpen] = useState(false); const [notif, setNotif] = useState(null);
@@ -267,13 +301,16 @@ export default function AdminDashboard() {
     const userPreference = () => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } };
     const applyResponsive = () => {
       if (typeof window === "undefined") return;
-      if (window.innerWidth < NARROW_BREAKPOINT_PX) setSidebarCollapsed(true);
+      // The page's own width, which is the window's divided by whatever the text is zoomed by.
+      const own = window.innerWidth / zoom;
+      setPageNarrow(own < ONE_COLUMN_PX);
+      if (own < NARROW_BREAKPOINT_PX) setSidebarCollapsed(true);
       else setSidebarCollapsed(userPreference());
     };
     applyResponsive();
     window.addEventListener("resize", applyResponsive);
     return () => window.removeEventListener("resize", applyResponsive);
-  }, []);
+  }, [zoom]);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
   useEffect(() => {
@@ -284,6 +321,13 @@ export default function AdminDashboard() {
     } catch (e) {}
   }, [t.bg]);
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
+  const textSizeChoice = (compact) => (<div style={{ padding: compact ? "6px 10px 8px" : 0 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>Text size</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={x.label}
+        style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>); })}
+    </div>
+  </div>);
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
@@ -386,17 +430,18 @@ export default function AdminDashboard() {
     try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
-  if (authChecking) return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>Loading...</div>);
-  if (!token) return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
+  if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>Loading...</div>);
+  if (!token) return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>Admin Dashboard</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />Connected to Live API</div></div>
         <LoginForm onLogin={handleLogin} loading={loading} t={t} />
       </div>
+      <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
     </div>
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -445,9 +490,9 @@ export default function AdminDashboard() {
   const SB_TEXT_ACTIVE = themeMode === "light" ? PANEL_LIGHT : GO;
   const SB_STRIPE = themeMode === "light" ? LIGHT.goldText : GO;
 
-  return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
+  return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
-    <div style={{ width: SB_W, height: "100vh", background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
+    <div style={{ width: SB_W, height: vh(100, zoom), background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
 
       {/* Logo + collapse toggle */}
       <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid " + SB_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
@@ -547,21 +592,21 @@ export default function AdminDashboard() {
     </div>
 
     {/* ===== MAIN CONTENT ===== */}
-    <div style={{ flex: 1, marginLeft: SB_W, minHeight: "100vh", display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease" }}>
+    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", ...(zoom === 1 ? {} : { minWidth: 0 }) }}>
       {/* Top Bar */}
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{pageLabels[page] || "Dashboard"}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pageLabels[page] || "Dashboard"}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? `${clientConfig.company.shortName} Admin` : `${clientConfig.company.shortName} Supervisor`}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ position: "relative" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 14px", width: 200 }}>
+          <div style={{ position: "relative", minWidth: 132 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 14px", width: 200, maxWidth: "100%" }}>
               <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
               <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder="Search pages" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
             </div>
             {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
-              <div style={{ position: "absolute", top: 44, right: 0, width: 240, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
+              <div style={{ position: "absolute", top: 44, right: 0, width: 240, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
                 {matches.slice(0, 8).map(it => { const NI = it.i; return (
                   <button key={it.id} onClick={() => { setPage(it.id); setNavQ(""); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><NI sz={16} c={t.goldText} /><span>{it.l}</span></button>
                 ); })}
@@ -584,9 +629,10 @@ export default function AdminDashboard() {
               <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
             </button>
             {userMenuOpen && (
-              <div style={{ position: "absolute", top: 48, right: 0, width: 210, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
+              <div style={{ position: "absolute", top: 48, right: 0, width: 210, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? "Administrator" : "Supervisor"}</div></div>
                 {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
+                <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
                 <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
               </div>
             )}
@@ -620,7 +666,7 @@ export default function AdminDashboard() {
     </div>
 
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
 }
 
@@ -1200,7 +1246,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Timeline Detail Modal (Session 18) */}
       {tlDetailLoading && <Mdl t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading record details...</div></Mdl>}
-      {tlDetail && !tlDetailLoading && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "80vh", overflow: "auto" }}>
+      {tlDetail && !tlDetailLoading && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "calc(80vh / var(--zoom, 1))", overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Record Detail</div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -2245,7 +2291,7 @@ function ChatPage({ af, user, t }) {
   const activeDm = dms.find(dm => dm.channelId === sel);
   return (<div>
     <SecT t={t}>Messages</SecT>
-    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh - 168px)", minHeight: 420 }}>
+    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 420 }}>
       <div style={{ width: 300, borderRight: "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Private conversations</div>
@@ -2525,7 +2571,7 @@ function HelpPage({ af, uf, showToast, t }) {
       {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>Still needed before you can submit:</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
     </Crd>}
     {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>Report submitted.</div>}
-    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh - 168px)", minHeight: 360 }}>
+    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 360 }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
         {thread.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Tell me what happened and I will tell you what to do.</div>}
         {thread.map(m => { const isMe = m.role === "user"; return (
@@ -2783,7 +2829,7 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
 
   return (<>
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
-    <div ref={boxRef} role="dialog" aria-label="Notifications" style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw - 32px))", maxHeight: "70vh", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
+    <div ref={boxRef} role="dialog" aria-label="Notifications" style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw / var(--zoom, 1) - 32px))", maxHeight: "calc(70vh / var(--zoom, 1))", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid " + t.border, position: "sticky", top: 0, background: t.card }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>Notifications</div>
         <button onClick={markAll} disabled={busy || unread === 0} style={{ minHeight: 44, padding: "0 10px", background: "none", border: "none", color: unread === 0 ? t.textMut : t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: unread === 0 ? "default" : "pointer" }}>Mark all read</button>

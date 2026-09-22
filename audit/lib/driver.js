@@ -51,11 +51,16 @@ const INIT = `(() => {
   window.addEventListener("error", (e) => { window.__audit.consoleErrors.push(String(e.message)); });
 })();`;
 
+// The side panel, which is the one fixed box as tall as the window. Its height is written as a
+// calc when the text is made larger, so both spellings are matched.
+const SIDEBAR = "div[style*='position: fixed'][style*='border-right']";
 const VIEWPORTS = { wide: { width: 1280, height: 900 }, narrow: { width: 1024, height: 900 } };
-const THEME_SEED = (mode) => '(() => { try { localStorage.setItem("ocsa-theme", ' + JSON.stringify(mode) + '); } catch (e) {} })();';
+const THEME_SEED = (mode, size) => '(() => { try { localStorage.setItem("ocsa-theme", ' + JSON.stringify(mode)
+  + '); localStorage.setItem("ocsa-text-size", ' + JSON.stringify(size) + '); } catch (e) {} })();';
 
-async function createDriver({ browser, origin, stubs, viewport, theme }) {
+async function createDriver({ browser, origin, stubs, viewport, theme, textSize }) {
   const mode = theme === "light" ? "light" : "dark";
+  const size = textSize || "standard";
   const context = await browser.newContext({
     viewport: VIEWPORTS[viewport] || VIEWPORTS.wide,
     timezoneId: seed.TIMEZONE,
@@ -69,7 +74,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme }) {
   await context.addInitScript(INIT);
   // The app reads this key before its first render, so the theme is seeded here rather than toggled
   // on screen. signOutHard puts it back, since clearing storage would otherwise drop it.
-  await context.addInitScript(THEME_SEED(mode));
+  await context.addInitScript(THEME_SEED(mode, size));
 
   // Nothing leaves the machine. Fonts and the QR image service are answered locally so a run works
   // with the network switched off.
@@ -110,6 +115,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme }) {
     page, context, stubs, pageErrors,
     viewport: viewport || "wide",
     theme: mode,
+    textSize: size,
 
     async close() { await context.close(); },
 
@@ -150,7 +156,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme }) {
     // signIn is a real load.
     async signOutHard() {
       if (page.url().indexOf(origin) !== 0) await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-      await page.evaluate((m) => { try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem("ocsa-theme", m); } catch (e) {} }, mode);
+      await page.evaluate((s) => { try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem("ocsa-theme", s.mode); localStorage.setItem("ocsa-text-size", s.size); } catch (e) {} }, { mode, size });
       await page.goto("about:blank");
     },
 
@@ -260,27 +266,27 @@ async function createDriver({ browser, origin, stubs, viewport, theme }) {
     },
 
     async visibleNavItems() {
-      return page.evaluate(() => {
-        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+      return page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
         if (!sb) return [];
         return Array.from(sb.querySelectorAll("button, a"))
           .map((b) => ((b.innerText || "").trim() || b.getAttribute("title") || "").trim())
           .filter(Boolean);
-      });
+      }, SIDEBAR);
     },
     async sidebarCollapsed() {
-      return page.evaluate(() => {
-        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+      return page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
         return sb ? sb.getBoundingClientRect().width < 100 : false;
-      });
+      }, SIDEBAR);
     },
 
     // ---- the user menu ---------------------------------------------------
     // The trigger is the avatar chip in the top bar, which carries the person's initials and first
     // name. The sidebar shows the same first name, so the sidebar is excluded by position.
     async openUserMenu() {
-      const clicked = await page.evaluate(() => {
-        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+      const clicked = await page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
         const btns = Array.from(document.querySelectorAll("button")).filter((b) => {
           if (sb && sb.contains(b)) return false;
           if (b.offsetParent === null) return false;
@@ -303,14 +309,25 @@ async function createDriver({ browser, origin, stubs, viewport, theme }) {
 
     // The collapse toggle in the sidebar head. At 1024 the app starts collapsed, so a case that
     // reads nav labels expands it first.
-    async expandSidebar() {
-      if (!(await this.sidebarCollapsed())) return true;
-      await page.evaluate(() => {
-        const sb = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+    async collapseSidebar() {
+      if (await this.sidebarCollapsed()) return true;
+      await page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
         if (!sb) return;
         const b = sb.querySelector("button");
         if (b) b.click();
-      });
+      }, SIDEBAR);
+      await this.settle(260);
+      return this.sidebarCollapsed();
+    },
+    async expandSidebar() {
+      if (!(await this.sidebarCollapsed())) return true;
+      await page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
+        if (!sb) return;
+        const b = sb.querySelector("button");
+        if (b) b.click();
+      }, SIDEBAR);
       await this.settle(260);
       return !(await this.sidebarCollapsed());
     },

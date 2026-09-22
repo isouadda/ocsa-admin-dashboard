@@ -1,4 +1,12 @@
 {
-  "note": "The list is empty. Both failures the light and focus cases recorded when they were written are fixed, and each entry came off with its fix. A known failure prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
-  "failures": []
+  "note": "Failures the app has today that the commit adding the case does not fix. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
+  "failures": [
+    {
+      "id": "the-staff-page-runs-off-the-side-at-1024",
+      "match": "^page/staff/(admin|superAdmin) @1024( light)?/no-sideways-scroll$",
+      "shows": "At a 1024 pixel window the Staff Management page is 17 pixels wider than the window, so the whole page scrolls sideways. It happens with the side panel collapsed, which is what the app does at that width, in both themes and at every text size, for the two people who can open the page.",
+      "why": "The main column beside the panel is a flex child with the default min-width of auto, so it cannot be narrower than the widest thing inside it, and on this page that is 976.5 pixels where 960 are free. minWidth: 0 on that column is the fix, and it moves boxes at Standard, which this build is not allowed to do. It is a one line change for a build that is allowed to move them.",
+      "where": "src/App.js:550, the main column"
+    }
+  ]
 }
