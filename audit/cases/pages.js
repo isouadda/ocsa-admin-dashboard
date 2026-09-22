@@ -9,8 +9,65 @@ const seed = require("../seed");
 // no Cases, no Forms and no Settings item, and no Settings row in the user menu.
 const ADMIN_ONLY_NAV = ["Staff Management", "Cases", "Forms", "Settings"];
 
-async function run({ d, results, inventory, app, width }) {
-  const suffix = width === "narrow" ? " @1024" : "";
+// The three dark backgrounds. None of them may be painted anywhere in light mode.
+const DARK_BACKGROUNDS = ["#0A1628", "#0F1D32", "#132240"];
+
+// What the drawn page paints, read off the browser rather than off the source: the side panel, the
+// top bar, and anything painting a dark background where there should be none.
+async function painted(d) {
+  return d.page.evaluate((navies) => {
+    const hex = (c) => {
+      const m = /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/.exec(c || "");
+      if (!m) return "";
+      if (m[4] !== undefined && Number(m[4]) < 1) return "";
+      return "#" + [1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, "0")).join("").toUpperCase();
+    };
+    const bgOf = (el) => (el ? hex(getComputedStyle(el).backgroundColor) : "");
+    const panel = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+    const top = document.querySelector("div[style*='z-index: 40']");
+    const found = [];
+    const all = document.querySelectorAll("*");
+    for (let i = 0; i < all.length && found.length < 4; i += 1) {
+      const h = hex(getComputedStyle(all[i]).backgroundColor);
+      if (navies.indexOf(h) >= 0) {
+        found.push(h + " on " + all[i].tagName.toLowerCase()
+          + " " + ((all[i].innerText || "").trim().slice(0, 24) || "(no text)"));
+      }
+    }
+    return { panel: bgOf(panel), top: bgOf(top), dark: found };
+  }, DARK_BACKGROUNDS);
+}
+
+// Where the keyboard is. The first element is focused by hand and everything after it is a real Tab
+// press, so what is read back is what :focus-visible draws.
+async function ringWalk(d, steps) {
+  const seen = {};
+  for (let i = 0; i < steps; i += 1) {
+    await d.page.keyboard.press("Tab");
+    const at = await d.page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      const cs = getComputedStyle(el);
+      return { tag: el.tagName, width: parseFloat(cs.outlineWidth) || 0, style: cs.outlineStyle,
+        color: cs.outlineColor, text: (el.innerText || el.getAttribute("aria-label") || "").trim().slice(0, 24) };
+    });
+    if (at && !seen[at.tag]) seen[at.tag] = at;
+  }
+  return seen;
+}
+async function outlineNow(d) {
+  return d.page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return { tag: "none", width: 0, style: "none" };
+    const cs = getComputedStyle(el);
+    return { tag: el.tagName, width: parseFloat(cs.outlineWidth) || 0, style: cs.outlineStyle,
+      text: (el.innerText || "").trim().slice(0, 24) };
+  });
+}
+
+async function run({ d, results, inventory, app, width, theme }) {
+  const light = theme === "light";
+  const suffix = (width === "narrow" ? " @1024" : "") + (light ? " light" : "");
 
   for (const persona of seed.PERSONAS) {
     const who = seed.PERSONA_LABEL[persona];
@@ -62,7 +119,58 @@ async function run({ d, results, inventory, app, width }) {
         !header ? "the header does not say " + p.label :
           bodyLen <= 40 ? "the body is only " + bodyLen + " characters" :
           newErrors.length ? "the page threw: " + newErrors[0] : "");
+
+      // Light mode is a different screen, so every page is read for what it paints.
+      if (light) {
+        const paint = await painted(d);
+        results.check("page", id + "/panel", paint.panel === "#15558F",
+          "the side panel paints " + JSON.stringify(paint.panel) + ", expected #15558F");
+        results.check("page", id + "/top-bar", paint.top === "#FFFFFF",
+          "the top bar paints " + JSON.stringify(paint.top) + ", expected #FFFFFF");
+        results.check("page", id + "/no-dark-backgrounds", paint.dark.length === 0,
+          "a dark background is painted in light mode: " + paint.dark.join(", "));
+      }
     }
+  }
+
+  // Where the keyboard is, in both themes. The window on Assigned Tasks is the one screen that
+  // carries an input, a select, a text area and buttons together.
+  if (width !== "narrow") {
+    await d.signOutHard();
+    await d.signIn("admin");
+    await d.goto("assigned");
+    const opened = await d.clickText("Create Task", { exact: false });
+    await d.page.evaluate(() => { const el = document.querySelector("div[style*='z-index: 500'] input"); if (el) el.focus(); });
+    const seen = opened ? await ringWalk(d, 26) : {};
+    for (const tag of ["INPUT", "SELECT", "TEXTAREA", "BUTTON"]) {
+      const at = seen[tag];
+      results.check("page", "page/focus-ring/" + tag.toLowerCase() + suffix,
+        !!at && at.width >= 2 && at.style !== "none",
+        !opened ? "the window would not open" : !at ? "the keyboard never reached a " + tag.toLowerCase()
+          : "a " + tag.toLowerCase() + " reached by keyboard draws outline " + at.width + "px " + at.style);
+    }
+    await d.closeModal();
+
+    // A sidebar item, reached the same way.
+    await d.goto("overview");
+    await d.expandSidebar();
+    await d.page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === "Dashboard");
+      if (b) b.focus();
+    });
+    await d.page.keyboard.press("Tab");
+    const nav = await outlineNow(d);
+    results.check("page", "page/focus-ring/sidebar-item" + suffix, nav.width >= 2 && nav.style !== "none",
+      "a sidebar item reached by keyboard draws outline " + nav.width + "px " + nav.style + " on " + nav.tag);
+
+    // A mouse click draws nothing on a button, which is what :focus-visible is for.
+    await d.goto("overview");
+    await d.clickText("Dashboard", { anywhere: true, exact: true });
+    await d.settle(200);
+    const clicked = await outlineNow(d);
+    results.check("page", "page/focus-ring/no-ring-on-a-clicked-button" + suffix,
+      clicked.tag !== "BUTTON" || clicked.width === 0,
+      "a button clicked with the mouse draws outline " + clicked.width + "px " + clicked.style);
   }
 
   // A hash the app does not know falls back to the Dashboard rather than a blank screen.

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { detectInstallMode, shouldShowInstallPrompt, rememberInstallChoice, INSTALL_STEPS } from './installPromptLogic';
+import clientConfig from './clientConfig';
 
 // The "add to home screen" sheet. Mounted once at the root, so it appears on every screen including
 // sign-in. It imports nothing from App.js and uses the system font, so it renders the same whatever
@@ -9,7 +10,7 @@ const SETTLE_MS = 1500;
 const INSTALL_EVENT_WAIT_MS = 3000;
 const FONT = '-apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 const NAVY = '#0A1628';
-const BLUE = '#15558F';
+const BLUE = clientConfig.brand.panelLight;
 
 function isStandalone() {
   try {

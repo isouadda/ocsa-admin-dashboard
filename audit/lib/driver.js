@@ -52,19 +52,24 @@ const INIT = `(() => {
 })();`;
 
 const VIEWPORTS = { wide: { width: 1280, height: 900 }, narrow: { width: 1024, height: 900 } };
+const THEME_SEED = (mode) => '(() => { try { localStorage.setItem("ocsa-theme", ' + JSON.stringify(mode) + '); } catch (e) {} })();';
 
-async function createDriver({ browser, origin, stubs, viewport }) {
+async function createDriver({ browser, origin, stubs, viewport, theme }) {
+  const mode = theme === "light" ? "light" : "dark";
   const context = await browser.newContext({
     viewport: VIEWPORTS[viewport] || VIEWPORTS.wide,
     timezoneId: seed.TIMEZONE,
     locale: "en-US",
-    colorScheme: "dark",
+    colorScheme: mode,
     acceptDownloads: true,
   });
   // Only Date is frozen. clock.install replaces setTimeout as well, which pauses the timers the app
   // fires a print export and a toast dismissal inside, so it is deliberately not used.
   await context.clock.setFixedTime(FIXED);
   await context.addInitScript(INIT);
+  // The app reads this key before its first render, so the theme is seeded here rather than toggled
+  // on screen. signOutHard puts it back, since clearing storage would otherwise drop it.
+  await context.addInitScript(THEME_SEED(mode));
 
   // Nothing leaves the machine. Fonts and the QR image service are answered locally so a run works
   // with the network switched off.
@@ -104,6 +109,7 @@ async function createDriver({ browser, origin, stubs, viewport }) {
   const d = {
     page, context, stubs, pageErrors,
     viewport: viewport || "wide",
+    theme: mode,
 
     async close() { await context.close(); },
 
@@ -144,7 +150,7 @@ async function createDriver({ browser, origin, stubs, viewport }) {
     // signIn is a real load.
     async signOutHard() {
       if (page.url().indexOf(origin) !== 0) await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-      await page.evaluate(() => { try { localStorage.clear(); sessionStorage.clear(); } catch (e) {} });
+      await page.evaluate((m) => { try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem("ocsa-theme", m); } catch (e) {} }, mode);
       await page.goto("about:blank");
     },
 

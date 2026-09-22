@@ -80,8 +80,10 @@ function compressImage(file, maxSize, quality) {
 }
 
 // ===== THEME SYSTEM =====
-const FONT_HEAD = "'Montserrat',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-const FONT_BODY = "'Inter',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+// The computer's own typeface. On a Mac or an iPhone that is Apple's, on Windows it is Segoe UI.
+// Both names stay, because the screens are written in terms of them, and both point here.
+const FONT_HEAD = "-apple-system,BlinkMacSystemFont,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+const FONT_BODY = FONT_HEAD;
 const R = { sm: 8, md: 10, lg: 14, pill: 999 };
 const NAVY = clientConfig.brand.navy;
 const GOLD = clientConfig.brand.gold;
@@ -154,17 +156,17 @@ const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supp
 const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
 const Crd = ({ children, style, onClick: oc, t }) => <div onClick={oc} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, cursor: oc ? "pointer" : "default", boxShadow: t.shadow, transition: "transform .15s ease, box-shadow .15s ease", ...style }}>{children}</div>;
 const Bdg = ({ l, c }) => { const t = useT(); return <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px", padding: "3px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c) }}>{l}</span>; };
-const SecT = ({ children, action, onAction, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><PlI sz={13} c={NAVY} /> {action}</button>}</div>;
-const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", fontFamily: FONT_BODY, transition: "border-color .15s ease", ...p.style }} />;
-const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
+const SecT = ({ children, action, onAction, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><PlI sz={13} c={NAVY} /> {action}</button>}</div>;
+const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, transition: "border-color .15s ease", ...p.style }} />;
+const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
 const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
 const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>; };
 const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "85vh", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
-const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 700, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
-const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 700, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
+const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
+const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
-const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, outline: "none", resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
+const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
 const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>This page is for admins.</div><Btn t={t} v="ghost" onClick={onBack}>Back to Dashboard</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
@@ -179,11 +181,11 @@ const chartBase = (t, extra) => ({
   states: { hover: { filter: { type: "lighten", value: 0.06 } } },
   ...extra,
 });
-const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
+const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
 const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } })} />;
 const LineChartW = ({ categories, series, height = 260, t, colors }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } } })} />;
-const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 700 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
-const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 700, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
+const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
+const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 600, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
 
 // ===== DATE RANGE PICKER (shared component) =====
 function getMonday(d) { const dt = new Date(d); const day = dt.getDay(); const diff = day === 0 ? 6 : day - 1; dt.setDate(dt.getDate() - diff); dt.setHours(0,0,0,0); return dt; }
@@ -222,7 +224,7 @@ function DateRangePicker({ value, onChange, t, presets }) {
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, minWidth: 160, cursor: "pointer" }} onClick={() => setShowCustom(!showCustom)}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, minWidth: 160, cursor: "pointer" }} onClick={() => setShowCustom(!showCustom)}>
           {fmtRange(value.start, value.end)}
           <span style={{ fontSize: 10, color: t.goldText, marginLeft: 6 }}>&#9662;</span>
         </div>
@@ -247,7 +249,13 @@ export default function AdminDashboard() {
   const [token, setToken] = useState(null); const [user, setUser] = useState(null);
   const [authChecking, setAuthChecking] = useState(() => readAuth() !== null);
   const [page, setPage] = useState(() => pageFromHash()); const [route, setRoute] = useState(() => subFromHash()); const [toast, setToast] = useState(null); const [loading, setLoading] = useState(false);
-  const [themeMode, setThemeMode] = useState(() => { try { return localStorage.getItem("ocsa-theme") || "dark"; } catch { return "dark"; } });
+  // A stored choice wins. Without one the computer decides, and dark is the answer when it says
+  // nothing at all.
+  const [themeMode, setThemeMode] = useState(() => {
+    try { const stored = localStorage.getItem("ocsa-theme"); if (stored === "light" || stored === "dark") return stored; } catch {}
+    try { if (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) return "light"; } catch {}
+    return "dark";
+  });
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [navQ, setNavQ] = useState(""); const [navOpen, setNavOpen] = useState(false); const [userMenuOpen, setUserMenuOpen] = useState(false); const [notif, setNotif] = useState(null);
@@ -268,6 +276,13 @@ export default function AdminDashboard() {
   }, []);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
+  useEffect(() => {
+    try {
+      document.body.style.backgroundColor = t.bg;
+      const m = document.querySelector('meta[name="theme-color"]');
+      if (m) m.setAttribute("content", t.bg);
+    } catch (e) {}
+  }, [t.bg]);
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
@@ -319,9 +334,13 @@ export default function AdminDashboard() {
     return () => clearInterval(iv);
   }, [token, isAdmin, loadUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
+  // What a badge on the side panel is made of. The light arm is the only thing that changed.
+  const badgeRed = themeMode === "light" ? "#C62828" : RD;
+  const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
+  const badgeRing = themeMode === "light" ? { boxShadow: "0 0 0 2px #FFFFFF" } : {};
   const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
-  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#F8F7F4", fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
-  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? RD : GO, color: caseQueue.overdue > 0 ? "#F8F7F4" : NAVY, fontSize: 10, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
+  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
+  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
@@ -369,16 +388,15 @@ export default function AdminDashboard() {
   };
   if (authChecking) return (<div style={{ width: "100%", minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>Loading...</div>);
   if (!token) return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet" />
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
-        <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>Admin Dashboard</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />Connected to Live API</div></div>
+        <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>Admin Dashboard</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />Connected to Live API</div></div>
         <LoginForm onLogin={handleLogin} loading={loading} t={t} />
       </div>
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
     </div>
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -425,9 +443,9 @@ export default function AdminDashboard() {
   const SB_BORDER = themeMode === "light" ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)";
   const SB_TEXT = themeMode === "light" ? "rgba(255,255,255,0.82)" : "#8899AA";
   const SB_TEXT_ACTIVE = themeMode === "light" ? PANEL_LIGHT : GO;
+  const SB_STRIPE = themeMode === "light" ? LIGHT.goldText : GO;
 
   return (<ThemeCtx.Provider value={t}><div style={{ width: "100%", minHeight: "100vh", background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet" />
     {/* ===== SIDEBAR ===== */}
     <div style={{ width: SB_W, height: "100vh", background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
 
@@ -456,7 +474,7 @@ export default function AdminDashboard() {
                   <button
                     title={group.label}
                     onClick={() => { toggleSidebar(); setPage(firstItem.id); setCollapsedGroups(prev => { const next = new Set(prev); next.delete(group.label); return next; }); }}
-                    style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                    style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: isAnyItemActive ? SB_ACTIVE : "transparent", color: isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: isAnyItemActive ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
                     {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                     {group.items.some(item => item.id === "issues") && <OpenIssuesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
@@ -472,7 +490,7 @@ export default function AdminDashboard() {
                     const NavI = item.i;
                     return (
                       <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", transition: "all 0.15s ease" }}>
+                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                       </button>
                     );
@@ -495,7 +513,7 @@ export default function AdminDashboard() {
                 const active = page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + GO : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                  <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
@@ -517,7 +535,7 @@ export default function AdminDashboard() {
         {!sidebarCollapsed ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
+              <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
               <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
             </div>
             <button onClick={signOut} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
@@ -533,14 +551,14 @@ export default function AdminDashboard() {
       {/* Top Bar */}
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, letterSpacing: ".2px" }}>{pageLabels[page] || "Dashboard"}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{pageLabels[page] || "Dashboard"}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? `${clientConfig.company.shortName} Admin` : `${clientConfig.company.shortName} Supervisor`}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ position: "relative" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 14px", width: 200 }}>
               <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder="Search pages" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder="Search pages" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
             </div>
             {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
               <div style={{ position: "absolute", top: 44, right: 0, width: 240, background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
@@ -554,14 +572,14 @@ export default function AdminDashboard() {
           <div style={{ position: "relative" }}>
             <button onClick={() => setBellOpen(o => !o)} aria-label={unread > 0 ? unread + " unread notifications" : "Notifications"} title="Notifications" style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
-              {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
+              {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
             {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast("That one is for admins. Ask an admin to take a look.", "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
             <button onClick={() => { setUserMenuOpen(o => !o); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px 4px 4px", borderRadius: 22, background: t.inputBg, border: "1px solid " + t.inputBorder, cursor: "pointer" }}>
-              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: t.goldText, fontFamily: FONT_HEAD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
+              <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: t.goldText, fontFamily: FONT_HEAD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
               <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{user?.firstName}</span>
               <Ic d="M6 9l6 6 6-6" sz={14} c={t.textMut} />
             </button>
@@ -602,7 +620,7 @@ export default function AdminDashboard() {
     </div>
 
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
 }
 
@@ -610,16 +628,16 @@ function LoginForm({ onLogin, loading, t }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
   return (<><div style={{ marginBottom: 16 }}><Lbl>Phone or Email</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder="2150000000 or name@email.com" onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <div style={{ marginBottom: 24 }}><Lbl>PIN</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 700, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? "Signing in..." : "Sign In"}</button>
+    <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? "Signing in..." : "Sign In"}</button>
   </>);}
 
-const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
+const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
-const DataTable = ({ columns, rows, rowKey, onRowClick, empty = "No records found.", footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
+const DataTable = ({ columns, rows, rowKey, onRowClick, empty = "No records found.", footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
 const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>Showing {from} to {to} of {total}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>Prev</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>Page {cur} / {totalPages}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>Next</button></div></div>; };
 
-const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: t.goldText, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
+const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: t.goldText, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
 
 const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ display: "flex", gap: 12 }}><div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>{node}{!last && <div style={{ flex: 1, width: 2, background: t.border, marginTop: 4, minHeight: 12, borderRadius: 1 }} />}</div><div onClick={onClick} onMouseEnter={onClick ? (e => e.currentTarget.style.background = t.hover) : undefined} onMouseLeave={onClick ? (e => e.currentTarget.style.background = "transparent") : undefined} style={{ flex: 1, minWidth: 0, paddingTop: 2, paddingBottom: 14, paddingLeft: onClick ? 8 : 0, paddingRight: onClick ? 8 : 0, marginLeft: onClick ? -8 : 0, borderRadius: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.12s" }}>{children}</div></div>;
 
@@ -640,7 +658,7 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
   if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
   return (<div>
-    <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 700, marginBottom: 2, color: t.text }}>Welcome back, {user?.firstName || "Admin"}</div>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>Welcome back, {user?.firstName || "Admin"}</div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>Operations overview.</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> Refresh</button></div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
       <SC t={t} label="Started today" value={stats.clockedInNow} sub={"of " + stats.activeStaff + " active"} color={GR} icon={CkI} />
@@ -1163,7 +1181,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
               const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
-              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 700, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
+              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
                 <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1184,7 +1202,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       {tlDetailLoading && <Mdl t={t} onClose={() => setTlDetailLoading(false)}><div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading record details...</div></Mdl>}
       {tlDetail && !tlDetailLoading && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20, maxHeight: "80vh", overflow: "auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Record Detail</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Record Detail</div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
             <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
@@ -1237,20 +1255,20 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* Modals that need to work inside profile view */}
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Reset PIN</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Reset PIN</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>Enter a new 4-digit PIN for this staff member.</div>
         <div style={{ marginBottom: 16 }}><Lbl>New PIN (4 digits)</Lbl><Inp t={t} value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setResetPin(null)}>Cancel</Btn><Btn t={t} onClick={() => submitResetPin(resetPin)}>Reset PIN</Btn></div>
       </div></Mdl>}
       {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Assign to Site</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Assign to Site</div>
         <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={assignForm.siteId} onChange={e => setAssignForm({ ...assignForm, siteId: e.target.value })} options={[{ v: "", l: "Select..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Role at Site</Lbl><Sel t={t} value={assignForm.role} onChange={e => setAssignForm({ ...assignForm, role: e.target.value })} options={getOpts("site_roles", "Select role...")} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Shift</Lbl><Sel t={t} value={assignForm.shift} onChange={e => setAssignForm({ ...assignForm, shift: e.target.value })} options={getOpts("shift_names", "Select shift...")} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Start</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>End</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignForm(null)}>Cancel</Btn><Btn t={t} onClick={assignSite}>Assign</Btn></div></div></Mdl>}
       {addCert && <Mdl t={t} onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Certification</div><button onClick={() => setAddCert(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Certification</div><button onClick={() => setAddCert(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>Certification Name *</Lbl><Inp t={t} value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder="e.g. Green Cleaning Fundamentals" /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={getOpts("certification_types")} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Issuing Body</Lbl><Inp t={t} value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder="e.g. ISSA, OSHA" /></div>
@@ -1271,7 +1289,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: staff.length, color: t.goldText }, { id: "active", label: "Active", count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: "Pending", count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: "Inactive", count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: "All roles" }, ...getOpts("staff_roles")]} /></div>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search name, ID, phone, role" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search name, ID, phone, role" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -1292,11 +1310,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: "Role", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleLabels[s.role] || RL[s.role] || s.role },
         { header: "Employment", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? (ET[s.employmentType] || s.employmentType) : "-" },
         { header: "Sites", tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : "No sites" },
-        { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Approve</button>}<button title="Edit" onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title="View profile" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Approve</button>}<button title="Edit" onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title="View profile" onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty="No staff match these filters." footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add New Staff</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add New Staff</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>First Name *</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Phone *</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder="2155550000 (no dashes needed)" /></div>
@@ -1306,7 +1324,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 16 }}><Lbl>Employment Type</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={[{v:"",l:"Unspecified"},{v:"full_time",l:"Full Time"},{v:"part_time",l:"Part Time"},{v:"supplemental",l:"Supplemental"}]} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Staff</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Staff Info</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Staff Info</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>First Name</Lbl><Inp t={t} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Last Name</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Phone</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
@@ -1683,7 +1701,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
               <MpI sz={24} c={t.goldText} />
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.text }}>{s.name}</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{s.name}</div>
               <Bdg l={s.status} c={s.status === "active" ? GR : OR} />
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
@@ -1695,10 +1713,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
-          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: t.goldText }}>{sp.staff.length}</div><div style={{ fontSize: 10, color: t.textMut }}>Staff</div></div>
-          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: BL }}>{sp.taskCount}</div><div style={{ fontSize: 10, color: t.textMut }}>Tasks</div></div>
-          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score (30d)</div></div>
-          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: RD }}>{parseInt(sp.issueSummary?.open_count || 0) + parseInt(sp.issueSummary?.in_progress_count || 0)}</div><div style={{ fontSize: 10, color: t.textMut }}>Open Issues</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.goldText }}>{sp.staff.length}</div><div style={{ fontSize: 10, color: t.textMut }}>Staff</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: BL }}>{sp.taskCount}</div><div style={{ fontSize: 10, color: t.textMut }}>Tasks</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score (30d)</div></div>
+          <div style={{ textAlign: "center", padding: "10px 0", background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: RD }}>{parseInt(sp.issueSummary?.open_count || 0) + parseInt(sp.issueSummary?.in_progress_count || 0)}</div><div style={{ fontSize: 10, color: t.textMut }}>Open Issues</div></div>
         </div>
       </Crd>
 
@@ -1709,7 +1727,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* GENERAL INFO TAB */}
       {siteTab === "general" && <div>
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Contract Details</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Contract Details</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Type</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.contract_type || "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Prime Contractor</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.prime_contractor || "N/A"}</div></div>
@@ -1731,7 +1749,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </Crd>
 
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Client Contact</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Client Contact</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Name</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_contact_name || "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Email</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_contact_email || "N/A"}</div></div>
@@ -1740,7 +1758,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </Crd>
 
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Assigned Staff ({sp.staff.length})</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Assigned Staff ({sp.staff.length})</div>
           {sp.staff.map((st2, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {st2.profile_photo_url ? <img src={st2.profile_photo_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : <Ini name={st2.first_name + " " + st2.last_name} sz={32} />}
@@ -1752,13 +1770,13 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </Crd>
 
         {sp.zones.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Zones</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Zones</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{sp.zones.map(z => <span key={z} style={{ padding: "4px 10px", borderRadius: 6, background: t.cardAlt, border: "1px solid " + t.border, fontSize: 11, color: t.textSec }}>{z}</span>)}</div>
         </Crd>}
 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Floor Plans ({sp.floorPlans.length})</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Floor Plans ({sp.floorPlans.length})</div>
           </div>
           {sp.floorPlans.map(fp => <div key={fp.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1777,7 +1795,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </Crd>
 
         {s.site_notes && <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 8 }}>Notes</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>Notes</div>
           <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "pre-wrap", lineHeight: 1.6 }}>{s.site_notes}</div>
         </Crd>}
       </div>}
@@ -1785,7 +1803,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* SERVICE DETAILS TAB (Tasks) */}
       {siteTab === "tasks" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Tasks ({st.length})</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>Tasks ({st.length})</div>
           <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> Add Task</button>
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
@@ -1806,25 +1824,25 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* SHIFTS & SCHEDULE TAB */}
       {siteTab === "shifts" && <div>
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Marketplace Coverage (Last 30 Days)</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Marketplace Coverage (Last 30 Days)</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: t.goldText }}>{sp.marketplaceSummary?.total_pickups || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Total Pickups</div></div>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: GR }}>{sp.marketplaceSummary?.worked || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Worked</div></div>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: OR }}>{sp.marketplaceSummary?.pending || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Pending</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.goldText }}>{sp.marketplaceSummary?.total_pickups || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Total Pickups</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: GR }}>{sp.marketplaceSummary?.worked || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Worked</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: OR }}>{sp.marketplaceSummary?.pending || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Pending</div></div>
           </div>
         </Crd>
 
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Inspections (Last 30 Days)</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Inspections (Last 30 Days)</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.total || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Inspections</div></div>
-            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.total || 0}</div><div style={{ fontSize: 10, color: t.textMut }}>Inspections</div></div>
+            <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: TL }}>{sp.inspectionSummary?.avg_score || "N/A"}</div><div style={{ fontSize: 10, color: t.textMut }}>Avg Score</div></div>
             <div style={{ textAlign: "center", padding: 10, background: t.hover, borderRadius: 8 }}><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{sp.inspectionSummary?.last_inspection ? fd(sp.inspectionSummary.last_inspection) : "None"}</div><div style={{ fontSize: 10, color: t.textMut }}>Last Inspection</div></div>
           </div>
         </Crd>
 
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Upcoming Shifts (Next 7 Days)</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Upcoming Shifts (Next 7 Days)</div>
           {sp.upcomingShifts.length > 0 ? sp.upcomingShifts.map((sh, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
             <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.scheduled_date ? fd(sh.scheduled_date) : ""}</div></div>
             <div style={{ fontSize: 11, color: t.textSec }}>{sh.start_time || ""} {sh.end_time ? " - " + sh.end_time : ""}</div>
@@ -1836,7 +1854,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {siteTab === "supplies" && <div>
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Supplies at This Site ({sp.supplies.length})</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Supplies at This Site ({sp.supplies.length})</div>
             {isAdmin && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> Add Supply</button>}
           </div>
           {sp.supplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
@@ -1856,7 +1874,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </Crd>
 
         {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Supply to Site</div><button onClick={() => setShowAddSupply(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Supply to Site</div><button onClick={() => setShowAddSupply(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
           {addSupplyLoading && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>Loading...</div>}
           {!addSupplyLoading && availableSupplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>All supplies are already assigned to this site</div>}
           {availableSupplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
@@ -1864,7 +1882,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
               <div style={{ fontSize: 13, color: t.text, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>{sup.name}{sup.is_green_certified && <Bdg l="Green" c={GR} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{sup.category} | {sup.unit} | Stock: {sup.current_stock}</div>
             </div>
-            <button onClick={() => assignSupplyToSite(sup.id)} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: GO, color: NAVY, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Add</button>
+            <button onClick={() => assignSupplyToSite(sup.id)} style={{ padding: "5px 14px", borderRadius: 6, border: "none", background: GO, color: NAVY, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Add</button>
           </div>)}
         </div></Mdl>}
       </div>}
@@ -1872,7 +1890,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* CHAT TAB */}
       {siteTab === "chat" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Site Channel Messages {siteChatChannel ? "(" + siteChatChannel.name + ")" : ""}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>Site Channel Messages {siteChatChannel ? "(" + siteChatChannel.name + ")" : ""}</div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={printSiteChat} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
           </div>
@@ -1898,7 +1916,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* SCOPE OF WORK TAB */}
       {siteTab === "scope" && <div>
         <Crd t={t} style={{ marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Scope of Work</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Scope of Work</div>
           {s.scope_of_work ? <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{s.scope_of_work}</div> : <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>No scope of work documented yet.</div>}
           {isAdmin && <div style={{ marginTop: 12 }}>
             <TArea t={t} rows={10} defaultValue={s.scope_of_work || ""} id="scopeEdit" placeholder="Document the scope of work for this site..." />
@@ -1933,7 +1951,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             grouped[day].push(e);
           });
           return Object.entries(grouped).map(([day, entries]) => <div key={day} style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: t.textMut, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>{day}</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: t.textMut, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.5px" }}>{day}</div>
             {entries.map(e => {
               const cat = getTlCategory(e.actionType);
               const dotColor = tlColorMap[cat] || t.textMut;
@@ -1954,7 +1972,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {/* TIMELINE DETAIL MODAL */}
       {tlDetail && <Mdl t={t} onClose={() => setTlDetail(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Record Detail</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Record Detail</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
             <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
@@ -1966,7 +1984,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <div style={{ marginTop: 4 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
         </div>
         {tlDetail.record && <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Record Fields</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Record Fields</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
@@ -1978,11 +1996,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>
         </div>}
         {tlDetail.photos && tlDetail.photos.length > 0 && <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Photos ({tlDetail.photos.length})</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{tlDetail.photos.map((p, i) => <img key={i} src={p.photo_url || p.file_url || ""} alt="" style={{ maxWidth: 200, maxHeight: 150, borderRadius: 8, objectFit: "cover" }} />)}</div>
         </div>}
         {tlDetail.relatedItems && tlDetail.relatedItems.length > 0 && <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Related Items ({tlDetail.relatedItems.length})</div>
           {tlDetail.relatedItems.map((item, i) => <div key={i} style={{ padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3, fontSize: 11, color: t.textSec }}>{Object.entries(item).filter(([k]) => k !== "id" && k !== "items" && !k.endsWith("_id")).slice(0, 4).map(([k, v]) => k.replace(/_/g, " ") + ": " + (v !== null ? String(v).substring(0, 60) : "")).join(" | ")}</div>)}
         </div>}
         {!tlDetail.found && !tlDetailLoading && <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>Source record not found. The original data may have been deleted.</div>}
@@ -1990,16 +2008,16 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
       {/* EDIT SITE MODAL */}
       {editSite && <Mdl t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Site Details</div><button onClick={() => setEditSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Site Details</div><button onClick={() => setEditSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>Site Name</Lbl><Inp t={t} value={editSite.name} onChange={e => setEditSite({ ...editSite, name: e.target.value })} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Address</Lbl><Inp t={t} value={editSite.addressLine1} onChange={e => setEditSite({ ...editSite, addressLine1: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>City</Lbl><Inp t={t} value={editSite.city} onChange={e => setEditSite({ ...editSite, city: e.target.value })} /></div><div><Lbl>State</Lbl><Inp t={t} value={editSite.state} onChange={e => setEditSite({ ...editSite, state: e.target.value })} /></div><div><Lbl>Zip</Lbl><Inp t={t} value={editSite.zipCode} onChange={e => setEditSite({ ...editSite, zipCode: e.target.value })} /></div></div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: t.goldText, marginBottom: 8, marginTop: 4 }}>Contract</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>Contract</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Contract Type</Lbl><Sel t={t} value={editSite.contractType} onChange={e => setEditSite({ ...editSite, contractType: e.target.value })} options={getOpts("contract_types")} /></div><div><Lbl>Prime Contractor</Lbl><Inp t={t} value={editSite.primeContractor} onChange={e => setEditSite({ ...editSite, primeContractor: e.target.value })} /></div></div>
         <div style={{ marginBottom: 12 }}><Lbl>Client Name</Lbl><Inp t={t} value={editSite.clientName} onChange={e => setEditSite({ ...editSite, clientName: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Monthly Value ($)</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div><div><Lbl>Billing</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: "Monthly" }, { v: "weekly", l: "Weekly" }, { v: "biweekly", l: "Bi-Weekly" }, { v: "quarterly", l: "Quarterly" }, { v: "annual", l: "Annual" }]} /></div><div><Lbl>Start Date</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }}><div><Lbl>End Date</Lbl><Inp t={t} type="date" value={editSite.contractEndDate} onChange={e => setEditSite({ ...editSite, contractEndDate: e.target.value })} /></div></div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: t.goldText, marginBottom: 8, marginTop: 4 }}>Client Contact</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>Client Contact</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Contact Name</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>Email</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>Phone</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
         <div style={{ marginBottom: 16 }}><Lbl>Site Notes</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSite(null)}>Cancel</Btn><Btn t={t} onClick={async () => {
@@ -2011,7 +2029,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       </div></Mdl>}
 
       {/* ADD TASK MODAL */}
-      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Task</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Task</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>Description *</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder="e.g. Vacuum carpets" /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone *</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder="e.g. Restrooms" /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Service Category</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
@@ -2026,7 +2044,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
       {/* EDIT TASK MODAL */}
       {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Task</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>Task Name</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder="e.g. 1, 2, B" /></div><div><Lbl>Zone</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Service Category</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories")} /></div><div><Lbl>Priority</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Task Type</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: "Daily Checklist" }, { v: "assigned", l: "One-Off Assigned" }]} /></div></div>
@@ -2042,9 +2060,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
       {/* DELETE SITE MODAL */}
       {deleteConfirm && <Mdl t={t} onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: RD, marginBottom: 12 }}>Permanently Delete Site</div>
-        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>This will permanently remove <span style={{ fontWeight: 700, color: t.text }}>{deleteConfirm.name}</span> and all associated tasks, assignments, and data. This action cannot be undone.</div>
-        <div style={{ padding: "10px 12px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14 }}>Type <span style={{ fontWeight: 700 }}>DELETE</span> to confirm.</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD, marginBottom: 12 }}>Permanently Delete Site</div>
+        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>This will permanently remove <span style={{ fontWeight: 600, color: t.text }}>{deleteConfirm.name}</span> and all associated tasks, assignments, and data. This action cannot be undone.</div>
+        <div style={{ padding: "10px 12px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14 }}>Type <span style={{ fontWeight: 600 }}>DELETE</span> to confirm.</div>
         <div style={{ marginBottom: 16 }}><Inp t={t} value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder="Type DELETE here" style={{ textTransform: "uppercase", textAlign: "center", fontSize: 16, letterSpacing: "4px", border: deleteText === "DELETE" ? "1px solid " + RD : "1px solid " + t.inputBorder }} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <Btn t={t} v="ghost" onClick={() => { setDeleteConfirm(null); setDeleteText(""); }}>Cancel</Btn>
@@ -2059,7 +2077,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     <SecT t={t} action={isAdmin ? "Add Site" : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>Sites</SecT>
     {isAdmin && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: sites.length, color: t.goldText }, { id: "active", label: "Active", count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: "Inactive", count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search site, address, contract" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search site, address, contract" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -2073,7 +2091,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: "Site", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
+        { header: "Site", render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "grid", placeItems: "center", flexShrink: 0 }}><MpI sz={18} c={t.goldText} /></div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.name}</div>{s.address_line1 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{s.address_line1}</div>}</div></div> },
         { header: "Staff", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.staff_count != null ? s.staff_count + " staff" : "-" },
         { header: "Tasks", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.task_count != null ? s.task_count + " tasks" : "-" },
         { header: "Contract", tdStyle: { color: t.textSec, whiteSpace: "nowrap", textTransform: "capitalize" }, render: s => s.contract_type || "-" },
@@ -2083,7 +2101,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty="No sites found." footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
-    {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Site</div><button onClick={() => setAddSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+    {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Site</div><button onClick={() => setAddSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={addSite.name} onChange={e => setAddSite({ ...addSite, name: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Address *</Lbl><Inp t={t} value={addSite.address} onChange={e => setAddSite({ ...addSite, address: e.target.value })} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>City</Lbl><Inp t={t} value={addSite.city} onChange={e => setAddSite({ ...addSite, city: e.target.value })} /></div><div><Lbl>State</Lbl><Inp t={t} value={addSite.state} onChange={e => setAddSite({ ...addSite, state: e.target.value })} /></div><div><Lbl>Zip</Lbl><Inp t={t} value={addSite.zip} onChange={e => setAddSite({ ...addSite, zip: e.target.value })} /></div></div>
@@ -2113,7 +2131,7 @@ function OpsPage({ af, t, allStaff }) {
     </div>
     {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? "No shifts started yet today." : "No shifts started " + dayLabel + "."}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{site.siteName}</div><Bdg l={site.people.length + " started"} c={GR} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={site.people.length + " started"} c={GR} /></div>
       {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
         <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] || p.role}{place ? ", " + place : ""}</div></div>
@@ -2149,8 +2167,8 @@ function IssuesPage({ af, showToast, t, allStaff }) {
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>Assigned to: {iss.assigned_to_name}</div>}
     </Crd>)}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Issue Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, marginBottom: 8, color: t.text }}>{sel.title}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Issue Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.title}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sel.severity} c={sC[sel.severity]} /><Bdg l={sel.status?.replace("_", " ")} c={stC[sel.status] || t.textMut} /></div>
       {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -2174,7 +2192,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
       </div></div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{assignTask.isReassign ? "Reassign Issue" : "Assign Issue as Task"}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? "Reassign Issue" : "Assign Issue as Task"}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>The task will appear in the staff member's "Assigned Tasks" tab where they can mark it as in progress, resolved, or unable to resolve.</div>
       <div style={{ marginBottom: 12 }}><Lbl>Assign To *</Lbl><Sel t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -2210,9 +2228,9 @@ function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkHasOther }) {
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No supplies configured.{isAdmin ? ' Click "Add Supply" to start.' : ""}</div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{r.request_type === "refill" ? "Refill Request" : r.request_type === "damage_report" ? "Damage Report" : r.request_type === "new_gear" ? "New Gear Request" : "New Supply Request"}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || "General"} {r.site_name ? "at " + r.site_name : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Approve</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Deny</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No supply requests yet.</div>}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div><div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category *</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit *</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Supply</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}<div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div></div></Mdl>}
-    {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div><div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div></div></Mdl>}
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div><div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category *</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit *</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Supply</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}<div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div></div></Mdl>}
+    {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div><div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div></div></Mdl>}
   </div>);
 }
 
@@ -2230,10 +2248,10 @@ function ChatPage({ af, user, t }) {
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh - 168px)", minHeight: 420 }}>
       <div style={{ width: 300, borderRight: "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 10 }}>Private conversations</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Private conversations</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 12px" }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search staff" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search staff" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
@@ -2243,7 +2261,7 @@ function ChatPage({ af, user, t }) {
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.staffName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || "No messages yet"}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || "No messages yet"}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
               </div>
             </button>
           ); })}
@@ -2253,13 +2271,13 @@ function ChatPage({ af, user, t }) {
         {!sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Your messages</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Your messages</div>
             <div style={{ fontSize: 12, marginTop: 4 }}>Pick a conversation on the left to start.</div>
           </div>
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + t.border }}>
             <Ini name={activeDm?.staffName} sz={34} />
-            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{activeDm?.staffName || "Conversation"}</div><div style={{ fontSize: 11, color: t.textMut }}>Private message</div></div>
+            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || "Conversation"}</div><div style={{ fontSize: 11, color: t.textMut }}>Private message</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
             {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No messages yet.</div>}
@@ -2635,7 +2653,7 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
     // How this form's email carries the report. Every form starts on the link to the app.
     const delivery = form ? (deliveryPending[form.code] || form.delivery || "app_link") : "";
     return (<div key={slot} style={{ marginTop: title ? 14 : 0 }}>
-      {title && <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 2 }}>{title}</div>}
+      {title && <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 2 }}>{title}</div>}
       {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
       {form && <div style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -2682,7 +2700,7 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   return (<div>
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{RECIPIENTS_INTRO}</div>
     {types.map(ty => (<Crd t={t} key={ty.type} style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{ty.label}</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{ty.label}</div>
       {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE}</div>}
       {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
       {ty.keyed && ty.type === "form" ? (<>
@@ -2767,7 +2785,7 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
     <div ref={boxRef} role="dialog" aria-label="Notifications" style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw - 32px))", maxHeight: "70vh", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid " + t.border, position: "sticky", top: 0, background: t.card }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>Notifications</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>Notifications</div>
         <button onClick={markAll} disabled={busy || unread === 0} style={{ minHeight: 44, padding: "0 10px", background: "none", border: "none", color: unread === 0 ? t.textMut : t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: unread === 0 ? "default" : "pointer" }}>Mark all read</button>
       </div>
       {failed && rows.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>Notifications did not load. <button onClick={() => fetchPage(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
@@ -2913,7 +2931,7 @@ const readInspectionConfig = (cfg) => {
 // the home dashboard.
 const MetricTile = ({ label, value, sub, color, t }) => (
   <div style={{ border: "1px solid " + t.border, borderRadius: R.md, padding: "12px 14px" }}>
-    <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: color || t.text }}>{value}</div>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: color || t.text }}>{value}</div>
     <div style={{ fontSize: 10.5, color: t.textMut, marginTop: 2 }}>{label}</div>
     {sub ? <div style={{ fontSize: 10, color: OR, marginTop: 1 }}>{sub}</div> : null}
   </div>
@@ -2969,7 +2987,7 @@ const SlaComplianceTrendWidget = ({ timing, t }) => {
   return (
     <ChartCard t={t} title="SLA compliance trend" sub={"Resolution and response compliance percent per " + ((timing && timing.bucket) ? timing.bucket : "week")}>
       <div style={{ marginBottom: 10 }}>
-        <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
+        <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
         <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>SLA breaches in range</span>
       </div>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
@@ -3558,7 +3576,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   return (
     <Crd t={t}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{isEdit ? "Edit report" : "New report"}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isEdit ? "Edit report" : "New report"}</div>
         <Btn v="ghost" t={t} onClick={onCancel}>Cancel</Btn>
       </div>
       <div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. High severity weekly" /></div>
@@ -3573,7 +3591,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
       </div>
       {isIssueSource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Issue report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Issue report settings</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><Lbl>Default range</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
             <div><Lbl>Trend bucket</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
@@ -3593,7 +3611,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         </div> :
         isSupplySource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Supply report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Supply report settings</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><Lbl>Default range</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
             <div><Lbl>Trend bucket</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
@@ -3609,7 +3627,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         </div> :
         isInspectionSource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Inspection report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Inspection report settings</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div><Lbl>Default range</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
             <div><Lbl>Default site</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -3624,7 +3642,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
           This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.
         </div>}
       <div style={{ borderTop: "1px solid " + t.border, marginTop: 14, paddingTop: 14 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Output and export</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Output and export</div>
         {chk("Use company branding on export", brand, setBrand)}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
@@ -3680,7 +3698,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
         <Btn v="ghost" t={t} onClick={() => { setView("library"); setActive(null); }}>Back to reports</Btn>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{active.name}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{active.name}</div>
           {active.description ? <div style={{ fontSize: 11, color: t.textMut }}>{active.description}</div> : null}
         </div>
       </div>
@@ -3710,13 +3728,13 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>No saved reports yet. Use New report to create one.</div></Crd> :
         groupNames.map(cat => (
           <div key={cat} style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{prettyCat(cat)}</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{prettyCat(cat)}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {groups[cat].map(d => (
                 <Crd key={d.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      <span style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{d.name}</span>
+                      <span style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{d.name}</span>
                       <Bdg l={d.is_system ? "Template" : "Custom"} c={d.is_system ? BL : GO} />
                       {!sourceAvailable(d.source) ? <Bdg l="Coming soon" c={OR} /> : null}
                     </div>
@@ -3736,10 +3754,10 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         ))}
 
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Quick snapshots</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Quick snapshots</div>
       <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
       <Crd t={t} style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Task Completion</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Task Completion</div>
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
@@ -3749,15 +3767,15 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div> : null}
       </Crd>
       <Crd t={t} style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Issues Summary</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Issues Summary</div>
         {issS && issS.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 700, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 700, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 700, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>Resolved</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>Resolved</div></div>
         </div> : <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
       </Crd>
       <Crd t={t}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 4, color: t.text }}>Export data (CSV)</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 4, color: t.text }}>Export data (CSV)</div>
         <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for audits and clients.</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[{ l: "Issues Report", a: expIss }, { l: "Chemical Usage", a: expChem }].map(r => (
@@ -3810,8 +3828,8 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>Assigned to: <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span></span>}<span>By: {task.created_by_name}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>Due: {fd(task.due_date)}</span>}</div>
       </Crd>); })}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Task Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || sel.label) : sel.label}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Task Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || sel.label) : sel.label}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{sel.source_issue_id && <Bdg l="Issue" c={RD} />}{sel.priority && sel.priority !== "standard" && <Bdg l={sel.priority} c={priC[sel.priority] || GO} />}<Bdg l={sel.resolution_status ? sel.resolution_status.replace(/_/g, " ") : "pending"} c={stC[sel.resolution_status] || OR} /></div>
       {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
@@ -3835,14 +3853,14 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
       </div></div></Mdl>}
     {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Reassign Task</div><button onClick={() => setReassignForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Reassign Task</div><button onClick={() => setReassignForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>Currently assigned to: <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>. They will be notified of the change.</div>}
       <div style={{ marginBottom: 12 }}><Lbl>Reassign To *</Lbl><Sel t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>Reason for Reassignment *</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder="Explain why this task is being reassigned..." rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>Cancel</Btn><Btn t={t} onClick={submitReassign}>Reassign</Btn></div>
     </div></Mdl>}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Create Assigned Task</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Create Assigned Task</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Task Description *</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder="e.g. Clean window blinds in conference room" /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder="e.g. 1" /></div><div><Lbl>Zone *</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder="e.g. Offices" /></div></div>
@@ -3950,7 +3968,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
   return (<div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Vendor Registry</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Vendor Registry</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> Export AVL</button>
         {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> Add Vendor</button>}
@@ -3959,7 +3977,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: vendors.length, color: t.goldText }, { id: "approved", label: "Approved", count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: "Pending", count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: "Probation", count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: "Inactive", count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, contact, phone, email, services" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, contact, phone, email, services" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
 
@@ -3973,7 +3991,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: "Vendor", render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Reviewed {fd(v.last_review_date)}</div>}</div></div> },
+        { header: "Vendor", render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Reviewed {fd(v.last_review_date)}</div>}</div></div> },
         { header: "Contact", tdStyle: { maxWidth: 220 }, render: v => <div style={{ minWidth: 0 }}>{v.contact_name && <div style={{ fontSize: 12, color: t.textSec, fontWeight: 500 }}>{v.contact_name}</div>}{v.contact_phone && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1 }}>{v.contact_phone}</div>}{v.contact_email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.contact_email}</div>}{!v.contact_name && !v.contact_phone && !v.contact_email && <span style={{ color: t.textMut }}>-</span>}</div> },
         { header: "Status", render: v => <Bdg l={v.approval_status} c={statusColor[v.approval_status] || t.textMut} /> },
         { header: "Rating", tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: t.goldText, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>-</span> },
@@ -3985,7 +4003,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Vendor</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Vendor</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(addForm, setAddForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Vendor</Btn></div>
       </div>
@@ -3994,7 +4012,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
     {detail && <Mdl t={t} onClose={() => setDetail(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
+          <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
           <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
@@ -4049,7 +4067,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Vendor</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Vendor</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(editForm, setEditForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
       </div>
@@ -4057,7 +4075,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     {addEval && <Mdl t={t} onClose={() => setAddEval(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Add Evaluation</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Add Evaluation</div>
         <div style={{ marginBottom: 14 }}><Lbl>Rating *</Lbl>
           <div style={{ display: "flex", gap: 8 }}>
             {[1,2,3,4,5].map(r => (
@@ -4072,7 +4090,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     {linkSupply && <Mdl t={t} onClose={() => setLinkSupply(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Link Supply to Vendor</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Link Supply to Vendor</div>
         <div style={{ marginBottom: 12 }}><Lbl>Supply *</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: "Select a supply..." }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>Unit Cost</Lbl><Inp t={t} type="number" value={linkSupply.unitCost} onChange={e => setLinkSupply({ ...linkSupply, unitCost: e.target.value })} placeholder="$0.00" /></div>
@@ -4157,7 +4175,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
   return (<div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Service Catalog</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Service Catalog</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> Export</button>
         {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> Add Service</button>}
@@ -4172,7 +4190,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
               <div style={{ width: 38, height: 38, borderRadius: 8, background: (cimsColor[s.cims_category] || GO) + "18", border: "1px solid " + (cimsColor[s.cims_category] || GO) + "40", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <Ic d={serviceIcons[s.slug] || "M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"} sz={18} c={cimsColor[s.cims_category] || t.goldText} />
               </div>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
             <Bdg l={cimsLabel[s.cims_category] || s.cims_category} c={cimsColor[s.cims_category] || GO} />
           </div>
@@ -4190,7 +4208,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: t.text }}>{detail.service.name}</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.service.name}</div>
             <div style={{ marginTop: 6 }}><Bdg l={cimsLabel[detail.service.cims_category] || detail.service.cims_category} c={cimsColor[detail.service.cims_category] || GO} /><span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{cimsLabel[detail.service.cims_category]}</span></div>
           </div>
           <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
@@ -4242,7 +4260,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Service</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Service</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(addForm, setAddForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Service</Btn></div>
       </div>
@@ -4250,7 +4268,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Service</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Service</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(editForm, setEditForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
       </div>
@@ -4258,7 +4276,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
     {linkSite && <Mdl t={t} onClose={() => setLinkSite(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, marginBottom: 16, color: t.text }}>Link Site to Service</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Link Site to Service</div>
         <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={linkSite.notes} onChange={e => setLinkSite({ ...linkSite, notes: e.target.value })} placeholder="e.g. Green cleaning only, monthly frequency" /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSite(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSite}>Link Site</Btn></div>
@@ -4356,7 +4374,7 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Weekly pattern</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Weekly pattern</div>
         {pattern && <div style={{ marginTop: 6, fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
           <div>{pattern.userName} at {pattern.siteName}</div>
           <div>{patternDays(pattern.days)} {patternHours(pattern)}</div>
@@ -4537,7 +4555,7 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
 
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Time off request</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Time off request</div>
       <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
     </div>
     <div style={{ marginBottom: 14 }}>
@@ -4896,8 +4914,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
   const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid " + t.border }}>
-      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
-      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 700, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
+      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 600, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
     </div>
     <div style={{ display: "flex", flexDirection: "column" }}>
     {pagedStaff.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, alignItems: "stretch", borderBottom: "1px solid " + t.border }}>
@@ -4946,7 +4964,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     </div>))}
     </div>
     {(calData.inspections || []).length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
-      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 700, color: BL, textTransform: "uppercase" }}>Inspections</div>
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: BL, textTransform: "uppercase" }}>Inspections</div>
       {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
     </div>)}
     {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
@@ -4955,19 +4973,19 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() - 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>&lt; Prev</button>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{MONTH_NAMES[startMonth]} {startYear}</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{MONTH_NAMES[startMonth]} {startYear}</div>
       <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() + 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>Next &gt;</button>
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 700, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const startedHere = getStartedForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
         return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? t.goldText : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
-          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: t.goldText, marginBottom: 1 }}>{sched.length} scheduled</div>}
-          {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: GR, marginBottom: 1 }}>{startedHere.length} started</div>}
-          {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: t.textMut, marginBottom: 1 }}>{pks.filter(p => p.status === "open").length} open</div>}
-          {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: OR, marginBottom: 1 }}>{pks.filter(p => p.status === "claimed").length} claimed</div>}
-          {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 700, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
+          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.goldText, marginBottom: 1 }}>{sched.length} scheduled</div>}
+          {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: GR, marginBottom: 1 }}>{startedHere.length} started</div>}
+          {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.textMut, marginBottom: 1 }}>{pks.filter(p => p.status === "open").length} open</div>}
+          {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: OR, marginBottom: 1 }}>{pks.filter(p => p.status === "claimed").length} claimed</div>}
+          {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
         </div>); })}
     </div></div>); };
 
@@ -5009,7 +5027,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Shift</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Schedule Shift</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
       <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl>
         <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Search staff" style={{ marginBottom: 6, fontSize: 12 }} />
@@ -5068,7 +5086,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Shift</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Scheduled Shift</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>Part of a weekly pattern. Changes here apply to this date only. <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open the pattern</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>Staff</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -5086,7 +5104,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
       {convertPickup && convertPickup.id === editModal.id && (
         <div style={{ padding: 12, borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: OR, marginBottom: 8 }}>Convert to Open Pickup</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: OR, marginBottom: 8 }}>Convert to Open Pickup</div>
           <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
             <div><Lbl>Reason</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
@@ -5110,8 +5128,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
     {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Started Shift</div><button onClick={() => setStartedDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Started Shift</div><button onClick={() => setStartedDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={startedLbl}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
         <div><div style={startedLbl}>Date</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
@@ -5126,9 +5144,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* INSPECTION RESCHEDULE MODAL */}
     {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Inspection Details</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Inspection Details</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
         <Bdg l={inspModal.status || "scheduled"} c={inspModal.status === "completed" ? GR : BL} />
       </div>
@@ -5142,7 +5160,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* PICKUP DETAIL MODAL */}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{pickupDetail.status === "requested" ? "Shift Drop Request" : pickupDetail.status === "open" ? "Open Marketplace Shift" : pickupDetail.status === "claimed" ? "Claimed Pickup Shift" : pickupDetail.status === "approved" ? "Approved Shift" : "Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? "Shift Drop Request" : pickupDetail.status === "open" ? "Open Marketplace Shift" : pickupDetail.status === "claimed" ? "Claimed Pickup Shift" : pickupDetail.status === "approved" ? "Approved Shift" : "Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.</div>}
       {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>This shift is open in the marketplace and available for staff to claim.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
@@ -5409,7 +5427,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           display: "flex", alignItems: "center", gap: 4
         }}>
           {tb.l}
-          {tb.count > 0 && <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: statusColor[tb.id] || GO, color: "#fff" }}>{tb.count}</span>}
+          {tb.count > 0 && <span style={{ fontSize: 9, fontWeight: 600, padding: "1px 5px", borderRadius: 8, background: statusColor[tb.id] || GO, color: "#fff" }}>{tb.count}</span>}
         </button>
       ))}
     </div>
@@ -5420,7 +5438,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {!loading && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder="Search site, service, staff, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder="Search site, service, staff, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={pkPerPage} onChange={e => { setPkPerPage(Number(e.target.value)); setPkPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -5433,7 +5451,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           const cur = Math.min(pkPage, totalPages);
           const items = searched.slice((cur - 1) * pkPerPage, cur * pkPerPage);
           const columns = [
-            { header: "Shift", render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {fmtTm(s.start_time)} to {fmtTm(s.end_time)}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>Bldg: {s.building_name}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>Floor: {s.floor_number}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
+            { header: "Shift", render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {fmtTm(s.start_time)} to {fmtTm(s.end_time)}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>Bldg: {s.building_name}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>Floor: {s.floor_number}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: "Status", render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? "Drop Request" : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l="URGENT" c={RD} />}{s.ot_warning && <Bdg l="OT Risk" c={OR} />}</div> },
             { header: "Assigned", render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleLabels[s.claimed_by_role] || RL[s.claimed_by_role] || s.claimed_by_role})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
             { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Release</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Cancel</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast("Drop approved"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Deny</button>}<button title="View shift" onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
@@ -5456,7 +5474,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* OVERVIEW SUB-TAB */}
         {analyticsTab === "overview" && (<div>
         <Crd t={t} style={{ marginBottom: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Reason Breakdown</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Reason Breakdown</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {[
               { k: "callout_count", l: "Callouts", c: RD },
@@ -5466,7 +5484,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
               { k: "new_shift_count", l: "New Shifts", c: t.goldText },
             ].map(r => (
               <div key={r.k} style={{ textAlign: "center", minWidth: 80 }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: r.c }}>{analytics.summary[r.k]}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: r.c }}>{analytics.summary[r.k]}</div>
                 <div style={{ fontSize: 10, color: t.textMut }}>{r.l}</div>
               </div>
             ))}
@@ -5482,7 +5500,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
         {analytics.sites?.length > 0 && (
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Coverage by Site</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Coverage by Site</div>
             {analytics.sites.map(s => {
               const fillPct = s.total > 0 ? Math.round(s.filled / s.total * 100) : 0;
               return (
@@ -5506,11 +5524,11 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* Fill Rate by Origin */}
         {fillRateData?.by_origin?.length > 0 && (
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Fill Rate by Reason</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Fill Rate by Reason</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {fillRateData.by_origin.map(o => (
                 <div key={o.origin} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid " + (originColor[o.origin] || GO) + "40", background: (originColor[o.origin] || GO) + "0A", minWidth: 120, textAlign: "center" }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: o.fill_rate >= 80 ? GR : o.fill_rate >= 50 ? OR : RD }}>{o.fill_rate}%</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: o.fill_rate >= 80 ? GR : o.fill_rate >= 50 ? OR : RD }}>{o.fill_rate}%</div>
                   <div style={{ fontSize: 10, color: t.textMut, marginBottom: 2 }}>{originLabel[o.origin] || o.origin}</div>
                   <div style={{ fontSize: 9, color: t.textMut }}>{o.filled}/{o.total} filled</div>
                 </div>
@@ -5521,7 +5539,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
         {analytics.trends?.length > 0 && (
           <Crd t={t}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Weekly Trend</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Weekly Trend</div>
             <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 100 }}>
               {analytics.trends.map((w, i) => {
                 const max = Math.max(...analytics.trends.map(x => x.total));
@@ -5543,7 +5561,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* RESPONSE TIME SUB-TAB */}
         {analyticsTab === "response" && responseTimeData && (<div>
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Response Time Summary</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Response Time Summary</div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               {[
                 { l: "Average", v: responseTimeData.overall?.avg_minutes, u: "min" },
@@ -5555,7 +5573,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                 const displayVal = m.u === "min" && m.v > 60 ? Math.round(m.v / 60) + "h " + (m.v % 60) + "m" : (m.v || 0) + (m.u ? " " + m.u : "");
                 return (
                   <div key={i} style={{ textAlign: "center", minWidth: 80 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: i === 0 ? BL : i === 1 ? t.goldText : t.text }}>{displayVal}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: i === 0 ? BL : i === 1 ? t.goldText : t.text }}>{displayVal}</div>
                     <div style={{ fontSize: 10, color: t.textMut }}>{m.l}</div>
                   </div>
                 );
@@ -5565,7 +5583,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
           {responseTimeData.by_site?.length > 0 && (
             <Crd t={t} style={{ marginBottom: 14 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Response Time by Site</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Response Time by Site</div>
               <div style={{ overflow: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead><tr style={{ borderBottom: "2px solid " + t.border }}>
@@ -5589,11 +5607,11 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
           {responseTimeData.by_urgency?.length > 0 && (
             <Crd t={t}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Response Time by Urgency</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Response Time by Urgency</div>
               <div style={{ display: "flex", gap: 16 }}>
                 {responseTimeData.by_urgency.map(u => (
                   <div key={u.urgency} style={{ padding: "12px 20px", borderRadius: 8, border: "1px solid " + (u.urgency === "urgent" ? RD : GO) + "40", background: (u.urgency === "urgent" ? RD : GO) + "0A", textAlign: "center", minWidth: 120 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: u.urgency === "urgent" ? RD : t.goldText }}>{u.avg_minutes > 60 ? Math.round(u.avg_minutes / 60) + "h" : u.avg_minutes + "m"}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: u.urgency === "urgent" ? RD : t.goldText }}>{u.avg_minutes > 60 ? Math.round(u.avg_minutes / 60) + "h" : u.avg_minutes + "m"}</div>
                     <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{u.urgency}</div>
                     <div style={{ fontSize: 9, color: t.textMut }}>{u.claimed_count} claims</div>
                   </div>
@@ -5606,7 +5624,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* CALLOUT PATTERNS SUB-TAB */}
         {analyticsTab === "patterns" && patternData && (<div>
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Shifts by Day of Week</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Shifts by Day of Week</div>
             {(() => {
               const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
               const maxTotal = Math.max(...(patternData.by_day || []).map(d => d.total), 1);
@@ -5646,7 +5664,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             const maxVal = Math.max(...patternData.by_site_day.map(d => d.total), 1);
             return (
               <Crd t={t} style={{ marginBottom: 14 }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Site x Day Heatmap</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Site x Day Heatmap</div>
                 <div style={{ overflow: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                     <thead><tr>
@@ -5673,7 +5691,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
           {patternData.by_month?.length > 0 && (
             <Crd t={t}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Monthly Totals</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Monthly Totals</div>
               <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 100 }}>
                 {patternData.by_month.map((m, i) => {
                   const maxM = Math.max(...patternData.by_month.map(x => x.total));
@@ -5695,7 +5713,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* STAFF RELIABILITY SUB-TAB */}
         {analyticsTab === "reliability" && reliabilityData && (<div>
           <Crd t={t}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, marginBottom: 12, color: t.text }}>Staff Reliability Metrics</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Staff Reliability Metrics</div>
             {reliabilityData.staff?.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No pickup activity found in this period.</div>}
             {reliabilityData.staff?.length > 0 && (
               <div style={{ overflow: "auto" }}>
@@ -5721,7 +5739,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                         <td style={{ padding: "8px 10px", textAlign: "center", color: s.released > 0 ? OR : t.textMut }}>{s.released}</td>
                         <td style={{ padding: "8px 10px", textAlign: "center", color: s.drop_requests > 0 ? RD : t.textMut }}>{s.drop_requests}</td>
                         <td style={{ padding: "8px 10px", textAlign: "center" }}>
-                          <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700, background: (reliPct >= 80 ? GR : reliPct >= 50 ? OR : RD) + "18", color: reliPct >= 80 ? GR : reliPct >= 50 ? OR : RD }}>{reliPct}%</span>
+                          <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: (reliPct >= 80 ? GR : reliPct >= 50 ? OR : RD) + "18", color: reliPct >= 80 ? GR : reliPct >= 50 ? OR : RD }}>{reliPct}%</span>
                         </td>
                       </tr>
                     );
@@ -5736,7 +5754,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
     {/* POST OPEN SHIFT MODAL */}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Post Open Shift</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Post Open Shift</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
 
@@ -5767,7 +5785,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
     {/* CONVERT CALLOUT MODAL */}
     {convertModal && <Mdl t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Convert Scheduled Shift to Open Pickup</div><button onClick={() => setConvertModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Convert Scheduled Shift to Open Pickup</div><button onClick={() => setConvertModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14 }}>
         Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.
@@ -5800,7 +5818,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {/* SHIFT DETAIL MODAL */}
     {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{shiftDetail.status === "requested" ? "Shift Drop Request" : "Shift Details"}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{shiftDetail.status === "requested" ? "Shift Drop Request" : "Shift Details"}</div>
         <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
       </div>
       {shiftDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift.</div>}
@@ -6149,7 +6167,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             <Ic d="M15 18l-6-6 6-6" sz={14} c={t.textSec} /> Back
           </button>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: t.text }}>{d.template_name}</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{d.template_name}</div>
             <div style={{ fontSize: 12, color: t.textSec }}>{d.site_name}</div>
           </div>
           {isComplete && (
@@ -6157,7 +6175,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               <button onClick={() => exportCSV(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
                 CSV
               </button>
-              <button onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              <button onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
                 Export PDF
               </button>
             </div>
@@ -6175,13 +6193,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 20 }}>
-          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Scheduled Date</div><div style={{ fontWeight: 700, color: t.text }}>{fmtDate(d.scheduled_date)}</div></Crd>
-          {d.assigned_name && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Assigned To</div><div style={{ fontWeight: 700, color: t.text }}>{d.assigned_name}</div></Crd>}
+          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Scheduled Date</div><div style={{ fontWeight: 600, color: t.text }}>{fmtDate(d.scheduled_date)}</div></Crd>
+          {d.assigned_name && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Assigned To</div><div style={{ fontWeight: 600, color: t.text }}>{d.assigned_name}</div></Crd>}
           <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Status</div><Bdg l={d.status.replace("_", " ")} c={STATUS_C[d.status] || BL} /></Crd>
           {isComplete && <>
-            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed At</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
-            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed By</div><div style={{ fontWeight: 700, color: t.text }}>{d.result.completed_by_name}</div></Crd>
-            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Overall Score</div><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 700, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{d.result.total_score}/{d.result.max_possible_score} pts</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed At</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed By</div><div style={{ fontWeight: 600, color: t.text }}>{d.result.completed_by_name}</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Overall Score</div><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{d.result.total_score}/{d.result.max_possible_score} pts</div></Crd>
           </>}
         </div>
 
@@ -6202,14 +6220,14 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             return (
               <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                 <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={cimsLabels[item.cims_category]}>{item.cims_category}</div>
+                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={cimsLabels[item.cims_category]}>{item.cims_category}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{item.label}</div>
                     <div style={{ fontSize: 11, color: t.textMut }}>{item.zone}</div>
                   </div>
                   {sr && (
                     <div style={{ textAlign: "right", marginRight: 8 }}>
-                      <span style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: iColor, fontSize: 18 }}>{sr.score}</span>
+                      <span style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: iColor, fontSize: 18 }}>{sr.score}</span>
                       <span style={{ fontSize: 11, color: t.textMut }}>/{item.max_score}</span>
                     </div>
                   )}
@@ -6232,7 +6250,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                               <div style={{ flex: 1, height: 8, background: t.border, borderRadius: 4, overflow: "hidden" }}>
                                 <div style={{ height: "100%", width: iPct + "%", background: iColor, borderRadius: 4 }} />
                               </div>
-                              <span style={{ fontWeight: 700, color: iColor }}>{sr.score}/{item.max_score} ({iPct}%)</span>
+                              <span style={{ fontWeight: 600, color: iColor }}>{sr.score}/{item.max_score} ({iPct}%)</span>
                             </div>
                           </div>
                         </div>
@@ -6265,7 +6283,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
@@ -6297,7 +6315,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {templates.map(tp => (
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
                     {isAdmin && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
@@ -6311,7 +6329,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           {selectedTemplate && (
             <div style={{ width: 380, flexShrink: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text }}>{selectedTemplate.name}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{selectedTemplate.name}</div>
                 <button onClick={() => setSelectedTemplate(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={16} c={t.textMut} /></button>
               </div>
               <div style={{ marginBottom: 14 }}>
@@ -6332,7 +6350,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={cimsLabels[item.cims_category]}>{item.cims_category}</div>
+                        <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={cimsLabels[item.cims_category]}>{item.cims_category}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
                           <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - max {item.max_score} pts</div>
@@ -6348,7 +6366,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                 )}
               </div>
               <Crd t={t} style={{ padding: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
                 <div style={{ marginBottom: 8 }}><Lbl>Item Label *</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder="e.g. Toilets scrubbed and sanitized" onKeyDown={e => e.key === "Enter" && addItem()} /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                   <div><Lbl>Zone</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: z }))} /></div>
@@ -6370,7 +6388,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           </div>
           <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: "All", count: scheduled.length, color: t.goldText }, { id: "scheduled", label: "Scheduled", count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: "In Progress", count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -6384,7 +6402,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             const cur = Math.min(schedPage, totalPages);
             const items = searched.slice((cur - 1) * inspPerPage, cur * inspPerPage);
             const columns = [
-              { header: "Inspection", render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+              { header: "Inspection", render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
               { header: "Scheduled", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: "Assigned", render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>Unassigned</span> },
               { header: "Status", render: si => <Bdg l={si.status.replace("_", " ")} c={STATUS_C[si.status] || BL} /> },
@@ -6399,7 +6417,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       {tab === "completed" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setCompPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
@@ -6412,10 +6430,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             const cur = Math.min(compPage, totalPages);
             const items = searched.slice((cur - 1) * inspPerPage, cur * inspPerPage);
             const columns = [
-              { header: "Inspection", render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 700, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+              { header: "Inspection", render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
               { header: "Scheduled", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: "Assigned", render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
-              { header: "Score", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{si.total_score}/{si.max_possible_score} pts</div></div>; } },
+              { header: "Score", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{si.total_score}/{si.max_possible_score} pts</div></div>; } },
               { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? "No completed inspections yet." : "No inspections match this search."} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
@@ -6457,7 +6475,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* SITE COMPARISON BARS */}
               {siteComp.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Site Comparison</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Site Comparison</div>
                   <Crd t={t}>
                     {siteComp.map((sc, i) => {
                       const pct = Number(sc.latest_score_pct);
@@ -6469,7 +6487,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                             <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{sc.site_name}</div>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                               <span style={{ fontSize: 10, color: t.textMut }}>{sc.inspection_count} inspections, avg {avg}%</span>
-                              <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 700, color: barColor }}>{pct}%</span>
+                              <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: barColor }}>{pct}%</span>
                             </div>
                           </div>
                           <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
@@ -6486,7 +6504,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* SCORE TREND CHART */}
               {scoreTrend.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Score Trend</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Score Trend</div>
                   <Crd t={t}>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 160, padding: "0 4px" }}>
                       {scoreTrend.map((pt, i) => {
@@ -6524,7 +6542,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* SERVICE CATEGORY BREAKDOWN */}
               {catBreakdown.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Score by Service Category</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Score by Service Category</div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {catBreakdown.map(cat => {
                       const pct = Number(cat.avg_score_pct);
@@ -6532,8 +6550,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                       return (
                         <Crd key={cat.cims_category} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{cimsLabels[cat.cims_category] || cat.cims_category}</span>
-                            <span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 700, color: pct >= 80 ? GR : pct >= 60 ? OR : RD }}>{pct}%</span>
+                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{cimsLabels[cat.cims_category] || cat.cims_category}</span>
+                            <span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: pct >= 80 ? GR : pct >= 60 ? OR : RD }}>{pct}%</span>
                           </div>
                           <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
                             <div style={{ height: "100%", borderRadius: 3, background: catColor, width: pct + "%" }} />
@@ -6549,7 +6567,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* LOWEST SCORING ITEMS */}
               {lowestItems.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 12 }}>Lowest Scoring Items</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Lowest Scoring Items</div>
                   <Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead>
@@ -6570,9 +6588,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                               <td style={{ padding: "10px 12px", fontWeight: 600, color: t.text }}>{li.label}</td>
                               <td style={{ padding: "10px 8px", color: t.textSec }}>{li.zone}</td>
                               <td style={{ padding: "10px 8px" }}>
-                                <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{cimsLabels[li.cims_category] || li.cims_category}</span>
+                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{cimsLabels[li.cims_category] || li.cims_category}</span>
                               </td>
-                              <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 700, color: lColor }}>{lPct}%</td>
+                              <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: lColor }}>{lPct}%</td>
                               <td style={{ padding: "10px 8px", textAlign: "center", color: t.textMut }}>{li.occurrences}</td>
                             </tr>
                           );
@@ -6610,7 +6628,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
       {/* NEW TEMPLATE MODAL */}
       {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>New Inspection Template</div><button onClick={() => setNewTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>New Inspection Template</div><button onClick={() => setNewTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>Template Name *</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder="e.g. Standard Office Cleaning" /></div>
         <div style={{ marginBottom: 20 }}><Lbl>Description</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder="Optional: describe what this template covers" /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>Cancel</Btn><Btn t={t} onClick={createTemplate}>Create Template</Btn></div>
@@ -6618,7 +6636,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
       {/* SCHEDULE MODAL */}
       {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
@@ -6629,7 +6647,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
       </div></Mdl>}
       {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Schedule Inspection</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Schedule Inspection</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
@@ -6702,7 +6720,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
 
   const inp = { padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, width: "100%", boxSizing: "border-box" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4, display: "block" };
-  const sec = { fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 14 };
+  const sec = { fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 14 };
   const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   const ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu"];
 
@@ -6795,7 +6813,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
 
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Reset</button>
-        <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 700, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save Company Settings"}</button>
+        <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save Company Settings"}</button>
       </div>
     </div>
   );
@@ -6886,7 +6904,7 @@ function PermissionsMatrixPanel({ t }) {
     setTimeout(() => w.print(), 400);
   };
 
-  const headCell = { fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 700, color: t.textSec, textTransform: "uppercase", letterSpacing: "0.5px", padding: "0 6px 8px" };
+  const headCell = { fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, color: t.textSec, textTransform: "uppercase", letterSpacing: "0.5px", padding: "0 6px 8px" };
   const capCell = { fontSize: 12.5, color: t.text, padding: "8px 6px", borderTop: "1px solid " + t.border };
 
   return (
@@ -6895,12 +6913,12 @@ function PermissionsMatrixPanel({ t }) {
         <div style={{ fontSize: 12.5, color: t.textSec, maxWidth: 620, lineHeight: 1.5 }}>
           Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.
         </div>
-        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
+        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
       </div>
 
       {PERMISSION_GROUPS.map((g, gi) => (
         <Crd key={gi} t={t} style={{ marginBottom: 14, padding: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
           <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr" }}>
             <div style={headCell}>Capability</div>
             {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tier.label}</div>)}
@@ -6917,7 +6935,7 @@ function PermissionsMatrixPanel({ t }) {
       ))}
 
       <Crd t={t} style={{ padding: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 700, color: t.textSec, marginBottom: 8 }}>Notes</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 8 }}>Notes</div>
         {PERMISSION_NOTES.map((n, i) => (
           <div key={i} style={{ fontSize: 11.5, color: t.textMut, marginBottom: 5, paddingLeft: 12, position: "relative" }}>
             <span style={{ position: "absolute", left: 0, color: t.goldText }}>-</span>{n}
@@ -7008,12 +7026,12 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   const card = { background: t.card, border: "1px solid " + t.borderSolid, borderRadius: 10, padding: 18, marginBottom: 16 };
   const selSt = { padding: "8px 12px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", minWidth: 260 };
   const segBtn = (active, color) => ({ padding: "5px 10px", borderRadius: 6, border: "1px solid " + (active ? color : t.borderSolid), background: active ? color : "transparent", color: active ? "#fff" : t.textMut, fontSize: 11, fontFamily: FONT_BODY, cursor: "pointer", fontWeight: active ? 700 : 500 });
-  const tag = (txt, color) => (<span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: color, border: "1px solid " + color, borderRadius: 4, padding: "1px 5px", marginLeft: 8 }}>{txt}</span>);
+  const tag = (txt, color) => (<span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: color, border: "1px solid " + color, borderRadius: 4, padding: "1px 5px", marginLeft: 8 }}>{txt}</span>);
 
   return (
     <div>
       <div style={card}>
-        <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 4 }}>Per-person permissions</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>Per-person permissions</div>
         <div style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.</div>
         {loadingStaff ? (
           <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>Loading team...</div>
@@ -7033,15 +7051,15 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: t.text }}>{detail.name}</div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>{detail.name}</div>
               <div style={{ fontSize: 11, color: t.textMut }}>Role: {role}. Default follows this role until you override it.</div>
             </div>
-            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 700, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? "Saving..." : "Save changes"}</button>
+            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? "Saving..." : "Save changes"}</button>
           </div>
 
           {groups.map((g) => (
             <div key={g.name} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{g.name}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{g.name}</div>
               {g.items.map((c) => {
                 const st = stateOf(c);
                 const eff = effOf(c);
@@ -7300,7 +7318,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {/* Add Category Modal */}
       {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Add Category</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add Category</div>
         <div style={{ marginBottom: 12 }}><Lbl>Label *</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder="e.g. Equipment Types" /></div>
         <div style={{ marginBottom: 12 }}><Lbl>Slug (auto-generated)</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder="e.g. equipment_types" style={{ fontFamily: "monospace" }} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder="Optional description" /></div>
@@ -7309,7 +7327,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {/* Edit Category Modal */}
       {editCatForm && <Mdl t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Edit Category</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Category</div>
         <div style={{ marginBottom: 12 }}><Lbl>Label</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditCat}>Save</Btn></div>
@@ -7317,7 +7335,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {/* Add Value Modal */}
       {addValForm && <Mdl t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Add Value to {activeCat?.label}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add Value to {activeCat?.label}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>Value (stored) *</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder="e.g. floor_tech" style={{ fontFamily: "monospace" }} /></div>
           <div><Lbl>Label (displayed) *</Lbl><Inp t={t} value={addValForm.label} onChange={e => setAddValForm({ ...addValForm, label: e.target.value })} placeholder="e.g. Floor Technician" /></div>
@@ -7331,7 +7349,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {/* Edit Value Modal */}
       {editValForm && <Mdl t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Edit Value</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Value</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>Value (stored)</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
           <div><Lbl>Label (displayed)</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
@@ -7345,7 +7363,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {/* Add Site Lookup Modal */}
       {addSiteVal && <Mdl t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Add {siteTypeLabel[addSiteVal.lookup_type] ? siteTypeLabel[addSiteVal.lookup_type].slice(0, -1) : "Value"}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add {siteTypeLabel[addSiteVal.lookup_type] ? siteTypeLabel[addSiteVal.lookup_type].slice(0, -1) : "Value"}</div>
         <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>Value *</Lbl><Inp t={t} value={addSiteVal.value} onChange={e => setAddSiteVal({ ...addSiteVal, value: e.target.value, label: e.target.value })} placeholder="e.g. Gymnasium" /></div>
@@ -7356,7 +7374,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {/* Edit Site Lookup Modal */}
       {editSiteVal && <Mdl t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 16 }}>Edit Site Lookup</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Site Lookup</div>
         <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>Value</Lbl><Inp t={t} value={editSiteVal.value} onChange={e => setEditSiteVal({ ...editSiteVal, value: e.target.value })} /></div>
@@ -7509,8 +7527,10 @@ const IR_NO_ACCESS = "Your account cannot read incident reports.";
 const IR_NOT_FOUND = "This report could not be found, or your account cannot open it.";
 const IR_RESEND_ASK = "Send this report again to everyone set for this form?";
 // Built from the answer: how many emails, how many app notices, and what the email carried.
-const irSentLine = (d) => "Sent again: " + (Number(d && d.email) || 0) + " emails and " + (Number(d && d.inApp) || 0)
-  + " app notices, " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
+const irCount = (n, one, many) => n + " " + (n === 1 ? one : many);
+const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "email", "emails")
+  + " and " + irCount(Number(d && d.inApp) || 0, "app notice", "app notices")
+  + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
 const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
@@ -7596,7 +7616,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{(draft && draft.formName) || "Report"}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || "Report"}</div>
         {draft && <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <Bdg l={submitted ? "Submitted" : "Unfinished"} c={submitted ? GR : OR} />
           <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || "No site"}</span>
@@ -8592,7 +8612,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {tab === "settings" && (
         <div>
           <Crd t={t} style={{ marginBottom: 14, padding: 16 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>API Connection</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>API Connection</div>
             {config && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 12 }}>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>Key Status</div><div style={{ color: config.hasKey ? (config.keyValid ? GR : RD) : RD, fontWeight: 600 }}>{config.hasKey ? (config.keyValid ? "Valid" : "Invalid") : "Not set"}</div></div>
@@ -8607,7 +8627,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
           <Crd t={t} style={{ marginBottom: 14, padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Sync Actions</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Sync Actions</div>
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Btn t={t} onClick={syncForms} disabled={syncingForms}>{syncingForms ? "Syncing..." : "Sync Form Catalog"}</Btn>
@@ -8620,7 +8640,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           {/* ================ DIAGNOSTIC CARD (Session 21 Part B Step 1) ================ */}
           <Crd t={t} style={{ marginBottom: 14, padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Account Capability Diagnostic</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Account Capability Diagnostic</div>
               <Btn t={t} v="ghost" onClick={runDiagnostic} disabled={runningDiagnostic} style={{ fontSize: 12, padding: "6px 14px" }}>{runningDiagnostic ? "Probing..." : "Run Diagnostic"}</Btn>
             </div>
             <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10, lineHeight: 1.5 }}>
@@ -8631,7 +8651,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
               <div style={{ marginTop: 12 }}>
                 <div style={{ padding: "10px 14px", borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, marginBottom: 12 }}>
                   <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Recommendation</div>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 700, color: t.goldText, marginBottom: 4 }}>{diagnosticResult.recommendation}</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{diagnosticResult.recommendation}</div>
                   <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{diagnosticResult.recommendationReason}</div>
                 </div>
 
@@ -8680,7 +8700,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           </Crd>
 
           <Crd t={t} style={{ padding: 16 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 10 }}>Recent Sync Log</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Recent Sync Log</div>
             <div style={{ overflow: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                 <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
@@ -8724,23 +8744,23 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 16 }}>
               <Crd t={t} style={{ padding: 14 }}>
                 <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Total Forms</div>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: t.text }}>{diagSummary.total_forms}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{diagSummary.total_forms}</div>
               </Crd>
               <Crd t={t} style={{ padding: 14, borderLeft: "3px solid " + (diagSummary.forms_with_gap > 0 ? OR : GR) }}>
                 <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Forms with Gaps</div>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: diagSummary.forms_with_gap > 0 ? OR : GR }}>{diagSummary.forms_with_gap}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: diagSummary.forms_with_gap > 0 ? OR : GR }}>{diagSummary.forms_with_gap}</div>
               </Crd>
               <Crd t={t} style={{ padding: 14 }}>
                 <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Jotform Submissions</div>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: t.text }}>{diagSummary.total_jotform_submissions}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{diagSummary.total_jotform_submissions}</div>
               </Crd>
               <Crd t={t} style={{ padding: 14 }}>
                 <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Our Submissions</div>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: t.text }}>{diagSummary.total_our_submissions}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: t.text }}>{diagSummary.total_our_submissions}</div>
               </Crd>
               <Crd t={t} style={{ padding: 14, borderLeft: "3px solid " + (diagSummary.total_unresolved_failures > 0 ? RD : GR) }}>
                 <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>Unresolved Failures</div>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 700, color: diagSummary.total_unresolved_failures > 0 ? RD : GR }}>{diagSummary.total_unresolved_failures}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: diagSummary.total_unresolved_failures > 0 ? RD : GR }}>{diagSummary.total_unresolved_failures}</div>
               </Crd>
             </div>
           )}
@@ -8753,7 +8773,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
           {/* PER-FORM GAP TABLE */}
           <Crd t={t} style={{ marginBottom: 16, padding: 0, overflow: "hidden" }}>
-            <div style={{ fontFamily: FONT_HEAD, padding: "12px 16px", borderBottom: "1px solid " + t.border, fontSize: 13, fontWeight: 700, color: t.text }}>
+            <div style={{ fontFamily: FONT_HEAD, padding: "12px 16px", borderBottom: "1px solid " + t.border, fontSize: 13, fontWeight: 600, color: t.text }}>
               Per-Form Gap Analysis
             </div>
             <div style={{ overflow: "auto" }}>
@@ -8864,7 +8884,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           {/* UNRESOLVED FAILURES TABLE */}
           <Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
             <div style={{ padding: "12px 16px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>Unresolved Submission Failures</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Unresolved Submission Failures</div>
               <div style={{ fontSize: 11, color: t.textMut }}>{failures.length} {failures.length === 1 ? "failure" : "failures"}</div>
             </div>
             {failures.length === 0 ? (
@@ -8929,7 +8949,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
           {/* ADD FORM */}
           <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 12 }}>Add Alias</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>Add Alias</div>
             <div style={{ display: "grid", gridTemplateColumns: "1.4fr 0.8fr 1.6fr 1fr auto", gap: 10, alignItems: "end" }}>
               <div>
                 <Lbl>User</Lbl>
@@ -9014,7 +9034,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <Crd key={g.user_id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                     <div style={{ padding: "10px 16px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center", background: t.hover }}>
                       <div>
-                        <span style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 700, color: t.text }}>{g.first_name} {g.last_name}</span>
+                        <span style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{g.first_name} {g.last_name}</span>
                         {g.employee_id && <span style={{ marginLeft: 8, fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{g.employee_id}</span>}
                         {g.email && <span style={{ marginLeft: 10, fontSize: 11, color: t.textMut }}>{g.email}</span>}
                         {g.user_status !== "active" && <Bdg l={g.user_status} c={OR} />}
@@ -9064,7 +9084,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         <Mdl t={t} onClose={() => setEditForm(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Edit Form</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Form</div>
               <button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>Title</Lbl><div style={{ fontSize: 13, color: t.text, padding: "8px 0" }}>{editForm.title}</div></div>
@@ -9117,7 +9137,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         <Mdl t={t} onClose={() => setDetailSub(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Submission Detail</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Submission Detail</div>
               <button onClick={() => setDetailSub(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
             </div>
             {detailLoading && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>Loading from Jotform...</div>}
@@ -9232,27 +9252,27 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         <Mdl t={t} onClose={() => setFullRefreshModal(false)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: RD }}>Full Refresh. Read Before Running.</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD }}>Full Refresh. Read Before Running.</div>
               <button onClick={() => setFullRefreshModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
             </div>
 
             <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 12, color: OR, marginBottom: 14, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>What this does</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>What this does</div>
               Pulls every submission from Jotform for every enabled form, ignoring the incremental filter. Existing cached submissions are re-fetched and their metadata is refreshed (submitter name, email, matched employee, expiry). Admin-set fields (status, notes, manual expiry, entity links) are preserved.
             </div>
 
             <div style={{ padding: "10px 14px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>When to use this</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>When to use this</div>
               Use this only when you have a specific reason, such as: you have made changes in Jotform that are not appearing here, the field-extraction logic has changed, or you suspect the cache is out of sync. For normal daily operations, the regular "Sync All Submissions" button is sufficient.
             </div>
 
             <div style={{ padding: "10px 14px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6, color: t.text }}>Rate limit note</div>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: t.text }}>Rate limit note</div>
               Jotform API limits vary by account tier. Free accounts allow 1,000 calls per day. Each enabled form costs one API call, plus one per 1,000 submissions. If you have many forms with many submissions, a full refresh could consume a large portion of your daily quota.
             </div>
 
             <div style={{ padding: "10px 14px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.6 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6, color: t.text }}>Duration</div>
+              <div style={{ fontWeight: 600, marginBottom: 6, color: t.text }}>Duration</div>
               Typical run time is 1 to 5 minutes depending on volume. Do not close this page while it runs. You can monitor progress in the Sync Log table below after it completes.
             </div>
 
@@ -9269,7 +9289,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         <Mdl t={t} onClose={() => setLinkModal(null)}>
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Link Submission to Record</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Link Submission to Record</div>
               <button onClick={() => setLinkModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>Entity Type</Lbl>
@@ -9453,14 +9473,14 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
                     : <Ini name={name} sz={52} color={e.status === "active" ? GO : "#94A3B8"} />
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 700, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role || "No role"}{e.status !== "active" ? " . " + e.status : ""}{e.is_test_account ? " . TEST" : ""}</div>
                     {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: t.goldText, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border, margin: "0 -16px 12px", padding: "10px 16px" }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 700, color: t.text, lineHeight: 1 }}>{totalItems}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, lineHeight: 1 }}>{totalItems}</div>
                     <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", marginTop: 3 }}>Records</div>
                   </div>
                   <div style={{ flex: 1.4, borderLeft: "1px solid " + t.border, paddingLeft: 14 }}>
@@ -9662,7 +9682,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
                 {/* Source icon column */}
                 <div style={{ width: 30, height: 30, borderRadius: 6, background: srcColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }} title={sourceLabel(it.source)}>
-                  <span style={{ fontSize: 9, fontWeight: 700, color: srcColor, textTransform: "uppercase" }}>
+                  <span style={{ fontSize: 9, fontWeight: 600, color: srcColor, textTransform: "uppercase" }}>
                     {it.source === "document" ? "DOC" : it.source === "training" ? "TR" : it.source === "onboarding" ? "ONB" : "JF"}
                   </span>
                 </div>
@@ -9860,7 +9880,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-        <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Case</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>Received {ff(detail.createdAt)}</span></div></div>
+        <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Case</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>Received {ff(detail.createdAt)}</span></div></div>
         <button onClick={closeCase} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
       </div>
       {(() => { const k = clockInfo(detail); return (
@@ -10134,7 +10154,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>+ Add Document</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder="Search employee, category, file, uploaded by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder="Search employee, category, file, uploaded by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setDocPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -10162,7 +10182,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>+ Add Training</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder="Search employee, training, type, administered by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder="Search employee, training, type, administered by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
@@ -10200,7 +10220,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
             const cats = [...new Set(onboarding.map(s => s.step_category))];
             return cats.map(cat => (
               <div key={cat} style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{onbCatMap[cat] || cat}</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>{onbCatMap[cat] || cat}</div>
                 <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
                   {onboarding.filter(s => s.step_category === cat).map(step => (
                     <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: "1px solid " + t.border }}>
@@ -10230,7 +10250,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
               { label: "Staff with Onboarding", val: compliance.onboardingProgress.length, bg: t.blueSubtle, bdr: t.blueBorder, c: BL },
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, border: "1px solid " + s.bdr, borderRadius: 12, padding: "16px 20px" }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 28, fontWeight: 700, color: s.c }}>{s.val}</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 28, fontWeight: 600, color: s.c }}>{s.val}</div>
                 <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
@@ -10346,7 +10366,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>+ Add Other</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder="Search employee, file, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, outline: "none" }} /></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder="Search employee, file, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? "No items filed under Other. Use Add Other to upload." : "No items match this search."} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
@@ -10356,7 +10376,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* DOCUMENT MODAL */}
       {showModal === "doc" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); setFile(null); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{form.id ? "Edit Document" : "Add Document"}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? "Edit Document" : "Add Document"}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Employee</div>
             <Sel options={[{ v: "", l: "Select employee..." }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Category</div>
@@ -10378,7 +10398,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* TRAINING MODAL */}
       {showModal === "training" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>{form.id ? "Edit Training Record" : "Add Training Record"}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? "Edit Training Record" : "Add Training Record"}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Employee</div>
             <Sel options={[{ v: "", l: "Select employee..." }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Training Name</div>
@@ -10409,7 +10429,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 700, color: t.text }}>Add Custom Onboarding Step</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Custom Onboarding Step</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Step Name</div>
             <Inp t={t} placeholder="e.g. Complete bloodborne pathogens training" value={form.step_name || ""} onChange={e => setForm({ ...form, step_name: e.target.value })} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Category</div>
