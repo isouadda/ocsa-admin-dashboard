@@ -4108,7 +4108,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
           {detail.evaluations?.map((ev, i) => (
             <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"★".repeat(ev.rating)}{"☆".repeat(5 - ev.rating)}</span>
+                <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"\u2605".repeat(ev.rating)}{"\u2606".repeat(5 - ev.rating)}</span>
                 <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
               </div>
               {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
@@ -4138,7 +4138,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 14 }}><Lbl>Rating *</Lbl>
           <div style={{ display: "flex", gap: 8 }}>
             {[1,2,3,4,5].map(r => (
-              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? t.goldText : t.textMut, fontSize: 20, cursor: "pointer" }}>★</button>
+              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? t.goldText : t.textMut, fontSize: 20, cursor: "pointer" }}>{"\u2605"}</button>
             ))}
           </div>
         </div>

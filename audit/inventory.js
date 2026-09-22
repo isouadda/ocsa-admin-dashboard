@@ -328,6 +328,9 @@ const REFUSALS = [
 // The house style bans this acronym from anything staff or a client reads. The suite scans
 // src/App.js for it rather than carrying a list, so a new one is caught.
 const HOUSE_STYLE = { id: "house-style/banned-acronym" };
+// Every file under src/ is plain ASCII. A language is written as escapes in source and as itself
+// only in the translator's CSV.
+const ASCII_ONLY = { id: "house-style/ascii-only-under-src" };
 
 // ---------------------------------------------------------------------------
 // Every state the filed report window can be in past its first draw: what its
@@ -386,4 +389,4 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/what-is-still-needed-shrinks", name: "The still-needed line drops a question once it is answered" },
 ];
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, WINDOW_STATES, FILED_FORM_STATES };
+module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WINDOW_STATES, FILED_FORM_STATES };
