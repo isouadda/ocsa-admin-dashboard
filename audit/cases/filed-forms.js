@@ -12,12 +12,9 @@ const FILED_STAMP = "March 16, 2026 at 6:10 PM";
 const REVIEW_STAMP = "March 17, 2026 at 9:30 PM";
 const STILL_NEEDED = "Still needed in the supervisor section";
 
-// Commit two names the tab. Until then the old name is the one on screen, and one case asks for the
-// new one rather than every case failing on the way in.
 async function openFiledForms(d) {
   await d.goto("forms");
-  if (await d.clickText("Filed forms", { exact: false })) return true;
-  return d.clickText("Incident reports", { exact: false });
+  return d.clickText("Filed forms", { exact: false });
 }
 
 // The daily service log is the second filed report. The incident report the older cases open is
@@ -172,7 +169,6 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     const named = await d.clickText("Filed forms", { exact: false });
     check("filed-forms/the-tab-reads-filed-forms", !!named,
       "the tab is still named for incident reports only");
-    if (!named) await d.clickText("Incident reports", { exact: false });
     const options = await d.page.evaluate(() => {
       const sel = Array.from(document.querySelectorAll("select")).find((s) => s.getAttribute("aria-label") === "Form");
       return sel ? Array.from(sel.options).map((o) => o.text) : [];
@@ -283,7 +279,7 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     const body = await d.bodyText();
     const tabs = await d.visibleButtons();
     results.check("page", "page/forms/a-supervisor-the-list-lets-in-reads-filed-forms",
-      body.indexOf("is for admins") < 0 && (body.indexOf("Filed forms") >= 0 || body.indexOf("Incident reports") >= 0),
+      body.indexOf("is for admins") < 0 && body.indexOf("Filed forms") >= 0,
       "the body reads " + JSON.stringify(body.slice(0, 120)));
     results.check("page", "page/forms/that-supervisor-sees-no-other-tab",
       body.indexOf("is for admins") < 0 && tabs.indexOf("Library") < 0 && tabs.indexOf("Submissions") < 0,

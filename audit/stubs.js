@@ -306,7 +306,7 @@ function createStubs() {
     { id: "pa-3", jotform_form_id: "240000000000001", form_title: "Incident report", submission_id: "600000000000001", first_name: null, last_name: null, access_type: "print", accessed_at: seed.shift(-8) + "T16:00:00Z", ip_address: "198.51.100.4", success: false, submitter_name: null, error_message: "The upstream PDF could not be read" },
   ];
   // hand: 3 access events, 1 of them a failure, and one with no person left on the row.
-  // Shaped to the Incident reports view: formName, siteName, userName, submittedAt, createdAt,
+  // Shaped to the Filed forms view: formName, siteName, userName, submittedAt, createdAt,
   // answered, remaining, dueAt.
   const INCIDENT_REPORTS = [
     { id: "ir-1", formCode: "incident", formName: "Incident report", status: "submitted", siteId: S[0].id, siteName: S[0].name, userName: "Tomasz Wisniewski", createdAt: seed.shift(-1) + "T17:40:00Z", submittedAt: seed.shift(-1) + "T18:00:00Z", answered: 12, remaining: 0, dueAt: null },

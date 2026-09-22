@@ -336,12 +336,17 @@ export default function AdminDashboard() {
   // names. One quiet call when the session starts asks the API for this person's own effective
   // capabilities: a 200 answers it, and any other answer leaves them with what their role gives.
   const [canManagePermissions, setCanManagePermissions] = useState(false);
+  // Forms holds every filed report now, and the API already decides who may read them. One quiet
+  // call when the session starts asks for the list: a 200 opens the page, and any other answer
+  // leaves this person with what their role gives, which is the line Forms has shown all along.
+  const [canReadFiledForms, setCanReadFiledForms] = useState(false);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
     if (id === "settings") return isAdmin || canManagePermissions;
+    if (id === "forms") return isAdmin || canReadFiledForms;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions]);
+  }, [isAdmin, canManagePermissions, canReadFiledForms]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -358,6 +363,14 @@ export default function AdminDashboard() {
       .catch(e => { if (alive) setCanManagePermissions(false); console.warn("Own capabilities:", e.message); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
+  useEffect(() => {
+    if (!token || isAdmin) { setCanReadFiledForms(false); return; }
+    let alive = true;
+    af("/api/forms/responses?status=submitted&limit=1")
+      .then(() => { if (alive) setCanReadFiledForms(true); })
+      .catch(e => { if (alive) setCanReadFiledForms(false); console.warn("Filed forms:", e.message); });
+    return () => { alive = false; };
+  }, [token, isAdmin, af]);
   useEffect(() => { if (!token) return; let alive = true; af("/api/reports/overview").then(d => { if (alive) setNotif({ openIssues: d.openIssues, pendingStaff: d.pendingStaff }); }).catch(() => {}); return () => { alive = false; }; }, [token, page]);
   // How many Speak Up cases are waiting: unheld, due soon or overdue. Admins only. The route writes no
   // audit row, so it is polled every 60 seconds while the tab is visible and again after a save on the
@@ -7789,7 +7802,10 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
 }
 
 function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute }) {
-  const [tab, setTab] = useState(() => (route[0] === "reports" ? "incident_reports" : "library"));
+  // Everything on this page but the filed reports is the Jotform machinery, which is an admin's.
+  // Anyone else the API lets in lands on Filed forms and sees that tab alone.
+  const isAdmin = user?.role === "admin";
+  const [tab, setTab] = useState(() => (route[0] === "reports" || !isAdmin ? "incident_reports" : "library"));
   const [irOpenId, setIrOpenId] = useState(() => (route[0] === "reports" && route[1] ? route[1] : null));
   const [irOpenRow, setIrOpenRow] = useState(null);
   // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well. #forms alone
@@ -8124,7 +8140,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     setAliasDeletingId(null);
   }, [af, showToast, loadAliases]);
 
-  useEffect(() => { loadConfig(); }, [loadConfig]);
+  useEffect(() => { if (isAdmin) loadConfig(); }, [loadConfig, isAdmin]);
   useEffect(() => { if (tab === "library") loadForms(); }, [tab, libFilters]);
   useEffect(() => { if (tab === "submissions") loadSubmissions(true); }, [tab, subFilters]);
   useEffect(() => { if (tab === "pdf_access") loadPdfAccessLog(true); }, [tab, pdfFilters]);
@@ -8459,24 +8475,26 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     return <Bdg l={status} c={colors[status] || t.textMut} />;
   };
 
-  const tabs = [
-    { id: "library", l: "Form Library" },
-    { id: "submissions", l: "Submissions" },
-    { id: "pdf_access", l: "PDF Access Log" },
-    { id: "settings", l: "Settings" },
-    { id: "sync_diagnostic", l: "Sync Diagnostic" },
-    { id: "aliases", l: "Aliases" },
-    { id: "incident_reports", l: "Incident reports" },
+  const TABS = [
+    { id: "library", l: "Form Library", adminOnly: true },
+    { id: "submissions", l: "Submissions", adminOnly: true },
+    { id: "pdf_access", l: "PDF Access Log", adminOnly: true },
+    { id: "settings", l: "Settings", adminOnly: true },
+    { id: "sync_diagnostic", l: "Sync Diagnostic", adminOnly: true },
+    { id: "aliases", l: "Aliases", adminOnly: true },
+    // The tab holds every filed form the API lists, whatever kind of form it is.
+    { id: "incident_reports", l: "Filed forms", adminOnly: false },
   ];
+  const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <SecT t={t}>Forms & Jotform Integration</SecT>
+      <SecT t={t}>{isAdmin ? "Forms & Jotform Integration" : "Filed forms"}</SecT>
 
       {/* PII WARNING BANNER */}
-      <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
+      {isAdmin && <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
         <strong>Privacy note.</strong> Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.
-      </div>
+      </div>}
 
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -8493,7 +8511,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       </div>
 
       {/* CONFIG STATUS STRIP */}
-      {config && (
+      {isAdmin && config && (
         <Crd t={t} style={{ marginBottom: 14, padding: 12 }}>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", fontSize: 12 }}>
             <div><span style={{ color: t.textMut }}>Key: </span>{config.hasKey ? (config.keyValid ? <span style={{ color: GR, fontWeight: 600 }}>Valid</span> : <span style={{ color: RD, fontWeight: 600 }}>Invalid</span>) : <span style={{ color: RD, fontWeight: 600 }}>Not set</span>}</div>

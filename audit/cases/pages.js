@@ -213,7 +213,8 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
       // A gated page opens for an admin, and Settings also opens for the person whose capability
       // names that screen.
       const opens = !p.gated || isAdmin
-        || (p.id === "settings" && seed.PEOPLE[persona].singleCapability === "manage_permissions");
+        || (p.id === "settings" && seed.PEOPLE[persona].singleCapability === "manage_permissions")
+        || (p.id === "forms" && seed.PEOPLE[persona].readsFiledForms === true);
       if (!opens) {
         // The page must not render its contents, AND the person must be told why. The page label
         // still sits in the header, so only the content area is read here.

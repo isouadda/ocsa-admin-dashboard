@@ -15,13 +15,13 @@ const pressDelivery = async (d) => {
 };
 const openAndDownload = async (d) => {
   await d.goto("forms");
-  await d.clickText("Incident reports", { exact: false });
+  await d.clickText("Filed forms", { exact: false });
   await d.clickRow(0);
   return d.clickText("Download PDF", { inModal: true, exact: true });
 };
 const openAndResend = async (d) => {
   await d.goto("forms");
-  await d.clickText("Incident reports", { exact: false });
+  await d.clickText("Filed forms", { exact: false });
   await d.clickRow(0);
   await d.clickText("Send again", { inModal: true, exact: true });
   return d.clickText("Send it", { inModal: true, exact: true });
@@ -31,7 +31,7 @@ const openAndResend = async (d) => {
 // can be refused.
 const openLog = async (d) => {
   await d.goto("forms");
-  if (!(await d.clickText("Filed forms", { exact: false }))) await d.clickText("Incident reports", { exact: false });
+  await d.clickText("Filed forms", { exact: false });
   return d.clickRow(1);
 };
 const openLogAndSign = async (d) => {

@@ -11,7 +11,7 @@ const LINK_CHOICE = "Link to the app";
 
 async function openReport(d, which) {
   await d.goto("forms");
-  await d.clickText("Incident reports", { exact: false });
+  await d.clickText("Filed forms", { exact: false });
   if (which === "draft") await d.clickText("Unfinished", { exact: true });
   return d.clickRow(0);
 }

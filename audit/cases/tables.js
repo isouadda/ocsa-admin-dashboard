@@ -22,7 +22,7 @@ const ROUTES = {
   "hr/other": { open: async (d) => { await d.goto("hr"); await d.clickText("Other", { exact: true }); }, rowsFrom: "/api/hr/documents", search: "doc-4.pdf", expectSearchRows: 1, keepIds: ["hd-4"] },
   "schedule/patterns": { open: async (d) => { await d.goto("schedule"); await d.clickText("Patterns", { exact: true }); }, rowsFrom: "/api/schedule/patterns", filters: [["Ended", "status=ended"], ["All", "status=all"]] },
   "schedule/timeoff": { open: async (d) => { await d.goto("schedule"); await d.clickText("Time off", { exact: false }); }, rowsFrom: "/api/time-off", filters: [["Approved", "status=approved"], ["Denied", "status=denied"], ["Cancelled", "status=cancelled"], ["All", "status=all"]] },
-  "forms/incident-reports": { open: async (d) => { await d.goto("forms"); await d.clickText("Incident reports", { exact: true }); }, rowsFrom: "/api/forms/responses", filters: [["Unfinished", "status=draft"], ["Submitted", "status=submitted"]] },
+  "forms/incident-reports": { open: async (d) => { await d.goto("forms"); await d.clickText("Filed forms", { exact: true }); }, rowsFrom: "/api/forms/responses", filters: [["Unfinished", "status=draft"], ["Submitted", "status=submitted"]] },
   "cases/list": { open: async (d) => { await d.goto("cases"); await d.clickText("All", { exact: true }); }, rowsFrom: "/api/hr-cases", filters: [["Open", "status=open"], ["Resolved", "status=resolved"]] },
 };
 

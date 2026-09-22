@@ -28,20 +28,6 @@
       "shows": "The supervisor section reads as text under a note that a supervisor completes it at a desk. There are no inputs, no Save, and no line naming the questions still empty, so the twelve refusals the supervisor route can answer with cannot be reached.",
       "why": "PATCH /api/forms/responses/:id/supervisor is not called from anywhere in the dashboard. Commit four draws the section as inputs when canWriteSupervisor is true, lists supervisorMissing, and sends only what changed.",
       "where": "src/App.js, IncidentReportWindow's supervisor half"
-    },
-    {
-      "id": "the-tab-is-still-named-for-incident-reports",
-      "match": "^filed-forms/the-tab-reads-filed-forms$",
-      "shows": "The tab on Forms reads Incident reports. It now lists every filed form, and the next two loaded are a daily service log and a monthly check, neither of which is an incident report.",
-      "why": "The tab's label is written in one place. Commit two renames it to Filed forms and the suite's openers follow.",
-      "where": "src/App.js, the Forms page tab list"
-    },
-    {
-      "id": "forms-does-not-open-for-a-supervisor-the-list-lets-in",
-      "match": "^page/forms/(a-supervisor-the-list-lets-in-reads-filed-forms|that-supervisor-sees-no-other-tab)$",
-      "shows": "A supervisor whose GET /api/forms/responses answers 200 reads This page is for admins. on Forms, so the filed reports they may read are out of reach. The supervisor the list refuses reads the same line, which is right.",
-      "why": "canOpenPage holds forms in ADMIN_ONLY_PAGES with no way past it. Commit two gives Forms the shape Settings already has: a quiet list call once per sign-in decides it, Filed forms is the only tab for anyone who is not an admin, and a failure keeps today's line.",
-      "where": "src/App.js:341, canOpenPage"
     }
   ]
 }
