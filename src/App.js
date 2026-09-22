@@ -7610,6 +7610,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // is one request. This is the guard the Time off window uses.
   const sendingRef = useRef(false);
   const fetchedRef = useRef(null);
+  const [signing, setSigning] = useState("");
+  const signingRef = useRef(false);
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -7644,6 +7646,19 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     setDownloading(false);
   };
 
+  // One press sends one request, and nothing is drawn until the API answers: the window is swapped
+  // for the report the API sends back, stamp and all. The ref closes the gap before the disabled
+  // button redraws, which is the guard the footer's Send again uses.
+  const sign = async (key) => {
+    if (signingRef.current) return;
+    signingRef.current = true; setSigning(key); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key } });
+      if (d && d.draft) setData(d);
+    } catch (e) { setActionError(e.message || "Request failed"); }
+    signingRef.current = false; setSigning("");
+  };
+
   const resend = async () => {
     if (sendingRef.current) return;
     sendingRef.current = true; setSending(true); setActionError(""); setSentLine("");
@@ -7661,16 +7676,82 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const draft = data && data.draft;
   draftRef.current = draft;
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
-  const agentFields = fields.filter(f => f.half === "agent");
+  // Everything that is not the supervisor's half was answered by whoever filed the report. The two
+  // words this platform uses for that half are read the same way, so the answers show either way.
+  const agentFields = fields.filter(f => f.half !== "supervisor");
   const supervisorFields = fields.filter(f => f.half === "supervisor");
   const submitted = draft && draft.status === "submitted";
-  // The label comes from the API and is shown as sent: some carry required federal wording.
-  const fieldRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
+  // What a cell reads as. A ticked box is a word rather than a mark, a picked option is the label
+  // the form offers rather than the value it stores, and everything else is what the API sent.
+  const cellText = (col, raw) => {
+    if (col && col.type === "checkbox") return raw === true || raw === "true" ? "Yes" : "No";
+    if (col && col.type === "select") {
+      const opt = (col.options || []).find(o => String(o.value) === String(raw));
+      if (opt) return opt.label;
+    }
+    return raw == null ? "" : String(raw);
+  };
+  // A column's name comes from the form and is drawn as the API sent it, the way a question's label
+  // is: some of them are wording a person is required to read.
+  const thCell = { textAlign: "left", padding: "7px 10px", fontSize: 11, fontWeight: 600, color: t.textMut, whiteSpace: "nowrap", borderBottom: "1px solid " + t.border };
+  const tdCell = { padding: "7px 10px", fontSize: 12, color: t.text, borderBottom: "1px solid " + t.border, verticalAlign: "top" };
+  // A checklist keeps its items down the side and its columns across the top. A table a person adds
+  // rows to is numbered instead. Either one scrolls inside this box when it is wider than the box,
+  // the way the tables on the pages do.
+  const gridTable = (f, cell) => {
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    const declared = Array.isArray(f.rows) ? f.rows : null;
+    const added = Array.isArray(f.value) ? f.value : [];
+    const body = declared
+      ? declared.map(r => ({ key: r.key, head: r.label, row: (f.value || {})[r.key] || {} }))
+      : added.map((v, i) => ({ key: String(i), head: String(i + 1), row: v || {} }));
+    return (<div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+        <thead><tr>
+          <th style={thCell}>{declared ? "Item" : "#"}</th>
+          {cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}
+        </tr></thead>
+        <tbody>
+          {body.map(b => (<tr key={b.key}>
+            <td style={Object.assign({}, tdCell, { fontWeight: 500, whiteSpace: "nowrap" })}>{b.head}</td>
+            {cols.map(c => <td key={c.key} style={tdCell}>{cell ? cell(f, b, c) : cellText(c, b.row[c.key])}</td>)}
+          </tr>))}
+          {body.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>Nothing was added.</td></tr>}
+        </tbody>
+      </table>
+    </div>);
+  };
+  // A stamp says who signed and when, read in the company's own day wherever the computer is set.
+  const stampLine = (v) => {
+    if (!v || !v.at) return "Not signed";
+    const tz = clientConfig.company.timeZone;
+    const when = new Date(v.at);
+    const day = when.toLocaleDateString("en-US", { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
+    const time = when.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+    return "Signed by " + (v.name || "someone") + " on " + day + " at " + time;
+  };
+  const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
+  const signoffRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
-    {f.displayValue == null || f.displayValue === ""
-      ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>Not answered</div>
-      : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontSize: 13, color: f.value && f.value.at ? t.text : t.textMut }}>{stampLine(f.value)}</div>
+      {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? "Signing..." : "Sign"}</Btn>}
+    </div>
   </div>);
+  // The label comes from the API and is shown as sent: some carry required federal wording.
+  const fieldRow = (f) => {
+    if (f.type === "signoff") return signoffRow(f);
+    if (f.type === "grid") return (<div key={f.key} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+      {gridTable(f)}
+    </div>);
+    return (<div key={f.key} style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+      {f.displayValue == null || f.displayValue === ""
+        ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>Not answered</div>
+        : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+    </div>);
+  };
 
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>

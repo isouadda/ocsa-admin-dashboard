@@ -228,11 +228,15 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     stubs.setDelay("/signoff", 900);
     await openLog(d);
     const mark = d.mark();
-    await d.clickText("Sign", { inModal: true, exact: true });
-    await d.clickText("Sign", { inModal: true, exact: true }).catch(() => false);
+    const clicks = await d.page.evaluate(() => {
+      const b = Array.from(document.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === "Sign");
+      if (!b) return 0;
+      b.click(); b.click();
+      return 2;
+    });
     await d.settle(1400);
     const sent = d.callsSince(mark).filter((c) => c.method === "POST" && /\/signoff$/.test(c.path));
-    check("filed-forms/two-presses-send-one-request", sent.length === 1,
+    check("filed-forms/two-presses-send-one-request", clicks === 2 && sent.length === 1,
       "two presses sent " + sent.length + " requests");
     stubs.clearDelays();
     await d.closeModal();

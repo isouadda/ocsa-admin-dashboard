@@ -9,20 +9,6 @@
       "where": "src/App.js:550, the main column"
     },
     {
-      "id": "the-window-cannot-draw-a-table-a-checklist-or-a-stamp",
-      "match": "^filed-forms/(a-checklist-draws-as-a-table|a-checklist-keeps-its-items-down-the-side|a-checklist-answer-reads-as-a-word|an-added-rows-table-is-numbered|an-added-rows-table-keeps-its-columns|a-picked-option-reads-as-its-label|a-signed-part-draws-its-stamp|an-unsigned-part-reads-not-signed|a-wide-table-scrolls-in-its-own-box|the-filed-half-does-not-turn-on-one-word)( @1024)?( light)?( largest)?$",
-      "shows": "The filed report window draws every answer as one line of read-only text from displayValue. A checklist, a table a person added rows to and a sign-off each arrive with their own shape, and all three come out as that one line or as nothing at all. The window carries no table, so there is nothing for the checks to read.",
-      "why": "The window has one drawing for every type, fieldRow, which reads displayValue and stops there. Commit three gives it one drawing per type: a checklist as a table with its items down the side, an added-rows table numbered, and a sign-off as its stamp read in America/New_York.",
-      "where": "src/App.js, IncidentReportWindow's fieldRow"
-    },
-    {
-      "id": "a-filed-report-cannot-be-signed-from-the-dashboard",
-      "match": "^(filed-forms/(whoever-may-sign-is-offered-a-button|sign-sends-one-request|sign-sends-the-key-of-the-part|the-stamp-is-drawn-after-the-answer|sign-waits-for-the-answer|two-presses-send-one-request)( @1024)?( light)?( largest)?|refusals/signoff-[a-z-]+)$",
-      "shows": "Nothing in the window offers to sign a part of the form, so the eight refusals the sign-off route can answer with cannot be reached either. The window offers Download PDF, Send again and Close.",
-      "why": "POST /api/forms/responses/:id/signoff is not called from anywhere in the dashboard. Commit three adds a Sign button beside each key in canSign, one request per press, and the stamp drawn from what the API answers.",
-      "where": "src/App.js, IncidentReportWindow"
-    },
-    {
       "id": "the-supervisor-section-cannot-be-filled-in-at-a-desk",
       "match": "^(filed-forms/(the-supervisor-section-takes-answers|what-is-still-needed-is-named|save-sends-only-what-changed|save-sends-a-checklist-in-its-shape|the-section-is-swapped-for-the-answer|what-is-still-needed-shrinks)( @1024)?( light)?( largest)?|refusals/supervisor-[a-z-]+)$",
       "shows": "The supervisor section reads as text under a note that a supervisor completes it at a desk. There are no inputs, no Save, and no line naming the questions still empty, so the twelve refusals the supervisor route can answer with cannot be reached.",

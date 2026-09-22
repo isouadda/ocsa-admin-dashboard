@@ -175,17 +175,17 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7424] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7435] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7675] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9148] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9201] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9316] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9353] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7756] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9229] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9282] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9397] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9434] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [9945] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10026] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10441] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [10463] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10494] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [10522] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [10544] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10575] },
 ];
 
 // ---------------------------------------------------------------------------
