@@ -4,6 +4,7 @@
 // hidden and is not fails here. The narrow pass repeats every page at 1024 wide.
 "use strict";
 const seed = require("../seed");
+const layout = require("../lib/layout");
 
 // What each persona must never see. The sidebar is the proof: a supervisor has no Staff Management,
 // no Cases, no Forms and no Settings item, and no Settings row in the user menu.
@@ -23,7 +24,7 @@ async function painted(d) {
       return "#" + [1, 2, 3].map((i) => Number(m[i]).toString(16).padStart(2, "0")).join("").toUpperCase();
     };
     const bgOf = (el) => (el ? hex(getComputedStyle(el).backgroundColor) : "");
-    const panel = document.querySelector("div[style*='position: fixed'][style*='height: 100vh']");
+    const panel = document.querySelector("div[style*='position: fixed'][style*='border-right']");
     const top = document.querySelector("div[style*='z-index: 40']");
     const found = [];
     const all = document.querySelectorAll("*");
@@ -36,6 +37,92 @@ async function painted(d) {
     }
     return { panel: bgOf(panel), top: bgOf(top), dark: found };
   }, DARK_BACKGROUNDS);
+}
+
+// What a person can reach and read on the page as drawn: whether the page runs off the side, whether
+// the title in the top bar has run into what sits beside it, and whether every control can be hit at
+// its own center. A control the page draws under something else fails the hit test.
+async function geometry(d) {
+  return d.page.evaluate(() => {
+    const doc = document.documentElement;
+    const over = doc.scrollWidth - doc.clientWidth;
+    const bar = document.querySelector("div[style*='z-index: 40']");
+    let overlap = null;
+    if (bar) {
+      const title = bar.querySelector("div > div");
+      const boxes = Array.from(bar.children).map((c) => c.getBoundingClientRect());
+      if (title && boxes.length > 1) {
+        const t = title.getBoundingClientRect();
+        for (let i = 1; i < boxes.length; i += 1) {
+          const b = boxes[i];
+          if (b.width > 0 && t.right > b.left + 1 && t.left < b.right - 1) {
+            overlap = Math.round(t.right - b.left) + " pixels into what sits beside it";
+            break;
+          }
+        }
+      }
+    }
+    // A control scrolled out of its own box is not on screen, so it is not asked about. What is
+    // asked about is a control that is on screen and cannot be hit where a finger would land.
+    const onScreen = (el, cx, cy) => {
+      if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) return false;
+      for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+        const o = getComputedStyle(p);
+        if (o.overflowX === "visible" && o.overflowY === "visible") continue;
+        const b = p.getBoundingClientRect();
+        if (cx < b.left - 1 || cx > b.right + 1 || cy < b.top - 1 || cy > b.bottom + 1) return false;
+      }
+      return true;
+    };
+    const unreachable = [];
+    const controls = Array.from(document.querySelectorAll("button, input, select, textarea, a[href]"));
+    for (const el of controls) {
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (!onScreen(el, cx, cy)) continue;
+      const hit = document.elementFromPoint(cx, cy);
+      if (!hit) { unreachable.push(el.tagName.toLowerCase() + " at " + Math.round(cx) + "," + Math.round(cy)); continue; }
+      // The toast is over everything on purpose, and for three seconds.
+      const hs = getComputedStyle(hit);
+      if (hs.position === "fixed" && Number(hs.zIndex) >= 1000) continue;
+      if (hit !== el && !el.contains(hit) && !hit.contains(el)) {
+        unreachable.push((el.getAttribute("aria-label") || el.getAttribute("placeholder") || (el.innerText || "").trim().slice(0, 20) || el.tagName.toLowerCase())
+          + " is under " + hit.tagName.toLowerCase());
+      }
+      if (unreachable.length > 3) break;
+    }
+    return { over, overlap, unreachable };
+  });
+}
+
+// Every element's box, as one line each, and the boxes of the parts that can be named. What is
+// inside an <svg> is left out: a chart animates as it draws.
+async function boxes(d) {
+  return d.page.evaluate(() => {
+    const lines = [];
+    const named = {};
+    const label = (el) => {
+      const a = el.getAttribute && (el.getAttribute("aria-label") || el.getAttribute("placeholder"));
+      const t = a || (el.innerText || "").trim().split("\n")[0];
+      return t && t.length <= 40 ? el.tagName.toLowerCase() + ":" + t : "";
+    };
+    const walk = (el, path) => {
+      // The toast comes and goes on its own timer, so it is not part of where anything sits.
+      const cs = getComputedStyle(el);
+      if (cs.position === "fixed" && Number(cs.zIndex) >= 1000) return;
+      const r = el.getBoundingClientRect();
+      lines.push(path + ":" + Math.round(r.x) + "," + Math.round(r.y) + "," + Math.round(r.width) + "," + Math.round(r.height));
+      const key = label(el);
+      if (key && !named[key] && Object.keys(named).length < 300) {
+        named[key] = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
+      }
+      if (el.tagName.toLowerCase() === "svg") return;
+      for (let i = 0; i < el.children.length; i += 1) walk(el.children[i], path + "/" + i);
+    };
+    walk(document.body, "b");
+    return { lines, named };
+  });
 }
 
 // Where the keyboard is. The first element is focused by hand and everything after it is a real Tab
@@ -65,9 +152,11 @@ async function outlineNow(d) {
   });
 }
 
-async function run({ d, results, inventory, app, width, theme }) {
+async function run({ d, results, inventory, app, width, theme, textSize }) {
   const light = theme === "light";
-  const suffix = (width === "narrow" ? " @1024" : "") + (light ? " light" : "");
+  const size = textSize || "standard";
+  const suffix = (width === "narrow" ? " @1024" : "") + (light ? " light" : "")
+    + (size === "standard" ? "" : " " + size);
 
   for (const persona of seed.PERSONAS) {
     const who = seed.PERSONA_LABEL[persona];
@@ -83,6 +172,9 @@ async function run({ d, results, inventory, app, width, theme }) {
     // have that one item and none of the other three.
     const opensSettings = seed.PEOPLE[persona].singleCapability === "manage_permissions";
     const allowed = isAdmin ? ADMIN_ONLY_NAV : opensSettings ? ["Settings"] : [];
+    // The nav labels are read with the panel open. The app collapses it below 1100 on its own, so it
+    // is put back before anything is measured, or the page is measured in a state nobody is in.
+    if (width === "narrow") await d.collapseSidebar();
     const missing = allowed.filter((l) => nav.indexOf(l) < 0);
     const present = ADMIN_ONLY_NAV.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
     results.check("page", "nav/" + persona + suffix, missing.length === 0 && present.length === 0,
@@ -98,6 +190,25 @@ async function run({ d, results, inventory, app, width, theme }) {
       const body = await d.bodyText();
       const bodyLen = await d.bodyLength();
       const header = shellText.indexOf(p.label) >= 0;
+
+      // What the page does with the space it has, at whatever size the text is set to. This runs on
+      // every page case, the gated ones included: the line a person cannot open a page with is a
+      // page a person reads.
+      const g = await geometry(d);
+      results.check("page", id + "/no-sideways-scroll", g.over <= 1,
+        "the page runs " + g.over + " pixels off the side");
+      results.check("page", id + "/title-clear-of-the-search-box", !g.overlap,
+        "the page title runs " + g.overlap);
+      results.check("page", id + "/controls-reachable", g.unreachable.length === 0,
+        "a control cannot be hit at its own center: " + g.unreachable.join(", "));
+
+      // Where everything sits at Standard, which every later commit has to match.
+      if (size === "standard" && !light && persona === "admin") {
+        await d.settle(300);
+        let snap = await boxes(d);
+        if (!layout.matches(p.id, width, snap)) { await d.settle(600); snap = await boxes(d); }
+        layout.see(p.id, width, snap, results);
+      }
 
       // A gated page opens for an admin, and Settings also opens for the person whose capability
       // names that screen.
