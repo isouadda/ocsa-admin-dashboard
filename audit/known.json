@@ -7,6 +7,41 @@
       "shows": "At a 1024 pixel window the Staff Management page is 17 pixels wider than the window, so the whole page scrolls sideways. It happens with the side panel collapsed, which is what the app does at that width, in both themes and at every text size, for the two people who can open the page.",
       "why": "The main column beside the panel is a flex child with the default min-width of auto, so it cannot be narrower than the widest thing inside it, and on this page that is 976.5 pixels where 960 are free. minWidth: 0 on that column is the fix, and it moves boxes at Standard, which this build is not allowed to do. It is a one line change for a build that is allowed to move them.",
       "where": "src/App.js:550, the main column"
+    },
+    {
+      "id": "the-window-cannot-draw-a-table-a-checklist-or-a-stamp",
+      "match": "^filed-forms/(a-checklist-draws-as-a-table|a-checklist-keeps-its-items-down-the-side|a-checklist-answer-reads-as-a-word|an-added-rows-table-is-numbered|an-added-rows-table-keeps-its-columns|a-picked-option-reads-as-its-label|a-signed-part-draws-its-stamp|an-unsigned-part-reads-not-signed|a-wide-table-scrolls-in-its-own-box|the-filed-half-does-not-turn-on-one-word)( @1024)?( light)?( largest)?$",
+      "shows": "The filed report window draws every answer as one line of read-only text from displayValue. A checklist, a table a person added rows to and a sign-off each arrive with their own shape, and all three come out as that one line or as nothing at all. The window carries no table, so there is nothing for the checks to read.",
+      "why": "The window has one drawing for every type, fieldRow, which reads displayValue and stops there. Commit three gives it one drawing per type: a checklist as a table with its items down the side, an added-rows table numbered, and a sign-off as its stamp read in America/New_York.",
+      "where": "src/App.js, IncidentReportWindow's fieldRow"
+    },
+    {
+      "id": "a-filed-report-cannot-be-signed-from-the-dashboard",
+      "match": "^(filed-forms/(whoever-may-sign-is-offered-a-button|sign-sends-one-request|sign-sends-the-key-of-the-part|the-stamp-is-drawn-after-the-answer|sign-waits-for-the-answer|two-presses-send-one-request)( @1024)?( light)?( largest)?|refusals/signoff-[a-z-]+)$",
+      "shows": "Nothing in the window offers to sign a part of the form, so the eight refusals the sign-off route can answer with cannot be reached either. The window offers Download PDF, Send again and Close.",
+      "why": "POST /api/forms/responses/:id/signoff is not called from anywhere in the dashboard. Commit three adds a Sign button beside each key in canSign, one request per press, and the stamp drawn from what the API answers.",
+      "where": "src/App.js, IncidentReportWindow"
+    },
+    {
+      "id": "the-supervisor-section-cannot-be-filled-in-at-a-desk",
+      "match": "^(filed-forms/(the-supervisor-section-takes-answers|what-is-still-needed-is-named|save-sends-only-what-changed|save-sends-a-checklist-in-its-shape|the-section-is-swapped-for-the-answer|what-is-still-needed-shrinks)( @1024)?( light)?( largest)?|refusals/supervisor-[a-z-]+)$",
+      "shows": "The supervisor section reads as text under a note that a supervisor completes it at a desk. There are no inputs, no Save, and no line naming the questions still empty, so the twelve refusals the supervisor route can answer with cannot be reached.",
+      "why": "PATCH /api/forms/responses/:id/supervisor is not called from anywhere in the dashboard. Commit four draws the section as inputs when canWriteSupervisor is true, lists supervisorMissing, and sends only what changed.",
+      "where": "src/App.js, IncidentReportWindow's supervisor half"
+    },
+    {
+      "id": "the-tab-is-still-named-for-incident-reports",
+      "match": "^filed-forms/the-tab-reads-filed-forms$",
+      "shows": "The tab on Forms reads Incident reports. It now lists every filed form, and the next two loaded are a daily service log and a monthly check, neither of which is an incident report.",
+      "why": "The tab's label is written in one place. Commit two renames it to Filed forms and the suite's openers follow.",
+      "where": "src/App.js, the Forms page tab list"
+    },
+    {
+      "id": "forms-does-not-open-for-a-supervisor-the-list-lets-in",
+      "match": "^page/forms/(a-supervisor-the-list-lets-in-reads-filed-forms|that-supervisor-sees-no-other-tab)$",
+      "shows": "A supervisor whose GET /api/forms/responses answers 200 reads This page is for admins. on Forms, so the filed reports they may read are out of reach. The supervisor the list refuses reads the same line, which is right.",
+      "why": "canOpenPage holds forms in ADMIN_ONLY_PAGES with no way past it. Commit two gives Forms the shape Settings already has: a quiet list call once per sign-in decides it, Filed forms is the only tab for anyone who is not an admin, and a failure keeps today's line.",
+      "where": "src/App.js:341, canOpenPage"
     }
   ]
 }

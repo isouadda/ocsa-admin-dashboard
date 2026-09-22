@@ -27,6 +27,23 @@ const openAndResend = async (d) => {
   return d.clickText("Send it", { inModal: true, exact: true });
 };
 
+// The daily service log, opened from the filed list, is where a sign-off and a supervisor section
+// can be refused.
+const openLog = async (d) => {
+  await d.goto("forms");
+  if (!(await d.clickText("Filed forms", { exact: false }))) await d.clickText("Incident reports", { exact: false });
+  return d.clickRow(1);
+};
+const openLogAndSign = async (d) => {
+  await openLog(d);
+  return d.clickText("Sign", { inModal: true, exact: true });
+};
+const openLogAndSave = async (d) => {
+  await openLog(d);
+  await d.fillByLabel("What the supervisor found", "A note for the file.");
+  return d.clickText("Save", { inModal: true, exact: true });
+};
+
 const REFUSALS = {
   "refusals/form-delivery-unknown-code": {
     status: 400, error: "Unknown form code",
@@ -98,6 +115,146 @@ const REFUSALS = {
     status: 422, error: "No form definition for OCSA-FRM-016",
     arm: { method: "POST", path: "/resend" },
     act: openAndResend,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-not-found": {
+    status: 404, error: "Report not found",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-not-a-signoff": {
+    status: 400, error: "That is not a sign-off on this form",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-not-this-part": {
+    status: 403, error: "You cannot sign this part of the form",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-own-report": {
+    status: 403, error: "You cannot sign off on your own report",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-already-submitted": {
+    status: 409, error: "This report was already submitted",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-not-filed-yet": {
+    status: 409, error: "The supervisor section opens once the report is filed",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-voided": {
+    status: 409, error: "This report was voided",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-already-signed": {
+    status: 409, error: "This part is already signed",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-not-found": {
+    status: 404, error: "Report not found",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-not-filed-yet": {
+    status: 409, error: "The supervisor section opens once the report is filed",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-voided": {
+    status: 409, error: "This report was voided",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-forbidden": {
+    status: 403, error: "You cannot fill in the supervisor section",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-own-report": {
+    status: 403, error: "You cannot fill in the supervisor section of your own report",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-answers-shape": {
+    status: 400, error: "Send answers as an object of key and value",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-outside-the-section": {
+    status: 400, error: "Only the supervisor section can be changed here",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-signoff-by-save": {
+    status: 400, error: "A sign-off is made with its own button",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-unanswerable-fields": {
+    status: 400, error: "These fields cannot be answered here",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-not-valid": {
+    status: 400, error: "Some answers are not valid",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-bad-date": {
+    status: 400, error: "Enter a real date",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/supervisor-bad-time": {
+    status: 400, error: "Enter a real time",
+    arm: { method: "PATCH", path: "/supervisor" },
+    act: openLogAndSave,
     whereShown: "window",
     staysOpen: true,
   },

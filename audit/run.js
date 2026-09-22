@@ -20,6 +20,11 @@ const SUITES = [
   { name: "pages", mod: "./cases/pages", widths: ["wide", "narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "light", size: "standard" }, { theme: "dark", size: "largest" }] },
   { name: "views", mod: "./cases/views", widths: ["wide"] },
+  // The filed report window is read in every theme, at every text size, at both widths, because a
+  // table inside a window is the first thing to run off the side.
+  { name: "filed-forms", mod: "./cases/filed-forms", widths: ["wide", "narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "light", size: "standard" },
+      { theme: "dark", size: "largest" }, { theme: "light", size: "largest" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },

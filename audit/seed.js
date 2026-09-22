@@ -29,10 +29,14 @@ const PEOPLE = {
     phone: "2155550101", email: "dana.whitlock@example.invalid",
     login: { phone: "2155550101", pin: "1111" },
   },
+  // The forms API lets this one list filed reports, the way it lets in anyone holding a capability
+  // a form names in its readers. The capability persona below is not let in, so both sides of that
+  // door are driven.
   supervisor: {
     id: "u-sup-1", firstName: "Marcus", lastName: "Ferreira", role: "supervisor",
     phone: "2155550102", email: "marcus.ferreira@example.invalid",
     login: { phone: "2155550102", pin: "2222" },
+    readsFiledForms: true,
   },
   // A supervisor carrying exactly one allowed capability override, manage_permissions.
   capability: {

@@ -302,6 +302,26 @@ const REFUSALS = [
   { id: "refusals/report-resend-draft", status: 409, error: "Only a filed report can be sent again" },
   { id: "refusals/report-resend-no-definition", status: 422, error: "No form definition for OCSA-FRM-016" },
   { id: "refusals/report-resend-forbidden", status: 403, error: "Insufficient permissions" },
+  { id: "refusals/signoff-not-found", status: 404, error: "Report not found" },
+  { id: "refusals/signoff-not-a-signoff", status: 400, error: "That is not a sign-off on this form" },
+  { id: "refusals/signoff-not-this-part", status: 403, error: "You cannot sign this part of the form" },
+  { id: "refusals/signoff-own-report", status: 403, error: "You cannot sign off on your own report" },
+  { id: "refusals/signoff-already-submitted", status: 409, error: "This report was already submitted" },
+  { id: "refusals/signoff-not-filed-yet", status: 409, error: "The supervisor section opens once the report is filed" },
+  { id: "refusals/signoff-voided", status: 409, error: "This report was voided" },
+  { id: "refusals/signoff-already-signed", status: 409, error: "This part is already signed" },
+  { id: "refusals/supervisor-not-found", status: 404, error: "Report not found" },
+  { id: "refusals/supervisor-not-filed-yet", status: 409, error: "The supervisor section opens once the report is filed" },
+  { id: "refusals/supervisor-voided", status: 409, error: "This report was voided" },
+  { id: "refusals/supervisor-forbidden", status: 403, error: "You cannot fill in the supervisor section" },
+  { id: "refusals/supervisor-own-report", status: 403, error: "You cannot fill in the supervisor section of your own report" },
+  { id: "refusals/supervisor-answers-shape", status: 400, error: "Send answers as an object of key and value" },
+  { id: "refusals/supervisor-outside-the-section", status: 400, error: "Only the supervisor section can be changed here" },
+  { id: "refusals/supervisor-signoff-by-save", status: 400, error: "A sign-off is made with its own button" },
+  { id: "refusals/supervisor-unanswerable-fields", status: 400, error: "These fields cannot be answered here" },
+  { id: "refusals/supervisor-not-valid", status: 400, error: "Some answers are not valid" },
+  { id: "refusals/supervisor-bad-date", status: 400, error: "Enter a real date" },
+  { id: "refusals/supervisor-bad-time", status: 400, error: "Enter a real time" },
   { id: "refusals/report-resend-server-error", status: 500, error: "Server error" },
 ];
 
@@ -327,4 +347,43 @@ const WINDOW_STATES = [
   { id: "window-states/report-double-click-sends-once", name: "A double click on Send it sends once" },
 ];
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, WINDOW_STATES };
+
+// ---------------------------------------------------------------------------
+// The filed report window, once a form carries a table, a checklist or a sign-off. The ones marked
+// everyPaint are read again in each theme, at each text size and at both widths, since a table
+// inside a window is the first thing to run off the side. The rest are driven once.
+// ---------------------------------------------------------------------------
+const FILED_FORM_STATES = [
+  { id: "filed-forms/the-window-opens-on-the-new-form", name: "The second filed report opens on the daily service log", everyPaint: true },
+  { id: "filed-forms/a-checklist-draws-as-a-table", name: "A checklist draws as a table with its columns across the top", everyPaint: true },
+  { id: "filed-forms/a-checklist-keeps-its-items-down-the-side", name: "A checklist keeps its items down the side", everyPaint: true },
+  { id: "filed-forms/a-checklist-answer-reads-as-a-word", name: "A ticked box reads Yes, an unticked one No, and a note reads as typed", everyPaint: true },
+  { id: "filed-forms/an-added-rows-table-is-numbered", name: "A table a person added rows to is numbered", everyPaint: true },
+  { id: "filed-forms/an-added-rows-table-keeps-its-columns", name: "A table a person added rows to keeps the form's columns", everyPaint: true },
+  { id: "filed-forms/a-picked-option-reads-as-its-label", name: "A picked option reads as its label and not as its stored value", everyPaint: true },
+  { id: "filed-forms/a-signed-part-draws-its-stamp", name: "A signed part draws Signed by, the name, the date and the time", everyPaint: true },
+  { id: "filed-forms/an-unsigned-part-reads-not-signed", name: "An unsigned part reads Not signed", everyPaint: true },
+  { id: "filed-forms/whoever-may-sign-is-offered-a-button", name: "A Sign button shows beside the part this person may stamp", everyPaint: true },
+  { id: "filed-forms/the-supervisor-section-takes-answers", name: "The supervisor section draws inputs and one Save", everyPaint: true },
+  { id: "filed-forms/what-is-still-needed-is-named", name: "The supervisor questions still empty are named", everyPaint: true },
+  { id: "filed-forms/the-window-does-not-run-off-the-side", name: "The page does not scroll sideways with the window open", everyPaint: true },
+  { id: "filed-forms/a-wide-table-scrolls-in-its-own-box", name: "A table wider than its box scrolls inside that box", everyPaint: true },
+  { id: "filed-forms/every-control-in-the-window-is-44-by-44", name: "Every control in the window is at least 44 by 44", everyPaint: true },
+  { id: "filed-forms/an-older-report-reads-as-it-did", name: "A report with none of the new types reads exactly as before", everyPaint: true },
+  { id: "filed-forms/the-filed-half-does-not-turn-on-one-word", name: "A filed answer shows whichever word the API uses for that half" },
+  { id: "filed-forms/the-tab-reads-filed-forms", name: "The tab reads Filed forms" },
+  { id: "filed-forms/the-filter-names-every-form", name: "The filter beside it names every form" },
+  { id: "filed-forms/the-filter-asks-the-api-for-one-form", name: "Picking a form asks the API for that form" },
+  { id: "filed-forms/sign-sends-one-request", name: "One press of Sign sends one request" },
+  { id: "filed-forms/sign-sends-the-key-of-the-part", name: "Sign sends the key of the part being stamped" },
+  { id: "filed-forms/the-stamp-is-drawn-after-the-answer", name: "The stamp is drawn once the API has answered" },
+  { id: "filed-forms/a-signed-part-is-not-offered-again", name: "A part that is signed is not offered a Sign button" },
+  { id: "filed-forms/sign-waits-for-the-answer", name: "While the request is in flight the button reads busy and no stamp is drawn" },
+  { id: "filed-forms/two-presses-send-one-request", name: "Two presses of Sign send one request" },
+  { id: "filed-forms/save-sends-only-what-changed", name: "Save sends only the answers that changed" },
+  { id: "filed-forms/save-sends-a-checklist-in-its-shape", name: "A checklist is sent as an object keyed by row then column" },
+  { id: "filed-forms/the-section-is-swapped-for-the-answer", name: "The section is swapped for what the API answered" },
+  { id: "filed-forms/what-is-still-needed-shrinks", name: "The still-needed line drops a question once it is answered" },
+];
+
+module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, WINDOW_STATES, FILED_FORM_STATES };

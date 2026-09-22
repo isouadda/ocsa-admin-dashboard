@@ -312,9 +312,130 @@ function createStubs() {
     { id: "ir-1", formCode: "incident", formName: "Incident report", status: "submitted", siteId: S[0].id, siteName: S[0].name, userName: "Tomasz Wisniewski", createdAt: seed.shift(-1) + "T17:40:00Z", submittedAt: seed.shift(-1) + "T18:00:00Z", answered: 12, remaining: 0, dueAt: null },
     { id: "ir-2", formCode: "incident", formName: "Incident report", status: "draft", siteId: S[1].id, siteName: S[1].name, userName: "Ngozi Okonkwo", createdAt: seed.shift(0) + "T20:00:00Z", submittedAt: null, answered: 7, remaining: 5, dueAt: seed.shift(-1) + "T23:00:00Z" },
     { id: "ir-3", formCode: "vehicle", formName: "Vehicle report", status: "draft", siteId: null, siteName: null, userName: "Elena Barbosa", createdAt: seed.shift(-2) + "T11:00:00Z", answered: 3, remaining: 9, dueAt: seed.shift(4) + "T23:00:00Z" },
+    { id: "fr-9", formCode: "service-log", formName: "Daily service log", status: "submitted", siteId: S[0].id, siteName: S[0].name, userId: state.staff[6].id, userName: state.staff[6].name, createdAt: seed.shift(-1) + "T14:00:00Z", submittedAt: seed.shift(-1) + "T22:10:00Z", answered: 6, remaining: 0, dueAt: null },
   ];
-  // hand: 3 reports. submitted 1, draft 2. The draft rows read "7 of 12" and "3 of 12" answered,
+  // hand: 4 reports. submitted 2, draft 2. The draft rows read "7 of 12" and "3 of 12" answered,
   // and ir-2 is past due against the fixed clock.
+
+  // The filed report the forms after these two look like: a checklist, a table a person adds rows
+  // to, a sign-off already stamped by whoever filed it, one waiting for a reviewer, and a
+  // supervisor section filled in at a desk. Every value here is invented.
+  const SERVICE_LOG_ID = "fr-9";
+  const FILER = state.staff[6];
+  const AREA_COLUMNS = [
+    { key: "done", label: "Done", type: "checkbox", required: true },
+    { key: "note", label: "Note", type: "text", required: false },
+  ];
+  const AREA_ROWS = [
+    { key: "lobby", label: "Lobby and entry" },
+    { key: "restrooms", label: "Restrooms" },
+    { key: "breakroom", label: "Break room" },
+  ];
+  const SUPPLY_COLUMNS = [
+    { key: "item", label: "Item", type: "text", required: true },
+    { key: "qty", label: "How many", type: "number", required: true },
+    { key: "unit", label: "Unit", type: "select", required: true,
+      options: [{ value: "case", label: "Case" }, { value: "each", label: "Each" }] },
+  ];
+  const CHECK_COLUMNS = [{ key: "ok", label: "Checked", type: "checkbox", required: true }];
+  const CHECK_ROWS = [
+    { key: "walkthrough", label: "Walked the floor" },
+    { key: "supplies", label: "Supplies counted" },
+  ];
+  const AREA_VALUE = {
+    lobby: { done: true, note: "Buffed after the delivery" },
+    restrooms: { done: true, note: "" },
+    breakroom: { done: false, note: "Locked at close" },
+  };
+  const SUPPLY_VALUE = [
+    { item: "All purpose cleaner", qty: 2, unit: "case" },
+    { item: "Liner bags", qty: 6, unit: "each" },
+  ];
+  // What the stamp and the saved supervisor answers look like between calls, so the window can be
+  // read again after the API answers.
+  const filedState = () => {
+    if (!state.filedForms) state.filedForms = { signed: {}, supervisor: {} };
+    return state.filedForms;
+  };
+  const stampNow = () => ({
+    userId: person().id,
+    name: person().firstName + " " + person().lastName,
+    role: person().role,
+    at: seed.NOW_ISO,
+  });
+  const SUPERVISOR_REQUIRED = [
+    { key: "reviewed_on", label: "Date reviewed" },
+    { key: "checks", label: "Checks at review" },
+  ];
+  const answered = (v) => {
+    if (v == null || v === "") return false;
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === "object") return Object.keys(v).length > 0;
+    return true;
+  };
+  const serviceLogFields = () => {
+    const sup = filedState().supervisor;
+    const stamp = filedState().signed.review_signoff || null;
+    const checks = sup.checks || {};
+    return [
+      { id: "sf-1", key: "service_date", label: "Date of service", half: "agent", type: "date",
+        value: "2026-03-16", displayValue: "March 16, 2026" },
+      // The filing half carries the staff portal's word for itself here on purpose: this repo
+      // writes that half as "agent" in one place and "staff" in another, and a window that reads
+      // the answers should not depend on which word the API sends.
+      { id: "sf-2", key: "areas", label: "Areas completed", half: "staff", type: "grid",
+        columns: AREA_COLUMNS, rows: AREA_ROWS, minRows: null, maxRows: null,
+        value: AREA_VALUE,
+        displayValue: "Lobby and entry: done. Restrooms: done. Break room: not done." },
+      { id: "sf-3", key: "supplies_used", label: "Supplies used", half: "agent", type: "grid",
+        columns: SUPPLY_COLUMNS, rows: null, minRows: 1, maxRows: 5,
+        value: SUPPLY_VALUE,
+        displayValue: "All purpose cleaner 2 Case. Liner bags 6 Each." },
+      { id: "sf-4", key: "filed_signoff", label: "Filed by", half: "agent", type: "signoff",
+        signer: "agent", displayValue: "",
+        value: { userId: FILER.id, name: FILER.name, role: FILER.role, at: seed.shift(-1) + "T22:10:00Z" } },
+      { id: "sf-5", key: "reviewed_on", label: "Date reviewed", half: "supervisor", type: "date",
+        value: sup.reviewed_on || "", displayValue: sup.reviewed_on ? "March 17, 2026" : "" },
+      { id: "sf-6", key: "review_note", label: "What the supervisor found", half: "supervisor",
+        type: "textarea", value: sup.review_note || "", displayValue: sup.review_note || "" },
+      { id: "sf-7", key: "checks", label: "Checks at review", half: "supervisor", type: "grid",
+        columns: CHECK_COLUMNS, rows: CHECK_ROWS, minRows: null, maxRows: null,
+        value: checks,
+        displayValue: CHECK_ROWS.filter((r) => checks[r.key] && checks[r.key].ok).map((r) => r.label).join(". ") },
+      { id: "sf-8", key: "review_signoff", label: "Reviewed by", half: "supervisor", type: "signoff",
+        signer: "supervisor", displayValue: "", value: stamp },
+    ];
+  };
+  const FORM_LIST = [
+    { code: "incident", title: "Incident report" },
+    { code: "vehicle", title: "Vehicle report" },
+    { code: "service-log", title: "Daily service log" },
+  ];
+  const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
+  const INCIDENT_FIELDS = (r) => [
+    { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
+      value: r.siteName || "", displayValue: r.siteName || "" },
+    { id: "f-2", key: "what", label: "What happened", half: "agent", type: "textarea",
+      value: "A delivery pallet scuffed the lobby floor.", displayValue: "A delivery pallet scuffed the lobby floor." },
+    { id: "f-3", key: "action", label: "Corrective action", half: "supervisor", type: "textarea",
+      value: "", displayValue: "" },
+  ];
+  // What the read answers, and what the sign-off and supervisor routes answer back.
+  const reportPayload = (r) => {
+    const isLog = r.id === SERVICE_LOG_ID;
+    const fields = isLog ? serviceLogFields() : INCIDENT_FIELDS(r);
+    const mine = String(r.userId || "") === String(person().id);
+    const signed = !!filedState().signed.review_signoff;
+    const sup = filedState().supervisor;
+    const canWrite = isLog && r.status === "submitted" && !mine;
+    return {
+      draft: Object.assign({}, r),
+      fields: fields,
+      canSign: isLog && !mine && !signed ? ["review_signoff"] : [],
+      canWriteSupervisor: canWrite,
+      supervisorMissing: canWrite ? SUPERVISOR_REQUIRED.filter((q) => !answered(sup[q.key])) : [],
+    };
+  };
 
   // GET /api/notification-recipients. Every type except the two Speak Up ones takes an outside
   // address, and the keyed type carries the forms, each with how its email carries the report.
@@ -969,10 +1090,14 @@ function createStubs() {
     if (path === "/api/jotform/auto-link") return ok({ message: "Linked 1 submission", linked: 1 });
     if (path === "/api/jotform/pdf-backfill") return ok({ message: "Backfilled 2 PDFs", filled: 2 });
     if (path.startsWith("/api/jotform/employee-documents/")) return ok(JOTFORM_SUBMISSIONS.slice(0, 1));
-    if (path === "/api/forms") return ok({ forms: [{ code: "incident", name: "Incident report" }, { code: "vehicle", name: "Vehicle report" }] });
+    if (path === "/api/forms") return ok({ forms: FORM_LIST });
     if (path === "/api/forms/responses") {
+      // Who may list decides who may open Forms at all. An admin always may; anyone else may when
+      // a form names a capability they hold in its readers, which the seed marks on the person.
+      if (!canListFiledForms()) return { status: 403, json: { error: "Insufficient permissions" } };
       const status = q("status") || "submitted";
-      const rows = INCIDENT_REPORTS.filter((r) => r.status === status);
+      const code = q("formCode") || "";
+      const rows = INCIDENT_REPORTS.filter((r) => r.status === status && (!code || r.formCode === code));
       return ok({ responses: rows });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
@@ -993,15 +1118,42 @@ function createStubs() {
       // hand: 3 emails and 2 app notices, and the PDF rides along only when the form is set to pdf.
       return ok({ id: r.id, formCode: code, inApp: 2, email: 3, attached: (state.formDelivery[code] || "app_link") === "pdf" });
     }
+    if (/^\/api\/forms\/responses\/[^/]+\/signoff$/.test(path) && method === "POST") {
+      const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
+      if (!r) return { status: 404, json: { error: "Report not found" } };
+      const key = body && body.key;
+      const payload = reportPayload(r);
+      const keys = payload.fields.filter((f) => f.type === "signoff").map((f) => f.key);
+      if (keys.indexOf(key) < 0) return { status: 400, json: { error: "That is not a sign-off on this form" } };
+      if (String(r.userId || "") === String(person().id)) return { status: 403, json: { error: "You cannot sign off on your own report" } };
+      if (filedState().signed[key]) return { status: 409, json: { error: "This part is already signed" } };
+      if (payload.canSign.indexOf(key) < 0) return { status: 403, json: { error: "You cannot sign this part of the form" } };
+      filedState().signed[key] = stampNow();
+      return ok(reportPayload(r));
+    }
+    if (/^\/api\/forms\/responses\/[^/]+\/supervisor$/.test(path) && method === "PATCH") {
+      const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
+      if (!r) return { status: 404, json: { error: "Report not found" } };
+      const answers = body && body.answers;
+      if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
+        return { status: 400, json: { error: "Send answers as an object of key and value" } };
+      }
+      const payload = reportPayload(r);
+      if (!payload.canWriteSupervisor) return { status: 403, json: { error: "You cannot fill in the supervisor section" } };
+      const byKey = {};
+      payload.fields.forEach((f) => { byKey[f.key] = f; });
+      const outside = Object.keys(answers).find((k) => !byKey[k] || byKey[k].half !== "supervisor");
+      if (outside) return { status: 400, json: { error: "Only the supervisor section can be changed here" } };
+      const stamp = Object.keys(answers).find((k) => byKey[k].type === "signoff");
+      if (stamp) return { status: 400, json: { error: "A sign-off is made with its own button" } };
+      Object.keys(answers).forEach((k) => { filedState().supervisor[k] = answers[k]; });
+      return ok(reportPayload(r));
+    }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
       if (method !== "GET") return ok({ message: "Report saved", draft: r });
-      return ok({ draft: Object.assign({}, r), fields: [
-        { id: "f-1", key: "where", label: "Where did it happen", half: "staff", type: "text", value: r.siteName || "" },
-        { id: "f-2", key: "what", label: "What happened", half: "staff", type: "textarea", value: "A delivery pallet scuffed the lobby floor." },
-        { id: "f-3", key: "action", label: "Corrective action", half: "supervisor", type: "textarea", value: "" },
-      ] });
+      return ok(reportPayload(r));
     }
 
     // --- settings sub-panels ---------------------------------------------
@@ -1137,6 +1289,7 @@ function createStubs() {
       state.schedule = null; state.patterns = null; state.timeOff = null;
       state.overrides = seededOverrides(); state.notifications = null;
       state.formDelivery = {};
+      state.filedForms = { signed: {}, supervisor: {} };
       delays = []; trim = null; exposeDisposition = true;
     },
     fixtures: {
