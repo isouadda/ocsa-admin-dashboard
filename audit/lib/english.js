@@ -41,6 +41,28 @@ function servedValues(calls) {
   return out;
 }
 
+// A date drawn by the formatter carries the month and weekday names the language itself uses, and
+// those are in no word table. Only the Spanish ones are allowed, so an English month left on a
+// Spanish screen is still caught.
+function localeDateWords(tag) {
+  const out = new Set();
+  ["long", "short", "narrow"].forEach((width) => {
+    for (let m = 0; m < 12; m += 1) {
+      out.add(new Date(2026, m, 15).toLocaleDateString(tag, { month: width }));
+    }
+    for (let d = 4; d < 11; d += 1) {
+      out.add(new Date(2026, 0, d).toLocaleDateString(tag, { weekday: width }));
+    }
+  });
+  const morning = new Date(2026, 0, 5, 9, 30).toLocaleTimeString(tag, { hour: "numeric", minute: "2-digit" });
+  const evening = new Date(2026, 0, 5, 21, 30).toLocaleTimeString(tag, { hour: "numeric", minute: "2-digit" });
+  [morning, evening].forEach((t) => {
+    const mark = String(t).replace(/[\d:\s.,]/g, "");
+    if (mark) out.add(mark);
+  });
+  return out;
+}
+
 const NUMBERS = /(\d+[\d.,:/%$-]*)/g;
 const PUNCT = /[\s.,:;!?()[\]{}<>|/\\_+*&#%$@"'`~^=-]+/g;
 
@@ -49,7 +71,7 @@ const PUNCT = /[\s.,:;!?()[\]{}<>|/\\_+*&#%$@"'`~^=-]+/g;
 const escapeRe = (s0) => String(s0).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function patternRe(value) {
   const parts = String(value).split(/\{\d+\}/).map(escapeRe);
-  return new RegExp("^" + parts.join("[\\s\\S]*?") + "$");
+  return new RegExp("^" + parts.join("([\\s\\S]*?)") + "$");
 }
 
 // What is left of a line once everything allowed is taken out of it.
@@ -70,6 +92,7 @@ function residue(line, allowedSorted) {
 function englishLeftOn(texts, calls) {
   const allowed = new Set(spanishValues());
   clientNames().forEach((v) => allowed.add(v));
+  localeDateWords("es-US").forEach((v) => allowed.add(v));
   const served = servedValues(calls);
   served.forEach((v) => allowed.add(v));
   // An avatar draws a person's initials, which are that person's name written short. Any run of
@@ -89,11 +112,18 @@ function englishLeftOn(texts, calls) {
     if (!line || !/[A-Za-z]/.test(line)) return;
     if (seen.has(line)) return;
     seen.add(line);
-    if (shapes.some((re) => re.test(line))) return;
+    // A shape matches only when what landed in its gaps is accounted for as well. "{0}h", the
+    // bell's short age, would otherwise swallow any word ending in h.
+    const fits = shapes.some((re) => {
+      const m = re.exec(line);
+      if (!m) return false;
+      return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
+    });
+    if (fits) return;
     const left = residue(line, sorted);
     if (left && /[A-Za-z]{2}/.test(left)) bad.push({ line: line.slice(0, 80), left: left.slice(0, 60) });
   });
   return bad;
 }
 
-module.exports = { englishLeftOn, servedValues, clientNames, residue };
+module.exports = { englishLeftOn, servedValues, clientNames, residue, localeDateWords };

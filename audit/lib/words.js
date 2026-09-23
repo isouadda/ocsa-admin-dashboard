@@ -152,4 +152,39 @@ function spanishValues() {
   return out;
 }
 
-module.exports = { readTable, readCsv, expectedPairs, compare, say, localeTagFor, spanishValues, baseOf, WORDS_JS, CSV };
+
+// A sentence with a value in it keeps its slots in every language. {0} is the first value, {1} the
+// second; a translation that drops one leaves the value off the screen, and a translation that
+// invents one draws the word "{2}" to a person. Both are caught here rather than by a reader.
+const slotsIn = (text) => {
+  const found = new Set();
+  String(text).replace(/\{(\d+)\}/g, (m, n) => { found.add(n); return m; });
+  return Array.from(found).sort();
+};
+
+function slotCheck() {
+  const table = readTable();
+  const wrong = [];
+  Object.keys(table || {}).forEach((key) => {
+    const entry = table[key];
+    const es = entry.es;
+    if (typeof es === "string") {
+      const want = slotsIn(baseOf(key)).join(",");
+      const got = slotsIn(es).join(",");
+      if (want !== got) wrong.push({ key: key, english: baseOf(key), spanish: es, want: want, got: got });
+      return;
+    }
+    if (es && typeof es === "object") {
+      const en = entry.en || {};
+      Object.keys(es).forEach((form) => {
+        const english = en[form] !== undefined ? en[form] : baseOf(key);
+        const want = slotsIn(english).join(",");
+        const got = slotsIn(es[form]).join(",");
+        if (want !== got) wrong.push({ key: key + " " + form, english: english, spanish: es[form], want: want, got: got });
+      });
+    }
+  });
+  return wrong;
+}
+
+module.exports = { readTable, readCsv, expectedPairs, compare, slotCheck, say, localeTagFor, spanishValues, baseOf, WORDS_JS, CSV };

@@ -6,6 +6,7 @@ A staff member is requesting to drop this shift.,Una persona solicita darse de b
 "A staff member is requesting to drop this shift. Approve to open it for pickup, or deny to keep it assigned.","Una persona solicita darse de baja de este turno. Apruebe para abrirlo a quien quiera tomarlo, o deniegue para dejarlo asignado.","Schedule, a shift with a drop request"
 Actions,Acciones,Shift Pickup
 Active,Activo,"Schedule, Patterns"
+Add a note saying why,Agregue una nota explicando por qué,"Schedule, Time off, when a denial has no note"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
 Admin,Administrador,The shell; Dashboard
 Admin Dashboard,Panel de administración,The shell
@@ -13,6 +14,7 @@ Admin access required,Se requiere acceso de administrador,The shell
 Administrator,Administrador,The shell
 All Reasons,Todos los motivos,Shift Pickup
 All Sites,Todos los sitios,Schedule; Shift Pickup
+All day,Todo el día,"Schedule, Time off, a request that covers the whole day"
 All people,Todas las personas,"Schedule, Patterns"
 All sites,Todos los sitios,"Schedule, Patterns"
 Analytics,Análisis,Shift Pickup
@@ -71,6 +73,7 @@ Dates,Fechas,"Schedule, Time off; Schedule, a time off request"
 Days,Días,"Schedule, Patterns"
 Decided,Decidido,"Schedule, a time off request"
 Decided by,Decidido por,"Schedule, a time off request"
+Deciding this request leaves these shifts as they are. Change or cover them on the schedule.,Decidir esta solicitud deja estos turnos como están. Cámbielos o cúbralos en el horario.,"Schedule, Time off, the note above the shifts a request covers"
 Delete,Eliminar,Schedule
 Denied,Denegada,"Schedule, Time off"
 Deny,Denegar,"Shift Pickup; Schedule, a time off request"
@@ -104,11 +107,14 @@ Fastest,Más rápido,Shift Pickup
 Fill Rate,Tasa de cobertura,Shift Pickup
 Fill Rate by Reason,Tasa de cobertura por motivo,Shift Pickup
 Filled through {0},Cubierto hasta el {0},"Schedule, Patterns, how far a pattern reaches"
+Fl {0},Piso {0},"Shift Pickup, the floor on the shift line in a window"
 Floor,Piso,"Schedule, a pattern; Schedule; Shift Pickup"
 Floor {0},Piso {0},"Schedule and Shift Pickup, a shift card"
 Floor: {0},Piso: {0},"Shift Pickup, a shift card"
+For,Por,"Schedule, adding a shift, repeat for a number of weeks"
 Forms,Formularios,The shell
 Fri,Vie,Schedule; Shift Pickup
+F{0},P{0},"Schedule, Week, the floor beside a building name, short"
 HR Records,Expedientes de personal,The shell
 Help,Ayuda,The shell
 Hours,Horas,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
@@ -173,6 +179,7 @@ No upcoming scheduled shifts found.,No hay turnos programados próximos.,Shift P
 No-Show,No se presentó,Shift Pickup
 No-Shows,No se presentaron,Shift Pickup
 Normal,Normal,Shift Pickup
+Not given,No indicado,"Schedule, Time off, hours that were not entered"
 Note,Nota,"Schedule, a time off request"
 Notes,Notas,"Schedule, a pattern; Schedule; Shift Pickup"
 Nothing changed yet.,Nada ha cambiado todavía.,"Schedule, a pattern"
@@ -199,6 +206,7 @@ PIN,PIN,The sign-in card
 Page {0},Página {0},"The shell, under a table"
 Page {0} / {1},Página {0} / {1},"The shell, under a table"
 Part of a weekly pattern. Changes here apply to this date only.,Parte de un patrón semanal. Los cambios aquí se aplican solo a esta fecha.,Schedule
+Pattern saved. {0} shifts added through {1}.,Patrón guardado. {0} turnos agregados hasta el {1}.,"Schedule, the message after a pattern is saved"
 Patterns,Patrones,Schedule
 Pending,Pendiente,Dashboard
 Person,Persona,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
@@ -280,6 +288,8 @@ Shifts,Turnos,"Schedule, Time off"
 Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.,Los turnos anteriores a esta fecha quedan como están. Los turnos que alguien cambió o canceló a mano se conservan.,"Schedule, a pattern"
 Shifts by Day of Week,Turnos por día de la semana,Shift Pickup
 Shifts on these days,Turnos en estos días,"Schedule, a time off request"
+Show,Mostrar,"Schedule and Shift Pickup, the label beside the rows per page chooser"
+Showing the first {0}. Choose a person to narrow the list.,Mostrando los primeros {0}. Elija una persona para acotar la lista.,"Schedule, Time off, when the list is longer than the page holds"
 Showing {0} to {1} of {2},Mostrando {0} a {1} de {2},"The shell, under a table"
 Sign In,Iniciar sesión,The sign-in card
 Sign Out,Cerrar sesión,The shell
@@ -291,6 +301,8 @@ Site x Day Heatmap,Mapa de calor de sitio por día,Shift Pickup
 "Site, date, and times are required","El sitio, la fecha y las horas son obligatorios",Shift Pickup
 Sites,Sitios,The shell
 Slowest,Más lento,Shift Pickup
+Someone else has to decide your own request.,Otra persona tiene que decidir su propia solicitud.,"Schedule, Time off, when the approver opens a request of their own"
+Soonest first. Deciding a request leaves the schedule as it is.,Primero las más próximas. Decidir una solicitud deja el horario como está.,"Schedule, Time off, the note above the list"
 Staff,Personal,The shell; Schedule
 Staff Management,Gestión de personal,The shell
 Staff Member,Persona,Shift Pickup
@@ -316,12 +328,14 @@ Supplies & Inventory,Suministros e inventario,The shell
 Task progress,Avance de tareas,Schedule
 Text size,Tamaño del texto,The shell
 That one is for admins. Ask an admin to take a look.,Ese es para administradores. Pídale a un administrador que lo revise.,The shell
+The person reads your note in the app. Their notice shows only the dates.,La persona lee su nota en la aplicación. Su aviso muestra solo las fechas.,"Schedule, Time off, the hint under the note box"
 The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.,El horario se llena con 8 semanas de anticipación y sigue extendiéndose hasta que el patrón termine.,Schedule
 The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.,El turno programado se cancela y se publica como turno abierto para que el personal elegible lo tome.,Schedule
 This Month,Este mes,"The shell, the date range; Shift Pickup"
 This Week,Esta semana,"The shell, the date range; Schedule; Shift Pickup"
 This page is for admins.,Esta página es para administradores.,The admin line
 This shift is open in the marketplace and available for staff to claim.,Este turno está abierto en el tablero y cualquier persona elegible puede tomarlo.,Schedule
+This shift runs past midnight. Pick the day it starts.,Este turno pasa de la medianoche. Elija el día en que comienza.,"Schedule, adding a shift, the note about an overnight shift"
 Thu,Jue,Schedule; Shift Pickup
 Time,Hora,"The shell; Schedule; Shift Pickup; Schedule, Time off; Schedule, a time off request"
 Time off,Tiempo libre,Schedule
@@ -355,19 +369,35 @@ Weekly pattern,Patrón semanal,"Schedule, a pattern"
 "Welcome, {0}","Bienvenido, {0}","The shell, the line after a sign-in"
 e.g. Marcus called out,p. ej. una persona se reportó ausente,Schedule
 e.g. Marcus called out sick,p. ej. una persona se reportó enferma,Shift Pickup
+ends next day,termina al día siguiente,"Schedule, Patterns, the hours of a pattern that runs past midnight"
+ends {0},termina el {0},"Schedule, Patterns, the pattern window, the end date"
 of {0} active,de {0} activos,"Dashboard, under the started tile"
+weeks,semanas,"Schedule, adding a shift, the word after the number of weeks"
 {0} Admin,{0} Administración,The shell
 {0} Supervisor,{0} Supervisión,The shell
+"{0} added, {1} removed, {2} kept","{0} agregados, {1} quitados, {2} conservados","Schedule, Patterns, the pattern window, the result of a change"
 "{0} added, {1} removed, {2} total","{0} agregados, {1} eliminados, {2} en total","Schedule, after a pattern is saved"
+{0} at {1},{0} en {1},"Schedule, Patterns, the pattern window, the person and the site"
 {0} cases need attention,{0} casos necesitan atención,"The shell, the cases warning"
+{0} claimed,{0} tomados,"Schedule, Month, the claimed pickups on a day"
 {0} claimed with overtime risk,{0} tomados con riesgo de horas extra,"Shift Pickup, Analytics"
+{0} claims,{0} tomados,"Shift Pickup, Analytics, how many shifts a person took"
 {0} dates were skipped because this person is already scheduled at that time:,Se omitieron {0} fechas porque esta persona ya tiene un turno a esa hora:,"Schedule, after a pattern is saved"
+{0} no-shows,{0} no se presentaron,"Shift Pickup, Analytics, under the callout count"
 {0} of {1},{0} de {1},"Dashboard, the tasks done on a shift"
+{0} of {1} tasks,{0} de {1} tareas,"Schedule, Week, the tasks done on a shift"
+{0} open,{0} abiertos,"Schedule, Month, the open pickups on a day"
 {0} open issues,{0} incidencias abiertas,"Dashboard, the issues tile"
 {0} pending,{0} pendientes,"Dashboard, the pending staff button"
+{0} scheduled,{0} programados,"Schedule, Month, the shifts on a day"
+{0} staff,{0} personas,"Schedule, Week, a choice of how many people to show"
+{0} started,{0} iniciados,"Schedule, Month, the shifts someone has started on a day"
+{0} to {1},{0} a {1},"Schedule and Shift Pickup, a start time and an end time"
+"{0} total, {1} callouts","{0} en total, {1} ausencias","Shift Pickup, Analytics, the counts under a site"
 {0} unread notifications,{0} avisos sin leer,"The shell, the bell's label"
 {0}% callouts,{0}% de ausencias,"Shift Pickup, Analytics"
 {0}% filled,{0}% cubierto,"Shift Pickup, Analytics"
+{0}/{1} filled,{0}/{1} cubiertos,"Shift Pickup, Analytics, the filled count in a bar"
 {0}d,{0}d,"The bell, an age in days"
 {0}h,{0}h,"The bell, an age in hours"
 {0}m,{0}m,"The bell, an age in minutes"
@@ -396,12 +426,14 @@ New,Nueva,"Schedule, a new solicitud"
 New,Nuevo,"Schedule, a new turno"
 None,Ninguna,"The note that is empty, which agrees with nota"
 None,Ninguno,"The site that is not set, which agrees with sitio"
+None,Ninguno,"Schedule, Time off, a request that covers no shifts"
 Open,Abierta,"Dashboard, an incidencia nobody has closed"
 Open,Abierto,"Shift Pickup, a turno nobody has taken"
 Released,Liberado,"Shift Pickup, a turno somebody gave back"
 Requested,Solicitada,"Schedule, Time off, a solicitud waiting on a decision"
 Scheduled,Programada,"Schedule, an inspeccion on the calendar"
 Scheduled,Programado,"Schedule, a turno on the calendar"
+Time,Horarios,"The side panel, the section that holds Schedule and Shift Pickup"
 {0} hour,{0} hora,"Schedule, Time off, the hours a request covers, when the count is one"
 {0} hours,{0} horas,"Schedule, Time off, the hours a request covers, when the count is more than one"
 {0} inspection,{0} inspección,"Schedule, Month, the inspections on a day, when the count is one"

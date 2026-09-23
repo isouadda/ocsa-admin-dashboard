@@ -6,7 +6,7 @@
 // itself is never printed here; each place is named by file and line.
 "use strict";
 const { findNonAscii } = require("../lib/ascii");
-const { compare } = require("../lib/words");
+const { compare, slotCheck } = require("../lib/words");
 
 function run({ app, results, inventory }) {
   const sites = app.bannedAcronym;
@@ -44,6 +44,17 @@ function run({ app, results, inventory }) {
   if (words.ok) {
     results.note("the word table holds " + words.entries + " entries and the CSV " + words.rows + " rows, which agree");
   }
+
+  // Every sentence that carries a value keeps that value in every language.
+  const slots = slotCheck();
+  const shown = slots.slice(0, 3).map((w) => JSON.stringify(w.key) + ": English has {" + (w.want || "none")
+    + "} and Spanish has {" + (w.got || "none") + "}").join("; ");
+  results.check("house-style", inventory.WORD_SLOTS.id, slots.length === 0,
+    slots.length + " entries whose Spanish does not carry the same values as its English: " + shown);
+  slots.slice(0, 20).forEach((w) => {
+    results.note("the Spanish for " + JSON.stringify(w.key) + " carries {" + (w.got || "none")
+      + "} where its English carries {" + (w.want || "none") + "}");
+  });
 }
 
 module.exports = { run };

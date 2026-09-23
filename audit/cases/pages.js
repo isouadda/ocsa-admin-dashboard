@@ -251,6 +251,43 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
         } else {
           results.check("spanish", "spanish/" + p.id + "/" + persona, left.length === 0,
             left.length + " lines a " + who + " reads are not Spanish: " + said);
+          // A page is more than the view it opens on. Every view the page holds is read too, so
+          // Schedule is checked on Month, Patterns and Time off as well as Week.
+          for (const v of inventory.VIEWS.filter((x) => x.page === p.id)) {
+            // The page again first, so a window one view opened is not still covering the next.
+            await d.goto(p.id);
+            await d.settle(150);
+            let opened = true;
+            let missed = "";
+            for (const step of [].concat(v.word || v.click || [])) {
+              const word = d.say(step);
+              // The control whose whole name is the word, with any count beside it taken off. The
+              // Spanish for Open is inside the Spanish for Post Open Shift, so a control that
+              // merely contains the word is the wrong one.
+              let clicked = await d.page.evaluate((w) => {
+                const strip = (s) => String(s).replace(/\s+/g, " ").trim().replace(/\s*\(?\d+\)?$/, "").trim();
+                const hit = Array.from(document.querySelectorAll("button, [role='tab'], a"))
+                  .filter((b) => b.offsetParent !== null).find((b) => strip(b.innerText) === w);
+                if (!hit) return false;
+                hit.click();
+                return true;
+              }, word);
+              if (!clicked) {
+                try { clicked = await d.clickText(word, { exact: false }); } catch (e) { clicked = false; }
+              }
+              if (!clicked) { opened = false; missed = word; break; }
+              await d.settle(250);
+            }
+            if (!opened) {
+              results.check("spanish", "spanish/" + v.id + "/" + persona, false,
+                "the view did not open from " + JSON.stringify(missed));
+              continue;
+            }
+            const vleft = englishLeftOn(await d.readable(), stubs.calls);
+            results.check("spanish", "spanish/" + v.id + "/" + persona, vleft.length === 0,
+              vleft.length + " lines a " + who + " reads are not Spanish: "
+                + vleft.slice(0, 3).map((x) => JSON.stringify(x.left)).join(", "));
+          }
         }
       }
 
