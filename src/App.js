@@ -2583,6 +2583,13 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   }, [af]);
   useEffect(() => { loadDrafts(); }, [loadDrafts]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread.length, sending]);
+  // While an answer arrives the conversation keeps its newest words in sight. Someone who scrolls up
+  // to read something else is left there until they scroll back to the end or ask again.
+  const talkRef = useRef(null);
+  const following = useRef(true);
+  const lastMsg = thread[thread.length - 1];
+  const arrivingText = lastMsg && lastMsg.arriving ? lastMsg.text : "";
+  useEffect(() => { const el = talkRef.current; if (el && arrivingText && following.current) el.scrollTop = el.scrollHeight; }, [arrivingText]);
 
   const patchMsg = (id, patch) => setThread(p => p.map(m => m.id === id ? { ...m, ...patch } : m));
   const patchPhoto = (key, patch) => setPhotos(p => p.map(x => x.key === key ? { ...x, ...patch } : x));
@@ -2647,6 +2654,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
     if (busy) return;
     setSending(true);
     setSaid("");
+    following.current = true;
     patchMsg(id, { status: "sending", error: "" });
     const replyId = "a" + (++seq.current);
     let meta = null, drawn = "";
@@ -2764,7 +2772,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
           first. In a short window with the text large, 420 is what the top bar, the page's margins,
           the title, a report in progress, the list's label and the box to type in already take, so
           the conversation keeps what is left, and never less than the one line it shows empty. */}
-      <div style={{ flex: "1 1 0px", minHeight: "clamp(44px, calc(100vh / var(--zoom, 1) - 420px), 120px)", overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
+      <div ref={talkRef} onScroll={e => { const el = e.currentTarget; if (el.scrollHeight - el.scrollTop - el.clientHeight < 24) following.current = true; }} onWheel={e => { if (e.deltaY < 0 && e.currentTarget.scrollTop > 0) following.current = false; }} onTouchMove={e => { const el = e.currentTarget; if (el.scrollHeight > el.clientHeight) following.current = false; }}
+        style={{ flex: "1 1 0px", minHeight: "clamp(44px, calc(100vh / var(--zoom, 1) - 420px), 120px)", overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
         {thread.length === 0 && <div style={{ margin: "auto 0", padding: "0 40px", textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Tell me what happened and I will tell you what to do.")}</div>}
         {thread.map(m => { const isMe = m.role === "user";
           // An answer still arriving is drawn in plain words, and has nothing to draw before its first.
