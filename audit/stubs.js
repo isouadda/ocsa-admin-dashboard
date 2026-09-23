@@ -13,6 +13,9 @@ const S = seed.SITES;
 // { method, path (substring or RegExp), status, code, error, once }
 function createStubs() {
   const calls = [];
+  // Every call the run makes, counted, and the ones that did not ask for the language their screen is
+  // drawn in. Nothing resets this.
+  const language = { calls: 0, misses: [] };
   let refusals = [];
   // A path held open on purpose, so a window that shows a loading state can be caught in it.
   let delays = [];
@@ -1244,11 +1247,17 @@ function createStubs() {
   };
 
   // The single entry point the harness routes every request through.
-  function handle({ method, url, body }) {
+  function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
     const path = u.pathname;
     const record = { method, path, query: u.search, body: body || null };
     calls.push(record);
+    // The language the call asked for, kept beside it. Every call says the language the screen is
+    // drawn in; one that says nothing, or another language, is also kept apart, where a reset
+    // between cases cannot clear it, and the run fails on it at the end.
+    record.language = (headers && headers["accept-language"]) || null;
+    language.calls += 1;
+    if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
 
     const refusal = matchRefusal(method, path);
     if (refusal) {
@@ -1274,6 +1283,7 @@ function createStubs() {
   return {
     handle,
     calls,
+    language: () => language,
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },

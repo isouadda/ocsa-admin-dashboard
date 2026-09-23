@@ -3,11 +3,19 @@ import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
 // The word table, the language the screen is drawn in, and what a formatter is given. Nothing
 // else lives there and nothing else leaves this file.
-import { LOCALES, LANGUAGES, tr, trn, setLang, localeTag, browserLang } from "./words";
+import { LOCALES, LANGUAGES, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
+// Every call to the API leaves through here. It says the language the screen is drawn in, as
+// Accept-Language, read when the call is made from the same place tr() reads it, so a language
+// switched on screen is the language of the next call. The API answers its refusals, notices, pick
+// lists and checklist items in that language. The address, the body and every other header are the
+// caller's, untouched.
+function apiRequest(url, init = {}) {
+  return fetch(url, { ...init, headers: { ...init.headers, "Accept-Language": getLang() } });
+}
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
-  const res = await fetch(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
+  const res = await apiRequest(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
     method: "POST",
     headers: { "Authorization": "Bearer " + token, "Content-Type": file.type },
     body: file,
@@ -26,7 +34,7 @@ const filenameFrom = (header, fallback) => {
 // A response that is a file rather than JSON. The token and the refusal handling are apiFetch's, so a
 // 401 signs out and a refusal arrives with the words the API sent and its status.
 async function apiDownload(path, token, fallbackName) {
-  const r = await fetch(API + path, { headers: { "Authorization": "Bearer " + token } });
+  const r = await apiRequest(API + path, { headers: { "Authorization": "Bearer " + token } });
   if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
@@ -34,7 +42,7 @@ async function apiDownload(path, token, fallbackName) {
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
-  const r = await fetch(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
@@ -450,7 +458,7 @@ export default function AdminDashboard() {
     let alive = true;
     (async () => {
       try {
-        const r = await fetch(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + stored.token } });
+        const r = await apiRequest(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + stored.token } });
         if (r.status === 401 || r.status === 403) { clearAuth(); return; }
         if (!r.ok) return;
         const d = await r.json();
@@ -839,7 +847,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const viewDoc = async (docId) => {
     try {
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
+      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
@@ -8443,7 +8451,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       const fd = new FormData();
       for (const f of files) fd.append("pdfs", f);
       const apiBase = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app");
-      const resp = await fetch(apiBase + "/api/jotform/pdf-bulk-upload", {
+      const resp = await apiRequest(apiBase + "/api/jotform/pdf-bulk-upload", {
         method: "POST",
         headers: { "Authorization": "Bearer " + token },
         body: fd,
@@ -8616,7 +8624,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   const fetchPdfBlob = async (submissionId, action) => {
     const url = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app") +
       "/api/jotform/submissions/" + submissionId + "/pdf?action=" + action;
-    const r = await fetch(url, { headers: { "Authorization": "Bearer " + token } });
+    const r = await apiRequest(url, { headers: { "Authorization": "Bearer " + token } });
     if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
     // Session 24: 202 means PDF not yet captured by email ingestion (still pending)
     if (r.status === 202) {
@@ -9817,7 +9825,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       // Use raw fetch because apiFetch assumes JSON. PDF endpoint streams a binary blob.
       // The token comes from the App-level React state via props, matching how FormsPage handles its binary fetches.
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/submissions/" + submissionUuid + "/pdf", {
+      const resp = await apiRequest(apiBase + "/api/jotform/submissions/" + submissionUuid + "/pdf", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       // Session 24: 202 means PDF not yet captured by email ingestion (still pending)
@@ -9844,7 +9852,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const viewDoc = async (docId) => {
     try {
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
+      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
@@ -10233,7 +10241,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
   const viewDoc = async (docId) => {
     try {
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
+      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
@@ -10276,7 +10284,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
         fd.append("category", form.category);
         if (form.notes) fd.append("notes", form.notes);
         if (form.expiry_date) fd.append("expiry_date", form.expiry_date);
-        const resp = await fetch(apiBase + "/api/jotform/employees/" + form.user_id + "/documents", {
+        const resp = await apiRequest(apiBase + "/api/jotform/employees/" + form.user_id + "/documents", {
           method: "POST",
           headers: { Authorization: "Bearer " + (token || "") },
           body: fd

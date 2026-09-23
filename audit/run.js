@@ -103,6 +103,8 @@ async function main() {
       require("./cases/coverage").runLate(ctx);
       require("./lib/layout").finish(results);
     }
+    // Every call any suite made, in either language, said the language its screen is drawn in.
+    require("./cases/language").runLate(ctx);
   } finally {
     await browser.close();
     await srv.close();

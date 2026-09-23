@@ -49,6 +49,10 @@ tables are read out of the HTML.
 **Refusals are shown word for word.** Each refusal the API can answer with is armed one at a time,
 and the case checks that the exact words reach the screen and that nothing closed underneath them.
 
+**Every call says its language.** The stub keeps the `Accept-Language` each call sent beside the
+call, and every call that sent none, or sent a language other than the one its screen is drawn in,
+in a list no case can reset. The run fails on that list once every suite is done.
+
 ## How to run less of it
 
 ```
