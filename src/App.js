@@ -5558,7 +5558,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       <SC t={t} label={tr("Open Now")} value={analytics.summary.open_count} color={GO} icon={SwpI} />
       <SC t={t} label={tr("Fill Rate")} value={analytics.summary.fill_rate + "%"} color={analytics.summary.fill_rate >= 80 ? GR : analytics.summary.fill_rate >= 50 ? OR : RD} icon={ChkI} />
       <SC t={t} label={tr("Avg Fill Time")} value={analytics.summary.avg_time_to_fill_minutes > 60 ? Math.round(analytics.summary.avg_time_to_fill_minutes / 60) + "h" : analytics.summary.avg_time_to_fill_minutes + "m"} color={BL} icon={CkI} />
-      <SC t={t} label={tr("Callouts")} value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? tr("{0} no-shows", analytics.summary.no_show_count) : ""} color={RD} icon={AlI} />
+      <SC t={t} label={tr("Callouts")} value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? trn("{0} no-show|count", analytics.summary.no_show_count) : ""} color={RD} icon={AlI} />
     </div>}
 
     {/* Tabs */}

@@ -11,6 +11,7 @@
 // draws those; a screen that edits one shows the English and saves the English, since the English is
 // what the dashboard edits and the API translates it on save.
 "use strict";
+const { readTable } = require("../lib/words");
 
 // The fixtures run() reads, in the stub's own words. at-1 carries a display; at-3 carries none.
 const ITEM = { id: "at-1", english: "Strip and refinish lobby", zone: "Lobby", spanish: "Decapar y encerar el vest\u00edbulo",
@@ -132,6 +133,19 @@ async function run({ d, results, inventory, stubs }) {
     !talked ? "the conversation with the first person in the inbox did not open"
       : missing.length ? "what was typed is not on screen as typed: " + JSON.stringify(missing)
         : "a typed message was drawn as the table's word for it: " + JSON.stringify(swapped));
+
+  // A count of one reads in the one form. The seed has one no-show, so the line under Callouts on
+  // Shift Pickup is the count entry's one form, which a fixed "{0} no-shows" gets wrong in both
+  // languages.
+  const count = stubs.fixtures.PICKUP_ANALYTICS.summary.no_show_count;
+  const entry = readTable()["{0} no-show|count"] || {};
+  const want = entry.es && entry.es.one ? entry.es.one.replace("{0}", String(count)) : "(no count entry for {0} no-show)";
+  await d.goto("marketplace");
+  const board = await d.readable();
+  const drawn = board.filter((l) => /^\d+ /.test(l) && (l.indexOf("no-show") >= 0 || l.indexOf("present") >= 0));
+  results.check("language", ids["a-count-of-one-reads-in-the-one-form"], count === 1 && board.indexOf(want) >= 0,
+    count !== 1 ? "the seed carries " + count + " no-shows, so the one form is not on screen to be read"
+      : "the line under Callouts should read " + JSON.stringify(want) + "; it reads " + JSON.stringify(drawn));
 }
 
 function runLate({ stubs, results, inventory }) {

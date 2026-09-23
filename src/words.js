@@ -568,7 +568,6 @@ export const WORDS = {
   "{0} claimed with overtime risk": { es: "{0} tomados con riesgo de horas extra" },
   "{0} claims": { es: "{0} tomados" },
   "{0} dates were skipped because this person is already scheduled at that time:": { es: "Se omitieron {0} fechas porque esta persona ya tiene un turno a esa hora:" },
-  "{0} no-shows": { es: "{0} no se presentaron" },
   "{0} of {1}": { es: "{0} de {1}" },
   "{0} of {1} answered": { es: "{0} de {1} respondidas" },
   "{0} of {1} tasks": { es: "{0} de {1} tareas" },
@@ -658,6 +657,10 @@ export const WORDS = {
   "{0} started|count": {
     en: { one: "{0} started", other: "{0} started" },
     es: { one: "{0} iniciado", other: "{0} iniciados" },
+  },
+  "{0} no-show|count": {
+    en: { one: "{0} no-show", other: "{0} no-shows" },
+    es: { one: "{0} no se present\u00f3", other: "{0} no se presentaron" },
   },
 };
 

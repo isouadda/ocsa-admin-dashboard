@@ -356,6 +356,7 @@ const DISPLAY_FIELDS = [
   { id: "language/an-edited-item-shows-and-sends-its-english", what: "the Sites task editor shows and saves the task's English" },
   { id: "language/an-edited-choice-shows-and-sends-its-english", what: "the Dropdown Options value editor shows and saves the choice's English" },
   { id: "language/a-typed-message-is-drawn-as-typed", what: "Messages draws what a person wrote as they wrote it, a word the table carries included" },
+  { id: "language/a-count-of-one-reads-in-the-one-form", what: "the no-show count under Callouts on Shift Pickup reads the one form at one" },
 ];
 
 // ---------------------------------------------------------------------------
