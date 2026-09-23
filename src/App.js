@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
+// The word table, the language the screen is drawn in, and what a formatter is given. Nothing
+// else lives there and nothing else leaves this file.
+import { LOCALES, LANGUAGES, tr, trn, setLang, localeTag, browserLang } from "./words";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
@@ -145,9 +148,9 @@ const LIGHT = {
 const goldToText = (t, c) => (c === GO ? t.goldText : c);
 const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
-const ft = d => new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-const fd = d => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-const ff = d => new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const ft = d => new Date(d).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true });
+const fd = d => new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+const ff = d => new Date(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const Ic = ({ d, sz = 18, c = "currentColor", style: s, ...p }) => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} {...p}><path d={d} /></svg>;
 const HmI = p => <Ic d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" {...p} />;
 const UsI = p => <Ic d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
@@ -213,8 +216,8 @@ const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <C
 function getMonday(d) { const dt = new Date(d); const day = dt.getDay(); const diff = day === 0 ? 6 : day - 1; dt.setDate(dt.getDate() - diff); dt.setHours(0,0,0,0); return dt; }
 function fmtRange(s, e) {
   const sd = new Date(s + "T00:00:00"), ed = new Date(e + "T00:00:00");
-  const sm = sd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const em = ed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const sm = sd.toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+  const em = ed.toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
   return sm + " - " + em;
 }
 function toISO(d) { return d.toISOString().split("T")[0]; }
@@ -283,6 +286,20 @@ export default function AdminDashboard() {
     try { const stored = localStorage.getItem("ocsa-text-size"); if (TEXT_SIZES.some((x) => x.id === stored)) return stored; } catch {}
     return "standard";
   });
+  // What language this person reads. The stored choice wins, then the browser's own, then English,
+  // which is the order the theme already follows. The table is told before anything draws, so tr()
+  // reads one value rather than taking one at every call.
+  const [lang, setLangState] = useState(() => {
+    try {
+      const stored = localStorage.getItem("ocsa-lang");
+      if (LOCALES.indexOf(stored) >= 0) { setLang(stored); return stored; }
+    } catch (e) { /* a browser with no storage is an English one until it is told */ }
+    const want = browserLang();
+    setLang(want);
+    return want;
+  });
+  const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
+  useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
   const zoom = textSizeFactor(textSize);
   // At Standard the property is left off the root altogether, so the page is what it always was.
   // Published to the subtree as well: a height or width written against the window is in the
@@ -325,6 +342,15 @@ export default function AdminDashboard() {
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>Text size</div>
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={x.label}
+        style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>); })}
+    </div>
+  </div>);
+  // Each language names itself in its own words, so a person who cannot read the current one can
+  // still find theirs.
+  const languageChoice = (compact) => (<div style={{ padding: compact ? "6px 10px 8px" : 0 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>{tr("Language")}</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {LANGUAGES.map(x => { const on = lang === x.id; return (<button key={x.id} onClick={() => chooseLang(x.id)} aria-pressed={on} title={x.label}
         style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>); })}
     </div>
   </div>);
@@ -451,6 +477,7 @@ export default function AdminDashboard() {
         <LoginForm onLogin={handleLogin} loading={loading} t={t} />
       </div>
       <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
+      <div style={{ marginTop: 14, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{languageChoice()}</div>
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
     </div>
     {toast && <Tst t={toast} />}
@@ -646,6 +673,7 @@ export default function AdminDashboard() {
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? "Administrator" : "Supervisor"}</div></div>
                 {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
+                <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{languageChoice(true)}</div>
                 <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
               </div>
             )}
@@ -703,7 +731,7 @@ const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ disp
 // Shift session helpers. GET /api/shift-sessions/by-site returns { date, sites: [{ siteId, siteName, people: [...] }] }.
 // A session records who started a shift where. There is no end time, so these never claim who is on site right now.
 const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName })));
-const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "";
 const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", ");
 
 function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
@@ -843,7 +871,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const rows = [["Date", "Time", "Action", "Description", "Performed By"]];
     timeline.forEach(e => {
       const dt = new Date(e.createdAt);
-      rows.push([dt.toLocaleDateString(), dt.toLocaleTimeString(), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
+      rows.push([dt.toLocaleDateString(localeTag()), dt.toLocaleTimeString(localeTag()), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
     });
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -881,7 +909,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(), u.profilePhotoUrl || null);
+    html += printHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content">';
     html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
     if (r) {
@@ -904,7 +932,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
       html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
-      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || new Date(p.created_at || "").toLocaleString() || "") + '</div></div>'; });
+      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
@@ -932,9 +960,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(u.firstName + ' ' + u.lastName + ' - Activity Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString(), u.profilePhotoUrl || null);
+    html += printHeader(u.firstName + ' ' + u.lastName + ' - Activity Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
     html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
@@ -953,7 +981,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(fullName, 'Employee Report | Generated ' + new Date().toLocaleDateString(), u.profilePhotoUrl || null);
+    html += printHeader(fullName, 'Employee Report | Generated ' + new Date().toLocaleDateString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content">';
     // Profile info section
     html += '<div class="section"><div class="section-title">Employee Information</div><div class="grid">';
@@ -982,7 +1010,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     // Timeline (if loaded)
     if (timeline.length > 0) {
       html += '<div class="section"><div class="section-title">Activity Timeline (' + timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + ')</div><table><tr><th>Date</th><th>Action</th><th>Description</th><th>By</th></tr>';
-      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
       html += '</table></div>';
     }
     html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div>';
@@ -1240,12 +1268,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
               const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
-              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
+              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(localeTag(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
                 <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{entry.description || entry.actionType.replace(/_/g, " ")}</div>
-                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " by " + entry.actorName : ""}</div>
+                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " by " + entry.actorName : ""}</div>
                     </div>
                     <div style={{ fontSize: 9, color: dotColor, background: dotColor + "15", padding: "2px 6px", borderRadius: 4, flexShrink: 0, textTransform: "capitalize" }}>{entry.entityType.replace(/_/g, " ")}</div>
                   </div>
@@ -1270,7 +1298,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         {/* Activity summary */}
         <div style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tlDetail.entry?.description || "N/A"}</div>
-          <div style={{ fontSize: 11, color: t.textMut }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString() : ""}{tlDetail.entry?.actorName ? " by " + tlDetail.entry.actorName : ""}</div>
+          <div style={{ fontSize: 11, color: t.textMut }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString(localeTag()) : ""}{tlDetail.entry?.actorName ? " by " + tlDetail.entry.actorName : ""}</div>
           <div style={{ marginTop: 6 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
         </div>
         {!tlDetail.found && <div style={{ padding: 16, textAlign: "center", color: t.textMut, fontSize: 12 }}>
@@ -1522,7 +1550,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += '.msg .sender{font-weight:700;font-size:12px;color:' + NAVY + '}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString());
+    html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
     html += '<div class="content">';
     const sorted = [...siteChat].reverse();
     sorted.forEach(m => {
@@ -1535,7 +1563,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       } else {
         html += '<div class="initials">' + initials + '</div>';
       }
-      html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span>';
+      html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</span>';
       html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
     });
     html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Communication Record</div></div></body></html>';
@@ -1656,7 +1684,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const rows = [["Date", "Time", "Action", "Description", "Performed By"]];
     timeline.forEach(e => {
       const dt = new Date(e.createdAt);
-      rows.push([dt.toLocaleDateString(), dt.toLocaleTimeString(), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
+      rows.push([dt.toLocaleDateString(localeTag()), dt.toLocaleTimeString(localeTag()), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
     });
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -1677,9 +1705,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString());
+    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
     html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
     html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Site Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
@@ -1700,7 +1728,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString());
+    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
     html += '<div class="content">';
     html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
     if (r) {
@@ -1791,7 +1819,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Type</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.contract_type || "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Prime Contractor</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.prime_contractor || "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Client</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_name || "N/A"}</div></div>
-            <div><div style={{ fontSize: 10, color: t.textMut }}>Monthly Value</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString() : "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Monthly Value</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Billing</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.billing_frequency || "monthly"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Dates</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fd(s.contract_start_date) : "N/A"} {s.contract_end_date ? " to " + fd(s.contract_end_date) : ""}</div></div>
           </div>
@@ -1964,7 +1992,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{m.senderName || "Unknown"}</div>
-                <div style={{ fontSize: 9, color: t.textMut }}>{dt.toLocaleDateString()} {dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}</div>
+                <div style={{ fontSize: 9, color: t.textMut }}>{dt.toLocaleDateString(localeTag())} {dt.toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true })}</div>
               </div>
               <div style={{ fontSize: 12, color: t.textSec, marginTop: 3, lineHeight: 1.5 }}>{m.text}</div>
             </div>
@@ -2005,7 +2033,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         {(() => {
           const grouped = {};
           timeline.forEach(e => {
-            const day = new Date(e.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+            const day = new Date(e.createdAt).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
             if (!grouped[day]) grouped[day] = [];
             grouped[day].push(e);
           });
@@ -2018,7 +2046,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, marginTop: 5, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: t.text }}>{e.description}</div>
-                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{new Date(e.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })} | {e.actorName}</div>
+                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{new Date(e.createdAt).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true })} | {e.actorName}</div>
                 </div>
               </div>;
             })}
@@ -2039,7 +2067,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </div>
         <div style={{ marginBottom: 12, padding: "10px 12px", background: t.hover, borderRadius: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>{tlDetail.entry?.description || "N/A"}</div>
-          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString() : ""} | {tlDetail.entry?.actorName || "System"}</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString(localeTag()) : ""} | {tlDetail.entry?.actorName || "System"}</div>
           <div style={{ marginTop: 4 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
         </div>
         {tlDetail.record && <div style={{ marginBottom: 12 }}>
@@ -2179,7 +2207,7 @@ function OpsPage({ af, t, allStaff }) {
   const loadOps = () => { af("/api/shift-sessions/by-site?date=" + date).then(d => setBoard({ date: d.date, sites: d.sites || [] })).catch(e => console.warn("Load shift sessions:", e.message)); };
   useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
-  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const startedIds = new Set(board.sites.flatMap(site => site.people.map(p => p.userId)));
   const rest = allStaff.filter(u => !startedIds.has(u.id));
   return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Started {dayLabel}</SecT>
@@ -2242,7 +2270,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
       {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photos ({allPhotos.length})</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={"Photo " + (i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? "Original" : "Resolution"}</div></div>)}</div></div>}
       {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
-        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "resolution_photo" ? "Resolution Photo" : a.action === "photo_added" ? "Photo Added" : a.action; const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "resolution_photo" ? "Resolution Photo" : a.action === "photo_added" ? "Photo Added" : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
         {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
@@ -2776,11 +2804,11 @@ const notifAgo = (iso) => {
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "";
   const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
-  if (mins < 60) return Math.max(1, mins) + "m";
+  if (mins < 60) return tr("{0}m", Math.max(1, mins));
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + "h";
+  if (hrs < 24) return tr("{0}h", hrs);
   const days = Math.floor(hrs / 24);
-  return days <= 7 ? days + "d" : fd(iso);
+  return days <= 7 ? tr("{0}d", days) : fd(iso);
 };
 // A link inside this dashboard opens its page without a reload; anything else opens in a new tab.
 const notifTarget = (link) => {
@@ -2875,7 +2903,7 @@ const fmtDurMin = (m) => {
 };
 const fmtPctVal = (p) => (p === null || p === undefined) ? "n/a" : (p + "%");
 const hrsFromMin = (m) => m === null || m === undefined ? null : Math.round(m / 60 * 10) / 10;
-const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { return s; } };
+const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(localeTag(), { month: "short", day: "numeric" }); } catch (e) { return s; } };
 const resolvePreset = (key) => (PRESETS[key] ? PRESETS[key]() : PRESETS.last30());
 
 const REPORT_PRESETS = [
@@ -3120,7 +3148,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const showEin = !!(useBrand && settings && settings.show_ein_on_reports && settings.ein);
     const addr = useBrand && settings && settings.address ? settings.address : "";
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
     const sevLabel = sevFilter ? (sevFilter.charAt(0).toUpperCase() + sevFilter.slice(1)) : "All severities";
@@ -3298,7 +3326,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
   const hasActivity = !!(sm && sm.usage_events > 0);
   const out = cfg.output;
   const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
-  const money = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const tiles = sm ? [
     { label: "Estimated cost", value: money(sm.total_estimated_cost), color: t.text },
@@ -3315,9 +3343,9 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
     const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const addr = useBrand && settings && settings.address ? settings.address : "";
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const m = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const m = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
     const catLabel = catFilter ? (catFilter.charAt(0).toUpperCase() + catFilter.slice(1)) : "All categories";
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
@@ -3398,7 +3426,7 @@ const InspectionScoreTrendWidget = ({ rows, t }) => {
     byDate[k].max += Number(r.max_possible_score || 0);
   });
   const keys = Object.keys(byDate).sort();
-  const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const cats = keys.map(fmt);
   const series = [{ name: "Avg score %", data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
   const hasData = series[0].data.some(v => v !== null);
@@ -3477,7 +3505,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
     const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const addr = useBrand && settings && settings.address ? settings.address : "";
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const pct = (v) => (v == null ? "-" : (v + "%"));
     const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
@@ -3906,7 +3934,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
       {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Attached {sel.media_type === "video" ? "Video" : "Photo"}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt="Task" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
       {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div><img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
-        {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action; const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+        {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>Reassign</Btn>}
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
@@ -4349,9 +4377,9 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 const PATTERN_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const PATTERN_DAY_LABELS = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
 const patternDays = (days) => (Array.isArray(days) ? days : []).slice().sort((a, b) => PATTERN_DAY_KEYS.indexOf(a) - PATTERN_DAY_KEYS.indexOf(b)).map(d => PATTERN_DAY_LABELS[d] || d).join(", ");
-const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); let h = Number(m[1]); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + m[2] + " " + ap; };
+const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); const d = new Date(2000, 0, 1, Number(m[1]), Number(m[2])); return d.toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }); };
 const patternHours = (p) => patternTime(p.startTime) + " to " + patternTime(p.endTime) + (p.overnight ? " ends next day" : "");
-const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
 // An end time earlier than the start time means the shift runs into the next morning, so the day
 // chosen is the day it starts. Zero-padded HH:MM compares correctly as text. Equal times are not
 // overnight; the API refuses those on its own.
@@ -4539,9 +4567,9 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
 // new Date() reads it as UTC midnight, which is the evening before in Philadelphia, so every
 // date would show a day early. Times are read the same way, by arithmetic, with no Date at all.
 const timeOffLocal = (ymd) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null; };
-const timeOffDate = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""; };
-const timeOffDayMonth = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""; };
-const timeOffWeekday = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""; };
+const timeOffDate = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : ""; };
+const timeOffDayMonth = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString(localeTag(), { month: "short", day: "numeric" }) : ""; };
+const timeOffWeekday = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : ""; };
 // One day, one date. Inside a year, the year is said once at the end. Across years, both carry it.
 const timeOffDates = (startsOn, endsOn) => {
   const s = String(startsOn || ""); const e = String(endsOn || "") || s;
@@ -4552,7 +4580,7 @@ const timeOffDates = (startsOn, endsOn) => {
 };
 const timeOffTimes = (r) => r && r.partDay && r.startTime && r.endTime ? patternTime(r.startTime) + " to " + patternTime(r.endTime) : "All day";
 const timeOffHours = (h) => { if (h == null || h === "") return "Not given"; const n = Number(h); if (!isFinite(n)) return "Not given"; return (Math.round(n * 100) / 100) + (n === 1 ? " hour" : " hours"); };
-const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 const TIME_OFF_STATUS_LABELS = { requested: "Requested", approved: "Approved", denied: "Denied", cancelled: "Cancelled" };
 const timeOffStatus = (s) => TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || "");
 const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), patternTime(sh.startTime) + " to " + patternTime(sh.endTime), sh.siteName].filter(Boolean).join(", ");
@@ -4965,7 +4993,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const fmtShortDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmtShortDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
   const isToday = (d) => d === toISO(new Date());
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
@@ -5029,10 +5057,10 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
   </div>);
 
-  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() - 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>&lt; Prev</button>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{MONTH_NAMES[startMonth]} {startYear}</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{new Date(startYear, startMonth, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" })}</div>
       <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() + 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>Next &gt;</button>
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
@@ -5191,7 +5219,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={startedLbl}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
-        <div><div style={startedLbl}>Date</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
+        <div><div style={startedLbl}>Date</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
         <div><div style={startedLbl}>Building</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
         <div><div style={startedLbl}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? "Floor " + startedDetail.floorNumber : "-"}</div></div>
         <div><div style={startedLbl}>Started</div><div style={{ fontSize: 13, fontWeight: 600, color: GR }}>{fmtSessionStart(startedDetail.startedAt) || "-"}</div></div>
@@ -5225,7 +5253,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
         {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
         {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
@@ -5299,8 +5327,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
   const roleLabels = lkMap("staff_roles");
 
-  const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); };
-  const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + ap; };
+  const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }); };
+  const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }); };
 
   const statusColor = { open: GO, claimed: BL, approved: GR, filled: GR, expired: "#7A8A9A", cancelled: "#7A8A9A", requested: "#F1C40F" };
   const lkOriginColors = lkColorMap("shift_origins");
@@ -5760,7 +5788,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{m.total}</div>
                       <div style={{ width: "70%", height: h, borderRadius: "4px 4px 0 0", background: m.callouts > m.total * 0.4 ? RD : GO, minHeight: 2 }} />
-                      <div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{mDate.toLocaleDateString("en-US", { month: "short" })}</div>
+                      <div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{mDate.toLocaleDateString(localeTag(), { month: "short" })}</div>
                     </div>
                   );
                 })}
@@ -5965,8 +5993,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const cimsOpts = getOpts("cims_categories");
   const CIMS_CATS = cimsOpts.length > 0 ? cimsOpts.map(o => o.v) : ["SD", "HSE", "GB", "QS", "HR", "MC"];
   const STATUS_C = { scheduled: "#24A4F4", in_progress: "#F39C12", completed: "#2ECC71", cancelled: "#7A8A9A" };
-  const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
-  const fmtDT = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+  const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
+  const fmtDT = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 
   const [tab, setTab] = useState("templates");
   const [templates, setTemplates] = useState([]);
@@ -6574,7 +6602,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={pt.site_name + ": " + pct + "% on " + fmtDate(pt.scheduled_date)}>
                             <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2, writingMode: scoreTrend.length > 12 ? "vertical-rl" : "horizontal-tb", whiteSpace: "nowrap" }}>{pct}%</div>
                             <div style={{ width: "100%", maxWidth: 28, height: barH, borderRadius: 3, background: barColor, minWidth: 6, transition: "height 0.4s ease" }} />
-                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" })}</div>
                           </div>
                         );
                       })}
@@ -6667,7 +6695,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                     const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
                     const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${cimsLabels[c.cims_category] || c.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
                     const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${l.label}</td><td style="padding:8px">${l.zone}</td><td style="padding:8px">${cimsLabels[l.cims_category] || l.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
-                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsRange.start} to ${analyticsRange.end}${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by ${clientConfig.company.shortName} Operations Platform</div></body></html>`;
+                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsRange.start} to ${analyticsRange.end}${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by ${clientConfig.company.shortName} Operations Platform</div></body></html>`;
                     const w = window.open("", "_blank");
                     w.document.write(html); w.document.close();
                     setTimeout(() => w.print(), 600);
@@ -6938,7 +6966,7 @@ function PermissionsMatrixPanel({ t }) {
 
   const printMatrix = () => {
     const navy = NAVY, gold = GOLD, cName = clientConfig.company.name;
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     let body = "";
     PERMISSION_GROUPS.forEach(g => {
@@ -7507,7 +7535,7 @@ function JotformPickerField({ af, form, setForm, t }) {
     return () => { cancelled = true; };
   }, [form.user_id, form.id, af]);
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
 
   const handlePick = (uuid) => {
     if (!uuid) {
@@ -7592,8 +7620,8 @@ const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "e
   + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
 const IR_SUPERVISOR_DESK_NOTE = "Fill this in at your desk. Answers are saved when you press Save, and a sign-off is made with its own button.";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
-const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
-const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
 function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
@@ -7745,8 +7773,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     if (!v || !v.at) return "Not signed";
     const tz = clientConfig.company.timeZone;
     const when = new Date(v.at);
-    const day = when.toLocaleDateString("en-US", { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
-    const time = when.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+    const day = when.toLocaleDateString(localeTag(), { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
+    const time = when.toLocaleTimeString(localeTag(), { timeZone: tz, hour: "numeric", minute: "2-digit" });
     return "Signed by " + (v.name || "someone") + " on " + day + " at " + time;
   };
   const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
@@ -8069,8 +8097,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     { v: "pickup", l: "Shift Pickup" },
   ];
 
-  const fmtDT = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+  const fmtDT = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
   const catLabel = (v) => (CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
@@ -9577,7 +9605,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
   const fmtRelDate = (d) => {
     if (!d) return "";
     const dt = new Date(d);
@@ -9766,8 +9794,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const trainingTypeMap = lkMap("training_types");
   const onbCatMap = lkMap("onboarding_categories");
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
-  const fmtTime = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
   const updateSubCategory = async (submissionUuid, newOverride) => {
     try {

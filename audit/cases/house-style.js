@@ -6,6 +6,7 @@
 // itself is never printed here; each place is named by file and line.
 "use strict";
 const { findNonAscii } = require("../lib/ascii");
+const { compare } = require("../lib/words");
 
 function run({ app, results, inventory }) {
   const sites = app.bannedAcronym;
@@ -31,6 +32,18 @@ function run({ app, results, inventory }) {
     results.note("a byte outside ASCII at " + h.file + " line " + h.line + " character " + h.column
       + ". Write it as " + h.escape);
   });
+
+  // The word table and the CSV a translator edits are two copies of one thing. A key in one and not
+  // the other, or the same key saying two different words, is a screen nobody proofread.
+  const words = compare();
+  const say = (list) => list.slice(0, 3).map((p) => JSON.stringify(p[0]) + " to " + JSON.stringify(p[1])).join("; ");
+  results.check("house-style", inventory.WORD_TABLE.id, words.ok,
+    words.why ? words.why
+      : words.missing.length + " in the table and not the CSV (" + say(words.missing) + "), "
+        + words.extra.length + " in the CSV and not the table (" + say(words.extra) + ")");
+  if (words.ok) {
+    results.note("the word table holds " + words.entries + " entries and the CSV " + words.rows + " rows, which agree");
+  }
 }
 
 module.exports = { run };
