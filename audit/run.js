@@ -18,7 +18,10 @@ const seed = require("./seed");
 const SUITES = [
   // Pages run in both themes at Standard, and again at the largest text size in dark, at both widths.
   { name: "pages", mod: "./cases/pages", widths: ["wide", "narrow"],
-    variants: [{ theme: "dark", size: "standard" }, { theme: "light", size: "standard" }, { theme: "dark", size: "largest" }] },
+    variants: [{ theme: "dark", size: "standard" }, { theme: "light", size: "standard" }, { theme: "dark", size: "largest" },
+      // Spanish at 1024 only, where a third more letters is what breaks a page, and for the two
+      // people who live in these screens. The English passes cover the other width and the rest.
+      { theme: "dark", size: "standard", lang: "es", only: "narrow" }] },
   { name: "views", mod: "./cases/views", widths: ["wide"] },
   // The filed report window is read in every theme, at every text size, at both widths, because a
   // table inside a window is the first thing to run off the side.
@@ -78,15 +81,18 @@ async function main() {
       }
       for (const width of s.widths) {
         for (const v of (s.variants || [{ theme: "dark", size: "standard" }])) {
+          if (v.only && v.only !== width) continue;
           const theme = v.theme || "dark";
           const textSize = v.size || "standard";
+          const lang = v.lang || "en";
           process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : "1024x900")
-            + " in " + theme + (textSize === "standard" ? "" : ", text " + textSize) + "\n");
-          const d = await createDriver({ browser, origin: srv.origin, stubs, viewport: width, theme, textSize });
+            + " in " + theme + (textSize === "standard" ? "" : ", text " + textSize)
+            + (lang === "en" ? "" : ", in " + lang) + "\n");
+          const d = await createDriver({ browser, origin: srv.origin, stubs, viewport: width, theme, textSize, lang });
           // A suite that throws fails the run. It does not erase the table, because the other suites
           // still have something to say.
-          try { await suite.run(Object.assign({}, ctx, { d, width, theme, textSize })); }
-          catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : "") + (theme === "light" ? " light" : "") + (textSize === "standard" ? "" : " " + textSize), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
+          try { await suite.run(Object.assign({}, ctx, { d, width, theme, textSize, lang })); }
+          catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : "") + (theme === "light" ? " light" : "") + (textSize === "standard" ? "" : " " + textSize) + (lang === "en" ? "" : " " + lang), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
           finally { await d.close(); }
         }
       }

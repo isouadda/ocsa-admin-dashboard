@@ -3,6 +3,8 @@
 // For each page the suite records what is on screen AND what is absent, so a screen that should be
 // hidden and is not fails here. The narrow pass repeats every page at 1024 wide.
 "use strict";
+const { englishLeftOn } = require("../lib/english");
+const SPANISH_TODO = require("../spanish-todo.json");
 const seed = require("../seed");
 const layout = require("../lib/layout");
 
@@ -152,13 +154,17 @@ async function outlineNow(d) {
   });
 }
 
-async function run({ d, results, inventory, app, width, theme, textSize }) {
+async function run({ d, results, inventory, app, stubs, width, theme, textSize, lang }) {
   const light = theme === "light";
   const size = textSize || "standard";
+  const spanish = lang === "es";
   const suffix = (width === "narrow" ? " @1024" : "") + (light ? " light" : "")
-    + (size === "standard" ? "" : " " + size);
+    + (size === "standard" ? "" : " " + size) + (spanish ? " es" : "");
+  // The Spanish pass reads the screens a supervisor lives in, as the two people who live in them.
+  // The English passes already cover the other width, the other theme and the larger sizes.
+  const people = spanish ? ["admin", "supervisor"] : seed.PERSONAS;
 
-  for (const persona of seed.PERSONAS) {
+  for (const persona of people) {
     const who = seed.PERSONA_LABEL[persona];
     await d.signOutHard();
     await d.signIn(persona);
@@ -203,7 +209,7 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
         "a control cannot be hit at its own center: " + g.unreachable.join(", "));
 
       // Where everything sits at Standard, which every later commit has to match.
-      if (size === "standard" && !light && persona === "admin") {
+      if (size === "standard" && !light && !spanish && persona === "admin") {
         await d.settle(300);
         let snap = await boxes(d);
         if (!layout.matches(p.id, width, snap)) { await d.settle(600); snap = await boxes(d); }
@@ -224,6 +230,24 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
           leaked ? "a " + who + " can read this admin page, the body holds " + JSON.stringify(p.expect) :
             "the body is " + bodyLen + " characters and says nothing about why");
         continue;
+      }
+
+      // On a Spanish pass, every word on the page has to be Spanish from the table, something the
+      // API served, a number, a date or a time, or the company's own name.
+      if (spanish) {
+        const listed = SPANISH_TODO.pages[p.id];
+        const left = englishLeftOn(await d.readable(), stubs.calls);
+        const said = left.slice(0, 3).map((x) => JSON.stringify(x.left)).join(", ");
+        if (listed) {
+          results.check("spanish", "spanish/" + p.id + "/" + persona, left.length > 0,
+            "this page reads Spanish now. Take " + JSON.stringify(p.id) + " off audit/spanish-todo.json, where it is listed for " + listed.part);
+          if (left.length > 0 && persona === "admin") {
+            results.note("still English, " + listed.part + ": " + p.id + ", " + left.length + " lines");
+          }
+        } else {
+          results.check("spanish", "spanish/" + p.id + "/" + persona, left.length === 0,
+            left.length + " lines a " + who + " reads are not Spanish: " + said);
+        }
       }
 
       const newErrors = d.pageErrors.slice(errsBefore);

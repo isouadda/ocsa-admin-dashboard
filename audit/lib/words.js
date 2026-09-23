@@ -124,4 +124,32 @@ function compare() {
   };
 }
 
-module.exports = { readTable, readCsv, expectedPairs, compare, WORDS_JS, CSV };
+// The word for something, in the language asked for. The English is the fallback, which is what the
+// app does, so a driver waiting on a word waits on whatever the screen will actually draw.
+let cached = null;
+function table() { if (!cached) cached = readTable() || {}; return cached; }
+function say(english, lang) {
+  if (!lang || lang === "en") return baseOf(english);
+  const entry = table()[english];
+  const said = entry && typeof entry[lang] === "string" && entry[lang] !== "" ? entry[lang] : null;
+  return said === null ? baseOf(english) : said;
+}
+// What a formatter is given, read from the same file the app reads it from.
+function localeTagFor(lang) {
+  const text = fs.existsSync(WORDS_JS) ? fs.readFileSync(WORDS_JS, "utf8") : "";
+  const m = new RegExp('"?' + (lang || "en") + '"?\\s*:\\s*"([a-zA-Z-]+)"').exec(text.slice(text.indexOf("LOCALE_TAGS")));
+  return m ? m[1] : "en-US";
+}
+// Every Spanish value the table holds, and every English one whose Spanish is the same word.
+function spanishValues() {
+  const t = table();
+  const out = new Set();
+  Object.keys(t).forEach((k) => {
+    const es = t[k].es;
+    if (typeof es === "string") out.add(es);
+    else if (es && typeof es === "object") Object.keys(es).forEach((f) => out.add(es[f]));
+  });
+  return out;
+}
+
+module.exports = { readTable, readCsv, expectedPairs, compare, say, localeTagFor, spanishValues, baseOf, WORDS_JS, CSV };

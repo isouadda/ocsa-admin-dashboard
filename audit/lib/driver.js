@@ -3,6 +3,10 @@
 // said, what a download held and what a print export wrote.
 "use strict";
 const seed = require("../seed");
+// The words the driver itself waits on. It waits for the sign-in button and the bell, and in a
+// Spanish pass it has to wait for the Spanish ones, so it looks each one up rather than
+// carrying a second copy.
+const { say, localeTagFor } = require("./words");
 
 const FIXED = new Date(seed.NOW_ISO);
 
@@ -55,16 +59,27 @@ const INIT = `(() => {
 // calc when the text is made larger, so both spellings are matched.
 const SIDEBAR = "div[style*='position: fixed'][style*='border-right']";
 const VIEWPORTS = { wide: { width: 1280, height: 900 }, narrow: { width: 1024, height: 900 } };
-const THEME_SEED = (mode, size) => '(() => { try { localStorage.setItem("ocsa-theme", ' + JSON.stringify(mode)
-  + '); localStorage.setItem("ocsa-text-size", ' + JSON.stringify(size) + '); } catch (e) {} })();';
+// The bell carries its name in its title, which is a word like any other. Both are accepted while
+// the parts are being translated: a screen the current part has not reached yet is still English,
+// and the driver has to be able to drive it either way.
+const bellSelector = (lang) => {
+  const words = [say("Notifications", lang), "Notifications"];
+  return words.filter((w, i) => words.indexOf(w) === i).map((w) => 'button[title="' + w + '"]').join(", ");
+};
+const THEME_SEED = (mode, size, lang) => '(() => { try { localStorage.setItem("ocsa-theme", ' + JSON.stringify(mode)
+  + '); localStorage.setItem("ocsa-text-size", ' + JSON.stringify(size)
+  + '); localStorage.setItem("ocsa-lang", ' + JSON.stringify(lang) + '); } catch (e) {} })();';
 
-async function createDriver({ browser, origin, stubs, viewport, theme, textSize }) {
+async function createDriver({ browser, origin, stubs, viewport, theme, textSize, lang }) {
   const mode = theme === "light" ? "light" : "dark";
   const size = textSize || "standard";
+  const tongue = lang === "es" ? "es" : "en";
+  // The browser is given the language's own locale, so a date the app does not format itself is
+  // still the date a person in that language reads.
   const context = await browser.newContext({
     viewport: VIEWPORTS[viewport] || VIEWPORTS.wide,
     timezoneId: seed.TIMEZONE,
-    locale: "en-US",
+    locale: localeTagFor(tongue),
     colorScheme: mode,
     acceptDownloads: true,
   });
@@ -74,7 +89,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize 
   await context.addInitScript(INIT);
   // The app reads this key before its first render, so the theme is seeded here rather than toggled
   // on screen. signOutHard puts it back, since clearing storage would otherwise drop it.
-  await context.addInitScript(THEME_SEED(mode, size));
+  await context.addInitScript(THEME_SEED(mode, size, tongue));
 
   // Nothing leaves the machine. Fonts and the QR image service are answered locally so a run works
   // with the network switched off.
@@ -116,6 +131,9 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize 
     viewport: viewport || "wide",
     theme: mode,
     textSize: size,
+    lang: tongue,
+    // The word for something, in the language this pass is in.
+    say: (english) => say(english, tongue),
 
     async close() { await context.close(); },
 
@@ -130,20 +148,23 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize 
         await page.evaluate(() => { window.location.hash = "overview"; });
         await page.reload({ waitUntil: "domcontentloaded" });
       }
-      await page.waitForSelector("text=Admin Dashboard", { timeout: 20000 });
+      // Either language: the sign-in card is translated in the part that takes it.
+      await page.getByText(say("Admin Dashboard", tongue)).or(page.getByText("Admin Dashboard"))
+        .first().waitFor({ timeout: 20000 });
       const inputs = page.locator("input");
       await inputs.nth(0).fill(who.login.phone);
       await inputs.nth(1).fill(who.login.pin);
-      await page.getByRole("button", { name: "Sign In" }).click();
+      await page.getByRole("button", { name: say("Sign In", tongue) })
+        .or(page.getByRole("button", { name: "Sign In" })).first().click();
       // The bell is in the top bar of every page, so it is the signal that the shell is up, whatever
       // page the hash happens to name.
-      await page.waitForSelector("button[title='Notifications']", { timeout: 20000 });
+      await page.waitForSelector(bellSelector(tongue), { timeout: 20000 });
       await this.settle();
     },
 
     // True when the login card is on screen, which is where a 401 leaves the person.
     async signedOut() {
-      return (await page.locator("button[title='Notifications']").count()) === 0;
+      return (await page.locator(bellSelector(tongue)).count()) === 0;
     },
     // Signs back in only when the person has been signed out, so a case can call it freely.
     async ensureSignedIn(personaKey) {
@@ -156,7 +177,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize 
     // signIn is a real load.
     async signOutHard() {
       if (page.url().indexOf(origin) !== 0) await page.goto(origin + "/", { waitUntil: "domcontentloaded" });
-      await page.evaluate((s) => { try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem("ocsa-theme", s.mode); localStorage.setItem("ocsa-text-size", s.size); } catch (e) {} }, { mode, size });
+      await page.evaluate((s) => { try { localStorage.clear(); sessionStorage.clear(); localStorage.setItem("ocsa-theme", s.mode); localStorage.setItem("ocsa-text-size", s.size); localStorage.setItem("ocsa-lang", s.lang); } catch (e) {} }, { mode, size, lang: tongue });
       await page.goto("about:blank");
     },
 
@@ -209,6 +230,35 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize 
     },
 
     // ---- reading the screen ---------------------------------------------
+    // Every piece of text a person reads on this screen: the words between the tags, and the name
+    // or the placeholder of anything they can type into or press.
+    async readable() {
+      return page.evaluate(() => {
+        const out = [];
+        const walk = (el) => {
+          const cs = getComputedStyle(el);
+          if (cs.display === "none" || cs.visibility === "hidden") return;
+          Array.from(el.childNodes).forEach((n) => {
+            if (n.nodeType === 3) {
+              const v = String(n.textContent || "").replace(/\s+/g, " ").trim();
+              if (v) out.push(v);
+              return;
+            }
+            if (n.nodeType !== 1) return;
+            const tag = n.tagName.toLowerCase();
+            if (tag === "script" || tag === "style" || tag === "svg") return;
+            ["aria-label", "placeholder", "title", "alt"].forEach((a) => {
+              const v = n.getAttribute && n.getAttribute(a);
+              if (v && String(v).trim()) out.push(String(v).trim());
+            });
+            walk(n);
+          });
+        };
+        walk(document.body);
+        return out;
+      });
+    },
+
     async text() {
       return (await page.locator("body").innerText()).replace(/ /g, " ");
     },
