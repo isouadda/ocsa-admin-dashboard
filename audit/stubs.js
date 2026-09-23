@@ -469,9 +469,12 @@ function createStubs() {
     { id: "ch-1", site_id: S[0].id, name: S[0].name, unread: 2, last_message_at: seed.shift(0) + "T21:00:00Z" },
     { id: "ch-2", site_id: S[1].id, name: S[1].name, unread: 0, last_message_at: seed.shift(-2) + "T13:00:00Z" },
   ];
+  // text is what Messages and a site's chat draw. The last one is a word the word table carries, so a
+  // message sent through the table by mistake would come back as another word.
   const CHAT_MESSAGES = [
-    { id: "cm-1", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Lobby is done for the night.", sentAt: seed.shift(0) + "T20:45:00Z" },
-    { id: "cm-2", senderId: "u-admin-1", senderName: "Dana Whitlock", senderRole: "admin", body: "Thank you, logged.", sentAt: seed.shift(0) + "T21:00:00Z" },
+    { id: "cm-1", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Lobby is done for the night.", text: "Lobby is done for the night.", sentAt: seed.shift(0) + "T20:45:00Z" },
+    { id: "cm-2", senderId: "u-admin-1", senderName: "Dana Whitlock", senderRole: "admin", body: "Thank you, logged.", text: "Thank you, logged.", sentAt: seed.shift(0) + "T21:00:00Z" },
+    { id: "cm-3", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Done", text: "Done", sentAt: seed.shift(0) + "T21:05:00Z" },
   ];
 
   const DM_INBOX = [

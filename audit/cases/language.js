@@ -19,7 +19,7 @@ const BARE = "Pressure wash dock apron";
 const CHOICE = { id: "lv-1", english: "Service Delivery", spanish: "Prestaci\u00f3n del servicio" };
 const PRIORITY = { code: "urgent", english: "Urgent", spanish: "Urgente" };
 
-async function run({ d, results, inventory }) {
+async function run({ d, results, inventory, stubs }) {
   const ids = {};
   inventory.DISPLAY_FIELDS.forEach((x) => { ids[x.id.split("/")[1]] = x.id; });
   await d.signOutHard();
@@ -118,6 +118,20 @@ async function run({ d, results, inventory }) {
     await d.closeModal();
   }
   results.check("language", ids["an-edited-choice-shows-and-sends-its-english"], choiceEditOk, choiceEditWhy);
+
+  // A typed message: Messages draws what a person wrote exactly as they wrote it, in any language,
+  // even "Done", which the table would draw as another word.
+  const person = stubs.fixtures.DM_INBOX[0].staffName;
+  const typed = stubs.fixtures.CHAT_MESSAGES.map((m) => m.text);
+  await d.goto("chat");
+  const talked = await d.clickText(person, { exact: false }).catch(() => false);
+  const lines = talked ? await d.readable() : [];
+  const missing = typed.filter((x) => lines.indexOf(x) < 0);
+  const swapped = typed.map((x) => d.say(x)).filter((x, i) => x !== typed[i] && lines.indexOf(x) >= 0);
+  results.check("language", ids["a-typed-message-is-drawn-as-typed"], talked && missing.length === 0 && swapped.length === 0,
+    !talked ? "the conversation with the first person in the inbox did not open"
+      : missing.length ? "what was typed is not on screen as typed: " + JSON.stringify(missing)
+        : "a typed message was drawn as the table's word for it: " + JSON.stringify(swapped));
 }
 
 function runLate({ stubs, results, inventory }) {

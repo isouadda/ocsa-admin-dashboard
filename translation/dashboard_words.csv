@@ -9,9 +9,10 @@ Actions,Acciones,Shift Pickup
 Active,Activo,"Schedule, Patterns"
 Activity Timeline,Historial de actividad,"Issue Tracker, the issue window; Assigned Tasks, the task window"
 Add a note saying why,Agregue una nota explicando por qué,"Schedule, Time off, when a denial has no note"
+Add a photo,Agregar una foto,"Help, the camera button"
 Add {0} to your home screen,Agregue {0} a su pantalla de inicio,"The add to home screen sheet, the title"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
-Admin,Administrador,The shell; Dashboard
+Admin,Administrador,"The shell; Dashboard; Live Operations, a person's role"
 Admin Dashboard,Panel de administración,The shell
 Admin access required,Se requiere acceso de administrador,The shell
 Administrator,Administrador,The shell
@@ -48,6 +49,7 @@ Average,Promedio,Shift Pickup
 Avg (min),Prom. (min),Shift Pickup
 Avg Fill Time,Tiempo medio de cobertura,Shift Pickup
 Back to Dashboard,Volver al panel,The admin line
+Based on {0},Según {0},"Help, the documents an answer comes from"
 Bldg: {0},Edificio: {0},"Shift Pickup, a shift card"
 Building,Edificio,"Schedule, a pattern; Schedule; Shift Pickup; Assigned Tasks, the task window; Assigned Tasks, creating a task"
 By: {0},Por: {0},"Assigned Tasks, who created a task"
@@ -76,6 +78,8 @@ Confirm Convert,Confirmar la conversión,Schedule
 Confirm ending this pattern,Confirmar el fin de este patrón,"Schedule, a pattern"
 Confirm on the next screen.,Confirme en la siguiente pantalla.,"The add to home screen sheet, Android"
 Connected to Live API,Conectado a la API en vivo,The shell
+Contractor,Contratista,"Live Operations, a person's role"
+Conversation,Conversación,"Messages, a conversation whose person has no name"
 Convert,Convertir,Shift Pickup
 Convert Callout,Convertir la ausencia,Shift Pickup
 Convert Scheduled Shift to Open Pickup,Convertir un turno programado en turno abierto,Shift Pickup
@@ -90,15 +94,18 @@ Create and Assign,Crear y asignar,"Assigned Tasks, creating a task"
 Created,Fecha de creación,"Assigned Tasks, the task window"
 Created By,Creada por,"Assigned Tasks, the task window, who created the tarea"
 Currently assigned to: {0}. They will be notified of the change.,Asignada ahora a: {0}. Recibirá un aviso del cambio.,"Assigned Tasks, reassigning a task, the name in bold"
+Custodial Laborer,Auxiliar de limpieza,"Live Operations, a person's role"
+Custodial Lead,Líder de limpieza,"Live Operations, a person's role"
 Custom,Personalizado,"The shell, the date range"
 DROP REQ,SOL. DE BAJA,Schedule
 Dark Mode,Modo oscuro,The shell
 Dark mode,Modo oscuro,The shell
 Dashboard,Panel,The shell
-Date,Fecha,Schedule; Shift Pickup
+Date,Fecha,Schedule; Shift Pickup; Live Operations
 Date *,Fecha *,Shift Pickup
 Date is required,La fecha es obligatoria,Schedule
 Dates,Fechas,"Schedule, Time off; Schedule, a time off request"
+Day Porter,Conserje de día,"Live Operations, a person's role"
 Days,Días,"Schedule, Patterns"
 Decided,Decidido,"Schedule, a time off request"
 Decided by,Decidido por,"Schedule, a time off request"
@@ -107,6 +114,7 @@ Delete,Eliminar,Schedule
 Denied,Denegada,"Schedule, Time off"
 Deny,Denegar,"Shift Pickup; Schedule, a time off request"
 Deny Request,Denegar la solicitud,Schedule
+Describe what happened,Describa qué pasó,"Help, the box a question is written in"
 Detailed Instructions,Instrucciones detalladas,"Assigned Tasks, creating a task"
 Don't show again,No volver a mostrar,"The add to home screen sheet, the button that ends it"
 Done,Listo,Schedule
@@ -146,7 +154,7 @@ Fill Rate by Reason,Tasa de cobertura por motivo,Shift Pickup
 Filled through {0},Cubierto hasta el {0},"Schedule, Patterns, how far a pattern reaches"
 Fl {0},Piso {0},"Shift Pickup, the floor on the shift line in a window; Assigned Tasks, where a task is"
 Floor,Piso,"Schedule, a pattern; Schedule; Shift Pickup; Assigned Tasks, the task window; Assigned Tasks, creating a task"
-Floor {0},Piso {0},"Schedule and Shift Pickup, a shift card; Assigned Tasks, the floor filter"
+Floor {0},Piso {0},"Schedule and Shift Pickup, a shift card; Assigned Tasks, the floor filter; Live Operations, where a person is"
 Floor: {0},Piso: {0},"Shift Pickup, a shift card"
 For,Por,"Schedule, adding a shift, repeat for a number of weeks"
 Forms,Formularios,The shell
@@ -154,7 +162,8 @@ Fri,Vie,Schedule; Shift Pickup
 F{0},P{0},"Schedule, Week, the floor beside a building name, short"
 General,General,"Issue Tracker and Assigned Tasks, the zone when none is set"
 HR Records,Expedientes de personal,The shell
-Help,Ayuda,The shell
+Help,Ayuda,The shell; Help
+Hide,Ocultar,"Live Operations, hiding the people who have not started"
 Hours,Horas,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
 In Progress,En curso,"Assigned Tasks, the state filter"
 Inspection,Inspección,Schedule
@@ -193,7 +202,7 @@ Logout,Cerrar sesión,The shell
 Mark all read,Marcar todo como leído,The bell
 Median,Mediana,Shift Pickup
 Median (min),Mediana (min),Shift Pickup
-Messages,Mensajes,The shell
+Messages,Mensajes,The shell; Messages
 Mon,Lun,Schedule; Shift Pickup
 Month,Mes,Schedule
 Monthly Totals,Totales del mes,Shift Pickup
@@ -206,17 +215,23 @@ Next Week,La próxima semana,Schedule
 No Show,No se presentó,Schedule
 No assigned tasks found.,No se encontraron tareas asignadas.,"Assigned Tasks, when the list is empty"
 No buildings configured,No hay edificios configurados,Schedule
+No conversations.,No hay conversaciones.,"Messages, when nobody has written"
 No end,Sin fin,"Schedule, a pattern"
 No end date,Sin fecha de fin,Schedule
 No inspections recorded yet.,Todavía no hay inspecciones registradas.,Dashboard
 No matching pages,Ninguna página coincide,The shell
+No messages yet,Todavía no hay mensajes,"Messages, a conversation with nothing in it, in the list"
+No messages yet.,Todavía no hay mensajes.,"Messages, a conversation with nothing in it"
 No note,Sin nota,"Schedule, a time off request"
 No patterns yet. Turn on Repeat when adding a shift to create one.,Todavía no hay patrones. Active Repetir al agregar un turno para crear uno.,"Schedule, Patterns"
 No pickup activity found in this period.,No hay actividad de turnos disponibles en este periodo.,Shift Pickup
 No reason given,Sin motivo,"Schedule, a time off request"
+No shift started on {0} ({1}),Sin turno iniciado el {0} ({1}),"Live Operations, the people who did not start on a day that is not today, and how many"
+No shift started today ({0}),Sin turno iniciado hoy ({0}),"Live Operations, the people who have not started, and how many"
 No shifts found for this period and filter.,No hay turnos en este periodo con este filtro.,Shift Pickup
 No shifts on these days.,No hay turnos en estos días.,"Schedule, a time off request"
-No shifts started yet today.,Todavía no ha iniciado ningún turno hoy.,Dashboard
+No shifts started on {0}.,Ningún turno iniciado el {0}.,"Live Operations, a day that is not today with nobody started"
+No shifts started yet today.,Todavía no ha iniciado ningún turno hoy.,Dashboard; Live Operations
 No specific service,Ningún servicio en particular,Schedule
 No staff match that search,Ninguna persona coincide con esa búsqueda,Schedule
 No upcoming scheduled shifts found.,No hay turnos programados próximos.,Shift Pickup
@@ -225,6 +240,7 @@ No-Shows,No se presentaron,Shift Pickup
 Normal,Normal,Shift Pickup
 Not given,No indicado,"Schedule, Time off, hours that were not entered"
 Not now,Ahora no,"The add to home screen sheet, the button that puts it off"
+Not sent.,No se envió.,"Help, a message that did not go"
 Note,Nota,"Schedule, a time off request"
 Note to previous assignee (optional),Nota para quien la tenía asignada (opcional),"Issue Tracker, giving an issue to a person"
 Notes,Notas,"Schedule, a pattern; Schedule; Shift Pickup"
@@ -268,12 +284,15 @@ Photo attached,Foto adjunta,"Issue Tracker, an issue that carries a photo"
 Photo {0},Foto {0},"Issue Tracker, the issue window, what a photo is called for a screen reader"
 Photo/Video (optional),Foto o video (opcional),"Assigned Tasks, creating a task"
 Photos ({0}),Fotos ({0}),"Issue Tracker, the issue window, how many photos it holds"
+Pick a conversation on the left to start.,Elija una conversación a la izquierda para empezar.,"Messages, before a conversation is picked"
 Pickup,Turno disponible,Schedule
 Pickup Shift,Turno disponible,Schedule
 Post Open Shift,Publicar turno abierto,Shift Pickup
 Post Shift,Publicar turno,Shift Pickup
 Prev,Anterior,"The shell, under a table"
 Priority,Prioridad,"Assigned Tasks, creating a task"
+Private conversations,Conversaciones privadas,Messages
+Private message,Mensaje privado,"Messages, under the person's name"
 Quality,Calidad,The shell
 Reason,Motivo,"Schedule; Shift Pickup; Schedule, a time off request"
 Reason Breakdown,Desglose por motivo,Shift Pickup
@@ -285,20 +304,24 @@ Reassign To,Reasignar a,Schedule; Shift Pickup
 Reassign To *,Reasignar a *,"Assigned Tasks, reassigning a task"
 Reassigned,Reasignada,"Issue Tracker and Assigned Tasks, an incidencia or a tarea given to somebody else"
 Recorded when the person started the shift in the portal. There is no end time and no hours here.,Registrado cuando la persona inició el turno en el portal. Aquí no hay hora de fin ni horas.,Schedule
-Refresh,Actualizar,Dashboard; Shift Pickup
+Refresh,Actualizar,Dashboard; Shift Pickup; Live Operations
 Release,Liberar,Schedule; Shift Pickup
 Released,Liberado,Shift Pickup
 Reliability,Cumplimiento,Shift Pickup
+Remove photo,Quitar la foto,"Help, a photo waiting to be sent, for a screen reader"
 Repeat on,Repetir los,Schedule
 Repeat this shift,Repetir este turno,Schedule
 Repeats,Se repite,Schedule
 Replaces an earlier pattern,Reemplaza a un patrón anterior,"Schedule, a pattern"
+Report,Informe,"Help, an unfinished report the API sent without a name"
+Report in progress,Informe en curso,Help
+Report submitted.,Informe enviado.,Help
 Reported,Reportada,"Issue Tracker, the issue window, an incidencia was reported"
 Reported At,Fecha del reporte,"Issue Tracker, the issue window"
 Reported By,Reportada por,"Issue Tracker, the issue window, who reported the incidencia"
 Reports,Informes,The shell
 Request denied,Solicitud denegada,Shift Pickup
-Request failed,La solicitud falló,"Schedule, a pattern; Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
+Request failed,La solicitud falló,"Schedule, a pattern; Schedule, Patterns; Schedule, Time off; Schedule, a time off request; Help; Any page, a call the API refused without a reason"
 Requested,Solicitado,"Schedule, Time off"
 Requested By,Solicitado por,Schedule; Shift Pickup
 Requests,Solicitudes,Shift Pickup
@@ -313,6 +336,8 @@ Response Time,Tiempo de respuesta,Shift Pickup
 Response Time Summary,Resumen del tiempo de respuesta,Shift Pickup
 Response Time by Site,Tiempo de respuesta por sitio,Shift Pickup
 Response Time by Urgency,Tiempo de respuesta por urgencia,Shift Pickup
+Resume,Continuar,"Help, picking an unfinished report back up"
+Retry,Reintentar,"Help, sending a message again"
 Sat,Sáb,"Schedule, the week and the pattern picker"
 Save,Guardar,Schedule
 Save Changes,Guardar los cambios,Shift Pickup
@@ -328,7 +353,7 @@ Score,Puntaje,Dashboard
 Scroll down and tap Add to Home Screen.,Desplácese hacia abajo y toque Agregar a pantalla de inicio.,"The add to home screen sheet, Safari"
 Search pages,Buscar páginas,The shell
 "Search site, service, staff, notes","Buscar por sitio, servicio, personal o notas",Shift Pickup
-Search staff,Buscar personal,Schedule
+Search staff,Buscar personal,Schedule; Messages
 Search staff...,Buscar personal...,Schedule
 Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.,Seleccione un turno programado abajo. El turno original se cancela y se reemplaza por un turno abierto que el personal elegible puede tomar.,Shift Pickup
 Select a staff member,Seleccione a una persona,"Schedule; Shift Pickup; Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task"
@@ -339,11 +364,13 @@ Select site...,Seleccione un sitio...,"Schedule; Shift Pickup; Assigned Tasks, c
 Select staff member...,Seleccione a la persona...,Schedule; Shift Pickup
 Select staff...,Seleccione personal...,"Schedule; Assigned Tasks, creating a task"
 Select...,Seleccione...,Shift Pickup
+Send,Enviar,"Help, the send button, for a screen reader"
 Service,Servicio,Shift Pickup
 Service Catalog,Catálogo de servicios,The shell
 Service Category,Categoría de servicio,Schedule; Shift Pickup
 Service category,Categoría de servicio,"Schedule, a pattern"
 Services,Servicios,The shell
+Session expired,La sesión expiró,"Any page, when the sign-in has run out"
 Settings,Configuración,The shell
 Share button,botón Compartir,"The add to home screen sheet, the words the share icon is drawn beside"
 Shift,Turno,Shift Pickup
@@ -364,7 +391,7 @@ Shifts,Turnos,"Schedule, Time off"
 Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.,Los turnos anteriores a esta fecha quedan como están. Los turnos que alguien cambió o canceló a mano se conservan.,"Schedule, a pattern"
 Shifts by Day of Week,Turnos por día de la semana,Shift Pickup
 Shifts on these days,Turnos en estos días,"Schedule, a time off request"
-Show,Mostrar,"Schedule and Shift Pickup, the label beside the rows per page chooser"
+Show,Mostrar,"Schedule and Shift Pickup, the label beside the rows per page chooser; Live Operations, showing the people who have not started"
 Showing the first {0}. Choose a person to narrow the list.,Mostrando los primeros {0}. Elija una persona para acotar la lista.,"Schedule, Time off, when the list is longer than the page holds"
 Showing {0} to {1} of {2},Mostrando {0} a {1} de {2},"The shell, under a table"
 Sign In,Iniciar sesión,The sign-in card
@@ -394,15 +421,19 @@ Start Time,Hora de inicio,Schedule
 Start Time *,Hora de inicio *,Schedule; Shift Pickup
 Start Work,Iniciar el trabajo,"Issue Tracker, the issue window"
 Start time,Hora de inicio,"Schedule, a pattern"
-Started,Iniciado,Dashboard; Schedule
+Started,Iniciado,"Dashboard; Schedule; Live Operations, when a person started"
 Started Shift,Turno iniciado,Schedule
-Started today,Iniciados hoy,Dashboard
+Started on {0},Iniciados el {0},"Live Operations, the heading for a day that is not today"
+Started today,Iniciados hoy,Dashboard; Live Operations
 Starts,Comienza,"Schedule, a pattern; Schedule, Patterns"
 Status,Estado,"Schedule; Shift Pickup; Schedule, Time off; Schedule, a time off request"
 Status Changed,Cambio de estado,"Issue Tracker, the issue window, the activity"
 Step-by-step instructions or notes...,Instrucciones paso a paso o notas...,"Assigned Tasks, creating a task"
+Still needed before you can submit:,Falta esto antes de poder enviarlo:,"Help, the questions a report still needs"
+Submit report,Enviar el informe,Help
+Submitting...,Enviando...,"Help, while a report is sent"
 Sun,Dom,Schedule; Shift Pickup
-Supervisor,Supervisor,The shell
+Supervisor,Supervisor,"The shell; Live Operations, a person's role"
 Supplies,Suministros,The shell
 Supplies & Inventory,Suministros e inventario,The shell
 System,Sistema,"Issue Tracker and Assigned Tasks, the activity, when no person made the change"
@@ -419,6 +450,7 @@ Task Detail,Detalle de la tarea,"Assigned Tasks, the task window"
 Task created and assigned,Tarea creada y asignada,"Assigned Tasks, creating a task"
 Task progress,Avance de tareas,Schedule
 Task reassigned,Tarea reasignada,"Assigned Tasks, reassigning a task"
+Tell me what happened and I will tell you what to do.,Cuénteme qué pasó y le digo qué hacer.,"Help, before anything is written"
 Text size,Tamaño del texto,The shell
 That one is for admins. Ask an admin to take a look.,Ese es para administradores. Pídale a un administrador que lo revise.,The shell
 The person reads your note in the app. Their notice shows only the dates.,La persona lee su nota en la aplicación. Su aviso muestra solo las fechas.,"Schedule, Time off, the hint under the note box"
@@ -430,6 +462,7 @@ This Month,Este mes,"The shell, the date range; Shift Pickup"
 This Week,Esta semana,"The shell, the date range; Schedule; Shift Pickup"
 This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.,Esta incidencia ya está asignada a alguien. Elegir a otra persona quita la asignación anterior.,"Issue Tracker, giving an issue to a person"
 This page is for admins.,Esta página es para administradores.,The admin line
+"This photo could not be read here. Choose a JPEG or PNG, or take a screenshot of it.","No se pudo leer esta foto aquí. Elija un JPEG o un PNG, o tómele una captura de pantalla.","Help, a photo the browser cannot open"
 This shift is open in the marketplace and available for staff to claim.,Este turno está abierto en el tablero y cualquier persona elegible puede tomarlo.,Schedule
 This shift runs past midnight. Pick the day it starts.,Este turno pasa de la medianoche. Elija el día en que comienza.,"Schedule, adding a shift, the note about an overnight shift"
 Thu,Jue,Schedule; Shift Pickup
@@ -442,20 +475,22 @@ Time off request,Solicitud de tiempo libre,"Schedule, a time off request"
 Today,Hoy,"The shell, the date range"
 Total,Total,Shift Pickup
 Total Claimed,Total tomados,Shift Pickup
-Try again,Intentar de nuevo,"The bell; Schedule, Patterns; Schedule, Time off"
+Try again,Intentar de nuevo,"The bell; Schedule, Patterns; Schedule, Time off; Help, a photo that did not upload"
 Try clearing filters.,Pruebe a quitar los filtros.,"Assigned Tasks, when the list is empty and a filter is set"
 Tue,Mar,Schedule; Shift Pickup
 Type,Tipo,"Schedule, Time off; Schedule, a time off request"
+Type a message,Escriba un mensaje,"Messages, the box a message is written in"
 URGENT,URGENTE,Shift Pickup
 Unable to Resolve,No se pudo resolver,"Issue Tracker and Assigned Tasks, the activity in the window; Assigned Tasks, the state filter"
 Unassigned,Sin asignar,"Schedule; Shift Pickup; Assigned Tasks, the task window"
+Unfinished reports,Informes sin terminar,Help
 Until,Hasta,Schedule
 Upcoming,Próximos,"Schedule, Patterns"
 Updated,Actualizado,"Issue Tracker, after an issue's state is changed"
 "Upload a photo or video (up to 50MB), or paste a YouTube link above","Suba una foto o un video (hasta 50 MB), o pegue arriba un enlace de YouTube","Assigned Tasks, creating a task"
-Upload failed,No se pudo subir el archivo,"Assigned Tasks, creating a task"
+Upload failed,No se pudo subir el archivo,"Assigned Tasks, creating a task; Help, a photo that did not upload; Any page, an upload the API refused without a reason"
 Uploaded,Archivo subido,"Assigned Tasks, creating a task"
-Uploading...,Subiendo...,"Assigned Tasks, creating a task"
+Uploading...,Subiendo...,"Assigned Tasks, creating a task; Help, a photo on its way"
 Urgency,Urgencia,Shift Pickup
 Urgent,Urgente,Shift Pickup
 Vendor Registry,Registro de proveedores,The shell
@@ -472,6 +507,9 @@ Weekly pattern,Patrón semanal,"Schedule, a pattern"
 "Welcome back, {0}","Bienvenido de nuevo, {0}","The shell, the top bar"
 "Welcome, {0}","Bienvenido, {0}","The shell, the line after a sign-in"
 Work Started,Trabajo iniciado,"Issue Tracker and Assigned Tasks, the activity in the window"
+Working from the written procedure only right now.,Por ahora trabajo solo con el procedimiento escrito.,"Help, under an answer given without the assistant"
+You can send up to 3 photos with one message.,Puede enviar hasta 3 fotos con un mensaje.,"Help, the camera button once three photos are waiting"
+Your messages,Sus mensajes,"Messages, before a conversation is picked"
 Zone,Zona,"Issue Tracker, the issue window; Assigned Tasks, the task window"
 Zone *,Zona *,"Assigned Tasks, creating a task"
 by {0},por {0},"Issue Tracker and Assigned Tasks, the activity, who made the change"
@@ -505,7 +543,8 @@ weeks,semanas,"Schedule, adding a shift, the word after the number of weeks"
 {0} dates were skipped because this person is already scheduled at that time:,Se omitieron {0} fechas porque esta persona ya tiene un turno a esa hora:,"Schedule, after a pattern is saved"
 {0} no-shows,{0} no se presentaron,"Shift Pickup, Analytics, under the callout count"
 {0} of {1},{0} de {1},"Dashboard, the tasks done on a shift"
-{0} of {1} tasks,{0} de {1} tareas,"Schedule, Week, the tasks done on a shift"
+{0} of {1} answered,{0} de {1} respondidas,"Help, how many questions of a report are answered"
+{0} of {1} tasks,{0} de {1} tareas,"Schedule, Week, the tasks done on a shift; Live Operations, the tasks done on a shift"
 {0} open,{0} abiertos,"Schedule, Month, the open pickups on a day"
 {0} open issues,{0} incidencias abiertas,"Dashboard, the issues tile"
 {0} pending,{0} pendientes,"Dashboard, the pending staff button"
@@ -571,3 +610,9 @@ resolved,resuelta,"Assigned Tasks, a tarea that was done"
 {0} inspections,{0} inspecciones,"Schedule, Month, the inspections on a day, when the count is more than one"
 {0} shift claimed with overtime risk,{0} turno tomado con riesgo de horas extra,"Shift Pickup, Analytics, the overtime warning, when the count is one"
 {0} shifts claimed with overtime risk,{0} turnos tomados con riesgo de horas extra,"Shift Pickup, Analytics, the overtime warning, when the count is more than one"
+{0} started today,{0} iniciado hoy,"Live Operations, how many people started today, when the count is one"
+{0} started today,{0} iniciados hoy,"Live Operations, how many people started today, when the count is more than one"
+{0} started on {1},{0} iniciado el {1},"Live Operations, how many people started on a day that is not today, when the count is one"
+{0} started on {1},{0} iniciados el {1},"Live Operations, how many people started on a day that is not today, when the count is more than one"
+{0} started,{0} iniciado,"Live Operations, the people started at a site, when the count is one"
+{0} started,{0} iniciados,"Live Operations, the people started at a site, when the count is more than one"

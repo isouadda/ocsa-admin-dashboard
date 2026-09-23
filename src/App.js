@@ -20,8 +20,8 @@ async function apiUpload(file, bucket, token) {
     headers: { "Authorization": "Bearer " + token, "Content-Type": file.type },
     body: file,
   });
-  if (res.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Upload failed"); }
+  if (res.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || tr("Upload failed")); }
   return res.json();
 }
 // attachment; filename="<code>-<id>.pdf" -> <code>-<id>.pdf. Anything unreadable falls back.
@@ -35,16 +35,16 @@ const filenameFrom = (header, fallback) => {
 // 401 signs out and a refusal arrives with the words the API sent and its status.
 async function apiDownload(path, token, fallbackName) {
   const r = await apiRequest(API + path, { headers: { "Authorization": "Bearer " + token } });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
 // The signed-in session, persisted so a refresh or a restored tab does not land on the login card.
@@ -2230,29 +2230,31 @@ function OpsPage({ af, t, allStaff }) {
   const loadOps = () => { af("/api/shift-sessions/by-site?date=" + date).then(d => setBoard({ date: d.date, sites: d.sites || [] })).catch(e => console.warn("Load shift sessions:", e.message)); };
   useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
-  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+  // The day this board is for. It goes into each sentence whole, since the words around a date sit
+  // somewhere else in another language.
+  const dayText = new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const startedIds = new Set(board.sites.flatMap(site => site.people.map(p => p.userId)));
   const rest = allStaff.filter(u => !startedIds.has(u.id));
-  return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Started {dayLabel}</SecT>
+  return (<div><SecT t={t} action={tr("Refresh")} onAction={loadOps}>{isToday ? tr("Started today") : tr("Started on {0}", dayText)}</SecT>
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Date</span>
+      <span style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Date")}</span>
       <div style={{ width: 170 }}><Inp t={t} type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} /></div>
-      <span style={{ fontSize: 12, color: t.textSec }}>{startedIds.size} started {dayLabel}</span>
+      <span style={{ fontSize: 12, color: t.textSec }}>{isToday ? trn("{0} started today|count", startedIds.size) : trn("{0} started on {1}|count", startedIds.size, dayText)}</span>
     </div>
-    {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? "No shifts started yet today." : "No shifts started " + dayLabel + "."}</div></Crd>}
+    {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={site.people.length + " started"} c={GR} /></div>
-      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></div>
+      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
-        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] || p.role}{place ? ", " + place : ""}</div></div>
-        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>Started {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{p.tasksCompleted} of {p.tasksTotal} tasks</span></div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div></div>
       </div>; })}
     </Crd>)}
     <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
-      <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>No shift started {dayLabel} ({rest.length})</span>
-      <span style={{ fontSize: 11, color: t.goldText, fontWeight: 600 }}>{showRest ? "Hide" : "Show"}</span>
+      <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{isToday ? tr("No shift started today ({0})", rest.length) : tr("No shift started on {0} ({1})", dayText, rest.length)}</span>
+      <span style={{ fontSize: 11, color: t.goldText, fontWeight: 600 }}>{showRest ? tr("Hide") : tr("Show")}</span>
     </button>
-    {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] || u.role}</div></div></div>)}
+    {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] ? tr(RL[u.role]) : u.role}</div></div></div>)}
   </div>);
 }
 
@@ -2361,24 +2363,24 @@ function ChatPage({ af, user, t }) {
   const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
   const activeDm = dms.find(dm => dm.channelId === sel);
   return (<div>
-    <SecT t={t}>Messages</SecT>
+    <SecT t={t}>{tr("Messages")}</SecT>
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 420 }}>
       <div style={{ width: 300, borderRight: "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Private conversations</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Private conversations")}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 12px" }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search staff" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
-          {filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>No conversations.</div>}
+          {filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" }} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.staffName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || "No messages yet"}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
               </div>
             </button>
           ); })}
@@ -2388,16 +2390,16 @@ function ChatPage({ af, user, t }) {
         {!sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Your messages</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Pick a conversation on the left to start.</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Your messages")}</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>{tr("Pick a conversation on the left to start.")}</div>
           </div>
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + t.border }}>
             <Ini name={activeDm?.staffName} sz={34} />
-            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || "Conversation"}</div><div style={{ fontSize: 11, color: t.textMut }}>Private message</div></div>
+            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || tr("Conversation")}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-            {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No messages yet.</div>}
+            {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
             {msgs.map((m, i) => { const isMe = m.senderRole === "admin" || m.senderRole === "supervisor"; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
@@ -2406,7 +2408,7 @@ function ChatPage({ af, user, t }) {
             <div ref={endRef} />
           </div>
           <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border }}>
-            <Inp t={t} value={reply} onChange={e => setReply(e.target.value)} placeholder="Type a message" style={{ borderRadius: 20 }} onKeyDown={e => e.key === "Enter" && send()} />
+            <Inp t={t} value={reply} onChange={e => setReply(e.target.value)} placeholder={tr("Type a message")} style={{ borderRadius: 20 }} onKeyDown={e => e.key === "Enter" && send()} />
             <button onClick={send} style={{ width: 40, height: 40, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
           </div>
         </>)}
@@ -2416,11 +2418,14 @@ function ChatPage({ af, user, t }) {
 }
 // ===== HELP: the assistant the staff portal's Help tab talks to. Same four requests, same screen. =====
 // AGENT_HELPERS_START (pure helpers, no React, so they can run as a script against fixtures)
+// A helper that makes words a person reads takes `say`, which the page passes as tr, so the words are
+// in the language the screen is drawn in. Run as a script with no `say`, they come out in English.
+const agentEnglish = (text, ...values) => String(text).replace(/\{(\d+)\}/g, (m, i) => String(values[Number(i)]));
 const agentPick = (row, keys) => { for (const k of keys) { if (row && row[k] !== undefined && row[k] !== null) return row[k]; } return undefined; };
 const agentListFrom = (res, keys) => { if (Array.isArray(res)) return res; if (res && typeof res === "object") { for (const k of keys) { if (Array.isArray(res[k])) return res[k]; } } return []; };
-const agentDraftFrom = (row) => ({
+const agentDraftFrom = (row, say = agentEnglish) => ({
   id: agentPick(row, ["id", "formResponseId", "form_response_id"]),
-  name: agentPick(row, ["formName", "formTitle", "form_name", "title", "formCode", "form_code"]) || "Report",
+  name: agentPick(row, ["formName", "formTitle", "form_name", "title", "formCode", "form_code"]) || say("Report"),
   answered: agentPick(row, ["answered", "answeredCount", "answered_count"]),
   remaining: agentPick(row, ["remaining", "remainingCount", "remaining_count"]),
   conversationId: agentPick(row, ["conversationId", "conversation_id"]),
@@ -2428,7 +2433,7 @@ const agentDraftFrom = (row) => ({
   status: agentPick(row, ["status"]) || "draft",
   nextQuestion: agentPick(row, ["nextQuestion", "next_question"]),
 });
-const agentAnsweredLine = (answered, remaining) => (answered === undefined || answered === null || remaining === undefined || remaining === null) ? "" : Number(answered) + " of " + (Number(answered) + Number(remaining)) + " answered";
+const agentAnsweredLine = (answered, remaining, say = agentEnglish) => (answered === undefined || answered === null || remaining === undefined || remaining === null) ? "" : say("{0} of {1} answered", Number(answered), Number(answered) + Number(remaining));
 const agentMessageFrom = (m, i) => {
   const role = String(agentPick(m, ["role", "sender"]) || "").toLowerCase() === "user" ? "user" : "assistant";
   const cited = agentPick(m, ["citedDocs", "cited_doc_codes", "citedDocCodes"]);
@@ -2510,7 +2515,7 @@ function HelpPage({ af, uf, showToast, t }) {
   useEffect(() => () => { urlsRef.current.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); urlsRef.current.clear(); }, []);
 
   const loadDrafts = useCallback(async () => {
-    try { const res = await af("/api/agent/drafts"); setDrafts(agentListFrom(res, ["drafts", "items", "rows"]).map(agentDraftFrom)); }
+    try { const res = await af("/api/agent/drafts"); setDrafts(agentListFrom(res, ["drafts", "items", "rows"]).map(r => agentDraftFrom(r, tr))); }
     catch (e) { console.warn("Help drafts:", e.message); setDrafts([]); }
   }, [af]);
   useEffect(() => { loadDrafts(); }, [loadDrafts]);
@@ -2526,8 +2531,8 @@ function HelpPage({ af, uf, showToast, t }) {
     try {
       const r = await uf(new File([blob], "photo.jpg", { type: "application/octet-stream" }), "agent-photos");
       if (r && r.path) patchPhoto(key, { status: "done", path: String(r.path), error: "" });
-      else patchPhoto(key, { status: "failed", error: "Upload failed" });
-    } catch (e) { patchPhoto(key, { status: "failed", error: e.message || "Upload failed" }); }
+      else patchPhoto(key, { status: "failed", error: tr("Upload failed") });
+    } catch (e) { patchPhoto(key, { status: "failed", error: e.message || tr("Upload failed") }); }
   };
   // Each picked image is prepared as soon as it is picked; uploads run one at a time in the order picked.
   const addFiles = (files) => {
@@ -2540,7 +2545,7 @@ function HelpPage({ af, uf, showToast, t }) {
       setPhotos(p => [...p, { key, url: "", blob: null, status: "uploading", path: "", error: "" }]);
       uploadChain.current = uploadChain.current.then(async () => {
         let prepared;
-        try { prepared = await prep; } catch { setPhotos(p => p.filter(x => x.key !== key)); setPhotoNote(AGENT_PHOTO_UNREADABLE); return; }
+        try { prepared = await prep; } catch { setPhotos(p => p.filter(x => x.key !== key)); setPhotoNote(tr(AGENT_PHOTO_UNREADABLE)); return; }
         if (!photosRef.current.some(x => x.key === key)) { dropUrl(prepared.url); return; }
         patchPhoto(key, { blob: prepared.blob, url: prepared.url });
         await uploadPhoto(key, prepared.blob);
@@ -2572,7 +2577,7 @@ function HelpPage({ af, uf, showToast, t }) {
       setText(cur => cur === body ? "" : cur);
       if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
     } catch (e) {
-      patchMsg(id, { status: "failed", error: e.message || "Request failed" });
+      patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
     } finally { setSending(false); }
   };
   const allUploaded = photos.every(p => p.status === "done");
@@ -2599,7 +2604,7 @@ function HelpPage({ af, uf, showToast, t }) {
       const res = await af("/api/agent/conversations/" + encodeURIComponent(d.conversationId));
       setThread(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom));
       setConversationId(d.conversationId);
-    } catch (e) { showToast(e.message || "Request failed", "error"); }
+    } catch (e) { showToast(e.message || tr("Request failed"), "error"); }
     finally { setResuming(false); setTimeout(() => composerRef.current?.querySelector("textarea")?.focus(), 0); }
   };
 
@@ -2611,40 +2616,40 @@ function HelpPage({ af, uf, showToast, t }) {
       setFormResponse(null); setSubmitted(true); loadDrafts();
     } catch (e) {
       const list = agentMissingFrom(e);
-      setMissing(list && list.length ? list : [e.message || "Request failed"]);
+      setMissing(list && list.length ? list : [e.message || tr("Request failed")]);
     } finally { setSubmitting(false); }
   };
 
   const visibleDrafts = drafts.filter(d => !(formResponse && d.id !== undefined && String(d.id) === String(formResponse.id)));
-  const cardName = formResponse ? (agentDraftFrom(formResponse).name) : "";
-  const cardLine = formResponse ? agentAnsweredLine(agentPick(formResponse, ["answered", "answeredCount", "answered_count"]), agentPick(formResponse, ["remaining", "remainingCount", "remaining_count"])) : "";
+  const cardName = formResponse ? (agentDraftFrom(formResponse, tr).name) : "";
+  const cardLine = formResponse ? agentAnsweredLine(agentPick(formResponse, ["answered", "answeredCount", "answered_count"]), agentPick(formResponse, ["remaining", "remainingCount", "remaining_count"]), tr) : "";
   const canSubmit = !!formResponse && !busy && !(Number(formResponse.remaining) > 0);
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
   const photosFull = photos.length >= AGENT_MAX_PHOTOS;
   const canPick = !busy && !photosFull;
 
   return (<div>
-    <SecT t={t}>Help</SecT>
+    <SecT t={t}>{tr("Help")}</SecT>
     {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12 }}>
-      <Lbl>Unfinished reports</Lbl>
-      {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining); return (
+      <Lbl>{tr("Unfinished reports")}</Lbl>
+      {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining, tr); return (
         <div key={d.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid " + t.border }}>
           <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{d.name}</div>{line && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{line}</div>}</div>
-          <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>Resume</Btn>
+          <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>{tr("Resume")}</Btn>
         </div>); })}
     </Crd>}
     {formResponse && <Crd t={t} style={{ marginBottom: 12 }}>
-      <Lbl>Report in progress</Lbl>
+      <Lbl>{tr("Report in progress")}</Lbl>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 160 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{cardName}</div>{cardLine && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{cardLine}</div>}</div>
-        <Btn t={t} onClick={submit} disabled={!canSubmit} style={{ minHeight: 44, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? "pointer" : "default" }}>{submitting ? "Submitting..." : "Submit report"}</Btn>
+        <Btn t={t} onClick={submit} disabled={!canSubmit} style={{ minHeight: 44, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? "pointer" : "default" }}>{submitting ? tr("Submitting...") : tr("Submit report")}</Btn>
       </div>
-      {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>Still needed before you can submit:</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
+      {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("Still needed before you can submit:")}</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
     </Crd>}
-    {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>Report submitted.</div>}
+    {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Report submitted.")}</div>}
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 360 }}>
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-        {thread.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Tell me what happened and I will tell you what to do.</div>}
+        {thread.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Tell me what happened and I will tell you what to do.")}</div>}
         {thread.map(m => { const isMe = m.role === "user"; return (
           <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
@@ -2656,9 +2661,9 @@ function HelpPage({ af, uf, showToast, t }) {
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
               </div>
-              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Based on {m.citedDocs.join(", ")}</div>}
-              {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Working from the written procedure only right now.</div>}
-              {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>Not sent. {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Retry</button></div>}
+              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", m.citedDocs.join(", "))}</div>}
+              {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
+              {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
           </div>); })}
         <div ref={endRef} />
@@ -2669,10 +2674,10 @@ function HelpPage({ af, uf, showToast, t }) {
             <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: 4, borderRadius: R.sm, border: "1px solid " + (p.status === "failed" ? RD : t.border), background: t.cardAlt, maxWidth: "100%" }}>
               {p.url ? <img src={p.url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, display: "block", flexShrink: 0 }} /> : <div style={{ width: 56, height: 56, borderRadius: 6, background: t.hover, flexShrink: 0 }} />}
               <div style={{ fontSize: 11, minWidth: 0, maxWidth: 160 }}>
-                {p.status === "uploading" && <div style={{ color: t.textMut }}>Uploading...</div>}
-                {p.status === "failed" && <div style={{ color: RD, wordBreak: "break-word" }}>{p.error} <button onClick={() => retryUpload(p)} disabled={busy || !p.blob} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Try again</button></div>}
+                {p.status === "uploading" && <div style={{ color: t.textMut }}>{tr("Uploading...")}</div>}
+                {p.status === "failed" && <div style={{ color: RD, wordBreak: "break-word" }}>{p.error} <button onClick={() => retryUpload(p)} disabled={busy || !p.blob} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></div>}
               </div>
-              <button onClick={() => removePhoto(p.key)} aria-label="Remove photo" disabled={busy} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", cursor: busy ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textSec} /></button>
+              <button onClick={() => removePhoto(p.key)} aria-label={tr("Remove photo")} disabled={busy} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", cursor: busy ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textSec} /></button>
             </div>
           ))}
         </div>}
@@ -2680,9 +2685,9 @@ function HelpPage({ af, uf, showToast, t }) {
       </div>}
       <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: photos.length > 0 || photoNote ? "none" : "1px solid " + t.border, alignItems: "flex-end" }}>
         <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onPick} style={{ display: "none" }} />
-        <button onClick={() => fileInputRef.current?.click()} aria-label="Add a photo" disabled={!canPick} title={photosFull ? "You can send up to 3 photos with one message." : "Add a photo"} style={{ width: 44, height: 44, borderRadius: "50%", background: t.cardAlt, border: "1px solid " + t.border, cursor: canPick ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: canPick ? 1 : 0.5 }}><CamI sz={18} c={t.textSec} /></button>
-        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} disabled={busy} rows={1} placeholder="Describe what happened" aria-label="Describe what happened" style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
-        <button onClick={send} aria-label="Send" disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
+        <button onClick={() => fileInputRef.current?.click()} aria-label={tr("Add a photo")} disabled={!canPick} title={photosFull ? tr("You can send up to 3 photos with one message.") : tr("Add a photo")} style={{ width: 44, height: 44, borderRadius: "50%", background: t.cardAlt, border: "1px solid " + t.border, cursor: canPick ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: canPick ? 1 : 0.5 }}><CamI sz={18} c={t.textSec} /></button>
+        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} disabled={busy} rows={1} placeholder={tr("Describe what happened")} aria-label={tr("Describe what happened")} style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
+        <button onClick={send} aria-label={tr("Send")} disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
   </div>);

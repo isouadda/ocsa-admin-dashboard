@@ -13,10 +13,6 @@
       "part": "part three",
       "why": "Sites and everything a site holds"
     },
-    "operations": {
-      "part": "part three",
-      "why": "Live Operations"
-    },
     "supplies": {
       "part": "part four",
       "why": "Supplies and inventory"
@@ -28,10 +24,6 @@
     "services": {
       "part": "part four",
       "why": "The service catalog"
-    },
-    "chat": {
-      "part": "part four",
-      "why": "Messages"
     },
     "reports": {
       "part": "part five",
@@ -52,10 +44,6 @@
     "cases": {
       "part": "part six",
       "why": "Speak Up cases"
-    },
-    "help": {
-      "part": "part six",
-      "why": "Help and the agent"
     }
   }
 }
