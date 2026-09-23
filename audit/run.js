@@ -58,6 +58,9 @@ function loadSuite(mod) {
 async function main() {
   const started = Date.now();
   const only = (process.env.AUDIT_ONLY || "").split(",").map((s) => s.trim()).filter(Boolean);
+  // AUDIT_LANG=es drives only the passes drawn in that language, and the suites that have no pass at
+  // all, such as house-style. With AUDIT_ONLY=pages it is the Spanish check on its own.
+  const langOnly = (process.env.AUDIT_LANG || "").trim();
   const app = discover();
   const results = createResults();
 
@@ -91,6 +94,7 @@ async function main() {
           const theme = v.theme || "dark";
           const textSize = v.size || "standard";
           const lang = v.lang || "en";
+          if (langOnly && lang !== langOnly) continue;
           process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : "1024x900")
             + " in " + theme + (textSize === "standard" ? "" : ", text " + textSize)
             + (lang === "en" ? "" : ", in " + lang) + "\n");
@@ -105,7 +109,7 @@ async function main() {
     }
     // What only the finished run can prove: every page driven in light as well as dark, and the
     // layout record, which is written or compared once the pages have all been walked.
-    if (!only.length || only.indexOf("pages") >= 0) {
+    if ((!only.length || only.indexOf("pages") >= 0) && !langOnly) {
       require("./cases/coverage").runLate(ctx);
       require("./lib/layout").finish(results);
     }
@@ -119,8 +123,8 @@ async function main() {
   const unstubbed = Array.from(new Set(stubs.calls.filter((c) => c.unstubbed).map((c) => c.method + " " + c.path)));
   if (unstubbed.length) results.note("calls with no stub rule, answered with an empty shape: " + unstubbed.join(", "));
 
-  const partialRun = only.length > 0;
-  if (partialRun) results.note("partial run, AUDIT_ONLY=" + only.join(","));
+  const partialRun = only.length > 0 || langOnly !== "";
+  if (partialRun) results.note("partial run" + (only.length ? ", AUDIT_ONLY=" + only.join(",") : "") + (langOnly ? ", AUDIT_LANG=" + langOnly : ""));
   printDetail(results);
   printKnown(results, partialRun);
   printNotes(results);

@@ -70,6 +70,7 @@ conversation's line sits in the middle of its area.
 
 ```
 AUDIT_ONLY=pages,views npm run audit     # one or more suites
+AUDIT_LANG=es npm run audit              # only the passes drawn in that language
 AUDIT_FORCE_BUILD=1 npm run audit        # rebuild even when the bundle looks fresh
 AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
