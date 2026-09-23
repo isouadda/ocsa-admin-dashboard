@@ -1,4 +1,65 @@
 {
   "note": "Failures the app has today that the commit adding the case does not fix. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
-  "failures": []
+  "failures": [
+    {
+      "match": "^help-stream/the-question-goes-to-the-streaming-route/",
+      "shows": "Help sends every question to POST /api/agent/message and waits for the whole answer",
+      "why": "The streaming route Step 111 shipped is not asked yet. The next commit sends every question there, with the same body, query and headers",
+      "where": "src/App.js:2574"
+    },
+    {
+      "match": "^help-stream/the-first-words-come-before-the-last/",
+      "shows": "Nothing appears where the answer goes until the whole answer is in, 4.8 seconds after Send on the stub's twelve pieces 400 ms apart",
+      "why": "The answer is read whole, through apiFetch's r.json(). The next commit reads it as it is written",
+      "where": "src/App.js:2574, src/App.js:48"
+    },
+    {
+      "match": "^help-stream/marks-never-show-while-arriving/",
+      "shows": "No answer is on screen part way through, so there are no plain words to read while it arrives",
+      "why": "The page has no answer that is still arriving. The next commit draws one, without its formatting marks",
+      "where": "src/App.js:2568"
+    },
+    {
+      "match": "^help-stream/a-reset-clears-what-was-drawn/",
+      "shows": "The page never reads a reset, since it never reads the stream",
+      "why": "The next commit reads the stream, and a reset takes back what was drawn since meta or the last reset",
+      "where": "src/App.js:2568"
+    },
+    {
+      "match": "^help-stream/done-is-read-key-for-key/",
+      "shows": "The whole answer is handled key by key, from the route that answers whole",
+      "why": "The same handling moves to the stream's done in the next commit, key for key",
+      "where": "src/App.js:2575"
+    },
+    {
+      "match": "^help-stream/a-refusal-before-the-stream-reads-as-today/",
+      "shows": "A refusal of the streaming route never reaches the page, which asks the other route",
+      "why": "The next commit asks the streaming route and shows its JSON refusal the way a refusal has always been shown",
+      "where": "src/App.js:2583"
+    },
+    {
+      "match": "^help-stream/an-error-event-reads-as-a-refusal/",
+      "shows": "An error event never reaches the page, which asks the other route",
+      "why": "The next commit shows an error event the way a refusal with the same status has always been shown",
+      "where": "src/App.js:2583"
+    },
+    {
+      "match": "^help-stream/a-dropped-connection-reads-the-answer-back/",
+      "shows": "A connection that drops part way through an answer reads Not sent, with the browser's words and Retry, though the API stored the answer",
+      "why": "The next commit keeps meta's conversation id and reads the stored answer back from the conversation",
+      "where": "src/App.js:2583"
+    },
+    {
+      "match": "^help-stream/try-again-reads-it-back-again/",
+      "shows": "There is no Try again for an answer that is not stored yet. Retry asks the question a second time",
+      "why": "The next commit offers Try again, which reads the conversation back again",
+      "where": "src/App.js:2598"
+    },
+    {
+      "match": "^help-stream/a-screen-reader-hears-the-answer-once/",
+      "shows": "The Help page has no live region, so a screen reader hears nothing when the answer comes",
+      "why": "The next commit adds one live region, which says the finished answer once",
+      "where": "src/App.js:2637"
+    }
+  ]
 }

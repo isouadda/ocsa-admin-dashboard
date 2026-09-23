@@ -347,6 +347,20 @@ const HELP_FIT = [
   { id: "help/reports-list-stops-at-three-rows", what: "five unfinished reports show at most three rows and scroll inside the list" },
   { id: "help/empty-line-in-the-middle", what: "an empty conversation's line sits in the middle of its area" },
 ];
+// Help's answer appears as it is written. Each journey runs in English and in Spanish, as
+// help-stream/<journey>/<language>, with the answer written by audit/stream.js.
+const HELP_STREAM = [
+  { id: "help-stream/the-question-goes-to-the-streaming-route", what: "every question goes to POST /api/agent/message/stream with the body, the query and the headers the page has always sent, Accept-Language included" },
+  { id: "help-stream/the-first-words-come-before-the-last", what: "with twelve pieces 400 ms apart, the first words are on screen long before the answer is finished" },
+  { id: "help-stream/marks-never-show-while-arriving", what: "a bold phrase cut in two arrives as plain words, a lone * at the end of a piece is held back, and the finished answer draws its bold" },
+  { id: "help-stream/a-reset-clears-what-was-drawn", what: "reset takes away what was drawn since meta, and the answer goes on from there" },
+  { id: "help-stream/done-is-read-key-for-key", what: "done is handled as the whole answer always was: its steps and bold, the documents it cites, degraded, noProcedure, the report it continues, the box to type in, and the conversation the next question carries" },
+  { id: "help-stream/a-refusal-before-the-stream-reads-as-today", what: "a JSON refusal before the stream opens reads Not sent with the API's words and Retry, Retry asks again, and a 401 signs the person out" },
+  { id: "help-stream/an-error-event-reads-as-a-refusal", what: "an error event takes away the words drawn so far and reads exactly as a refusal with the same status" },
+  { id: "help-stream/a-dropped-connection-reads-the-answer-back", what: "a connection that drops after meta says so in one line, and the stored answer is read back into its place" },
+  { id: "help-stream/try-again-reads-it-back-again", what: "when the stored answer is not in the conversation yet, Try again reads it back again, and the next question stays in the same conversation" },
+  { id: "help-stream/a-screen-reader-hears-the-answer-once", what: "one live region, empty while the answer arrives, says the finished answer once" },
+];
 // What the API sends in that language, and where it goes. A screen that only shows a checklist item
 // or a pick list choice draws the display the API sent; a screen that edits one shows and saves the
 // English it was saved in. Read in Spanish, where the two are different words.
@@ -416,4 +430,4 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/what-is-still-needed-shrinks", name: "The still-needed line drops a question once it is answered" },
 ];
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, LANGUAGE_HEADER, DISPLAY_FIELDS, HELP_FIT, WINDOW_STATES, FILED_FORM_STATES };
+module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, LANGUAGE_HEADER, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, WINDOW_STATES, FILED_FORM_STATES };
