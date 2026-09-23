@@ -480,6 +480,7 @@ export const WORDS = {
   "Tell me what happened and I will tell you what to do.": { es: "Cu\u00e9nteme qu\u00e9 pas\u00f3 y le digo qu\u00e9 hacer." },
   "Text size": { es: "Tama\u00f1o del texto" },
   "That one is for admins. Ask an admin to take a look.": { es: "Ese es para administradores. P\u00eddale a un administrador que lo revise." },
+  "The connection dropped. Your answer is saved.": { es: "Se perdi\u00f3 la conexi\u00f3n. La respuesta qued\u00f3 guardada." },
   "The person reads your note in the app. Their notice shows only the dates.": { es: "La persona lee su nota en la aplicaci\u00f3n. Su aviso muestra solo las fechas." },
   "The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.": { es: "El horario se llena con 8 semanas de anticipaci\u00f3n y sigue extendi\u00e9ndose hasta que el patr\u00f3n termine." },
   "The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.": { es: "El turno programado se cancela y se publica como turno abierto para que el personal elegible lo tome." },
