@@ -14564,8 +14564,8 @@
       }
     },
     "help@wide": {
-      "n": 162,
-      "digest": "fc629868479ee349",
+      "n": 163,
+      "digest": "e131def4bf54f047",
       "named": {
         "body:Dashboard": [
           0,
@@ -22694,8 +22694,8 @@
       }
     },
     "help@narrow": {
-      "n": 97,
-      "digest": "730623e07a29482a",
+      "n": 98,
+      "digest": "688b3d0354b0bda2",
       "named": {
         "body:2": [
           0,

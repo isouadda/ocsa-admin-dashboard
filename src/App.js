@@ -47,6 +47,48 @@ async function apiFetch(path, opts = {}) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
+// An answer the API writes as it goes. The request is apiFetch's, through apiRequest, so the address,
+// the token, the body and Accept-Language are what apiFetch would send, and a refusal before the
+// stream opens is thrown the way apiFetch throws it. Past that each event is handed to onEvent as it
+// is read, with its data: meta, delta, reset and done. An error event is thrown as a refusal with its
+// own words and status. A stream that breaks or ends before done throws with dropped set, since the
+// API finishes and stores the answer whatever happens to the connection. Events are split at blank
+// lines and read with fetch, since EventSource cannot send a POST.
+async function apiStream(path, opts = {}, onEvent) {
+  const h = { "Content-Type": "application/json", ...opts.headers };
+  if (opts.token) h["Authorization"] = "Bearer " + opts.token;
+  const refusal = (status, e) => {
+    if (status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; return err; }
+    const err = new Error((e && e.error) || tr("Request failed")); err.status = status; err.code = e && e.code; err.body = e; return err;
+  };
+  const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (!r.ok) throw refusal(r.status, await r.json().catch(() => ({})));
+  if ((r.headers.get("Content-Type") || "").indexOf("text/event-stream") < 0) { onEvent("done", await r.json()); return; }
+  const reader = r.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    let chunk;
+    try { chunk = await reader.read(); } catch (e) { e.dropped = true; throw e; }
+    if (chunk.done) break;
+    buf += decoder.decode(chunk.value, { stream: true });
+    for (let at = buf.search(/\r?\n\r?\n/); at >= 0; at = buf.search(/\r?\n\r?\n/)) {
+      let event = "", data = "";
+      buf.slice(0, at).split(/\r?\n/).forEach(line => {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += (data ? "\n" : "") + line.slice(5).replace(/^ /, "");
+      });
+      buf = buf.slice(at).replace(/^\r?\n\r?\n/, "");
+      if (!event) continue;
+      let d = {};
+      try { d = data ? JSON.parse(data) : {}; } catch { d = {}; }
+      if (event === "error") { reader.cancel().catch(() => {}); throw refusal(Number(d.status) || 500, d); }
+      onEvent(event, d);
+      if (event === "done") { reader.cancel().catch(() => {}); return; }
+    }
+  }
+  const err = new Error(tr("Request failed")); err.dropped = true; throw err;
+}
 // The signed-in session, persisted so a refresh or a restored tab does not land on the login card.
 // A stored token is never trusted on its own: AdminDashboard verifies it with GET /api/auth/me first.
 const AUTH_KEY = "ocsa_auth";
@@ -371,6 +413,7 @@ export default function AdminDashboard() {
   </div>);
   const showToast = useCallback((m, tp = "success") => { setToast({ m, t: tp }); setTimeout(() => setToast(null), 3000); }, []);
   const af = useCallback((path, opts = {}) => apiFetch(path, { ...opts, token }), [token]);
+  const sf = useCallback((path, opts = {}, onEvent) => apiStream(path, { ...opts, token }, onEvent), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
   const isAdmin = user?.role === "admin";
   // The manage permissions capability opens the Roles and Permissions screen, which is the screen it
@@ -722,7 +765,7 @@ export default function AdminDashboard() {
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
-        {page === "help" && <HelpPage af={af} uf={uf} showToast={showToast} t={t} />}
+        {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -2458,6 +2501,21 @@ const agentMissingFrom = (err) => {
 // unmatched ** stays as literal text; bold never spans lines; blank lines are kept as spacing.
 const agentInlineParts = (line) => { const parts = []; let rest = String(line); while (rest.length) { const a = rest.indexOf("**"); const b = a < 0 ? -1 : rest.indexOf("**", a + 2); if (a < 0 || b < 0) { parts.push({ bold: false, text: rest }); break; } if (a > 0) parts.push({ bold: false, text: rest.slice(0, a) }); parts.push({ bold: true, text: rest.slice(a + 2, b) }); rest = rest.slice(b + 2); } return parts; };
 const agentReplyParts = (text) => String(text == null ? "" : text).split(/\r?\n/).map(line => { const m = line.match(/^\s*(\d{1,2})\.\s+(.+)$/); return m ? { step: Number(m[1]), parts: agentInlineParts(m[2]) } : { step: null, parts: agentInlineParts(line) }; });
+// While an answer is arriving it is drawn in plain words: every ** is taken out, and a * at the very
+// end is held back, since it may be the first half of one. The finished answer is drawn by
+// agentReplyParts.
+const agentArrivingText = (text) => String(text == null ? "" : text).replace(/\*\*/g, "").replace(/\*$/, "");
+// The finished answer in the words the page draws, each step with its number, for a screen reader.
+const agentSpokenText = (text) => agentReplyParts(text).map(line => (line.step !== null ? line.step + ". " : "") + line.parts.map(p => p.text).join("")).join("\n").trim();
+// An answer a dropped connection could not bring, read back from the stored conversation: the
+// assistant's message after the last question with the same words, or null until it is stored.
+const agentStoredAnswer = (messages, question) => {
+  const list = Array.isArray(messages) ? messages : [];
+  const words = String(question == null ? "" : question).trim();
+  let asked = -1;
+  list.forEach((m, i) => { if (m && m.role === "user" && String(m.text == null ? "" : m.text).trim() === words) asked = i; });
+  return asked < 0 ? null : list.slice(asked + 1).find(m => m && m.role === "assistant") || null;
+};
 // AGENT_HELPERS_END
 // Which app a Help message comes from, so the answer gives steps for this app.
 const AGENT_APP = "dashboard";
@@ -2490,7 +2548,7 @@ async function agentPreparePhoto(file) {
   for (const q of [0.85, 0.7, 0.5]) { blob = await encode(q); if (blob.size <= AGENT_PHOTO_MAX_BYTES) break; }
   return blob;
 }
-function HelpPage({ af, uf, showToast, t }) {
+function HelpPage({ af, sf, uf, showToast, t }) {
   const [drafts, setDrafts] = useState([]);
   const [thread, setThread] = useState([]);
   const [conversationId, setConversationId] = useState(null);
@@ -2503,6 +2561,8 @@ function HelpPage({ af, uf, showToast, t }) {
   const [sending, setSending] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [resuming, setResuming] = useState(false);
+  // What a screen reader hears: the finished answer, once. Cleared when a question is sent.
+  const [said, setSaid] = useState("");
   const busy = sending || submitting || resuming;
   const endRef = useRef(null);
   const composerRef = useRef(null);
@@ -2564,23 +2624,64 @@ function HelpPage({ af, uf, showToast, t }) {
     if (files.length) { e.preventDefault(); addFiles(files); }
   };
 
-  // Step two of the contract: POST /api/agent/message with text, the app name, photoPaths in thumbnail order, and the conversation id.
+  // A dropped connection loses nothing: the API finishes the answer and stores it in the conversation,
+  // so it is read back from there into the answer's place. Until it is stored, Try again reads again.
+  const readBack = async (replyId, cid, question) => {
+    patchMsg(replyId, { reading: true });
+    try {
+      const res = await af("/api/agent/conversations/" + encodeURIComponent(cid));
+      const found = agentStoredAnswer(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom), question);
+      if (found) {
+        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
+        setSaid(agentSpokenText(found.text));
+        loadDrafts();
+        return;
+      }
+    } catch (e) { console.warn("Help read back:", e.message); }
+    patchMsg(replyId, { reading: false });
+  };
+  // Step two of the contract: POST /api/agent/message/stream with text, the app name, photoPaths in
+  // thumbnail order, and the conversation id, which is what POST /api/agent/message took. The answer
+  // is drawn in plain words as it is written, and done is today's response, handled as it always was.
   const sendText = async (id, body, paths, keys) => {
     if (busy) return;
     setSending(true);
+    setSaid("");
     patchMsg(id, { status: "sending", error: "" });
+    const replyId = "a" + (++seq.current);
+    let meta = null, drawn = "";
     try {
       const payload = { text: body, app: AGENT_APP }; if (paths && paths.length) payload.photoPaths = paths; if (convRef.current) payload.conversationId = convRef.current;
-      const d = await af("/api/agent/message", { method: "POST", body: payload });
-      const r = d || {};
-      if (r.conversationId) setConversationId(r.conversationId);
-      const reply = { id: "a" + (++seq.current), role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
-      if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
-      setThread(p => [...p.map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
-      setText(cur => cur === body ? "" : cur);
-      if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
+      await sf("/api/agent/message/stream", { method: "POST", body: payload }, (event, d) => {
+        if (event === "meta") {
+          meta = d || {};
+          setThread(p => [...p.map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), { id: replyId, role: "assistant", text: "", arriving: true, citedDocs: [], status: "sent" }]);
+        } else if (event === "delta" || event === "reset") {
+          // A reset takes back what was drawn since meta or the last reset.
+          drawn = event === "reset" ? "" : drawn + String((d && d.text) || "");
+          patchMsg(replyId, { text: drawn });
+        } else if (event === "done") {
+          const r = d || {};
+          if (r.conversationId) setConversationId(r.conversationId);
+          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
+          if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
+          setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
+          setText(cur => cur === body ? "" : cur);
+          if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
+          setSaid(agentSpokenText(reply.text));
+        }
+      });
     } catch (e) {
-      patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
+      if (e.dropped && meta && meta.conversationId) {
+        setConversationId(meta.conversationId);
+        patchMsg(replyId, { dropped: true, conversationId: meta.conversationId, question: body });
+        setText(cur => cur === body ? "" : cur);
+        if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
+        await readBack(replyId, meta.conversationId, body);
+      } else {
+        setThread(p => p.filter(m => m.id !== replyId));
+        patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
+      }
     } finally { setSending(false); }
   };
   const allUploaded = photos.every(p => p.status === "done");
@@ -2636,6 +2737,9 @@ function HelpPage({ af, uf, showToast, t }) {
   // Send stay at the bottom of the window at every size.
   return (<div style={{ flex: "1 1 0px", minHeight: 0, display: "flex", flexDirection: "column" }}>
     <SecT t={t}>{tr("Help")}</SecT>
+    {/* The one live region. It says the finished answer once. The conversation is not live, so an
+        answer is not read out a piece at a time while it arrives. */}
+    <div role="status" aria-live="polite" style={{ position: "absolute", width: 1, height: 1, margin: -1, padding: 0, border: 0, overflow: "hidden", clip: "rect(0 0 0 0)", clipPath: "inset(50%)", whiteSpace: "nowrap" }}>{said}</div>
     {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
       <Lbl>{tr("Unfinished reports")}</Lbl>
       <div style={{ maxHeight: AGENT_DRAFT_LIST_PX, minHeight: 0, overflowY: "auto" }}>
@@ -2662,19 +2766,25 @@ function HelpPage({ af, uf, showToast, t }) {
           the conversation keeps what is left, and never less than the one line it shows empty. */}
       <div style={{ flex: "1 1 0px", minHeight: "clamp(44px, calc(100vh / var(--zoom, 1) - 420px), 120px)", overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
         {thread.length === 0 && <div style={{ margin: "auto 0", padding: "0 40px", textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Tell me what happened and I will tell you what to do.")}</div>}
-        {thread.map(m => { const isMe = m.role === "user"; return (
+        {thread.map(m => { const isMe = m.role === "user";
+          // An answer still arriving is drawn in plain words, and has nothing to draw before its first.
+          const arriving = !isMe && m.arriving === true;
+          const words = arriving ? agentArrivingText(m.text) : m.text;
+          if (arriving && !words && !m.dropped) return null;
+          return (
           <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
-              <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>
+              {(!arriving || words) && <div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : (m.noProcedure ? t.goldBg : t.cardAlt), border: isMe ? "none" : "1px solid " + (m.noProcedure ? GO : t.border), color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, whiteSpace: "pre-wrap", wordBreak: "break-word", opacity: m.status === "sending" ? 0.6 : 1 }}>
                 {isMe && m.photos && m.photos.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: m.text ? 6 : 0 }}>{m.photos.map((p, i) => <img key={i} src={p.url} alt="" style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8, display: "block" }} />)}</div>}
-                {isMe ? m.text : agentReplyParts(m.text).map((line, li) => {
+                {isMe ? m.text : arriving ? words : agentReplyParts(m.text).map((line, li) => {
                   const inline = line.parts.map((part, pi) => part.bold ? <strong key={pi}>{part.text}</strong> : <Fragment key={pi}>{part.text}</Fragment>);
                   if (line.step !== null) return <div key={li} style={{ display: "flex", gap: 6, alignItems: "flex-start" }}><span style={{ flexShrink: 0, minWidth: 18, textAlign: "right" }}>{line.step}.</span><span style={{ minWidth: 0 }}>{inline}</span></div>;
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
-              </div>
+              </div>}
               {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", m.citedDocs.join(", "))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
+              {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
           </div>); })}
