@@ -59,6 +59,13 @@ API does. The `language` suite reads them in Spanish, where they are different w
 English they were saved in: a screen that only shows an item or a choice draws them, and a screen
 that edits one shows the English and sends the English.
 
+**Help fits the window.** The `help-fit` suite reads the Help page at 1024 and 1280 wide and 660 and
+900 high, at every text size, in both themes and both languages: with the one unfinished report the
+suite serves, with five, with a report resumed that holds thirty messages, and with both. The page is
+never taller than the window, the send box ends inside it, the thirty messages scroll inside the
+conversation, the reports list stops at three rows and scrolls inside itself, and an empty
+conversation's line sits in the middle of its area.
+
 ## How to run less of it
 
 ```
@@ -68,7 +75,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
-`permissions`, `notices`, `report-actions`, `language` and `house-style`.
+`permissions`, `notices`, `report-actions`, `language`, `help-fit` and `house-style`.
 
 ## Known failures
 

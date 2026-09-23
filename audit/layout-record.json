@@ -14564,20 +14564,20 @@
       }
     },
     "help@wide": {
-      "n": 161,
-      "digest": "0316d72427b66fd3",
+      "n": 162,
+      "digest": "fc629868479ee349",
       "named": {
         "body:Dashboard": [
           0,
           0,
           1280,
-          1003
+          900
         ],
         "div:Dashboard": [
           0,
           0,
           1280,
-          1003
+          900
         ],
         "button:Dashboard": [
           0,
@@ -15009,7 +15009,7 @@
           220,
           0,
           1060,
-          1003
+          900
         ],
         "div:OCSA Cleaning Admin": [
           244,
@@ -15097,19 +15097,19 @@
         ],
         "button:Add a photo": [
           261,
-          916,
+          813,
           44,
           44
         ],
         "textarea:Describe what happened": [
           313,
-          912,
+          809,
           874,
           44
         ],
         "button:Send": [
           1195,
-          916,
+          813,
           44,
           44
         ]
@@ -22694,20 +22694,20 @@
       }
     },
     "help@narrow": {
-      "n": 96,
-      "digest": "de1fb3c148f4d0bf",
+      "n": 97,
+      "digest": "730623e07a29482a",
       "named": {
         "body:2": [
           0,
           0,
           1024,
-          1003
+          900
         ],
         "div:2": [
           0,
           0,
           1024,
-          1003
+          900
         ],
         "button:2": [
           0,
@@ -22743,7 +22743,7 @@
           64,
           0,
           960,
-          1003
+          900
         ],
         "div:OCSA Cleaning Admin": [
           88,
@@ -22837,19 +22837,19 @@
         ],
         "button:Add a photo": [
           105,
-          916,
+          813,
           44,
           44
         ],
         "textarea:Describe what happened": [
           157,
-          912,
+          809,
           774,
           44
         ],
         "button:Send": [
           939,
-          916,
+          813,
           44,
           44
         ]

@@ -40,6 +40,9 @@ const SUITES = [
   // What the API answers in the language a call asks for, and which screens draw it. Read in Spanish,
   // where a display and the English it was saved in are different words.
   { name: "language", mod: "./cases/language", widths: ["wide"], variants: [{ theme: "dark", size: "standard", lang: "es" }] },
+  // Help fits the window at both widths, two heights, every text size, both themes and both
+  // languages. The suite makes its own passes, since each one resizes the window as it goes.
+  { name: "help-fit", mod: "./cases/help-fit", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

@@ -444,6 +444,8 @@ function createStubs() {
   // address, and the keyed type carries the forms, each with how its email carries the report.
   // One unfinished report waiting on the Help page, answered to the end.
   const AGENT_DRAFTS = [{ id: "ad-1", formName: "Safety Incident Report", answered: 12, remaining: 0, status: "draft" }];
+  // A conversation Help resumes, by its id. None unless a case puts one in.
+  const AGENT_CONVERSATIONS = {};
 
   const NOTIFICATION_TYPES = [
     { type: "time_off", label: "Time off requests", keyed: false, allowOutsideEmail: true },
@@ -1240,7 +1242,7 @@ function createStubs() {
       if (method !== "GET") return ok({ message: "Sent" });
       return ok(CHAT_MESSAGES);
     }
-    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: [] });
+    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: AGENT_CONVERSATIONS[decodeURIComponent(path.slice("/api/agent/conversations/".length))] || [] });
     if (path === "/api/agent/message") return ok({ reply: "Here is what the dashboard shows for that.", conversationId: "ag-1" });
     if (path === "/api/agent/drafts" && method === "GET") return ok(AGENT_DRAFTS);
     if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });
@@ -1343,7 +1345,7 @@ function createStubs() {
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
       SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
-      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS,
+      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
       HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
       INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,

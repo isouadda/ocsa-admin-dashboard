@@ -2462,6 +2462,9 @@ const agentReplyParts = (text) => String(text == null ? "" : text).split(/\r?\n/
 // Which app a Help message comes from, so the answer gives steps for this app.
 const AGENT_APP = "dashboard";
 const AGENT_MAX_PHOTOS = 3;
+// The unfinished reports list stops at three rows, each 44 high with 8 above and below and a line
+// between, and scrolls inside itself past that.
+const AGENT_DRAFT_LIST_PX = 182;
 const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const AGENT_PHOTO_MAX_EDGE = 1568;
 const AGENT_PHOTO_UNREADABLE = "This photo could not be read here. Choose a JPEG or PNG, or take a screenshot of it.";
@@ -2628,15 +2631,20 @@ function HelpPage({ af, uf, showToast, t }) {
   const photosFull = photos.length >= AGENT_MAX_PHOTOS;
   const canPick = !busy && !photosFull;
 
-  return (<div>
+  // The page is the height of the window below the top bar and no taller. The conversation takes the
+  // height the cards above it leave and scrolls inside itself, so the box to type in, Add a photo and
+  // Send stay at the bottom of the window at every size.
+  return (<div style={{ flex: "1 1 0px", minHeight: 0, display: "flex", flexDirection: "column" }}>
     <SecT t={t}>{tr("Help")}</SecT>
-    {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12 }}>
+    {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
       <Lbl>{tr("Unfinished reports")}</Lbl>
-      {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining, tr); return (
-        <div key={d.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid " + t.border }}>
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{d.name}</div>{line && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{line}</div>}</div>
-          <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>{tr("Resume")}</Btn>
-        </div>); })}
+      <div style={{ maxHeight: AGENT_DRAFT_LIST_PX, minHeight: 0, overflowY: "auto" }}>
+        {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining, tr); return (
+          <div key={d.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid " + t.border }}>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{d.name}</div>{line && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{line}</div>}</div>
+            <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>{tr("Resume")}</Btn>
+          </div>); })}
+      </div>
     </Crd>}
     {formResponse && <Crd t={t} style={{ marginBottom: 12 }}>
       <Lbl>{tr("Report in progress")}</Lbl>
@@ -2647,9 +2655,13 @@ function HelpPage({ af, uf, showToast, t }) {
       {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("Still needed before you can submit:")}</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
     </Crd>}
     {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Report submitted.")}</div>}
-    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 360 }}>
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-        {thread.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Tell me what happened and I will tell you what to do.")}</div>}
+    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: "1 1 0px", minHeight: "min-content" }}>
+      {/* The conversation keeps 120 of the page's own pixels, and the reports list gives up its rows
+          first. In a short window with the text large, 420 is what the top bar, the page's margins,
+          the title, a report in progress, the list's label and the box to type in already take, so
+          the conversation keeps what is left, and never less than the one line it shows empty. */}
+      <div style={{ flex: "1 1 0px", minHeight: "clamp(44px, calc(100vh / var(--zoom, 1) - 420px), 120px)", overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
+        {thread.length === 0 && <div style={{ margin: "auto 0", padding: "0 40px", textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Tell me what happened and I will tell you what to do.")}</div>}
         {thread.map(m => { const isMe = m.role === "user"; return (
           <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
