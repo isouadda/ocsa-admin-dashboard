@@ -355,12 +355,13 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
   results.check("page", "page/unknown-hash" + suffix, await d.has(d.say("Welcome back, {0}").split("{0}")[0].trim()),
     "an unknown hash lands on the Dashboard");
 
-  // The page in the hash survives a reload.
+  // The page in the hash survives a reload. Its title is read in the pass's own language, since the
+  // Issue Tracker draws no English word on a Spanish screen.
   await d.goto("issues");
   await d.page.reload({ waitUntil: "domcontentloaded" });
   await d.settle(600);
-  results.check("page", "page/hash-survives-reload" + suffix, await d.has("Issue"),
-    "#issues reopens after a reload");
+  results.check("page", "page/hash-survives-reload" + suffix, await d.has(d.say("Issue Tracker")),
+    "#issues reopens after a reload, which is " + JSON.stringify(d.say("Issue Tracker")) + " in this pass");
 
   // The nav search box reaches a page without the sidebar.
   await d.goto("overview");

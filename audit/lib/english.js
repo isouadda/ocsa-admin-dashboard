@@ -91,6 +91,17 @@ function residue(line, allowedSorted) {
 // The check itself. `texts` is every line a person reads; `calls` is what the stub answered.
 function englishLeftOn(texts, calls) {
   const allowed = new Set(spanishValues());
+  // A sentence with a piece set apart in its slot, a name in bold for instance, is drawn as three
+  // runs of text, and each run is read on its own. Each side of a slot is Spanish when it is the
+  // whole run. It is never taken out of the middle of other text, where a side as short as "en" or
+  // "de" would take the middle out of an English word and hide it.
+  const runs = new Set();
+  Array.from(allowed).forEach((v) => {
+    if (!/\{\d+\}/.test(v)) return;
+    String(v).split(/\{\d+\}/).map((s0) => s0.replace(/\s+/g, " ").trim()).forEach((side) => {
+      if (/[A-Za-z]{2}/.test(side)) runs.add(side);
+    });
+  });
   clientNames().forEach((v) => allowed.add(v));
   localeDateWords("es-US").forEach((v) => allowed.add(v));
   const served = servedValues(calls);
@@ -112,6 +123,7 @@ function englishLeftOn(texts, calls) {
     if (!line || !/[A-Za-z]/.test(line)) return;
     if (seen.has(line)) return;
     seen.add(line);
+    if (runs.has(line)) return;
     // A shape matches only when what landed in its gaps is accounted for as well. "{0}h", the
     // bell's short age, would otherwise swallow any word ending in h.
     const fits = shapes.some((re) => {

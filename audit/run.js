@@ -37,6 +37,9 @@ const SUITES = [
   { name: "permissions", mod: "./cases/permissions", widths: ["wide"] },
   { name: "notices", mod: "./cases/notices", widths: ["wide"] },
   { name: "report-actions", mod: "./cases/report-actions", widths: ["wide"] },
+  // What the API answers in the language a call asks for, and which screens draw it. Read in Spanish,
+  // where a display and the English it was saved in are different words.
+  { name: "language", mod: "./cases/language", widths: ["wide"], variants: [{ theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

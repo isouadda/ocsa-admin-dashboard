@@ -53,6 +53,12 @@ and the case checks that the exact words reach the screen and that nothing close
 call, and every call that sent none, or sent a language other than the one its screen is drawn in,
 in a list no case can reset. The run fails on that list once every suite is done.
 
+**What the API says in that language goes where it belongs.** The stub answers a checklist item with
+`display` and a pick list choice with `displayLabel`, in the language the call asked for, the way the
+API does. The `language` suite reads them in Spanish, where they are different words from the
+English they were saved in: a screen that only shows an item or a choice draws them, and a screen
+that edits one shows the English and sends the English.
+
 ## How to run less of it
 
 ```
@@ -62,7 +68,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
-`permissions`, `notices`, `report-actions` and `house-style`.
+`permissions`, `notices`, `report-actions`, `language` and `house-style`.
 
 ## Known failures
 
