@@ -70,7 +70,14 @@ function residue(line, allowedSorted) {
 function englishLeftOn(texts, calls) {
   const allowed = new Set(spanishValues());
   clientNames().forEach((v) => allowed.add(v));
-  servedValues(calls).forEach((v) => allowed.add(v));
+  const served = servedValues(calls);
+  served.forEach((v) => allowed.add(v));
+  // An avatar draws a person's initials, which are that person's name written short. Any run of
+  // capitals that a served name begins its words with is the same data, not a word to translate.
+  served.forEach((v) => {
+    const initials = String(v).split(/\s+/).map((w) => w[0]).filter(Boolean).join("");
+    if (initials.length >= 2 && /^[A-Z]+$/.test(initials)) allowed.add(initials);
+  });
   // A single letter or a bare number is not a word anybody translates.
   const all = Array.from(allowed).filter((v) => v.length >= 2);
   const shapes = all.filter((v) => /\{\d+\}/.test(v)).map(patternRe);

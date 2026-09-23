@@ -112,6 +112,11 @@ function findStrings() {
       if (inStyle(parents)) return;
       const p = parents[parents.length - 1];
       const gp = parents[parents.length - 2];
+      // A string being compared is a value rather than a word: e.key === "Enter" is a keyboard key,
+      // and status === "open" is what the API calls it.
+      if (p && p.type === "BinaryExpression" && ["===", "!==", "==", "!="].indexOf(p.operator) >= 0) return;
+      if (p && p.type === "CallExpression" && p.callee && p.callee.property
+        && ["indexOf", "includes", "startsWith", "endsWith", "split", "join", "replace"].indexOf(String(p.callee.property.name)) >= 0) return;
       // A word held in an object, which is how the nav, the tabs, the columns and the options carry
       // theirs. READ_KEYS names the keys a person reads; a holder named for its labels carries words
       // under whatever keys it likes.

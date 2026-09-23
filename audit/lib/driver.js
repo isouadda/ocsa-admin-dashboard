@@ -351,8 +351,9 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       return clicked && (await this.has("Sign Out"));
     },
     async signOut() {
-      if (!(await this.has("Sign Out"))) await this.openUserMenu();
-      const ok = await this.clickText("Sign Out", { exact: false });
+      const word = say("Sign Out", tongue);
+      if (!(await this.has(word))) await this.openUserMenu();
+      const ok = await this.clickText(word, { exact: false });
       await this.settle(500);
       return ok;
     },

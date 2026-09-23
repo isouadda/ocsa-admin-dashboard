@@ -197,6 +197,7 @@ Overtime risk: claiming this shift may push the worker past 40 weekly hours.,Rie
 Overview,Resumen,Shift Pickup
 PIN,PIN,The sign-in card
 Page {0},Página {0},"The shell, under a table"
+Page {0} / {1},Página {0} / {1},"The shell, under a table"
 Part of a weekly pattern. Changes here apply to this date only.,Parte de un patrón semanal. Los cambios aquí se aplican solo a esta fecha.,Schedule
 Patterns,Patrones,Schedule
 Pending,Pendiente,Dashboard
@@ -342,6 +343,7 @@ Urgency,Urgencia,Shift Pickup
 Urgent,Urgente,Shift Pickup
 Vendor Registry,Registro de proveedores,The shell
 Vendors,Proveedores,The shell
+View all,Ver todo,"Dashboard, the link above a chart"
 View shift,Ver el turno,Shift Pickup
 Voluntary Drop,Baja voluntaria,Shift Pickup
 Voluntary Drops,Bajas voluntarias,Shift Pickup
@@ -350,15 +352,19 @@ Week,Semana,Schedule
 Weekly Trend,Tendencia semanal,Shift Pickup
 Weekly pattern,Patrón semanal,"Schedule, a pattern"
 "Welcome back, {0}","Bienvenido de nuevo, {0}","The shell, the top bar"
+"Welcome, {0}","Bienvenido, {0}","The shell, the line after a sign-in"
 e.g. Marcus called out,p. ej. una persona se reportó ausente,Schedule
 e.g. Marcus called out sick,p. ej. una persona se reportó enferma,Shift Pickup
+of {0} active,de {0} activos,"Dashboard, under the started tile"
 {0} Admin,{0} Administración,The shell
 {0} Supervisor,{0} Supervisión,The shell
 "{0} added, {1} removed, {2} total","{0} agregados, {1} eliminados, {2} en total","Schedule, after a pattern is saved"
 {0} cases need attention,{0} casos necesitan atención,"The shell, the cases warning"
 {0} claimed with overtime risk,{0} tomados con riesgo de horas extra,"Shift Pickup, Analytics"
 {0} dates were skipped because this person is already scheduled at that time:,Se omitieron {0} fechas porque esta persona ya tiene un turno a esa hora:,"Schedule, after a pattern is saved"
+{0} of {1},{0} de {1},"Dashboard, the tasks done on a shift"
 {0} open issues,{0} incidencias abiertas,"Dashboard, the issues tile"
+{0} pending,{0} pendientes,"Dashboard, the pending staff button"
 {0} unread notifications,{0} avisos sin leer,"The shell, the bell's label"
 {0}% callouts,{0}% de ausencias,"Shift Pickup, Analytics"
 {0}% filled,{0}% cubierto,"Shift Pickup, Analytics"

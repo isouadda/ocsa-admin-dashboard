@@ -177,12 +177,14 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     // The manage permissions capability opens Settings, so the person holding it is expected to
     // have that one item and none of the other three.
     const opensSettings = seed.PEOPLE[persona].singleCapability === "manage_permissions";
-    const allowed = isAdmin ? ADMIN_ONLY_NAV : opensSettings ? ["Settings"] : [];
+    // The nav is read in whichever language the pass is in, since a label is a word like any other.
+    const adminNav = ADMIN_ONLY_NAV.map((l) => d.say(l));
+    const allowed = isAdmin ? adminNav : opensSettings ? [d.say("Settings")] : [];
     // The nav labels are read with the panel open. The app collapses it below 1100 on its own, so it
     // is put back before anything is measured, or the page is measured in a state nobody is in.
     if (width === "narrow") await d.collapseSidebar();
     const missing = allowed.filter((l) => nav.indexOf(l) < 0);
-    const present = ADMIN_ONLY_NAV.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
+    const present = adminNav.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
     results.check("page", "nav/" + persona + suffix, missing.length === 0 && present.length === 0,
       missing.length ? "a " + who + " is missing " + missing.join(", ")
         : present.length ? "a " + who + " can see " + present.join(", ")
@@ -195,7 +197,7 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
       const shellText = await d.text();
       const body = await d.bodyText();
       const bodyLen = await d.bodyLength();
-      const header = shellText.indexOf(p.label) >= 0;
+      const header = shellText.indexOf(d.say(p.label)) >= 0;
 
       // What the page does with the space it has, at whatever size the text is set to. This runs on
       // every page case, the gated ones included: the line a person cannot open a page with is a
@@ -225,7 +227,9 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
         // The page must not render its contents, AND the person must be told why. The page label
         // still sits in the header, so only the content area is read here.
         const leaked = body.indexOf(p.expect) >= 0;
-        const explained = /not available|no access|cannot|ask an admin|only an admin|is for admins|permission/i.test(body);
+        // The ruling, in whichever language the page is drawn in.
+        const explained = /not available|no access|cannot|ask an admin|only an admin|is for admins|permission/i.test(body)
+          || body.indexOf(d.say("This page is for admins.")) >= 0;
         results.check("page", id, !leaked && explained,
           leaked ? "a " + who + " can read this admin page, the body holds " + JSON.stringify(p.expect) :
             "the body is " + bodyLen + " characters and says nothing about why");
@@ -252,7 +256,7 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
 
       const newErrors = d.pageErrors.slice(errsBefore);
       results.check("page", id, header && bodyLen > 40 && newErrors.length === 0,
-        !header ? "the header does not say " + p.label :
+        !header ? "the header does not say " + d.say(p.label) :
           bodyLen <= 40 ? "the body is only " + bodyLen + " characters" :
           newErrors.length ? "the page threw: " + newErrors[0] : "");
 
@@ -311,7 +315,7 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
 
   // A hash the app does not know falls back to the Dashboard rather than a blank screen.
   await d.goto("not-a-page");
-  results.check("page", "page/unknown-hash" + suffix, await d.has("Welcome back"),
+  results.check("page", "page/unknown-hash" + suffix, await d.has(d.say("Welcome back, {0}").split("{0}")[0].trim()),
     "an unknown hash lands on the Dashboard");
 
   // The page in the hash survives a reload.
@@ -323,13 +327,16 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
 
   // The nav search box reaches a page without the sidebar.
   await d.goto("overview");
-  const navSearch = d.page.locator("input[placeholder*='Search' i]").first();
+  // The box is found by its own placeholder, in whichever language it is drawn.
+  const navSearch = d.page.getByPlaceholder(d.say("Search pages")).first();
   if (await navSearch.count()) {
-    await navSearch.fill("vend");
+    // The first letters of the word the nav actually draws, since the list is filtered by its labels.
+    await navSearch.fill(d.say("Vendors").slice(0, 4).toLowerCase());
     await d.settle(320);
-    const hit = d.page.locator("button", { hasText: "Vendors" }).first();
+    const hit = d.page.locator("button", { hasText: d.say("Vendors") }).first();
     if (await hit.count()) { await hit.click(); await d.settle(); }
-    results.check("page", "page/nav-search" + suffix, await d.has("Vendor"), "typing vend reaches the Vendor Registry");
+    results.check("page", "page/nav-search" + suffix, await d.has(d.say("Vendor Registry")),
+      "typing vend reaches the Vendor Registry");
   } else {
     results.fail("page", "page/nav-search" + suffix, "no nav search box on screen");
   }
@@ -337,7 +344,7 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
   // Signing out from the user menu empties the shell back to the login card.
   await d.goto("overview");
   await d.signOut();
-  results.check("page", "page/sign-out" + suffix, await d.has("Admin Dashboard"),
+  results.check("page", "page/sign-out" + suffix, await d.has(d.say("Admin Dashboard")),
     "the login card is back after Sign Out");
 }
 
