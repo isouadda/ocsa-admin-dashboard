@@ -3,7 +3,7 @@
   "pages": {
     "overview@wide": {
       "n": 263,
-      "digest": "840b46323385b5bf",
+      "digest": "202b5e9252811e9a",
       "named": {
         "body:Dashboard": [
           0,
@@ -759,7 +759,7 @@
     },
     "operations@wide": {
       "n": 208,
-      "digest": "3ece49937216fe07",
+      "digest": "6e2bfd516fdc8bd6",
       "named": {
         "body:Dashboard": [
           0,
@@ -1485,7 +1485,7 @@
     },
     "sites@wide": {
       "n": 225,
-      "digest": "66d75c0e79cfee0a",
+      "digest": "f84261c832c745e1",
       "named": {
         "body:Dashboard": [
           0,
@@ -11087,7 +11087,7 @@
           178,
           30
         ],
-        "div:1 no-shows": [
+        "div:1 no-show": [
           1028,
           309,
           178,
@@ -14564,20 +14564,20 @@
       }
     },
     "help@wide": {
-      "n": 161,
-      "digest": "0316d72427b66fd3",
+      "n": 162,
+      "digest": "fc629868479ee349",
       "named": {
         "body:Dashboard": [
           0,
           0,
           1280,
-          1003
+          900
         ],
         "div:Dashboard": [
           0,
           0,
           1280,
-          1003
+          900
         ],
         "button:Dashboard": [
           0,
@@ -15009,7 +15009,7 @@
           220,
           0,
           1060,
-          1003
+          900
         ],
         "div:OCSA Cleaning Admin": [
           244,
@@ -15097,19 +15097,19 @@
         ],
         "button:Add a photo": [
           261,
-          916,
+          813,
           44,
           44
         ],
         "textarea:Describe what happened": [
           313,
-          912,
+          809,
           874,
           44
         ],
         "button:Send": [
           1195,
-          916,
+          813,
           44,
           44
         ]
@@ -15117,7 +15117,7 @@
     },
     "overview@narrow": {
       "n": 198,
-      "digest": "12344dc79e099e32",
+      "digest": "e14a33314d14de2e",
       "named": {
         "body:2": [
           0,
@@ -15483,7 +15483,7 @@
     },
     "operations@narrow": {
       "n": 143,
-      "digest": "46875f0f147bb18b",
+      "digest": "18f4680fdde93c45",
       "named": {
         "body:2": [
           0,
@@ -20747,7 +20747,7 @@
           221,
           99
         ],
-        "div:1 no-shows": [
+        "div:1 no-show": [
           797,
           309,
           153,
@@ -22694,20 +22694,20 @@
       }
     },
     "help@narrow": {
-      "n": 96,
-      "digest": "de1fb3c148f4d0bf",
+      "n": 97,
+      "digest": "730623e07a29482a",
       "named": {
         "body:2": [
           0,
           0,
           1024,
-          1003
+          900
         ],
         "div:2": [
           0,
           0,
           1024,
-          1003
+          900
         ],
         "button:2": [
           0,
@@ -22743,7 +22743,7 @@
           64,
           0,
           960,
-          1003
+          900
         ],
         "div:OCSA Cleaning Admin": [
           88,
@@ -22837,19 +22837,19 @@
         ],
         "button:Add a photo": [
           105,
-          916,
+          813,
           44,
           44
         ],
         "textarea:Describe what happened": [
           157,
-          912,
+          809,
           774,
           44
         ],
         "button:Send": [
           939,
-          916,
+          813,
           44,
           44
         ]

@@ -49,16 +49,34 @@ tables are read out of the HTML.
 **Refusals are shown word for word.** Each refusal the API can answer with is armed one at a time,
 and the case checks that the exact words reach the screen and that nothing closed underneath them.
 
+**Every call says its language.** The stub keeps the `Accept-Language` each call sent beside the
+call, and every call that sent none, or sent a language other than the one its screen is drawn in,
+in a list no case can reset. The run fails on that list once every suite is done.
+
+**What the API says in that language goes where it belongs.** The stub answers a checklist item with
+`display` and a pick list choice with `displayLabel`, in the language the call asked for, the way the
+API does. The `language` suite reads them in Spanish, where they are different words from the
+English they were saved in: a screen that only shows an item or a choice draws them, and a screen
+that edits one shows the English and sends the English.
+
+**Help fits the window.** The `help-fit` suite reads the Help page at 1024 and 1280 wide and 660 and
+900 high, at every text size, in both themes and both languages: with the one unfinished report the
+suite serves, with five, with a report resumed that holds thirty messages, and with both. The page is
+never taller than the window, the send box ends inside it, the thirty messages scroll inside the
+conversation, the reports list stops at three rows and scrolls inside itself, and an empty
+conversation's line sits in the middle of its area.
+
 ## How to run less of it
 
 ```
 AUDIT_ONLY=pages,views npm run audit     # one or more suites
+AUDIT_LANG=es npm run audit              # only the passes drawn in that language
 AUDIT_FORCE_BUILD=1 npm run audit        # rebuild even when the bundle looks fresh
 AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
-`permissions`, `notices`, `report-actions` and `house-style`.
+`permissions`, `notices`, `report-actions`, `language`, `help-fit` and `house-style`.
 
 ## Known failures
 

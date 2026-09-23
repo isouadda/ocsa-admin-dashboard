@@ -207,6 +207,10 @@ function findStrings() {
         add(node.value, node.loc.start.line, parents, "attribute " + p.name.name, node);
         return;
       }
+      // Any other attribute's string is for the browser rather than a person: the kinds of file an
+      // upload takes, a link's rel. A window inside {open && <Mdl>} put these inside an expression,
+      // and they were counted there as words.
+      if (p && p.type === "JSXAttribute") return;
       // A table column draws its cell from a render function, so a plain string returned there is
       // a word on the screen as surely as one written in JSX.
       if (parents.some((x) => x.type === "ObjectProperty" && x.key

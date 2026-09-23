@@ -3,17 +3,25 @@ import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
 // The word table, the language the screen is drawn in, and what a formatter is given. Nothing
 // else lives there and nothing else leaves this file.
-import { LOCALES, LANGUAGES, tr, trn, setLang, localeTag, browserLang } from "./words";
+import { LOCALES, LANGUAGES, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
+// Every call to the API leaves through here. It says the language the screen is drawn in, as
+// Accept-Language, read when the call is made from the same place tr() reads it, so a language
+// switched on screen is the language of the next call. The API answers its refusals, notices, pick
+// lists and checklist items in that language. The address, the body and every other header are the
+// caller's, untouched.
+function apiRequest(url, init = {}) {
+  return fetch(url, { ...init, headers: { ...init.headers, "Accept-Language": getLang() } });
+}
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
-  const res = await fetch(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
+  const res = await apiRequest(API + "/api/uploads?bucket=" + encodeURIComponent(bucket) + "&ext=" + encodeURIComponent(ext), {
     method: "POST",
     headers: { "Authorization": "Bearer " + token, "Content-Type": file.type },
     body: file,
   });
-  if (res.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || "Upload failed"); }
+  if (res.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
+  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || tr("Upload failed")); }
   return res.json();
 }
 // attachment; filename="<code>-<id>.pdf" -> <code>-<id>.pdf. Anything unreadable falls back.
@@ -26,17 +34,17 @@ const filenameFrom = (header, fallback) => {
 // A response that is a file rather than JSON. The token and the refusal handling are apiFetch's, so a
 // 401 signs out and a refusal arrives with the words the API sent and its status.
 async function apiDownload(path, token, fallbackName) {
-  const r = await fetch(API + path, { headers: { "Authorization": "Bearer " + token } });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  const r = await apiRequest(API + path, { headers: { "Authorization": "Bearer " + token } });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
-  const r = await fetch(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
-  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error("Session expired"); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || "Request failed"); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
 // The signed-in session, persisted so a refresh or a restored tab does not land on the login card.
@@ -176,6 +184,13 @@ const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
 const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
+// What a checklist item says on a screen that only shows it: the display the API sends in the
+// language the call asked for, and the item's own English wherever it sends none. A screen that edits
+// an item reads the item's own fields, so the English is what it shows and what it saves.
+const shownItem = (it) => { const d = (it && it.display) || {}; return { label: d.label || it.label, description: d.description || it.description, zone: d.zone || it.zone }; };
+// A sentence with a piece set apart inside it, a name in bold for instance. The table holds the whole
+// sentence with {0} where the piece goes, so the piece lands wherever the language puts it.
+const trWith = (key, piece) => { const [before, after] = tr(key, "\u0000").split("\u0000"); return <>{before}{piece}{after}</>; };
 
 // ===== THEMED SHARED COMPONENTS =====
 const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
@@ -424,7 +439,11 @@ export default function AdminDashboard() {
   const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
   const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={tr("{0} open issues", openIssuesCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
   const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={tr("{0} cases need attention", caseQueueCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
-  const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
+  // A pick list's choices. `shown` is for a screen that only shows them: each choice reads its
+  // displayLabel, which the API sends in the language the call asked for, and its label when it sends
+  // none. The value is the code either way, so what a form sends does not change. Without it every
+  // choice reads its label, which is what a screen that edits a choice shows and saves.
+  const getOpts = useCallback((slug, placeholder, shown) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: shown ? (v.displayLabel || v.label) : v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
   const lkHasOther = useCallback((slug, val) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return false; const v = (cat.values || []).find(x => x.value === val); return v?.show_other_input || false; }, [lookups]);
@@ -450,7 +469,7 @@ export default function AdminDashboard() {
     let alive = true;
     (async () => {
       try {
-        const r = await fetch(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + stored.token } });
+        const r = await apiRequest(API + "/api/auth/me", { headers: { "Authorization": "Bearer " + stored.token } });
         if (r.status === 401 || r.status === 403) { clearAuth(); return; }
         if (!r.ok) return;
         const d = await r.json();
@@ -839,7 +858,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const viewDoc = async (docId) => {
     try {
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
+      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
@@ -2211,29 +2230,31 @@ function OpsPage({ af, t, allStaff }) {
   const loadOps = () => { af("/api/shift-sessions/by-site?date=" + date).then(d => setBoard({ date: d.date, sites: d.sites || [] })).catch(e => console.warn("Load shift sessions:", e.message)); };
   useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
-  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+  // The day this board is for. It goes into each sentence whole, since the words around a date sit
+  // somewhere else in another language.
+  const dayText = new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const startedIds = new Set(board.sites.flatMap(site => site.people.map(p => p.userId)));
   const rest = allStaff.filter(u => !startedIds.has(u.id));
-  return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Started {dayLabel}</SecT>
+  return (<div><SecT t={t} action={tr("Refresh")} onAction={loadOps}>{isToday ? tr("Started today") : tr("Started on {0}", dayText)}</SecT>
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-      <span style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Date</span>
+      <span style={{ fontSize: 11, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Date")}</span>
       <div style={{ width: 170 }}><Inp t={t} type="date" value={date} onChange={e => { if (e.target.value) setDate(e.target.value); }} /></div>
-      <span style={{ fontSize: 12, color: t.textSec }}>{startedIds.size} started {dayLabel}</span>
+      <span style={{ fontSize: 12, color: t.textSec }}>{isToday ? trn("{0} started today|count", startedIds.size) : trn("{0} started on {1}|count", startedIds.size, dayText)}</span>
     </div>
-    {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? "No shifts started yet today." : "No shifts started " + dayLabel + "."}</div></Crd>}
+    {board.sites.length === 0 && <Crd t={t} style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textMut }}>{isToday ? tr("No shifts started yet today.") : tr("No shifts started on {0}.", dayText)}</div></Crd>}
     {board.sites.map(site => <Crd key={site.siteId} t={t} style={{ marginBottom: 12, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={site.people.length + " started"} c={GR} /></div>
-      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{site.siteName}</div><Bdg l={trn("{0} started|count", site.people.length)} c={GR} /></div>
+      {site.people.map(p => { const pct = p.tasksTotal > 0 ? Math.round(p.tasksCompleted / p.tasksTotal * 100) : 0; const place = [p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", "); return <div key={p.sessionId} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: "1px solid " + t.border }}>
         <Ini name={p.name} sz={36} color={GR} />
-        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] || p.role}{place ? ", " + place : ""}</div></div>
-        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>Started {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{p.tasksCompleted} of {p.tasksTotal} tasks</span></div></div>
+        <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{RL[p.role] ? tr(RL[p.role]) : p.role}{place ? ", " + place : ""}</div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: GR, fontWeight: 600 }}>{tr("Started")} {fmtSessionStart(p.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, marginTop: 4 }}><div style={{ width: 50, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</span></div></div>
       </div>; })}
     </Crd>)}
     <button onClick={() => setShowRest(!showRest)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", marginTop: 20, marginBottom: 8, padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>
-      <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>No shift started {dayLabel} ({rest.length})</span>
-      <span style={{ fontSize: 11, color: t.goldText, fontWeight: 600 }}>{showRest ? "Hide" : "Show"}</span>
+      <span style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{isToday ? tr("No shift started today ({0})", rest.length) : tr("No shift started on {0} ({1})", dayText, rest.length)}</span>
+      <span style={{ fontSize: 11, color: t.goldText, fontWeight: 600 }}>{showRest ? tr("Hide") : tr("Show")}</span>
     </button>
-    {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] || u.role}</div></div></div>)}
+    {showRest && rest.map(u => <div key={u.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", marginBottom: 4, background: t.hover, borderRadius: 8 }}><Ini name={u.name} sz={32} color={t.textMut} /><div style={{ flex: 1 }}><div style={{ fontSize: 13, color: t.textSec }}>{u.name}</div><div style={{ fontSize: 10, color: t.textMut }}>{RL[u.role] ? tr(RL[u.role]) : u.role}</div></div></div>)}
   </div>);
 }
 
@@ -2246,49 +2267,56 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: "#9B59B6" };
-  const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast("Updated"); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
-  const submitAssignTask = async () => { if (!assignTask.userId) { showToast("Select a staff member", "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  return (<div><SecT t={t}>Issue Tracker</SecT>
-    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{f.replace("_", " ")}</button>)}</div>
+  // The words for the codes an issue carries. The code is what the API sent and what is sent back;
+  // these are only what the screen says. A code with no word here is drawn as it arrives.
+  const filterWord = { all: tr("all|issues"), open: tr("open|issues"), in_progress: tr("in progress"), escalated: tr("escalated|issues"), resolved: tr("resolved|issues") };
+  const stateWord = { open: tr("open|issue"), in_progress: tr("in progress"), escalated: tr("escalated|issue"), resolved: tr("resolved|issue"), closed: tr("closed|issue") };
+  const sevWord = { high: tr("high"), medium: tr("medium"), low: tr("low") };
+  const stateOf = (s) => stateWord[s] || s?.replace("_", " ");
+  const sevOf = (s) => sevWord[s] || s;
+  const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
+  const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
+    <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}</div>
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={iss.severity} c={sC[iss.severity]} /><Bdg l={iss.status?.replace("_", " ")} c={stC[iss.status] || t.textMut} /></div></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
-        <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Start</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Resolve</button>}</div></div>
-      {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>Photo attached</div>}
-      {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>Assigned to: {iss.assigned_to_name}</div>}
+        <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Start|work")}</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Resolve")}</button>}</div></div>
+      {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>{tr("Photo attached")}</div>}
+      {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Issue Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.title}</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sel.severity} c={sC[sel.severity]} /><Bdg l={sel.status?.replace("_", " ")} c={stC[sel.status] || t.textMut} /></div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(sel.severity)} c={sC[sel.severity]} /><Bdg l={stateOf(sel.status)} c={stC[sel.status] || t.textMut} /></div>
       {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>Site<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Zone<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.zone || "General"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Reported By<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.reported_by_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Reported At<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
-        {sel.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>Assigned To<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name}</div></div>}
-        {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>Resolved At<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.zone || tr("General")}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.reported_by_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
+        {sel.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name}</div></div>}
+        {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{sel.assignment_note}</div>}
-      {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photos ({allPhotos.length})</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={"Photo " + (i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? "Original" : "Resolution"}</div></div>)}</div></div>}
-      {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
-      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
-        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "resolution_photo" ? "Resolution Photo" : a.action === "photo_added" ? "Photo Added" : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+      {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", allPhotos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
+      {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={sel.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
+        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
-        {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
-        {sel.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
-        {(sel.status === "open" || sel.status === "in_progress" || sel.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? "Reassign" : "Assign as Task"}</Btn>}
-        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
+        {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>{tr("Start Work")}</Btn>}
+        {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
+        {sel.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
+        {(sel.status === "open" || sel.status === "in_progress" || sel.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
+        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
       </div></div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? "Reassign Issue" : "Assign Issue as Task"}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.</div>}
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>The task will appear in the staff member's "Assigned Tasks" tab where they can mark it as in progress, resolved, or unable to resolve.</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Assign To *</Lbl><Sel t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>Note to previous assignee (optional)</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder="Explain why this is being reassigned..." rows={3} /></div>}
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>Cancel</Btn><Btn t={t} onClick={submitAssignTask}>{assignTask.isReassign ? "Reassign" : "Assign Task"}</Btn></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
   </div>);
 }
@@ -2335,24 +2363,24 @@ function ChatPage({ af, user, t }) {
   const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
   const activeDm = dms.find(dm => dm.channelId === sel);
   return (<div>
-    <SecT t={t}>Messages</SecT>
+    <SecT t={t}>{tr("Messages")}</SecT>
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 420 }}>
       <div style={{ width: 300, borderRight: "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Private conversations</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Private conversations")}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 12px" }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search staff" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
-          {filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>No conversations.</div>}
+          {filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" }} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.staffName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || "No messages yet"}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
               </div>
             </button>
           ); })}
@@ -2362,16 +2390,16 @@ function ChatPage({ af, user, t }) {
         {!sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Your messages</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>Pick a conversation on the left to start.</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Your messages")}</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>{tr("Pick a conversation on the left to start.")}</div>
           </div>
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + t.border }}>
             <Ini name={activeDm?.staffName} sz={34} />
-            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || "Conversation"}</div><div style={{ fontSize: 11, color: t.textMut }}>Private message</div></div>
+            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || tr("Conversation")}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-            {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No messages yet.</div>}
+            {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
             {msgs.map((m, i) => { const isMe = m.senderRole === "admin" || m.senderRole === "supervisor"; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
@@ -2380,7 +2408,7 @@ function ChatPage({ af, user, t }) {
             <div ref={endRef} />
           </div>
           <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border }}>
-            <Inp t={t} value={reply} onChange={e => setReply(e.target.value)} placeholder="Type a message" style={{ borderRadius: 20 }} onKeyDown={e => e.key === "Enter" && send()} />
+            <Inp t={t} value={reply} onChange={e => setReply(e.target.value)} placeholder={tr("Type a message")} style={{ borderRadius: 20 }} onKeyDown={e => e.key === "Enter" && send()} />
             <button onClick={send} style={{ width: 40, height: 40, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
           </div>
         </>)}
@@ -2390,11 +2418,14 @@ function ChatPage({ af, user, t }) {
 }
 // ===== HELP: the assistant the staff portal's Help tab talks to. Same four requests, same screen. =====
 // AGENT_HELPERS_START (pure helpers, no React, so they can run as a script against fixtures)
+// A helper that makes words a person reads takes `say`, which the page passes as tr, so the words are
+// in the language the screen is drawn in. Run as a script with no `say`, they come out in English.
+const agentEnglish = (text, ...values) => String(text).replace(/\{(\d+)\}/g, (m, i) => String(values[Number(i)]));
 const agentPick = (row, keys) => { for (const k of keys) { if (row && row[k] !== undefined && row[k] !== null) return row[k]; } return undefined; };
 const agentListFrom = (res, keys) => { if (Array.isArray(res)) return res; if (res && typeof res === "object") { for (const k of keys) { if (Array.isArray(res[k])) return res[k]; } } return []; };
-const agentDraftFrom = (row) => ({
+const agentDraftFrom = (row, say = agentEnglish) => ({
   id: agentPick(row, ["id", "formResponseId", "form_response_id"]),
-  name: agentPick(row, ["formName", "formTitle", "form_name", "title", "formCode", "form_code"]) || "Report",
+  name: agentPick(row, ["formName", "formTitle", "form_name", "title", "formCode", "form_code"]) || say("Report"),
   answered: agentPick(row, ["answered", "answeredCount", "answered_count"]),
   remaining: agentPick(row, ["remaining", "remainingCount", "remaining_count"]),
   conversationId: agentPick(row, ["conversationId", "conversation_id"]),
@@ -2402,7 +2433,7 @@ const agentDraftFrom = (row) => ({
   status: agentPick(row, ["status"]) || "draft",
   nextQuestion: agentPick(row, ["nextQuestion", "next_question"]),
 });
-const agentAnsweredLine = (answered, remaining) => (answered === undefined || answered === null || remaining === undefined || remaining === null) ? "" : Number(answered) + " of " + (Number(answered) + Number(remaining)) + " answered";
+const agentAnsweredLine = (answered, remaining, say = agentEnglish) => (answered === undefined || answered === null || remaining === undefined || remaining === null) ? "" : say("{0} of {1} answered", Number(answered), Number(answered) + Number(remaining));
 const agentMessageFrom = (m, i) => {
   const role = String(agentPick(m, ["role", "sender"]) || "").toLowerCase() === "user" ? "user" : "assistant";
   const cited = agentPick(m, ["citedDocs", "cited_doc_codes", "citedDocCodes"]);
@@ -2431,6 +2462,9 @@ const agentReplyParts = (text) => String(text == null ? "" : text).split(/\r?\n/
 // Which app a Help message comes from, so the answer gives steps for this app.
 const AGENT_APP = "dashboard";
 const AGENT_MAX_PHOTOS = 3;
+// The unfinished reports list stops at three rows, each 44 high with 8 above and below and a line
+// between, and scrolls inside itself past that.
+const AGENT_DRAFT_LIST_PX = 182;
 const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const AGENT_PHOTO_MAX_EDGE = 1568;
 const AGENT_PHOTO_UNREADABLE = "This photo could not be read here. Choose a JPEG or PNG, or take a screenshot of it.";
@@ -2484,7 +2518,7 @@ function HelpPage({ af, uf, showToast, t }) {
   useEffect(() => () => { urlsRef.current.forEach(u => { try { URL.revokeObjectURL(u); } catch {} }); urlsRef.current.clear(); }, []);
 
   const loadDrafts = useCallback(async () => {
-    try { const res = await af("/api/agent/drafts"); setDrafts(agentListFrom(res, ["drafts", "items", "rows"]).map(agentDraftFrom)); }
+    try { const res = await af("/api/agent/drafts"); setDrafts(agentListFrom(res, ["drafts", "items", "rows"]).map(r => agentDraftFrom(r, tr))); }
     catch (e) { console.warn("Help drafts:", e.message); setDrafts([]); }
   }, [af]);
   useEffect(() => { loadDrafts(); }, [loadDrafts]);
@@ -2500,8 +2534,8 @@ function HelpPage({ af, uf, showToast, t }) {
     try {
       const r = await uf(new File([blob], "photo.jpg", { type: "application/octet-stream" }), "agent-photos");
       if (r && r.path) patchPhoto(key, { status: "done", path: String(r.path), error: "" });
-      else patchPhoto(key, { status: "failed", error: "Upload failed" });
-    } catch (e) { patchPhoto(key, { status: "failed", error: e.message || "Upload failed" }); }
+      else patchPhoto(key, { status: "failed", error: tr("Upload failed") });
+    } catch (e) { patchPhoto(key, { status: "failed", error: e.message || tr("Upload failed") }); }
   };
   // Each picked image is prepared as soon as it is picked; uploads run one at a time in the order picked.
   const addFiles = (files) => {
@@ -2514,7 +2548,7 @@ function HelpPage({ af, uf, showToast, t }) {
       setPhotos(p => [...p, { key, url: "", blob: null, status: "uploading", path: "", error: "" }]);
       uploadChain.current = uploadChain.current.then(async () => {
         let prepared;
-        try { prepared = await prep; } catch { setPhotos(p => p.filter(x => x.key !== key)); setPhotoNote(AGENT_PHOTO_UNREADABLE); return; }
+        try { prepared = await prep; } catch { setPhotos(p => p.filter(x => x.key !== key)); setPhotoNote(tr(AGENT_PHOTO_UNREADABLE)); return; }
         if (!photosRef.current.some(x => x.key === key)) { dropUrl(prepared.url); return; }
         patchPhoto(key, { blob: prepared.blob, url: prepared.url });
         await uploadPhoto(key, prepared.blob);
@@ -2546,7 +2580,7 @@ function HelpPage({ af, uf, showToast, t }) {
       setText(cur => cur === body ? "" : cur);
       if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
     } catch (e) {
-      patchMsg(id, { status: "failed", error: e.message || "Request failed" });
+      patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
     } finally { setSending(false); }
   };
   const allUploaded = photos.every(p => p.status === "done");
@@ -2573,7 +2607,7 @@ function HelpPage({ af, uf, showToast, t }) {
       const res = await af("/api/agent/conversations/" + encodeURIComponent(d.conversationId));
       setThread(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom));
       setConversationId(d.conversationId);
-    } catch (e) { showToast(e.message || "Request failed", "error"); }
+    } catch (e) { showToast(e.message || tr("Request failed"), "error"); }
     finally { setResuming(false); setTimeout(() => composerRef.current?.querySelector("textarea")?.focus(), 0); }
   };
 
@@ -2585,40 +2619,49 @@ function HelpPage({ af, uf, showToast, t }) {
       setFormResponse(null); setSubmitted(true); loadDrafts();
     } catch (e) {
       const list = agentMissingFrom(e);
-      setMissing(list && list.length ? list : [e.message || "Request failed"]);
+      setMissing(list && list.length ? list : [e.message || tr("Request failed")]);
     } finally { setSubmitting(false); }
   };
 
   const visibleDrafts = drafts.filter(d => !(formResponse && d.id !== undefined && String(d.id) === String(formResponse.id)));
-  const cardName = formResponse ? (agentDraftFrom(formResponse).name) : "";
-  const cardLine = formResponse ? agentAnsweredLine(agentPick(formResponse, ["answered", "answeredCount", "answered_count"]), agentPick(formResponse, ["remaining", "remainingCount", "remaining_count"])) : "";
+  const cardName = formResponse ? (agentDraftFrom(formResponse, tr).name) : "";
+  const cardLine = formResponse ? agentAnsweredLine(agentPick(formResponse, ["answered", "answeredCount", "answered_count"]), agentPick(formResponse, ["remaining", "remainingCount", "remaining_count"]), tr) : "";
   const canSubmit = !!formResponse && !busy && !(Number(formResponse.remaining) > 0);
   const onKey = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } };
   const photosFull = photos.length >= AGENT_MAX_PHOTOS;
   const canPick = !busy && !photosFull;
 
-  return (<div>
-    <SecT t={t}>Help</SecT>
-    {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12 }}>
-      <Lbl>Unfinished reports</Lbl>
-      {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining); return (
-        <div key={d.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid " + t.border }}>
-          <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{d.name}</div>{line && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{line}</div>}</div>
-          <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>Resume</Btn>
-        </div>); })}
+  // The page is the height of the window below the top bar and no taller. The conversation takes the
+  // height the cards above it leave and scrolls inside itself, so the box to type in, Add a photo and
+  // Send stay at the bottom of the window at every size.
+  return (<div style={{ flex: "1 1 0px", minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <SecT t={t}>{tr("Help")}</SecT>
+    {visibleDrafts.length > 0 && <Crd t={t} style={{ marginBottom: 12, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+      <Lbl>{tr("Unfinished reports")}</Lbl>
+      <div style={{ maxHeight: AGENT_DRAFT_LIST_PX, minHeight: 0, overflowY: "auto" }}>
+        {visibleDrafts.map((d, i) => { const line = agentAnsweredLine(d.answered, d.remaining, tr); return (
+          <div key={d.id ?? i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i === 0 ? "none" : "1px solid " + t.border }}>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{d.name}</div>{line && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{line}</div>}</div>
+            <Btn t={t} v="ghost" onClick={() => resume(d)} disabled={busy} style={{ minHeight: 44 }}>{tr("Resume")}</Btn>
+          </div>); })}
+      </div>
     </Crd>}
     {formResponse && <Crd t={t} style={{ marginBottom: 12 }}>
-      <Lbl>Report in progress</Lbl>
+      <Lbl>{tr("Report in progress")}</Lbl>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 160 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{cardName}</div>{cardLine && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{cardLine}</div>}</div>
-        <Btn t={t} onClick={submit} disabled={!canSubmit} style={{ minHeight: 44, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? "pointer" : "default" }}>{submitting ? "Submitting..." : "Submit report"}</Btn>
+        <Btn t={t} onClick={submit} disabled={!canSubmit} style={{ minHeight: 44, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? "pointer" : "default" }}>{submitting ? tr("Submitting...") : tr("Submit report")}</Btn>
       </div>
-      {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>Still needed before you can submit:</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
+      {missing && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}><div style={{ fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("Still needed before you can submit:")}</div><ul style={{ margin: 0, paddingLeft: 18 }}>{missing.map((m, i) => <li key={i}>{m}</li>)}</ul></div>}
     </Crd>}
-    {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>Report submitted.</div>}
-    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 360 }}>
-      <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-        {thread.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut, fontSize: 13 }}>Tell me what happened and I will tell you what to do.</div>}
+    {submitted && <div style={{ fontSize: 13, fontWeight: 600, color: GR, marginBottom: 12 }}>{tr("Report submitted.")}</div>}
+    <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", flex: "1 1 0px", minHeight: "min-content" }}>
+      {/* The conversation keeps 120 of the page's own pixels, and the reports list gives up its rows
+          first. In a short window with the text large, 420 is what the top bar, the page's margins,
+          the title, a report in progress, the list's label and the box to type in already take, so
+          the conversation keeps what is left, and never less than the one line it shows empty. */}
+      <div style={{ flex: "1 1 0px", minHeight: "clamp(44px, calc(100vh / var(--zoom, 1) - 420px), 120px)", overflowY: "auto", padding: "14px 16px", display: "flex", flexDirection: "column" }}>
+        {thread.length === 0 && <div style={{ margin: "auto 0", padding: "0 40px", textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Tell me what happened and I will tell you what to do.")}</div>}
         {thread.map(m => { const isMe = m.role === "user"; return (
           <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", marginBottom: 12 }}>
             <div style={{ maxWidth: "75%", minWidth: 0 }}>
@@ -2630,9 +2673,9 @@ function HelpPage({ af, uf, showToast, t }) {
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
               </div>
-              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Based on {m.citedDocs.join(", ")}</div>}
-              {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>Working from the written procedure only right now.</div>}
-              {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>Not sent. {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Retry</button></div>}
+              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", m.citedDocs.join(", "))}</div>}
+              {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
+              {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
           </div>); })}
         <div ref={endRef} />
@@ -2643,10 +2686,10 @@ function HelpPage({ af, uf, showToast, t }) {
             <div key={p.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: 4, borderRadius: R.sm, border: "1px solid " + (p.status === "failed" ? RD : t.border), background: t.cardAlt, maxWidth: "100%" }}>
               {p.url ? <img src={p.url} alt="" style={{ width: 56, height: 56, objectFit: "cover", borderRadius: 6, display: "block", flexShrink: 0 }} /> : <div style={{ width: 56, height: 56, borderRadius: 6, background: t.hover, flexShrink: 0 }} />}
               <div style={{ fontSize: 11, minWidth: 0, maxWidth: 160 }}>
-                {p.status === "uploading" && <div style={{ color: t.textMut }}>Uploading...</div>}
-                {p.status === "failed" && <div style={{ color: RD, wordBreak: "break-word" }}>{p.error} <button onClick={() => retryUpload(p)} disabled={busy || !p.blob} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>Try again</button></div>}
+                {p.status === "uploading" && <div style={{ color: t.textMut }}>{tr("Uploading...")}</div>}
+                {p.status === "failed" && <div style={{ color: RD, wordBreak: "break-word" }}>{p.error} <button onClick={() => retryUpload(p)} disabled={busy || !p.blob} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 11, cursor: "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></div>}
               </div>
-              <button onClick={() => removePhoto(p.key)} aria-label="Remove photo" disabled={busy} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", cursor: busy ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textSec} /></button>
+              <button onClick={() => removePhoto(p.key)} aria-label={tr("Remove photo")} disabled={busy} style={{ width: 44, height: 44, borderRadius: "50%", border: "none", background: "transparent", cursor: busy ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={16} c={t.textSec} /></button>
             </div>
           ))}
         </div>}
@@ -2654,9 +2697,9 @@ function HelpPage({ af, uf, showToast, t }) {
       </div>}
       <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: photos.length > 0 || photoNote ? "none" : "1px solid " + t.border, alignItems: "flex-end" }}>
         <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={onPick} style={{ display: "none" }} />
-        <button onClick={() => fileInputRef.current?.click()} aria-label="Add a photo" disabled={!canPick} title={photosFull ? "You can send up to 3 photos with one message." : "Add a photo"} style={{ width: 44, height: 44, borderRadius: "50%", background: t.cardAlt, border: "1px solid " + t.border, cursor: canPick ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: canPick ? 1 : 0.5 }}><CamI sz={18} c={t.textSec} /></button>
-        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} disabled={busy} rows={1} placeholder="Describe what happened" aria-label="Describe what happened" style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
-        <button onClick={send} aria-label="Send" disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
+        <button onClick={() => fileInputRef.current?.click()} aria-label={tr("Add a photo")} disabled={!canPick} title={photosFull ? tr("You can send up to 3 photos with one message.") : tr("Add a photo")} style={{ width: 44, height: 44, borderRadius: "50%", background: t.cardAlt, border: "1px solid " + t.border, cursor: canPick ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, opacity: canPick ? 1 : 0.5 }}><CamI sz={18} c={t.textSec} /></button>
+        <div ref={composerRef} style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} disabled={busy} rows={1} placeholder={tr("Describe what happened")} aria-label={tr("Describe what happened")} style={{ minHeight: 44, resize: "none", borderRadius: 14 }} /></div>
+        <button onClick={send} aria-label={tr("Send")} disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
   </div>);
@@ -3892,78 +3935,88 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
   const updateFilter = (key, val) => { const nf = { ...filters, [key]: val }; setFilters(nf); load(nf); };
   const clearFilters = () => { const nf = { site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" }; setFilters(nf); load(nf); };
   const openDetail = async (task) => { setSel(task); try { const a = await af("/api/clock/tasks/activity/" + task.task_id); setActivity(a); } catch (e) { setActivity([]); } };
-  const submitReassign = async () => { if (!reassignForm.userId) { showToast("Select a staff member", "error"); return; } if (!reassignForm.note?.trim()) { showToast("A reason for reassignment is required", "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast("Task reassigned"); setReassignForm(null); setSel(null); load(); } catch (e) { showToast(e.message, "error"); } };
-  const submitCreate = async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast("Site, description, zone, and assignee are required", "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast("Task created and assigned"); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const submitReassign = async () => { if (!reassignForm.userId) { showToast(tr("Select a staff member"), "error"); return; } if (!reassignForm.note?.trim()) { showToast(tr("A reason for reassignment is required"), "error"); return; } try { await af("/api/sites/" + reassignForm.siteId + "/tasks/" + reassignForm.taskId + "/reassign", { method: "POST", body: { userId: reassignForm.userId, note: reassignForm.note.trim() } }); showToast(tr("Task reassigned")); setReassignForm(null); setSel(null); load(); } catch (e) { showToast(e.message, "error"); } };
+  const submitCreate = async () => { if (!createForm.siteId || !createForm.label || !createForm.zone || !createForm.assign) { showToast(tr("Site, description, zone, and assignee are required"), "error"); return; } try { await af("/api/sites/" + createForm.siteId + "/tasks", { method: "POST", body: { label: createForm.label, zone: createForm.zone, cimsCategory: createForm.cims || "SD", priority: createForm.pri || "standard", description: createForm.desc || undefined, mediaUrl: createForm.mediaUrl || undefined, mediaType: createForm.mediaType || undefined, dueDate: createForm.dueDate || undefined, dueTime: createForm.dueTime || undefined, buildingName: createForm.building || undefined, floorNumber: createForm.floor || undefined, taskType: "assigned", assignToUsers: [createForm.assign] } }); showToast(tr("Task created and assigned")); setCreateForm(null); load(); } catch (e) { showToast(e.message, "error"); } };
   const buildings = [...new Set(tasks.map(tk => tk.building_name).filter(Boolean))];
   const floors = [...new Set(tasks.map(tk => tk.floor_number).filter(Boolean))];
   const zones = [...new Set(tasks.map(tk => tk.zone).filter(Boolean))];
+  // A zone as the screen says it, the display the API sent with a task in that zone. The zone itself
+  // is still what the filter sends.
+  const zoneWord = {}; tasks.forEach(tk => { if (tk.zone) zoneWord[tk.zone] = shownItem(tk).zone; });
   const stC = { pending: OR, in_progress: BL, resolved: GR, unable_to_resolve: RD };
   const priC = { critical: RD, high: OR, standard: GO };
+  // The words for the codes a task carries. The code is what the API sent and what is sent back;
+  // these are only what the screen says. A code with no word here is drawn as it arrives.
+  const stateWord = { pending: tr("pending"), in_progress: tr("in progress"), resolved: tr("resolved|task"), unable_to_resolve: tr("unable to resolve") };
+  const priWord = { critical: tr("critical"), high: tr("high"), urgent: tr("urgent") };
+  const stateOf = (s) => s ? (stateWord[s] || s.replace(/_/g, " ")) : stateWord.pending;
+  const priOf = (p) => priWord[p] || p;
+  const selShown = sel ? shownItem(sel) : null;
   const hasFilters = Object.values(filters).some(v => v);
   return (<div>
-    <SecT t={t} action="Create Task" onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" })}>Assigned Tasks</SecT>
+    <SecT t={t} action={tr("Create Task")} onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" })}>{tr("Assigned Tasks")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-      <Sel t={t} value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
-      <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: "All Buildings" }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
-      <Sel t={t} value={filters.floor_number} onChange={e => updateFilter("floor_number", e.target.value)} options={[{ v: "", l: "All Floors" }, ...floors.map(f => ({ v: f, l: "Floor " + f }))]} style={{ flex: 1, minWidth: 90 }} />
-      <Sel t={t} value={filters.zone} onChange={e => updateFilter("zone", e.target.value)} options={[{ v: "", l: "All Zones" }, ...zones.map(z => ({ v: z, l: z }))]} style={{ flex: 1, minWidth: 100 }} />
-      <Sel t={t} value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: "All Staff" }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
-      <Sel t={t} value={filters.status} onChange={e => updateFilter("status", e.target.value)} options={[{ v: "", l: "All Status" }, { v: "pending", l: "Pending" }, { v: "in_progress", l: "In Progress" }, { v: "resolved", l: "Resolved" }, { v: "unable_to_resolve", l: "Unable to Resolve" }]} style={{ flex: 1, minWidth: 110 }} />
-      {hasFilters && <button onClick={clearFilters} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>View All</button>}
+      <Sel t={t} value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: tr("All Buildings") }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
+      <Sel t={t} value={filters.floor_number} onChange={e => updateFilter("floor_number", e.target.value)} options={[{ v: "", l: tr("All Floors") }, ...floors.map(f => ({ v: f, l: tr("Floor {0}", f) }))]} style={{ flex: 1, minWidth: 90 }} />
+      <Sel t={t} value={filters.zone} onChange={e => updateFilter("zone", e.target.value)} options={[{ v: "", l: tr("All Zones") }, ...zones.map(z => ({ v: z, l: zoneWord[z] || z }))]} style={{ flex: 1, minWidth: 100 }} />
+      <Sel t={t} value={filters.user_id} onChange={e => updateFilter("user_id", e.target.value)} options={[{ v: "", l: tr("All Staff") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
+      <Sel t={t} value={filters.status} onChange={e => updateFilter("status", e.target.value)} options={[{ v: "", l: tr("All Status") }, { v: "pending", l: tr("Pending") }, { v: "in_progress", l: tr("In Progress") }, { v: "resolved", l: tr("Resolved") }, { v: "unable_to_resolve", l: tr("Unable to Resolve") }]} style={{ flex: 1, minWidth: 110 }} />
+      {hasFilters && <button onClick={clearFilters} style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("View All")}</button>}
     </div>
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>}
-    {!loading && tasks.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No assigned tasks found.{hasFilters ? " Try clearing filters." : ' Click "Create Task" to assign one.'}</div>}
-    {!loading && tasks.map(task => { const isIssue = !!task.source_issue_id; const title = isIssue ? (task.issue_title || task.label) : task.label; const borderColor = isIssue ? (stC[task.resolution_status] || OR) : (priC[task.priority] || GO); const locParts = [task.site_name]; if (task.building_name) locParts.push(task.building_name); if (task.floor_number) locParts.push("Fl " + task.floor_number); if (task.zone) locParts.push(task.zone); return (
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {!loading && tasks.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No assigned tasks found.")}{hasFilters ? " " + tr("Try clearing filters.") : " " + tr("Click \"Create Task\" to assign one.")}</div>}
+    {!loading && tasks.map(task => { const isIssue = !!task.source_issue_id; const shown = shownItem(task); const title = isIssue ? (task.issue_title || shown.label) : shown.label; const borderColor = isIssue ? (stC[task.resolution_status] || OR) : (priC[task.priority] || GO); const locParts = [task.site_name]; if (task.building_name) locParts.push(task.building_name); if (task.floor_number) locParts.push(tr("Fl {0}", task.floor_number)); if (shown.zone) locParts.push(shown.zone); return (
       <Crd key={task.task_id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + borderColor }} onClick={() => openDetail(task)}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div><div style={{ fontSize: 10, color: t.textSec, marginTop: 3 }}>{locParts.join(" > ")}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>{isIssue && <Bdg l="Issue" c={RD} />}{task.priority && task.priority !== "standard" && <Bdg l={task.priority} c={priC[task.priority] || GO} />}<Bdg l={task.resolution_status ? task.resolution_status.replace(/_/g, " ") : "pending"} c={stC[task.resolution_status] || OR} /></div></div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>Assigned to: <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span></span>}<span>By: {task.created_by_name}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>Due: {fd(task.due_date)}</span>}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div><div style={{ fontSize: 10, color: t.textSec, marginTop: 3 }}>{locParts.join(" > ")}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>{isIssue && <Bdg l={tr("Issue")} c={RD} />}{task.priority && task.priority !== "standard" && <Bdg l={priOf(task.priority)} c={priC[task.priority] || GO} />}<Bdg l={stateOf(task.resolution_status)} c={stC[task.resolution_status] || OR} /></div></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fd(task.due_date))}</span>}</div>
       </Crd>); })}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Task Detail</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || sel.label) : sel.label}</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{sel.source_issue_id && <Bdg l="Issue" c={RD} />}{sel.priority && sel.priority !== "standard" && <Bdg l={sel.priority} c={priC[sel.priority] || GO} />}<Bdg l={sel.resolution_status ? sel.resolution_status.replace(/_/g, " ") : "pending"} c={stC[sel.resolution_status] || OR} /></div>
-      {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Task Detail")}</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || selShown.label) : selShown.label}</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{sel.source_issue_id && <Bdg l={tr("Issue")} c={RD} />}{sel.priority && sel.priority !== "standard" && <Bdg l={priOf(sel.priority)} c={priC[sel.priority] || GO} />}<Bdg l={stateOf(sel.resolution_status)} c={stC[sel.resolution_status] || OR} /></div>
+      {selShown.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{selShown.description}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>Site<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Zone<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.zone || "General"}</div></div>
-        {sel.building_name && <div style={{ fontSize: 11, color: t.textMut }}>Building<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.building_name}</div></div>}
-        {sel.floor_number && <div style={{ fontSize: 11, color: t.textMut }}>Floor<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.floor_number}</div></div>}
-        <div style={{ fontSize: 11, color: t.textMut }}>Assigned To<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name || "Unassigned"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Created By<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.created_by_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Created<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.task_created_at)}</div></div>
-        {sel.due_date && <div style={{ fontSize: 11, color: t.textMut }}>Due Date<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fd(sel.due_date)}{sel.due_time ? " " + sel.due_time : ""}</div></div>}
-        {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>Resolved At<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{selShown.zone || tr("General")}</div></div>
+        {sel.building_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Building")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.building_name}</div></div>}
+        {sel.floor_number && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Floor")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.floor_number}</div></div>}
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name || tr("Unassigned")}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Created By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.created_by_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Created")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.task_created_at)}</div></div>
+        {sel.due_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due Date")}<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fd(sel.due_date)}{sel.due_time ? " " + sel.due_time : ""}</div></div>}
+        {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
-      {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>Resolution: {sel.resolution_note}</div>}
-      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Attached {sel.media_type === "video" ? "Video" : "Photo"}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt="Task" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
-      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div><img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
-      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
-        {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+      {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>{tr("Resolution: {0}", sel.resolution_note)}</div>}
+      {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{sel.media_type === "video" ? tr("Attached Video") : tr("Attached Photo")}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt={tr("Task")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
+      {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Resolution Photo")}</div><img src={sel.resolution_photo_url} alt={tr("Resolution")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
+      {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
+        {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? tr("Assigned|task") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "resolution_photo" ? tr("Photo Attached") : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>Reassign</Btn>}
-        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
+        {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>{tr("Reassign")}</Btn>}
+        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
       </div></div></Mdl>}
     {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Reassign Task</div><button onClick={() => setReassignForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>Currently assigned to: <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>. They will be notified of the change.</div>}
-      <div style={{ marginBottom: 12 }}><Lbl>Reassign To *</Lbl><Sel t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: "Select a staff member..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ marginBottom: 16 }}><Lbl>Reason for Reassignment *</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder="Explain why this task is being reassigned..." rows={3} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>Cancel</Btn><Btn t={t} onClick={submitReassign}>Reassign</Btn></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><Sel t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Create Assigned Task</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Task Description *</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder="e.g. Clean window blinds in conference room" /></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Building</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder="e.g. Main" /></div><div><Lbl>Floor</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder="e.g. 1" /></div><div><Lbl>Zone *</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder="e.g. Offices" /></div></div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Priority</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities")} /></div><div><Lbl>Assign To *</Lbl><Sel t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Detailed Instructions</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder="Step-by-step instructions or notes..." rows={3} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Photo/Video (optional)</Lbl>
-        <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder="Paste a URL or upload below" style={{ flex: 1 }} /></div>
-        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast("File must be under 50MB", "error"); return; } try { showToast("Uploading..."); const r = await uf(f, "task-media"); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast("Uploaded"); } catch (err) { showToast("Upload failed", "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>Upload a photo or video (up to 50MB), or paste a YouTube link above</div></div>
-        {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt="Attached" style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder={tr("e.g. 1")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder={tr("e.g. Offices")} /></div></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={createForm.pri} onChange={e => setCreateForm({ ...createForm, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={createForm.assign} onChange={e => setCreateForm({ ...createForm, assign: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Detailed Instructions")}</Lbl><TArea t={t} value={createForm.desc || ""} onChange={e => setCreateForm({ ...createForm, desc: e.target.value })} placeholder={tr("Step-by-step instructions or notes...")} rows={3} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Photo/Video (optional)")}</Lbl>
+        <div style={{ display: "flex", gap: 8 }}><Inp t={t} value={createForm.mediaUrl || ""} onChange={e => setCreateForm({ ...createForm, mediaUrl: e.target.value, mediaType: e.target.value ? (e.target.value.match(/\.(mp4|mov|webm|avi)/i) ? "video" : "image") : "" })} placeholder={tr("Paste a URL or upload below")} style={{ flex: 1 }} /></div>
+        <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setCreateForm(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
+        {createForm.mediaUrl && (createForm.mediaType === "video" ? <div style={{ marginTop: 8 }}><video src={createForm.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 160 }} /></div> : <div style={{ marginTop: 8 }}><img src={createForm.mediaUrl} alt={tr("Attached")} style={{ width: "100%", borderRadius: 8, maxHeight: 160, objectFit: "cover" }} /></div>)}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>Due Date</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>Due Time</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>Create and Assign</Btn></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={createForm.dueDate} onChange={e => setCreateForm({ ...createForm, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={createForm.dueTime} onChange={e => setCreateForm({ ...createForm, dueTime: e.target.value })} /></div></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate}>{tr("Create and Assign")}</Btn></div>
     </div></Mdl>}
   </div>);
 }
@@ -5505,7 +5558,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       <SC t={t} label={tr("Open Now")} value={analytics.summary.open_count} color={GO} icon={SwpI} />
       <SC t={t} label={tr("Fill Rate")} value={analytics.summary.fill_rate + "%"} color={analytics.summary.fill_rate >= 80 ? GR : analytics.summary.fill_rate >= 50 ? OR : RD} icon={ChkI} />
       <SC t={t} label={tr("Avg Fill Time")} value={analytics.summary.avg_time_to_fill_minutes > 60 ? Math.round(analytics.summary.avg_time_to_fill_minutes / 60) + "h" : analytics.summary.avg_time_to_fill_minutes + "m"} color={BL} icon={CkI} />
-      <SC t={t} label={tr("Callouts")} value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? tr("{0} no-shows", analytics.summary.no_show_count) : ""} color={RD} icon={AlI} />
+      <SC t={t} label={tr("Callouts")} value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? trn("{0} no-show|count", analytics.summary.no_show_count) : ""} color={RD} icon={AlI} />
     </div>}
 
     {/* Tabs */}
@@ -8443,7 +8496,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       const fd = new FormData();
       for (const f of files) fd.append("pdfs", f);
       const apiBase = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app");
-      const resp = await fetch(apiBase + "/api/jotform/pdf-bulk-upload", {
+      const resp = await apiRequest(apiBase + "/api/jotform/pdf-bulk-upload", {
         method: "POST",
         headers: { "Authorization": "Bearer " + token },
         body: fd,
@@ -8616,7 +8669,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   const fetchPdfBlob = async (submissionId, action) => {
     const url = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app") +
       "/api/jotform/submissions/" + submissionId + "/pdf?action=" + action;
-    const r = await fetch(url, { headers: { "Authorization": "Bearer " + token } });
+    const r = await apiRequest(url, { headers: { "Authorization": "Bearer " + token } });
     if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error("Session expired"); }
     // Session 24: 202 means PDF not yet captured by email ingestion (still pending)
     if (r.status === 202) {
@@ -9817,7 +9870,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       // Use raw fetch because apiFetch assumes JSON. PDF endpoint streams a binary blob.
       // The token comes from the App-level React state via props, matching how FormsPage handles its binary fetches.
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/submissions/" + submissionUuid + "/pdf", {
+      const resp = await apiRequest(apiBase + "/api/jotform/submissions/" + submissionUuid + "/pdf", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       // Session 24: 202 means PDF not yet captured by email ingestion (still pending)
@@ -9844,7 +9897,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const viewDoc = async (docId) => {
     try {
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
+      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
@@ -10233,7 +10286,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
   const viewDoc = async (docId) => {
     try {
       const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
-      const resp = await fetch(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
+      const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
@@ -10276,7 +10329,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
         fd.append("category", form.category);
         if (form.notes) fd.append("notes", form.notes);
         if (form.expiry_date) fd.append("expiry_date", form.expiry_date);
-        const resp = await fetch(apiBase + "/api/jotform/employees/" + form.user_id + "/documents", {
+        const resp = await apiRequest(apiBase + "/api/jotform/employees/" + form.user_id + "/documents", {
           method: "POST",
           headers: { Authorization: "Bearer " + (token || "") },
           body: fd

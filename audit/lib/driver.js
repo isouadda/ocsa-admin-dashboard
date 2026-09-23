@@ -101,7 +101,9 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     const req = route.request();
     let body = null;
     try { const raw = req.postData(); if (raw) body = JSON.parse(raw); } catch (e) { body = req.postData() || null; }
-    const answer = stubs.handle({ method: req.method(), url: req.url(), body });
+    // The headers go with the call, and so does the language this pass draws its screens in, so the
+    // stub can say whether the call asked for the language the person is reading.
+    const answer = stubs.handle({ method: req.method(), url: req.url(), body, headers: req.headers(), lang: tongue });
     if (answer.delayMs) await new Promise((r) => setTimeout(r, answer.delayMs));
     // One route answers a PDF rather than JSON, which the page fetches as a blob.
     if (answer.pdf) {

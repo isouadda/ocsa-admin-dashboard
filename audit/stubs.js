@@ -13,6 +13,9 @@ const S = seed.SITES;
 // { method, path (substring or RegExp), status, code, error, once }
 function createStubs() {
   const calls = [];
+  // Every call the run makes, counted, and the ones that did not ask for the language their screen is
+  // drawn in. Nothing resets this.
+  const language = { calls: 0, misses: [] };
   let refusals = [];
   // A path held open on purpose, so a window that shows a loading state can be caught in it.
   let delays = [];
@@ -441,6 +444,8 @@ function createStubs() {
   // address, and the keyed type carries the forms, each with how its email carries the report.
   // One unfinished report waiting on the Help page, answered to the end.
   const AGENT_DRAFTS = [{ id: "ad-1", formName: "Safety Incident Report", answered: 12, remaining: 0, status: "draft" }];
+  // A conversation Help resumes, by its id. None unless a case puts one in.
+  const AGENT_CONVERSATIONS = {};
 
   const NOTIFICATION_TYPES = [
     { type: "time_off", label: "Time off requests", keyed: false, allowOutsideEmail: true },
@@ -466,9 +471,12 @@ function createStubs() {
     { id: "ch-1", site_id: S[0].id, name: S[0].name, unread: 2, last_message_at: seed.shift(0) + "T21:00:00Z" },
     { id: "ch-2", site_id: S[1].id, name: S[1].name, unread: 0, last_message_at: seed.shift(-2) + "T13:00:00Z" },
   ];
+  // text is what Messages and a site's chat draw. The last one is a word the word table carries, so a
+  // message sent through the table by mistake would come back as another word.
   const CHAT_MESSAGES = [
-    { id: "cm-1", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Lobby is done for the night.", sentAt: seed.shift(0) + "T20:45:00Z" },
-    { id: "cm-2", senderId: "u-admin-1", senderName: "Dana Whitlock", senderRole: "admin", body: "Thank you, logged.", sentAt: seed.shift(0) + "T21:00:00Z" },
+    { id: "cm-1", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Lobby is done for the night.", text: "Lobby is done for the night.", sentAt: seed.shift(0) + "T20:45:00Z" },
+    { id: "cm-2", senderId: "u-admin-1", senderName: "Dana Whitlock", senderRole: "admin", body: "Thank you, logged.", text: "Thank you, logged.", sentAt: seed.shift(0) + "T21:00:00Z" },
+    { id: "cm-3", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Done", text: "Done", sentAt: seed.shift(0) + "T21:05:00Z" },
   ];
 
   const DM_INBOX = [
@@ -501,6 +509,35 @@ function createStubs() {
     { task_id: "at-3", id: "at-3", label: "Pressure wash dock apron", site_id: S[2].id, site_name: S[2].name, zone: "Dock", building_name: "Dock A", floor_number: "1", user_id: "u-staff-7", assigned_to_name: "Elena Barbosa", created_by_name: "Marcus Ferreira", resolution_status: "pending", status: "pending", priority: "standard", cims_category: "HSE", due_date: seed.shift(3), due_time: "06:00", task_created_at: seed.shift(-1) + "T09:00:00Z", description: "" },
   ];
   // hand: 3 tasks, one per site. in_progress 1, resolved 1, pending 1.
+
+  // What the API has answered a checklist item with since Step 118: display, the item's words in the
+  // language the call asked for. The item's own label, description and zone stay the English they
+  // were saved in, which is what a screen that edits the item reads. at-3 has no Spanish here, so it
+  // arrives with no display at all, and the English a screen falls back to is on screen as well.
+  const TASK_WORDS_ES = {
+    "at-1": { label: "Decapar y encerar el vest\u00edbulo", description: "Decapar, sellar y encerar el piso del vest\u00edbulo.", zone: "Vest\u00edbulo" },
+    "at-2": { label: "Reabastecer los ba\u00f1os de la cl\u00ednica", description: "", zone: "Ba\u00f1o" },
+  };
+  const withDisplay = (item, lang) => {
+    const es = TASK_WORDS_ES[item.id];
+    if (!es) return item;
+    const say = (field) => (lang === "es" && item[field] ? es[field] : item[field]);
+    return Object.assign({}, item, { display: { label: say("label"), description: say("description"), zone: say("zone") } });
+  };
+  // And a pick list choice, displayLabel: its label in the language the call asked for. The label
+  // stays the English it was saved in, which is what the screen that edits the choice reads.
+  const CHOICE_WORDS_ES = {
+    "Service Delivery": "Prestaci\u00f3n del servicio", "Health, Safety and Environment": "Salud, seguridad y medio ambiente",
+    "Green Buildings": "Edificios sostenibles", "Chemical": "Qu\u00edmico", "Consumable": "Consumible", "Tool": "Herramienta",
+    "Each": "Unidad", "Case": "Caja", "Gallon": "Gal\u00f3n", "High": "Alta", "Medium": "Media", "Low": "Baja",
+    "Lobby": "Vest\u00edbulo", "Restroom": "Ba\u00f1o", "Dock": "Muelle", "Vacation": "Vacaciones", "Sick": "Enfermedad",
+    "Standard": "Est\u00e1ndar", "Urgent": "Urgente", "Training": "Capacitaci\u00f3n", "Compliance": "Cumplimiento", "Other": "Otro",
+    "Atrium": "Atrio", "Loading Bay": "Zona de carga", "North Wing": "Ala norte", "Floor 3": "Piso 3",
+  };
+  const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
+    displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
+  }));
+  const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, { values: withChoiceWords(c.values, lang) }));
 
   const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
     id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
@@ -589,7 +626,8 @@ function createStubs() {
     return null;
   }
 
-  function route(method, path, query, body) {
+  // `lang` is the language the call asked for, which is the language the API answers in.
+  function route(method, path, query, body, lang) {
     const q = (k) => query.get(k);
     const idAfter = (prefix) => path.slice(prefix.length).split("/")[0];
 
@@ -609,7 +647,7 @@ function createStubs() {
     // --- shell ------------------------------------------------------------
     if (path === "/api/sites" && method === "GET") return ok(state.sites);
     if (path === "/api/users" && method === "GET") return ok(state.staff);
-    if (path === "/api/lookups/all") return ok(LOOKUPS);
+    if (path === "/api/lookups/all") return ok(lookupsIn(lang));
     if (path === "/api/settings" && method === "GET") return ok(SETTINGS);
     if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) return ok(Object.assign(SETTINGS, body || {}));
     if (path === "/api/reports/overview") return ok(seed.OVERVIEW);
@@ -753,7 +791,7 @@ function createStubs() {
     if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) {
       if (method !== "GET") return ok({ message: "Task saved" });
       const sid = path.split("/")[3];
-      return ok(siteTasks(sid));
+      return ok(siteTasks(sid).map((tk) => withDisplay(tk, lang)));
     }
     if (path.startsWith("/api/sites/timeline/") || /^\/api\/sites\/[^/]+\/timeline/.test(path)) {
       const rows = timelineRows("Tomasz Wisniewski");
@@ -891,7 +929,7 @@ function createStubs() {
     if (/^\/api\/pickups\/[^/]+$/.test(path)) return ok({ message: "Shift updated" });
 
     // --- assigned tasks ---------------------------------------------------
-    if (path.startsWith("/api/clock/tasks/assigned-all")) return ok(ASSIGNED_TASKS);
+    if (path.startsWith("/api/clock/tasks/assigned-all")) return ok(ASSIGNED_TASKS.map((tk) => withDisplay(tk, lang)));
     if (path.startsWith("/api/clock/tasks/activity/")) {
       return ok([
         { id: "ta-1", action: "assigned", created_at: seed.shift(-2) + "T09:05:00Z", user_name: "Dana Whitlock", details: "" },
@@ -1157,7 +1195,7 @@ function createStubs() {
     }
 
     // --- settings sub-panels ---------------------------------------------
-    if (path === "/api/lookups/categories" && method === "GET") return ok(LOOKUPS);
+    if (path === "/api/lookups/categories" && method === "GET") return ok(lookupsIn(lang));
     if (path === "/api/lookups/categories" && method === "POST") return created({ message: "Category added" });
     if (/^\/api\/lookups\/categories\/[^/]+/.test(path)) return ok({ message: "Category saved" });
     if (path === "/api/lookups/values" && method === "POST") return created({ message: "Option added" });
@@ -1174,7 +1212,9 @@ function createStubs() {
           floors: [{ id: "sl-4", lookup_type: "floor", value: "3", label: "Floor 3", is_active: true, sort_order: 1 }],
         };
       }
-      return ok(state.lookupValues);
+      const choices = {};
+      Object.keys(state.lookupValues).forEach((k) => { choices[k] = withChoiceWords(state.lookupValues[k], lang); });
+      return ok(choices);
     }
     // hand: 2 zones, 1 building, 1 floor for the site picked.
     if (path.startsWith("/api/lookups/site/")) return ok({ message: "Site option saved" });
@@ -1202,7 +1242,7 @@ function createStubs() {
       if (method !== "GET") return ok({ message: "Sent" });
       return ok(CHAT_MESSAGES);
     }
-    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: [] });
+    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: AGENT_CONVERSATIONS[decodeURIComponent(path.slice("/api/agent/conversations/".length))] || [] });
     if (path === "/api/agent/message") return ok({ reply: "Here is what the dashboard shows for that.", conversationId: "ag-1" });
     if (path === "/api/agent/drafts" && method === "GET") return ok(AGENT_DRAFTS);
     if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });
@@ -1244,11 +1284,17 @@ function createStubs() {
   };
 
   // The single entry point the harness routes every request through.
-  function handle({ method, url, body }) {
+  function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
     const path = u.pathname;
     const record = { method, path, query: u.search, body: body || null };
     calls.push(record);
+    // The language the call asked for, kept beside it. Every call says the language the screen is
+    // drawn in; one that says nothing, or another language, is also kept apart, where a reset
+    // between cases cannot clear it, and the run fails on it at the end.
+    record.language = (headers && headers["accept-language"]) || null;
+    language.calls += 1;
+    if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
 
     const refusal = matchRefusal(method, path);
     if (refusal) {
@@ -1256,7 +1302,7 @@ function createStubs() {
       return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
     }
 
-    const answer = route(method, path, u.searchParams, body);
+    const answer = route(method, path, u.searchParams, body, record.language);
     if (answer) {
       answer.delayMs = delayFor(path);
       if (trim && method === "GET" && path.indexOf(trim.path) >= 0) answer.json = cut(answer.json, trim.keep, trim.keepIds);
@@ -1274,6 +1320,7 @@ function createStubs() {
   return {
     handle,
     calls,
+    language: () => language,
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },
@@ -1298,7 +1345,7 @@ function createStubs() {
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
       SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
-      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS,
+      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
       HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
       INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,

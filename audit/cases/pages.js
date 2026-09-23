@@ -109,10 +109,11 @@ async function boxes(d) {
       const t = a || (el.innerText || "").trim().split("\n")[0];
       return t && t.length <= 40 ? el.tagName.toLowerCase() + ":" + t : "";
     };
+    // The toast comes and goes on its own timer, so it is not part of where anything sits. It is not
+    // counted among its siblings either, so every other box has the same path whether or not the
+    // sign-in toast is still up when the page is read.
+    const toast = (el) => { const cs = getComputedStyle(el); return cs.position === "fixed" && Number(cs.zIndex) >= 1000; };
     const walk = (el, path) => {
-      // The toast comes and goes on its own timer, so it is not part of where anything sits.
-      const cs = getComputedStyle(el);
-      if (cs.position === "fixed" && Number(cs.zIndex) >= 1000) return;
       const r = el.getBoundingClientRect();
       lines.push(path + ":" + Math.round(r.x) + "," + Math.round(r.y) + "," + Math.round(r.width) + "," + Math.round(r.height));
       const key = label(el);
@@ -120,11 +121,19 @@ async function boxes(d) {
         named[key] = [Math.round(r.x), Math.round(r.y), Math.round(r.width), Math.round(r.height)];
       }
       if (el.tagName.toLowerCase() === "svg") return;
-      for (let i = 0; i < el.children.length; i += 1) walk(el.children[i], path + "/" + i);
+      const kids = Array.from(el.children).filter((c) => !toast(c));
+      for (let i = 0; i < kids.length; i += 1) walk(kids[i], path + "/" + i);
     };
     walk(document.body, "b");
     return { lines, named };
   });
+}
+
+// The window scrolled to the top and held there for the boxes to be read. Nothing is scrolled inside
+// the page's own boxes; a table that scrolls sideways keeps where it is.
+async function atTop(d) {
+  await d.page.evaluate(() => window.scrollTo(0, 0));
+  await d.page.waitForTimeout(80);
 }
 
 // Where the keyboard is. The first element is focused by hand and everything after it is a real Tab
@@ -210,11 +219,13 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
       results.check("page", id + "/controls-reachable", g.unreachable.length === 0,
         "a control cannot be hit at its own center: " + g.unreachable.join(", "));
 
-      // Where everything sits at Standard, which every later commit has to match.
+      // Where everything sits at Standard, which every later commit has to match. The boxes are read
+      // with the window at the top, since a page reached with it scrolled draws every box higher.
       if (size === "standard" && !light && !spanish && persona === "admin") {
         await d.settle(300);
+        await atTop(d);
         let snap = await boxes(d);
-        if (!layout.matches(p.id, width, snap)) { await d.settle(600); snap = await boxes(d); }
+        if (!layout.matches(p.id, width, snap)) { await d.settle(600); await atTop(d); snap = await boxes(d); }
         layout.see(p.id, width, snap, results);
       }
 
@@ -355,12 +366,13 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
   results.check("page", "page/unknown-hash" + suffix, await d.has(d.say("Welcome back, {0}").split("{0}")[0].trim()),
     "an unknown hash lands on the Dashboard");
 
-  // The page in the hash survives a reload.
+  // The page in the hash survives a reload. Its title is read in the pass's own language, since the
+  // Issue Tracker draws no English word on a Spanish screen.
   await d.goto("issues");
   await d.page.reload({ waitUntil: "domcontentloaded" });
   await d.settle(600);
-  results.check("page", "page/hash-survives-reload" + suffix, await d.has("Issue"),
-    "#issues reopens after a reload");
+  results.check("page", "page/hash-survives-reload" + suffix, await d.has(d.say("Issue Tracker")),
+    "#issues reopens after a reload, which is " + JSON.stringify(d.say("Issue Tracker")) + " in this pass");
 
   // The nav search box reaches a page without the sidebar.
   await d.goto("overview");
