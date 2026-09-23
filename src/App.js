@@ -341,8 +341,8 @@ export default function AdminDashboard() {
   const textSizeChoice = (compact) => (<div style={{ padding: compact ? "6px 10px 8px" : 0 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>{tr("Text size")}</div>
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={x.label}
-        style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>); })}
+      {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={tr(x.label)}
+        style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr(x.label)}</button>); })}
     </div>
   </div>);
   // Each language names itself in its own words, so a person who cannot read the current one can
@@ -632,7 +632,11 @@ export default function AdminDashboard() {
     </div>
 
     {/* ===== MAIN CONTENT ===== */}
-    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", ...(zoom === 1 ? {} : { minWidth: 0 }) }}>
+    {/* A flex child keeps a minimum width of auto, which is the widest thing inside it, so a wide
+        table pushes the whole page past the window and the page scrolls sideways. minWidth: 0 lets
+        the column be as narrow as the window, and the width that no longer fits becomes a scroll
+        inside the table's own box. It is on at every text size now, Standard included. */}
+    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", minWidth: 0 }}>
       {/* Top Bar */}
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>

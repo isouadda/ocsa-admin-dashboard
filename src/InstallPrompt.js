@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { detectInstallMode, shouldShowInstallPrompt, rememberInstallChoice, INSTALL_STEPS } from './installPromptLogic';
 import clientConfig from './clientConfig';
+import { tr } from './words';
 
 // The "add to home screen" sheet. Mounted once at the root, so it appears on every screen including
 // sign-in. It imports nothing from App.js and uses the system font, so it renders the same whatever
@@ -11,6 +12,8 @@ const INSTALL_EVENT_WAIT_MS = 3000;
 const FONT = '-apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 const NAVY = '#0A1628';
 const BLUE = clientConfig.brand.panelLight;
+// The app's own name, which is a name and is never translated.
+const APP_NAME = clientConfig.company.brandTag + ' Admin';
 
 function isStandalone() {
   try {
@@ -45,10 +48,14 @@ function ShareIcon() {
   );
 }
 
+// The step, in whichever language the sheet is drawn in, with the share icon put back beside the
+// words that name it. The marker is looked up too, so it matches the sentence in either language.
 function StepText({ text }) {
-  const idx = text.indexOf('Share button');
-  if (idx < 0) return text;
-  return <>{text.slice(0, idx)}Share button<ShareIcon />{text.slice(idx + 'Share button'.length)}</>;
+  const said = tr(text);
+  const marker = tr('Share button');
+  const idx = said.indexOf(marker);
+  if (idx < 0) return said;
+  return <>{said.slice(0, idx)}{marker}<ShareIcon />{said.slice(idx + marker.length)}</>;
 }
 
 export default function InstallPrompt() {
@@ -160,24 +167,24 @@ export default function InstallPrompt() {
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
           <img src={process.env.PUBLIC_URL + '/icons/icon-192.png'} alt="" width="56" height="56" style={{ width: 56, height: 56, borderRadius: 14, border: '1px solid rgba(10,22,40,0.12)', flexShrink: 0 }} />
-          <div id="ocsa-install-title" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>Add OCSA Admin to your home screen</div>
+          <div id="ocsa-install-title" style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>{tr('Add {0} to your home screen', APP_NAME)}</div>
         </div>
-        <div style={{ fontSize: 15, lineHeight: 1.4, marginBottom: 12, color: '#3A4A60' }}>It opens like an app, one tap from your home screen.</div>
+        <div style={{ fontSize: 15, lineHeight: 1.4, marginBottom: 12, color: '#3A4A60' }}>{tr('It opens like an app, one tap from your home screen.')}</div>
         <ol style={{ margin: '0 0 16px 0', padding: '0 0 0 22px', fontSize: 15, lineHeight: 1.5 }}>
           {steps.map((s, i) => <li key={i} style={{ marginBottom: 4 }}><StepText text={s} /></li>)}
         </ol>
         {mode === 'in_app_browser' && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
             <div style={{ flex: 1, minWidth: 0, fontSize: 13, padding: '10px 12px', borderRadius: 10, background: '#F1F4F8', border: '1px solid rgba(10,22,40,0.12)', wordBreak: 'break-all', userSelect: 'all', WebkitUserSelect: 'all' }}>{address}</div>
-            <button type="button" onClick={copyAddress} style={{ ...btn, flex: '0 0 auto', background: '#FFFFFF', color: BLUE }}>{copied ? 'Copied' : 'Copy'}</button>
+            <button type="button" onClick={copyAddress} style={{ ...btn, flex: '0 0 auto', background: '#FFFFFF', color: BLUE }}>{copied ? tr('Copied') : tr('Copy')}</button>
           </div>
         )}
         {mode === 'android_prompt' && (
-          <button type="button" onClick={install} style={{ ...btn, width: '100%', flex: 'none', background: BLUE, color: '#FFFFFF', marginBottom: 10 }}>Install</button>
+          <button type="button" onClick={install} style={{ ...btn, width: '100%', flex: 'none', background: BLUE, color: '#FFFFFF', marginBottom: 10 }}>{tr('Install')}</button>
         )}
         <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" onClick={() => close('not_now')} style={{ ...btn, background: '#FFFFFF', color: BLUE }}>Not now</button>
-          <button type="button" onClick={() => close('never')} style={{ ...btn, background: '#FFFFFF', color: '#3A4A60', borderColor: 'rgba(10,22,40,0.2)' }}>Don't show again</button>
+          <button type="button" onClick={() => close('not_now')} style={{ ...btn, background: '#FFFFFF', color: BLUE }}>{tr('Not now')}</button>
+          <button type="button" onClick={() => close('never')} style={{ ...btn, background: '#FFFFFF', color: '#3A4A60', borderColor: 'rgba(10,22,40,0.2)' }}>{tr("Don't show again")}</button>
         </div>
       </div>
     </div>

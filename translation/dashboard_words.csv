@@ -7,6 +7,7 @@ A staff member is requesting to drop this shift.,Una persona solicita darse de b
 Actions,Acciones,Shift Pickup
 Active,Activo,"Schedule, Patterns"
 Add a note saying why,Agregue una nota explicando por qué,"Schedule, Time off, when a denial has no note"
+Add {0} to your home screen,Agregue {0} a su pantalla de inicio,"The add to home screen sheet, the title"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
 Admin,Administrador,The shell; Dashboard
 Admin Dashboard,Panel de administración,The shell
@@ -55,11 +56,15 @@ Collapse sidebar,Contraer el panel lateral,The shell
 Completed,Completado,Schedule; Shift Pickup
 Confirm Convert,Confirmar la conversión,Schedule
 Confirm ending this pattern,Confirmar el fin de este patrón,"Schedule, a pattern"
+Confirm on the next screen.,Confirme en la siguiente pantalla.,"The add to home screen sheet, Android"
 Connected to Live API,Conectado a la API en vivo,The shell
 Convert,Convertir,Shift Pickup
 Convert Callout,Convertir la ausencia,Shift Pickup
 Convert Scheduled Shift to Open Pickup,Convertir un turno programado en turno abierto,Shift Pickup
 Convert to Open Pickup,Convertir en turno abierto,Schedule
+Copied,Copiado,"The add to home screen sheet, after the address is copied"
+Copy,Copiar,"The add to home screen sheet, beside the address"
+Copy the address below and paste it there.,Copie la dirección de abajo y péguela allí.,"The add to home screen sheet, inside another app's browser"
 Coverage by Site,Cobertura por sitio,Shift Pickup
 Custom,Personalizado,"The shell, the date range"
 DROP REQ,SOL. DE BAJA,Schedule
@@ -78,6 +83,7 @@ Delete,Eliminar,Schedule
 Denied,Denegada,"Schedule, Time off"
 Deny,Denegar,"Shift Pickup; Schedule, a time off request"
 Deny Request,Denegar la solicitud,Schedule
+Don't show again,No volver a mostrar,"The add to home screen sheet, the button that ends it"
 Done,Listo,Schedule
 Drop Req,Sol. de baja,Schedule
 Drop Request,Solicitud de baja,Shift Pickup
@@ -124,10 +130,12 @@ Inspection cancelled,Inspección cancelada,Schedule
 Inspection rescheduled,Inspección reprogramada,Schedule
 Inspection scores by site,Puntajes de inspección por sitio,Dashboard
 Inspections,Inspecciones,The shell; Schedule
+Install,Instalar,"The add to home screen sheet, the button on Android"
 Integrations,Integraciones,The shell
 Inventory,Inventario,The shell
 Issue Tracker,Registro de incidencias,The shell
 Issues,Incidencias,The shell
+"It opens like an app, one tap from your home screen.","Se abre como una aplicación, a un toque desde su pantalla de inicio.","The add to home screen sheet, under the title"
 LIVE,EN VIVO,The shell
 Language,Idioma,"The shell, the language chooser"
 Large,Grande,"The shell, the text size chooser"
@@ -180,6 +188,7 @@ No-Show,No se presentó,Shift Pickup
 No-Shows,No se presentaron,Shift Pickup
 Normal,Normal,Shift Pickup
 Not given,No indicado,"Schedule, Time off, hours that were not entered"
+Not now,Ahora no,"The add to home screen sheet, the button that puts it off"
 Note,Nota,"Schedule, a time off request"
 Notes,Notas,"Schedule, a pattern; Schedule; Shift Pickup"
 Nothing changed yet.,Nada ha cambiado todavía.,"Schedule, a pattern"
@@ -194,7 +203,9 @@ Open Marketplace Shift,Turno abierto en el tablero,Schedule
 Open Now,Abiertos ahora,Shift Pickup
 Open shift posted,Turno abierto publicado,Shift Pickup
 Open that pattern,Abrir ese patrón,Schedule
+Open the browser menu (the three dots).,Abra el menú del navegador (los tres puntos).,"The add to home screen sheet, Android by hand"
 Open the pattern,Abrir el patrón,Schedule
+Open this page in Safari or Chrome first.,Abra esta página primero en Safari o Chrome.,"The add to home screen sheet, inside another app's browser"
 Operations,Operaciones,The shell
 Operations overview.,Resumen de operaciones.,Dashboard
 Optional notes,Notas opcionales,Schedule
@@ -252,6 +263,7 @@ Scheduled,Programado,Schedule
 Scheduled Date *,Fecha programada *,Schedule
 Scheduling for,Programando para,Schedule
 Score,Puntaje,Dashboard
+Scroll down and tap Add to Home Screen.,Desplácese hacia abajo y toque Agregar a pantalla de inicio.,"The add to home screen sheet, Safari"
 Search pages,Buscar páginas,The shell
 "Search site, service, staff, notes","Buscar por sitio, servicio, personal o notas",Shift Pickup
 Search staff,Buscar personal,Schedule
@@ -270,6 +282,7 @@ Service Category,Categoría de servicio,Schedule; Shift Pickup
 Service category,Categoría de servicio,"Schedule, a pattern"
 Services,Servicios,The shell
 Settings,Configuración,The shell
+Share button,botón Compartir,"The add to home screen sheet, the words the share icon is drawn beside"
 Shift,Turno,Shift Pickup
 Shift Details,Detalles del turno,Shift Pickup
 Shift Drop Request,Solicitud de baja de turno,Schedule; Shift Pickup
@@ -325,12 +338,20 @@ Sun,Dom,Schedule; Shift Pickup
 Supervisor,Supervisor,The shell
 Supplies,Suministros,The shell
 Supplies & Inventory,Suministros e inventario,The shell
+Tap Add or Install.,Toque Agregar o Instalar.,"The add to home screen sheet, Android by hand"
+Tap Add to Home Screen.,Toque Agregar a pantalla de inicio.,"The add to home screen sheet, another browser on iPhone"
+Tap Add to Home screen or Install app.,Toque Agregar a pantalla de inicio o Instalar aplicación.,"The add to home screen sheet, Android by hand"
+Tap Add.,Toque Agregar.,"The add to home screen sheet, Safari"
+Tap Install below.,Toque Instalar abajo.,"The add to home screen sheet, Android"
+Tap the Share button at the bottom of the screen.,Toque el botón Compartir en la parte inferior de la pantalla.,"The add to home screen sheet, Safari"
+Tap the Share button in the address bar.,Toque el botón Compartir en la barra de direcciones.,"The add to home screen sheet, another browser on iPhone"
 Task progress,Avance de tareas,Schedule
 Text size,Tamaño del texto,The shell
 That one is for admins. Ask an admin to take a look.,Ese es para administradores. Pídale a un administrador que lo revise.,The shell
 The person reads your note in the app. Their notice shows only the dates.,La persona lee su nota en la aplicación. Su aviso muestra solo las fechas.,"Schedule, Time off, the hint under the note box"
 The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.,El horario se llena con 8 semanas de anticipación y sigue extendiéndose hasta que el patrón termine.,Schedule
 The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.,El turno programado se cancela y se publica como turno abierto para que el personal elegible lo tome.,Schedule
+Then add it to your home screen from that browser.,Luego agréguela a su pantalla de inicio desde ese navegador.,"The add to home screen sheet, inside another app's browser"
 This Month,Este mes,"The shell, the date range; Shift Pickup"
 This Week,Esta semana,"The shell, the date range; Schedule; Shift Pickup"
 This page is for admins.,Esta página es para administradores.,The admin line

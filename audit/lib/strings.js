@@ -80,8 +80,10 @@ const flowsToTr = (fn, paramIndex) => {
   if (!p || p.type !== "Identifier") return false;
   let hit = false;
   walk(fn.body, (n) => {
-    if (n.type === "CallExpression" && n.callee && TR_CALLS.has(n.callee.name)
-      && n.arguments[0] && n.arguments[0].type === "Identifier" && n.arguments[0].name === p.name) hit = true;
+    if (n.type !== "CallExpression" || !n.callee || !TR_CALLS.has(n.callee.name) || !n.arguments[0]) return;
+    // The parameter itself, or something read off it: tr(x) and tr(x.label) both send it to the
+    // table.
+    walk(n.arguments[0], (m) => { if (m.type === "Identifier" && m.name === p.name) hit = true; }, []);
   }, []);
   return hit;
 };
