@@ -1260,6 +1260,9 @@ function createStubs() {
     if (answer) {
       answer.delayMs = delayFor(path);
       if (trim && method === "GET" && path.indexOf(trim.path) >= 0) answer.json = cut(answer.json, trim.keep, trim.keepIds);
+      // What the API said, kept beside the call. A Spanish screen may draw any of it: a person's
+      // name, a site, a note somebody typed. The check exempts exactly this and nothing else.
+      record.json = answer.json;
       return answer;
     }
 

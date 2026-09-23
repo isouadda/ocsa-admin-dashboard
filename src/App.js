@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo, Fragment, createContext, useContext } from "react";
 import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
+// The word table, the language the screen is drawn in, and what a formatter is given. Nothing
+// else lives there and nothing else leaves this file.
+import { LOCALES, LANGUAGES, tr, trn, setLang, localeTag, browserLang } from "./words";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
@@ -145,9 +148,9 @@ const LIGHT = {
 const goldToText = (t, c) => (c === GO ? t.goldText : c);
 const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
-const ft = d => new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
-const fd = d => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-const ff = d => new Date(d).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const ft = d => new Date(d).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true });
+const fd = d => new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+const ff = d => new Date(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const Ic = ({ d, sz = 18, c = "currentColor", style: s, ...p }) => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} {...p}><path d={d} /></svg>;
 const HmI = p => <Ic d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" {...p} />;
 const UsI = p => <Ic d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M9 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
@@ -189,7 +192,7 @@ const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) =>
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
-const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>This page is for admins.</div><Btn t={t} v="ghost" onClick={onBack}>Back to Dashboard</Btn></Crd>;
+const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
 const CHART_PALETTE = [GO, BL, GR, OR, TL, RD, GL];
@@ -213,8 +216,8 @@ const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <C
 function getMonday(d) { const dt = new Date(d); const day = dt.getDay(); const diff = day === 0 ? 6 : day - 1; dt.setDate(dt.getDate() - diff); dt.setHours(0,0,0,0); return dt; }
 function fmtRange(s, e) {
   const sd = new Date(s + "T00:00:00"), ed = new Date(e + "T00:00:00");
-  const sm = sd.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const em = ed.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const sm = sd.toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+  const em = ed.toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
   return sm + " - " + em;
 }
 function toISO(d) { return d.toISOString().split("T")[0]; }
@@ -234,11 +237,11 @@ function DateRangePicker({ value, onChange, t, presets }) {
   const [showCustom, setShowCustom] = useState(false);
   const [activePreset, setActivePreset] = useState(null);
   const pills = presets || [
-    { key: "thisWeek", label: "This Week" },
-    { key: "lastWeek", label: "Last Week" },
-    { key: "thisMonth", label: "This Month" },
-    { key: "last30", label: "Last 30 Days" },
-    { key: "last90", label: "Last 90 Days" },
+    { key: "thisWeek", label: tr("This Week") },
+    { key: "lastWeek", label: tr("Last Week") },
+    { key: "thisMonth", label: tr("This Month") },
+    { key: "last30", label: tr("Last 30 Days") },
+    { key: "last90", label: tr("Last 90 Days") },
   ];
   const pickPreset = (key) => {
     if (PRESETS[key]) { onChange(PRESETS[key]()); setActivePreset(key); setShowCustom(false); }
@@ -253,8 +256,8 @@ function DateRangePicker({ value, onChange, t, presets }) {
         {pills.map(p => (
           <button key={p.key} onClick={() => pickPreset(p.key)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: activePreset === p.key ? 700 : 500, cursor: "pointer", background: activePreset === p.key ? t.goldBg : "transparent", color: activePreset === p.key ? t.goldText : t.textMut, border: activePreset === p.key ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{p.label}</button>
         ))}
-        <button onClick={() => setShowCustom(!showCustom)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? t.goldText : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Custom</button>
-        <button onClick={() => { const r = PRESETS.thisWeek(); onChange(r); setActivePreset("thisWeek"); setShowCustom(false); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 500, cursor: "pointer", background: "transparent", color: BL, border: "1px solid " + t.border }}>Today</button>
+        <button onClick={() => setShowCustom(!showCustom)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? t.goldText : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Custom")}</button>
+        <button onClick={() => { const r = PRESETS.thisWeek(); onChange(r); setActivePreset("thisWeek"); setShowCustom(false); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 500, cursor: "pointer", background: "transparent", color: BL, border: "1px solid " + t.border }}>{tr("Today")}</button>
       </div>
       {showCustom && (
         <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
@@ -283,6 +286,20 @@ export default function AdminDashboard() {
     try { const stored = localStorage.getItem("ocsa-text-size"); if (TEXT_SIZES.some((x) => x.id === stored)) return stored; } catch {}
     return "standard";
   });
+  // What language this person reads. The stored choice wins, then the browser's own, then English,
+  // which is the order the theme already follows. The table is told before anything draws, so tr()
+  // reads one value rather than taking one at every call.
+  const [lang, setLangState] = useState(() => {
+    try {
+      const stored = localStorage.getItem("ocsa-lang");
+      if (LOCALES.indexOf(stored) >= 0) { setLang(stored); return stored; }
+    } catch (e) { /* a browser with no storage is an English one until it is told */ }
+    const want = browserLang();
+    setLang(want);
+    return want;
+  });
+  const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
+  useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
   const zoom = textSizeFactor(textSize);
   // At Standard the property is left off the root altogether, so the page is what it always was.
   // Published to the subtree as well: a height or width written against the window is in the
@@ -322,9 +339,18 @@ export default function AdminDashboard() {
   }, [t.bg]);
   const toggleTheme = () => { const next = themeMode === "dark" ? "light" : "dark"; setThemeMode(next); try { localStorage.setItem("ocsa-theme", next); } catch {} };
   const textSizeChoice = (compact) => (<div style={{ padding: compact ? "6px 10px 8px" : 0 }}>
-    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>Text size</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>{tr("Text size")}</div>
     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-      {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={x.label}
+      {TEXT_SIZES.map(x => { const on = textSize === x.id; return (<button key={x.id} onClick={() => chooseTextSize(x.id)} aria-pressed={on} title={tr(x.label)}
+        style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr(x.label)}</button>); })}
+    </div>
+  </div>);
+  // Each language names itself in its own words, so a person who cannot read the current one can
+  // still find theirs.
+  const languageChoice = (compact) => (<div style={{ padding: compact ? "6px 10px 8px" : 0 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6, fontFamily: FONT_BODY }}>{tr("Language")}</div>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      {LANGUAGES.map(x => { const on = lang === x.id; return (<button key={x.id} onClick={() => chooseLang(x.id)} aria-pressed={on} title={x.label}
         style={{ minWidth: 44, minHeight: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>); })}
     </div>
   </div>);
@@ -396,8 +422,8 @@ export default function AdminDashboard() {
   const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
   const badgeRing = themeMode === "light" ? { boxShadow: "0 0 0 2px #FFFFFF" } : {};
   const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
-  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={openIssuesCount + " open issues"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
-  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={caseQueueCount + " cases need attention"} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
+  const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={tr("{0} open issues", openIssuesCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
+  const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={tr("{0} cases need attention", caseQueueCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   const getOpts = useCallback((slug, placeholder) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   const lkMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = v.label; }); return m; }, [lookups]);
   const lkColorMap = useCallback((slug) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { if (v.color) m[v.value] = v.color; }); return m; }, [lookups]);
@@ -440,18 +466,19 @@ export default function AdminDashboard() {
   }, []);
   const handleLogin = async (phone, pin) => {
     setLoading(true);
-    try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast("Admin access required", "error"); setLoading(false); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast("Welcome, " + d.user.firstName); } catch (e) { showToast(e.message, "error"); }
+    try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast(tr("Admin access required"), "error"); setLoading(false); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
-  if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>Loading...</div>);
+  if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>);
   if (!token) return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: themeMode === "dark" ? "radial-gradient(1100px 600px at 50% -12%, #16294a 0%, " + NAVY + " 62%)" : t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "24px" }}>
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
-        <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>Admin Dashboard</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />Connected to Live API</div></div>
+        <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>{tr("Admin Dashboard")}</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />{tr("Connected to Live API")}</div></div>
         <LoginForm onLogin={handleLogin} loading={loading} t={t} />
       </div>
       <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
-      <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? "Light Mode" : "Dark Mode"}</button></div>
+      <div style={{ marginTop: 14, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{languageChoice()}</div>
+      <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")}</button></div>
     </div>
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
@@ -466,31 +493,31 @@ export default function AdminDashboard() {
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
 
   const sidebarGroups = [
-    { label: null, items: [{ id: "overview", l: "Dashboard", i: HmI }] },
-    { label: "Operations", items: [
-      { id: "operations", l: "Live Ops", i: ClI },
-      { id: "sites", l: "Sites", i: MpI },
+    { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }] },
+    { label: tr("Operations"), items: [
+      { id: "operations", l: tr("Live Ops"), i: ClI },
+      { id: "sites", l: tr("Sites"), i: MpI },
     ]},
-    { label: "Staff", items: [
-      ...(isAdmin ? [{ id: "staff", l: "Staff Management", i: UsI }] : []),
-      { id: "hr", l: "HR Records", i: FolI },
-      ...(isAdmin ? [{ id: "cases", l: "Cases", i: ClpI }] : []),
+    { label: tr("Staff"), items: [
+      ...(isAdmin ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
+      { id: "hr", l: tr("HR Records"), i: FolI },
+      ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
-    { label: "Quality", items: [
-      { id: "issues", l: "Issues", i: AlI },
-      { id: "assigned", l: "Assigned Tasks", i: WkI },
-      { id: "inspections", l: "Inspections", i: ClpI },
+    { label: tr("Quality"), items: [
+      { id: "issues", l: tr("Issues"), i: AlI },
+      { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
+      { id: "inspections", l: tr("Inspections"), i: ClpI },
     ]},
-    { label: "Supplies", items: [{ id: "supplies", l: "Inventory", i: BxI }, { id: "vendors", l: "Vendors", i: VnI }] },
-    { label: "Services", items: [{ id: "services", l: "Service Catalog", i: SvI }] },
-    { label: "Time", items: [{ id: "schedule", l: "Schedule", i: CalI }, { id: "marketplace", l: "Shift Pickup", i: SwpI }] },
-    { label: "Reports", items: [{ id: "reports", l: "Reports", i: BrI }] },
-    ...(isAdmin ? [{ label: "Integrations", items: [{ id: "forms", l: "Forms", i: FmI }] }] : []),
-    ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: "Settings", i: StgI }] }] : []),
-    { label: null, items: [{ id: "chat", l: "Messages", i: ChI }, { id: "help", l: "Help", i: HlpI }] },
+    { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }] },
+    { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }] },
+    { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
+    { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }] },
+    ...(isAdmin ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
+    ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
+    { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: "Dashboard", staff: "Staff Management", hr: "HR Records", sites: "Sites", assigned: "Assigned Tasks", schedule: "Schedule", operations: "Live Operations", issues: "Issue Tracker", supplies: "Supplies & Inventory", vendors: "Vendor Registry", services: "Service Catalog", chat: "Messages", reports: "Reports", inspections: "Inspections", marketplace: "Shift Pickup", forms: "Forms", settings: "Settings", cases: "Cases", help: "Help" };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -510,7 +537,7 @@ export default function AdminDashboard() {
       {/* Logo + collapse toggle */}
       <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid " + SB_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
         {!sidebarCollapsed && <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 8px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt={clientConfig.company.shortName} style={{ height: 26 }} /></div>}
-        <button onClick={toggleSidebar} title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: SB_TEXT, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button onClick={toggleSidebar} title={sidebarCollapsed ? tr("Expand sidebar") : tr("Collapse sidebar")} style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: SB_TEXT, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Ic d={sidebarCollapsed ? "M13 17l5-5-5-5M6 17l5-5-5-5" : "M11 17l-5-5 5-5M18 17l-5-5 5-5"} sz={16} c={SB_TEXT} />
         </button>
       </div>
@@ -586,55 +613,59 @@ export default function AdminDashboard() {
 
       {/* Bottom: user + theme + logout */}
       <div style={{ borderTop: "1px solid " + SB_BORDER, padding: sidebarCollapsed ? "10px 0" : "10px 14px" }}>
-        <button onClick={toggleTheme} title={sidebarCollapsed ? (themeMode === "dark" ? "Light Mode" : "Dark Mode") : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: 8, padding: sidebarCollapsed ? "7px 0" : "6px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
+        <button onClick={toggleTheme} title={sidebarCollapsed ? (themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")) : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: 8, padding: sidebarCollapsed ? "7px 0" : "6px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
           {themeMode === "dark" ? <SunI sz={15} c={SB_TEXT} /> : <MoonI sz={15} c={SB_TEXT} />}
-          {!sidebarCollapsed && (themeMode === "dark" ? "Light Mode" : "Dark Mode")}
+          {!sidebarCollapsed && (themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode"))}
         </button>
         {!sidebarCollapsed ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
-              <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? "Admin" : "Supervisor"}</div></div>
+              <div><div style={{ fontSize: 12, fontWeight: 600, color: "#F8F7F4" }}>{user?.firstName}</div><div style={{ fontSize: 9, color: SB_TEXT }}>{isAdmin ? tr("Admin") : tr("Supervisor")}</div></div>
             </div>
             <button onClick={signOut} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><LoI sz={15} c={SB_TEXT} /></button>
           </div>
         ) : (
-          <button onClick={signOut} title="Logout" style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
+          <button onClick={signOut} title={tr("Logout")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
         )}
       </div>
     </div>
 
     {/* ===== MAIN CONTENT ===== */}
-    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", ...(zoom === 1 ? {} : { minWidth: 0 }) }}>
+    {/* A flex child keeps a minimum width of auto, which is the widest thing inside it, so a wide
+        table pushes the whole page past the window and the page scrolls sideways. minWidth: 0 lets
+        the column be as narrow as the window, and the width that no longer fits becomes a scroll
+        inside the table's own box. It is on at every text size now, Standard included. */}
+    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", minWidth: 0 }}>
       {/* Top Bar */}
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pageLabels[page] || "Dashboard"}</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? `${clientConfig.company.shortName} Admin` : `${clientConfig.company.shortName} Supervisor`}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pageLabels[page] || tr("Dashboard")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? tr("{0} Admin", clientConfig.company.shortName) : tr("{0} Supervisor", clientConfig.company.shortName)}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ position: "relative", minWidth: 132 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 14px", width: 200, maxWidth: "100%" }}>
               <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder="Search pages" style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder={tr("Search pages")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
             </div>
             {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
               <div style={{ position: "absolute", top: 44, right: 0, width: 240, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
                 {matches.slice(0, 8).map(it => { const NI = it.i; return (
                   <button key={it.id} onClick={() => { setPage(it.id); setNavQ(""); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><NI sz={16} c={t.goldText} /><span>{it.l}</span></button>
                 ); })}
-                {matches.length === 0 && <div style={{ padding: "10px", fontSize: 12, color: t.textMut }}>No matching pages</div>}
+                {matches.length === 0 && <div style={{ padding: "10px", fontSize: 12, color: t.textMut }}>{tr("No matching pages")}</div>}
               </div>
             ); })()}
           </div>
           <div style={{ position: "relative" }}>
-            <button onClick={() => setBellOpen(o => !o)} aria-label={unread > 0 ? unread + " unread notifications" : "Notifications"} title="Notifications" style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <button onClick={() => setBellOpen(o => !o)} aria-label={unread > 0 ? tr("{0} unread notifications", unread) : tr("Notifications")} title={tr("Notifications")} style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast("That one is for admins. Ask an admin to take a look.", "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
+            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
           </div>
-          <button onClick={toggleTheme} title={themeMode === "dark" ? "Light mode" : "Dark mode"} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
+          <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
             <button onClick={() => { setUserMenuOpen(o => !o); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px 4px 4px", borderRadius: 22, background: t.inputBg, border: "1px solid " + t.inputBorder, cursor: "pointer" }}>
               <span style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: t.goldText, fontFamily: FONT_HEAD }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</span>
@@ -643,14 +674,15 @@ export default function AdminDashboard() {
             </button>
             {userMenuOpen && (
               <div style={{ position: "absolute", top: 48, right: 0, width: 210, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
-                <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? "Administrator" : "Supervisor"}</div></div>
-                {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> Settings</button>}
+                <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? tr("Administrator") : tr("Supervisor")}</div></div>
+                {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> {tr("Settings")}</button>}
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
-                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> Sign Out</button>
+                <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{languageChoice(true)}</div>
+                <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
             )}
           </div>
-          <span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.12)", padding: "4px 10px", borderRadius: 10, fontWeight: 600, letterSpacing: ".5px" }}>LIVE</span>
+          <span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.12)", padding: "4px 10px", borderRadius: 10, fontWeight: 600, letterSpacing: ".5px" }}>{tr("LIVE")}</span>
         </div>
       </div>
       {(navOpen || userMenuOpen) && <div onClick={() => { setNavOpen(false); setUserMenuOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 38 }} />}
@@ -685,16 +717,16 @@ export default function AdminDashboard() {
 
 function LoginForm({ onLogin, loading, t }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
-  return (<><div style={{ marginBottom: 16 }}><Lbl>Phone or Email</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder="2150000000 or name@email.com" onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <div style={{ marginBottom: 24 }}><Lbl>PIN</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? "Signing in..." : "Sign In"}</button>
+  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("2150000000 or name@email.com")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
+    <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
+    <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
 
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
 const DataTable = ({ columns, rows, rowKey, onRowClick, empty = "No records found.", footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
-const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>Showing {from} to {to} of {total}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>Prev</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>Page {cur} / {totalPages}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>Next</button></div></div>; };
+const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Showing {0} to {1} of {2}", from, to, total)}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>{tr("Prev")}</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>{tr("Page {0} / {1}", cur, totalPages)}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>{tr("Next")}</button></div></div>; };
 
 const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: t.goldText, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
 
@@ -703,8 +735,8 @@ const TimelineRow = ({ t, node, last, onClick, children }) => <div style={{ disp
 // Shift session helpers. GET /api/shift-sessions/by-site returns { date, sites: [{ siteId, siteName, people: [...] }] }.
 // A session records who started a shift where. There is no end time, so these never claim who is on site right now.
 const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.people || []).map(p => ({ ...p, siteName: site.siteName })));
-const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? "Floor " + p.floorNumber : null].filter(Boolean).join(", ");
+const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "";
+const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", ");
 
 function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   const [stats, setStats] = useState(null); const [started, setStarted] = useState([]);
@@ -715,40 +747,40 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
     af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(e => console.warn(e.message));
   };
   useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
-  if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
+  if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
   return (<div>
-    <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>Welcome back, {user?.firstName || "Admin"}</div>
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>Operations overview.</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> Refresh</button></div>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>{tr("Welcome back, {0}", user?.firstName || tr("Admin"))}</div>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>{tr("Operations overview.")}</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> {tr("Refresh")}</button></div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-      <SC t={t} label="Started today" value={stats.clockedInNow} sub={"of " + stats.activeStaff + " active"} color={GR} icon={CkI} />
-      <SC t={t} label="Open Issues" value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
-      {isAdmin && <SC t={t} label="Pending" value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
+      <SC t={t} label={tr("Started today")} value={stats.clockedInNow} sub={tr("of {0} active", stats.activeStaff)} color={GR} icon={CkI} />
+      <SC t={t} label={tr("Open Issues")} value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
+      {isAdmin && <SC t={t} label={tr("Pending")} value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
     </div>
-    <SecT t={t}>Started today</SecT>
+    <SecT t={t}>{tr("Started today")}</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
-      {started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>No shifts started yet today.</div>}
+      {started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
       {started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
         <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
           <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
-          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>Started {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{s.tasksCompleted} of {s.tasksTotal}</span></div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1}", s.tasksCompleted, s.tasksTotal)}</span></div></div>
         </div>); })}
     </Crd>
     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
       <div style={{ flex: "2 1 340px", minWidth: 0 }}>
-        <ChartCard t={t} title="Inspection scores by site" sub="Most recent inspection per site" action="View all" onAction={() => setPage("inspections")}>
+        <ChartCard t={t} title={tr("Inspection scores by site")} sub={tr("Most recent inspection per site")} action={tr("View all")} onAction={() => setPage("inspections")}>
           {inspSummary.length > 0
-            ? <BarChartW t={t} name="Score" categories={inspSummary.map(is => is.site_name)} values={inspSummary.map(is => Math.round(Number(is.score_pct)))} colors={inspSummary.map(is => { const s = Number(is.score_pct); return s >= 80 ? GR : s >= 60 ? OR : RD; })} valueSuffix="%" height={270} />
-            : <div style={{ padding: 36, textAlign: "center", color: t.textMut, fontSize: 13 }}>No inspections recorded yet.</div>}
+            ? <BarChartW t={t} name={tr("Score")} categories={inspSummary.map(is => is.site_name)} values={inspSummary.map(is => Math.round(Number(is.score_pct)))} colors={inspSummary.map(is => { const s = Number(is.score_pct); return s >= 80 ? GR : s >= 60 ? OR : RD; })} valueSuffix="%" height={270} />
+            : <div style={{ padding: 36, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("No inspections recorded yet.")}</div>}
         </ChartCard>
       </div>
       <div style={{ flex: "1 1 240px", minWidth: 0 }}>
-        <ChartCard t={t} title="Started today" sub="Since midnight">
-          <RadialW t={t} value={stats.activeStaff > 0 ? (stats.clockedInNow / stats.activeStaff) * 100 : 0} valueText={stats.clockedInNow + " / " + stats.activeStaff} label="Started" color={GR} height={270} />
+        <ChartCard t={t} title={tr("Started today")} sub={tr("Since midnight")}>
+          <RadialW t={t} value={stats.activeStaff > 0 ? (stats.clockedInNow / stats.activeStaff) * 100 : 0} valueText={stats.clockedInNow + " / " + stats.activeStaff} label={tr("Started")} color={GR} height={270} />
         </ChartCard>
       </div>
     </div>    {((isAdmin && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      {isAdmin && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{stats.pendingStaff} pending</button>}
-      {stats.openIssues > 0 && <button onClick={() => setPage("issues")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.redSubtle, border: "1px solid " + t.redBorder, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><AlI sz={16} c={RD} />{stats.openIssues} open issues</button>}
+      {isAdmin && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{tr("{0} pending", stats.pendingStaff)}</button>}
+      {stats.openIssues > 0 && <button onClick={() => setPage("issues")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.redSubtle, border: "1px solid " + t.redBorder, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><AlI sz={16} c={RD} />{tr("{0} open issues", stats.openIssues)}</button>}
     </div>}
   </div>);
 }
@@ -843,7 +875,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const rows = [["Date", "Time", "Action", "Description", "Performed By"]];
     timeline.forEach(e => {
       const dt = new Date(e.createdAt);
-      rows.push([dt.toLocaleDateString(), dt.toLocaleTimeString(), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
+      rows.push([dt.toLocaleDateString(localeTag()), dt.toLocaleTimeString(localeTag()), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
     });
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -881,7 +913,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(), u.profilePhotoUrl || null);
+    html += printHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content">';
     html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
     if (r) {
@@ -904,7 +936,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
       html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
-      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || new Date(p.created_at || "").toLocaleString() || "") + '</div></div>'; });
+      tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
@@ -932,9 +964,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(u.firstName + ' ' + u.lastName + ' - Activity Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString(), u.profilePhotoUrl || null);
+    html += printHeader(u.firstName + ' ' + u.lastName + ' - Activity Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
     html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
@@ -953,7 +985,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(fullName, 'Employee Report | Generated ' + new Date().toLocaleDateString(), u.profilePhotoUrl || null);
+    html += printHeader(fullName, 'Employee Report | Generated ' + new Date().toLocaleDateString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content">';
     // Profile info section
     html += '<div class="section"><div class="section-title">Employee Information</div><div class="grid">';
@@ -982,7 +1014,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     // Timeline (if loaded)
     if (timeline.length > 0) {
       html += '<div class="section"><div class="section-title">Activity Timeline (' + timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + ')</div><table><tr><th>Date</th><th>Action</th><th>Description</th><th>By</th></tr>';
-      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
       html += '</table></div>';
     }
     html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div>';
@@ -1240,12 +1272,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
               const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
-              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
+              return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(localeTag(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
                 <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
                   <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, color: t.text, lineHeight: 1.4 }}>{entry.description || entry.actionType.replace(/_/g, " ")}</div>
-                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " by " + entry.actorName : ""}</div>
+                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" })}{entry.actorName && entry.actorName !== (u.firstName + " " + u.lastName) ? " by " + entry.actorName : ""}</div>
                     </div>
                     <div style={{ fontSize: 9, color: dotColor, background: dotColor + "15", padding: "2px 6px", borderRadius: 4, flexShrink: 0, textTransform: "capitalize" }}>{entry.entityType.replace(/_/g, " ")}</div>
                   </div>
@@ -1270,7 +1302,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         {/* Activity summary */}
         <div style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 16 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tlDetail.entry?.description || "N/A"}</div>
-          <div style={{ fontSize: 11, color: t.textMut }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString() : ""}{tlDetail.entry?.actorName ? " by " + tlDetail.entry.actorName : ""}</div>
+          <div style={{ fontSize: 11, color: t.textMut }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString(localeTag()) : ""}{tlDetail.entry?.actorName ? " by " + tlDetail.entry.actorName : ""}</div>
           <div style={{ marginTop: 6 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
         </div>
         {!tlDetail.found && <div style={{ padding: 16, textAlign: "center", color: t.textMut, fontSize: 12 }}>
@@ -1522,7 +1554,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += '.msg .sender{font-weight:700;font-size:12px;color:' + NAVY + '}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString());
+    html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
     html += '<div class="content">';
     const sorted = [...siteChat].reverse();
     sorted.forEach(m => {
@@ -1535,7 +1567,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       } else {
         html += '<div class="initials">' + initials + '</div>';
       }
-      html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString() + ' ' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</span>';
+      html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</span>';
       html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
     });
     html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Communication Record</div></div></body></html>';
@@ -1656,7 +1688,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const rows = [["Date", "Time", "Action", "Description", "Performed By"]];
     timeline.forEach(e => {
       const dt = new Date(e.createdAt);
-      rows.push([dt.toLocaleDateString(), dt.toLocaleTimeString(), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
+      rows.push([dt.toLocaleDateString(localeTag()), dt.toLocaleTimeString(localeTag()), e.actionType.replace(/_/g, " "), (e.description || "").replace(/,/g, ";"), e.actorName || "System"]);
     });
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -1677,9 +1709,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString());
+    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
     html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString() + '</td><td>' + dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
     html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Site Record</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
@@ -1700,7 +1732,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString());
+    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
     html += '<div class="content">';
     html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
     if (r) {
@@ -1791,7 +1823,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Type</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.contract_type || "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Prime Contractor</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.prime_contractor || "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Client</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_name || "N/A"}</div></div>
-            <div><div style={{ fontSize: 10, color: t.textMut }}>Monthly Value</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString() : "N/A"}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>Monthly Value</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : "N/A"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Billing</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{s.billing_frequency || "monthly"}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>Contract Dates</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fd(s.contract_start_date) : "N/A"} {s.contract_end_date ? " to " + fd(s.contract_end_date) : ""}</div></div>
           </div>
@@ -1964,7 +1996,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{m.senderName || "Unknown"}</div>
-                <div style={{ fontSize: 9, color: t.textMut }}>{dt.toLocaleDateString()} {dt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}</div>
+                <div style={{ fontSize: 9, color: t.textMut }}>{dt.toLocaleDateString(localeTag())} {dt.toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true })}</div>
               </div>
               <div style={{ fontSize: 12, color: t.textSec, marginTop: 3, lineHeight: 1.5 }}>{m.text}</div>
             </div>
@@ -2005,7 +2037,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         {(() => {
           const grouped = {};
           timeline.forEach(e => {
-            const day = new Date(e.createdAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+            const day = new Date(e.createdAt).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
             if (!grouped[day]) grouped[day] = [];
             grouped[day].push(e);
           });
@@ -2018,7 +2050,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor, marginTop: 5, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: t.text }}>{e.description}</div>
-                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{new Date(e.createdAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })} | {e.actorName}</div>
+                  <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{new Date(e.createdAt).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true })} | {e.actorName}</div>
                 </div>
               </div>;
             })}
@@ -2039,7 +2071,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         </div>
         <div style={{ marginBottom: 12, padding: "10px 12px", background: t.hover, borderRadius: 8 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: t.text }}>{tlDetail.entry?.description || "N/A"}</div>
-          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString() : ""} | {tlDetail.entry?.actorName || "System"}</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tlDetail.entry ? new Date(tlDetail.entry.createdAt).toLocaleString(localeTag()) : ""} | {tlDetail.entry?.actorName || "System"}</div>
           <div style={{ marginTop: 4 }}><Bdg l={tlDetail.entry?.actionType?.replace(/_/g, " ") || ""} c={GO} /></div>
         </div>
         {tlDetail.record && <div style={{ marginBottom: 12 }}>
@@ -2179,7 +2211,7 @@ function OpsPage({ af, t, allStaff }) {
   const loadOps = () => { af("/api/shift-sessions/by-site?date=" + date).then(d => setBoard({ date: d.date, sites: d.sites || [] })).catch(e => console.warn("Load shift sessions:", e.message)); };
   useEffect(() => { loadOps(); const iv = setInterval(loadOps, 30000); return () => clearInterval(iv); }, [date]);
   const isToday = date === toISO(new Date());
-  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const dayLabel = isToday ? "today" : "on " + new Date(date + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const startedIds = new Set(board.sites.flatMap(site => site.people.map(p => p.userId)));
   const rest = allStaff.filter(u => !startedIds.has(u.id));
   return (<div><SecT t={t} action="Refresh" onAction={loadOps}>Started {dayLabel}</SecT>
@@ -2242,7 +2274,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
       {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photos ({allPhotos.length})</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={"Photo " + (i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? "Original" : "Resolution"}</div></div>)}</div></div>}
       {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Photo</div><img src={sel.photo_url} alt="Issue" style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
-        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "resolution_photo" ? "Resolution Photo" : a.action === "photo_added" ? "Photo Added" : a.action; const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+        {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? "Reported" : a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "status_changed" ? "Status Changed" : a.action === "resolution_photo" ? "Resolution Photo" : a.action === "photo_added" ? "Photo Added" : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>Start Work</Btn>}
         {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>Resolve</Btn>}
@@ -2776,11 +2808,11 @@ const notifAgo = (iso) => {
   const then = new Date(iso).getTime();
   if (!Number.isFinite(then)) return "";
   const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
-  if (mins < 60) return Math.max(1, mins) + "m";
+  if (mins < 60) return tr("{0}m", Math.max(1, mins));
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return hrs + "h";
+  if (hrs < 24) return tr("{0}h", hrs);
   const days = Math.floor(hrs / 24);
-  return days <= 7 ? days + "d" : fd(iso);
+  return days <= 7 ? tr("{0}d", days) : fd(iso);
 };
 // A link inside this dashboard opens its page without a reload; anything else opens in a new tab.
 const notifTarget = (link) => {
@@ -2842,14 +2874,14 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
 
   return (<>
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 60 }} />
-    <div ref={boxRef} role="dialog" aria-label="Notifications" style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw / var(--zoom, 1) - 32px))", maxHeight: "calc(70vh / var(--zoom, 1))", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
+    <div ref={boxRef} role="dialog" aria-label={tr("Notifications")} style={{ position: "absolute", top: 46, right: 0, width: "min(420px, calc(100vw / var(--zoom, 1) - 32px))", maxHeight: "calc(70vh / var(--zoom, 1))", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 61 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", borderBottom: "1px solid " + t.border, position: "sticky", top: 0, background: t.card }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>Notifications</div>
-        <button onClick={markAll} disabled={busy || unread === 0} style={{ minHeight: 44, padding: "0 10px", background: "none", border: "none", color: unread === 0 ? t.textMut : t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: unread === 0 ? "default" : "pointer" }}>Mark all read</button>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Notifications")}</div>
+        <button onClick={markAll} disabled={busy || unread === 0} style={{ minHeight: 44, padding: "0 10px", background: "none", border: "none", color: unread === 0 ? t.textMut : t.goldText, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: unread === 0 ? "default" : "pointer" }}>{tr("Mark all read")}</button>
       </div>
-      {failed && rows.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>Notifications did not load. <button onClick={() => fetchPage(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
-      {!failed && !loading && rows.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>Nothing yet.</div>}
-      {loading && rows.length === 0 && !failed && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>Loading...</div>}
+      {failed && rows.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>{tr("Notifications did not load.")} <button onClick={() => fetchPage(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
+      {!failed && !loading && rows.length === 0 && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Nothing yet.")}</div>}
+      {loading && rows.length === 0 && !failed && <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>}
       {rows.map(n => (
         <button key={n.id} onClick={() => openRow(n)} disabled={busy} style={{ display: "flex", gap: 10, alignItems: "flex-start", width: "100%", minHeight: 44, padding: "10px 14px", background: "none", border: "none", borderBottom: "1px solid " + t.border, textAlign: "left", cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY }}>
           <span style={{ width: 8, height: 8, borderRadius: "50%", background: n.readAt ? "transparent" : GO, flexShrink: 0, marginTop: 6 }} />
@@ -2860,7 +2892,7 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
           <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0, marginTop: 2 }}>{notifAgo(n.createdAt)}</span>
         </button>
       ))}
-      {more && <div style={{ padding: 8, textAlign: "center" }}><button onClick={() => fetchPage(rows[rows.length - 1].createdAt)} disabled={loading} style={{ minHeight: 44, padding: "0 14px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{loading ? "Loading..." : "Load more"}</button></div>}
+      {more && <div style={{ padding: 8, textAlign: "center" }}><button onClick={() => fetchPage(rows[rows.length - 1].createdAt)} disabled={loading} style={{ minHeight: 44, padding: "0 14px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{loading ? tr("Loading...") : tr("Load more")}</button></div>}
     </div>
   </>);
 }
@@ -2875,7 +2907,7 @@ const fmtDurMin = (m) => {
 };
 const fmtPctVal = (p) => (p === null || p === undefined) ? "n/a" : (p + "%");
 const hrsFromMin = (m) => m === null || m === undefined ? null : Math.round(m / 60 * 10) / 10;
-const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch (e) { return s; } };
+const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(localeTag(), { month: "short", day: "numeric" }); } catch (e) { return s; } };
 const resolvePreset = (key) => (PRESETS[key] ? PRESETS[key]() : PRESETS.last30());
 
 const REPORT_PRESETS = [
@@ -3120,7 +3152,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const showEin = !!(useBrand && settings && settings.show_ein_on_reports && settings.ein);
     const addr = useBrand && settings && settings.address ? settings.address : "";
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
     const sevLabel = sevFilter ? (sevFilter.charAt(0).toUpperCase() + sevFilter.slice(1)) : "All severities";
@@ -3298,7 +3330,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
   const hasActivity = !!(sm && sm.usage_events > 0);
   const out = cfg.output;
   const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
-  const money = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const money = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const tiles = sm ? [
     { label: "Estimated cost", value: money(sm.total_estimated_cost), color: t.text },
@@ -3315,9 +3347,9 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
     const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const addr = useBrand && settings && settings.address ? settings.address : "";
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const m = (v) => "$" + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const m = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
     const catLabel = catFilter ? (catFilter.charAt(0).toUpperCase() + catFilter.slice(1)) : "All categories";
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
@@ -3398,7 +3430,7 @@ const InspectionScoreTrendWidget = ({ rows, t }) => {
     byDate[k].max += Number(r.max_possible_score || 0);
   });
   const keys = Object.keys(byDate).sort();
-  const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const cats = keys.map(fmt);
   const series = [{ name: "Avg score %", data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
   const hasData = series[0].data.some(v => v !== null);
@@ -3477,7 +3509,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
     const cName = (useBrand && settings && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
     const logo = useBrand && settings && settings.logo_url ? settings.logo_url : "";
     const addr = useBrand && settings && settings.address ? settings.address : "";
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const pct = (v) => (v == null ? "-" : (v + "%"));
     const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
@@ -3906,7 +3938,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
       {sel.media_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Attached {sel.media_type === "video" ? "Video" : "Photo"}</div>{sel.media_type === "video" ? <video src={sel.media_url} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /> : <img src={sel.media_url} alt="Task" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} />}</div>}
       {sel.resolution_photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Resolution Photo</div><img src={sel.resolution_photo_url} alt="Resolution" style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover", border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>Activity Timeline</div>
-        {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action; const timeStr = new Date(a.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
+        {activity.map((a, i) => { const actColor = a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "resolution_photo" ? GR : t.textMut; const actLabel = a.action === "assigned" ? "Assigned" : a.action === "reassigned" ? "Reassigned" : a.action === "started_work" ? "Work Started" : a.action === "resolved" ? "Resolved" : a.action === "unable_to_resolve" ? "Unable to Resolve" : a.action === "resolution_photo" ? "Photo Attached" : a.action; const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || "System"} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span><span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>by {a.user_name}</span></div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         {(sel.resolution_status !== "resolved") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setReassignForm({ taskId: sel.task_id, siteId: sel.site_id, userId: "", note: "", currentAssignee: sel.assigned_to_name }); }}>Reassign</Btn>}
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>Close</Btn>
@@ -4108,7 +4140,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
           {detail.evaluations?.map((ev, i) => (
             <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"★".repeat(ev.rating)}{"☆".repeat(5 - ev.rating)}</span>
+                <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"\u2605".repeat(ev.rating)}{"\u2606".repeat(5 - ev.rating)}</span>
                 <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
               </div>
               {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
@@ -4138,7 +4170,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 14 }}><Lbl>Rating *</Lbl>
           <div style={{ display: "flex", gap: 8 }}>
             {[1,2,3,4,5].map(r => (
-              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? t.goldText : t.textMut, fontSize: 20, cursor: "pointer" }}>★</button>
+              <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? t.goldText : t.textMut, fontSize: 20, cursor: "pointer" }}>{"\u2605"}</button>
             ))}
           </div>
         </div>
@@ -4348,10 +4380,10 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 // ===== WEEKLY PATTERNS: a standing pattern the API keeps and refills ahead =====
 const PATTERN_DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 const PATTERN_DAY_LABELS = { sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat" };
-const patternDays = (days) => (Array.isArray(days) ? days : []).slice().sort((a, b) => PATTERN_DAY_KEYS.indexOf(a) - PATTERN_DAY_KEYS.indexOf(b)).map(d => PATTERN_DAY_LABELS[d] || d).join(", ");
-const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); let h = Number(m[1]); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return h + ":" + m[2] + " " + ap; };
-const patternHours = (p) => patternTime(p.startTime) + " to " + patternTime(p.endTime) + (p.overnight ? " ends next day" : "");
-const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+const patternDays = (days) => (Array.isArray(days) ? days : []).slice().sort((a, b) => PATTERN_DAY_KEYS.indexOf(a) - PATTERN_DAY_KEYS.indexOf(b)).map(d => tr(PATTERN_DAY_LABELS[d] || d)).join(", ");
+const patternTime = (hhmm) => { const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); if (!m) return String(hhmm || ""); const d = new Date(2000, 0, 1, Number(m[1]), Number(m[2])); return d.toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }); };
+const patternHours = (p) => tr("{0} to {1}", patternTime(p.startTime), patternTime(p.endTime)) + (p.overnight ? " " + tr("ends next day") : "");
+const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00" : d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
 // An end time earlier than the start time means the shift runs into the next morning, so the day
 // chosen is the day it starts. Zero-padded HH:MM compares correctly as text. Equal times are not
 // overnight; the API refuses those on its own.
@@ -4383,7 +4415,7 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
       const p = (d && d.pattern) || null;
       setPattern(p);
       if (p) setForm({ days: Array.isArray(p.days) ? p.days.slice() : [], startTime: p.startTime || "", endTime: p.endTime || "", buildingName: p.buildingName || "", floorNumber: p.floorNumber == null ? "" : String(p.floorNumber), serviceCategory: p.serviceCategory || "", notes: p.notes || "" });
-    } catch (e) { setError(e.message || "Request failed"); }
+    } catch (e) { setError(e.message || tr("Request failed")); }
     setLoading(false);
   }, [af, id]);
   useEffect(() => { load(); }, [load]);
@@ -4414,18 +4446,18 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
     if (form.floorNumber !== (pattern.floorNumber == null ? "" : String(pattern.floorNumber))) body.floorNumber = form.floorNumber || null;
     if (form.serviceCategory !== (pattern.serviceCategory || "")) body.serviceCategory = form.serviceCategory || null;
     if (form.notes !== (pattern.notes || "")) body.notes = form.notes || null;
-    if (Object.keys(body).length === 0) { setError("Nothing changed yet."); return; }
+    if (Object.keys(body).length === 0) { setError(tr("Nothing changed yet.")); return; }
     body.effectiveFrom = effectiveFrom;
     setBusy(true); setError(""); setResult(null);
     try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id), { method: "PATCH", body })); }
-    catch (e) { setError(e.message || "Request failed"); }
+    catch (e) { setError(e.message || tr("Request failed")); }
     setBusy(false);
   };
   const endPattern = async () => {
     if (!pattern || busy) return;
     setBusy(true); setError(""); setResult(null); setConfirming(false);
     try { showResult(await af("/api/schedule/patterns/" + encodeURIComponent(id) + "/end", { method: "POST", body: { lastDate } })); }
-    catch (e) { setError(e.message || "Request failed"); }
+    catch (e) { setError(e.message || tr("Request failed")); }
     setBusy(false);
   };
 
@@ -4433,61 +4465,61 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Weekly pattern</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Weekly pattern")}</div>
         {pattern && <div style={{ marginTop: 6, fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
-          <div>{pattern.userName} at {pattern.siteName}</div>
+          <div>{tr("{0} at {1}", pattern.userName, pattern.siteName)}</div>
           <div>{patternDays(pattern.days)} {patternHours(pattern)}</div>
-          <div>Starts {patternDate(pattern.startsOn)}, {pattern.endsOn ? "ends " + patternDate(pattern.endsOn) : "No end"}</div>
-          <div>Filled through {patternDate(pattern.generatedThrough)}</div>
-          {pattern.replacesPatternId && <button onClick={() => onOpenOther(pattern.replacesPatternId)} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 0" }}>Replaces an earlier pattern</button>}
+          <div>{tr("Starts")} {patternDate(pattern.startsOn)}, {pattern.endsOn ? tr("ends {0}", patternDate(pattern.endsOn)) : tr("No end")}</div>
+          <div>{tr("Filled through {0}", patternDate(pattern.generatedThrough))}</div>
+          {pattern.replacesPatternId && <button onClick={() => onOpenOther(pattern.replacesPatternId)} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 0" }}>{tr("Replaces an earlier pattern")}</button>}
         </div>}
       </div>
-      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
     </div>
-    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading...</div>}
+    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
     {!loading && pattern && form && (<>
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
-        <Lbl>Change</Lbl>
+        <Lbl>{tr("Change")}</Lbl>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
-          {PATTERN_DAY_KEYS.map(k => <button key={k} onClick={() => toggleDay(k)} aria-label={PATTERN_DAY_LABELS[k]} aria-pressed={form.days.includes(k)} style={{ width: 44, height: 44, borderRadius: 6, fontSize: 11, fontWeight: form.days.includes(k) ? 700 : 500, cursor: "pointer", background: form.days.includes(k) ? GO : "transparent", color: form.days.includes(k) ? NAVY : t.textMut, border: "1px solid " + (form.days.includes(k) ? GO : t.border), fontFamily: FONT_BODY }}>{PATTERN_DAY_LABELS[k]}</button>)}
+          {PATTERN_DAY_KEYS.map(k => <button key={k} onClick={() => toggleDay(k)} aria-label={tr(PATTERN_DAY_LABELS[k])} aria-pressed={form.days.includes(k)} style={{ width: 44, height: 44, borderRadius: 6, fontSize: 11, fontWeight: form.days.includes(k) ? 700 : 500, cursor: "pointer", background: form.days.includes(k) ? GO : "transparent", color: form.days.includes(k) ? NAVY : t.textMut, border: "1px solid " + (form.days.includes(k) ? GO : t.border), fontFamily: FONT_BODY }}>{tr(PATTERN_DAY_LABELS[k])}</button>)}
         </div>
-        {runsPastMidnight(form.startTime, form.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{OVERNIGHT_NOTE}</div>}
+        {runsPastMidnight(form.startTime, form.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr(OVERNIGHT_NOTE)}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><Lbl>Start time</Lbl><Inp t={t} type="time" aria-label="Start time" value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} /></div>
-          <div><Lbl>End time</Lbl><Inp t={t} type="time" aria-label="End time" value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} /></div>
+          <div><Lbl>{tr("Start time")}</Lbl><Inp t={t} type="time" aria-label={tr("Start time")} value={form.startTime} onChange={e => setForm({ ...form, startTime: e.target.value })} /></div>
+          <div><Lbl>{tr("End time")}</Lbl><Inp t={t} type="time" aria-label={tr("End time")} value={form.endTime} onChange={e => setForm({ ...form, endTime: e.target.value })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-          <div><Lbl>Building</Lbl><Inp t={t} aria-label="Building" value={form.buildingName} onChange={e => setForm({ ...form, buildingName: e.target.value })} /></div>
-          <div><Lbl>Floor</Lbl><Inp t={t} aria-label="Floor" value={form.floorNumber} onChange={e => setForm({ ...form, floorNumber: e.target.value })} /></div>
+          <div><Lbl>{tr("Building")}</Lbl><Inp t={t} aria-label={tr("Building")} value={form.buildingName} onChange={e => setForm({ ...form, buildingName: e.target.value })} /></div>
+          <div><Lbl>{tr("Floor")}</Lbl><Inp t={t} aria-label={tr("Floor")} value={form.floorNumber} onChange={e => setForm({ ...form, floorNumber: e.target.value })} /></div>
         </div>
-        <div style={{ marginBottom: 10 }}><Lbl>Service category</Lbl><Inp t={t} aria-label="Service category" value={form.serviceCategory} onChange={e => setForm({ ...form, serviceCategory: e.target.value })} /></div>
-        <div style={{ marginBottom: 10 }}><Lbl>Notes</Lbl><Inp t={t} aria-label="Notes" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
-        <div style={{ marginBottom: 8 }}><Lbl>Changes start on</Lbl><Inp t={t} type="date" aria-label="Changes start on" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} style={{ width: 170 }} /></div>
-        <Btn t={t} onClick={save} disabled={busy} style={{ minHeight: 44 }}>Save changes</Btn>
-        {started && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.</div>}
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Service category")}</Lbl><Inp t={t} aria-label={tr("Service category")} value={form.serviceCategory} onChange={e => setForm({ ...form, serviceCategory: e.target.value })} /></div>
+        <div style={{ marginBottom: 10 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} aria-label={tr("Notes")} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} /></div>
+        <div style={{ marginBottom: 8 }}><Lbl>{tr("Changes start on")}</Lbl><Inp t={t} type="date" aria-label={tr("Changes start on")} value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)} style={{ width: 170 }} /></div>
+        <Btn t={t} onClick={save} disabled={busy} style={{ minHeight: 44 }}>{tr("Save changes")}</Btn>
+        {started && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.")}</div>}
       </div>
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
-        <Lbl>End</Lbl>
+        <Lbl>{tr("End")}</Lbl>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div><Lbl>Last day</Lbl><Inp t={t} type="date" aria-label="Last day" value={lastDate} onChange={e => setLastDate(e.target.value)} style={{ width: 170 }} /></div>
-          <Btn t={t} v="danger" onClick={() => setConfirming(true)} disabled={busy} style={{ minHeight: 44 }}>End pattern</Btn>
+          <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={lastDate} onChange={e => setLastDate(e.target.value)} style={{ width: 170 }} /></div>
+          <Btn t={t} v="danger" onClick={() => setConfirming(true)} disabled={busy} style={{ minHeight: 44 }}>{tr("End pattern")}</Btn>
         </div>
         {confirming && <div style={{ marginTop: 10, fontSize: 12, color: t.text }}>
-          <div style={{ marginBottom: 6 }}>End this pattern after {patternDate(lastDate)}? Future shifts it added are removed, except ones changed by hand.</div>
+          <div style={{ marginBottom: 6 }}>{tr("End this pattern after {0}? Future shifts it added are removed, except ones changed by hand.", patternDate(lastDate))}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Btn t={t} v="danger" aria-label="Confirm ending this pattern" onClick={endPattern} disabled={busy} style={{ minHeight: 44 }}>End pattern</Btn>
-            <Btn t={t} v="ghost" aria-label="Cancel ending this pattern" onClick={() => setConfirming(false)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+            <Btn t={t} v="danger" aria-label={tr("Confirm ending this pattern")} onClick={endPattern} disabled={busy} style={{ minHeight: 44 }}>{tr("End pattern")}</Btn>
+            <Btn t={t} v="ghost" aria-label={tr("Cancel ending this pattern")} onClick={() => setConfirming(false)} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
           </div>
         </div>}
       </div>
     </>)}
     {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
     {result && <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>{result.created} added, {result.removed} removed, {result.keptCount} kept</div>
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{tr("{0} added, {1} removed, {2} kept", result.created, result.removed, result.keptCount)}</div>
       {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
       {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
     </div>}
-    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
   </div></Mdl>);
 }
 
@@ -4505,31 +4537,31 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
     if (userId) q.push("userId=" + encodeURIComponent(userId));
     if (siteId) q.push("siteId=" + encodeURIComponent(siteId));
     try { const d = await af("/api/schedule/patterns?" + q.join("&")); setRows(d && Array.isArray(d.patterns) ? d.patterns : []); }
-    catch (e) { setRows([]); setError(e.message || "Request failed"); }
+    catch (e) { setRows([]); setError(e.message || tr("Request failed")); }
     setLoading(false);
   }, [af, status, userId, siteId]);
   useEffect(() => { load(); }, [load, refreshKey]);
 
   const columns = [
-    { header: "Person", render: p => <span style={{ color: t.text }}>{p.userName}</span> },
-    { header: "Site", tdStyle: { color: t.textSec }, render: p => p.siteName },
-    { header: "Days", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDays(p.days) },
-    { header: "Hours", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternHours(p) },
-    { header: "Starts", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDate(p.startsOn) },
-    { header: "Ends", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => p.endsOn ? patternDate(p.endsOn) : "No end" },
-    { header: "Upcoming", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => Number(p.upcomingShifts) || 0 },
+    { header: tr("Person"), render: p => <span style={{ color: t.text }}>{p.userName}</span> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: p => p.siteName },
+    { header: tr("Days"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDays(p.days) },
+    { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternHours(p) },
+    { header: tr("Starts"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => patternDate(p.startsOn) },
+    { header: tr("Ends"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => p.endsOn ? patternDate(p.endsOn) : tr("No end") },
+    { header: tr("Upcoming"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => Number(p.upcomingShifts) || 0 },
   ];
-  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>;
+  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{tr(l)}</button>;
 
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <Sel t={t} aria-label="Person" value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: "All people" }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
-      <Sel t={t} aria-label="Site" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
-      <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active")}{statusBtn("ended", "Ended")}{statusBtn("all", "All")}</div>
+      <Sel t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("All people") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <div style={{ display: "flex", gap: 6 }}>{statusBtn("active", "Active|pattern")}{statusBtn("ended", "Ended|pattern")}{statusBtn("all", "All|patterns")}</div>
     </div>
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading patterns...</div>}
-    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
-    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={p => p.id} onRowClick={p => onOpen(p.id)} empty="No patterns yet. Turn on Repeat when adding a shift to create one." />}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading patterns...")}</div>}
+    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
+    {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={p => p.id} onRowClick={p => onOpen(p.id)} empty={tr("No patterns yet. Turn on Repeat when adding a shift to create one.")} />}
     {openId && <PatternWindow af={af} t={t} id={openId} sites={sites} allStaff={allStaff} onClose={onClose} onChanged={load} onOpenOther={onOpen} />}
   </div>);
 }
@@ -4539,27 +4571,29 @@ function PatternsView({ af, t, sites = [], allStaff = [], refreshKey, openId, on
 // new Date() reads it as UTC midnight, which is the evening before in Philadelphia, so every
 // date would show a day early. Times are read the same way, by arithmetic, with no Date at all.
 const timeOffLocal = (ymd) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null; };
-const timeOffDate = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""; };
-const timeOffDayMonth = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""; };
-const timeOffWeekday = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""; };
+const timeOffDate = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : ""; };
+const timeOffDayMonth = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString(localeTag(), { month: "short", day: "numeric" }) : ""; };
+const timeOffWeekday = (ymd) => { const d = timeOffLocal(ymd); return d ? d.toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : ""; };
 // One day, one date. Inside a year, the year is said once at the end. Across years, both carry it.
 const timeOffDates = (startsOn, endsOn) => {
   const s = String(startsOn || ""); const e = String(endsOn || "") || s;
   if (!s) return "";
   if (s === e) return timeOffDate(s);
-  if (s.slice(0, 4) === e.slice(0, 4)) return timeOffDayMonth(s) + " to " + timeOffDate(e);
-  return timeOffDate(s) + " to " + timeOffDate(e);
+  if (s.slice(0, 4) === e.slice(0, 4)) return tr("{0} to {1}", timeOffDayMonth(s), timeOffDate(e));
+  return tr("{0} to {1}", timeOffDate(s), timeOffDate(e));
 };
-const timeOffTimes = (r) => r && r.partDay && r.startTime && r.endTime ? patternTime(r.startTime) + " to " + patternTime(r.endTime) : "All day";
-const timeOffHours = (h) => { if (h == null || h === "") return "Not given"; const n = Number(h); if (!isFinite(n)) return "Not given"; return (Math.round(n * 100) / 100) + (n === 1 ? " hour" : " hours"); };
-const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
-const TIME_OFF_STATUS_LABELS = { requested: "Requested", approved: "Approved", denied: "Denied", cancelled: "Cancelled" };
-const timeOffStatus = (s) => TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || "");
-const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), patternTime(sh.startTime) + " to " + patternTime(sh.endTime), sh.siteName].filter(Boolean).join(", ");
+const timeOffTimes = (r) => r && r.partDay && r.startTime && r.endTime ? tr("{0} to {1}", patternTime(r.startTime), patternTime(r.endTime)) : tr("All day");
+const timeOffHours = (h) => { if (h == null || h === "") return tr("Not given"); const n = Number(h); if (!isFinite(n)) return tr("Not given"); return trn("{0} hour|count", Math.round(n * 100) / 100); };
+const timeOffMoment = (iso) => iso ? new Date(iso).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+// The key carries the noun the Spanish word has to agree with, a request, so the table can give
+// the right ending for each one.
+const TIME_OFF_STATUS_LABELS = { requested: "Requested|request", approved: "Approved|request", denied: "Denied|request", cancelled: "Cancelled|request" };
+const timeOffStatus = (s) => tr(TIME_OFF_STATUS_LABELS[String(s || "")] || String(s || ""));
+const timeOffShiftLine = (sh) => [timeOffWeekday(sh.date), tr("{0} to {1}", patternTime(sh.startTime), patternTime(sh.endTime)), sh.siteName].filter(Boolean).join(", ");
 const TIME_OFF_LIMIT = 200;
 const timeOffQuery = (status, userId) => "/api/time-off?status=" + encodeURIComponent(status) + "&limit=" + TIME_OFF_LIMIT + (userId ? "&userId=" + encodeURIComponent(userId) : "");
 const TIME_OFF_ORDER_NOTE = "Soonest first. Deciding a request leaves the schedule as it is.";
-const TIME_OFF_CAPPED = "Showing the first " + TIME_OFF_LIMIT + ". Choose a person to narrow the list.";
+const TIME_OFF_CAPPED = "Showing the first {0}. Choose a person to narrow the list.";
 
 const TIME_OFF_SHIFT_NOTE = "Deciding this request leaves these shifts as they are. Change or cover them on the schedule.";
 const TIME_OFF_OWN = "Someone else has to decide your own request.";
@@ -4585,37 +4619,37 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
 
   const reload = async () => {
     try { const d = await af("/api/time-off/" + encodeURIComponent(req.id)); if (d && d.request) setReq(d.request); }
-    catch (e) { setError(e.message || "Request failed"); }
+    catch (e) { setError(e.message || tr("Request failed")); }
   };
   // One send at a time. The ref closes the gap before the disabled buttons redraw, so a double
   // click is one request.
   const decide = async (kind) => {
     if (sending.current) return;
     const trimmed = note.trim();
-    if (kind === "deny" && !trimmed) { setNoteError(TIME_OFF_NOTE_REQUIRED); return; }
+    if (kind === "deny" && !trimmed) { setNoteError(tr(TIME_OFF_NOTE_REQUIRED)); return; }
     sending.current = true; setBusy(true); setError(""); setNoteError("");
     try {
       const d = await af("/api/time-off/" + encodeURIComponent(req.id) + "/" + kind, { method: "POST", body: trimmed ? { note: trimmed } : {} });
       if (d && d.request) setReq(d.request);
       setNote("");
-      showToast(kind === "deny" ? "Time off denied. They get a notice in the app." : "Time off approved. They get a notice in the app.");
+      showToast(kind === "deny" ? tr("Time off denied. They get a notice in the app.") : tr("Time off approved. They get a notice in the app."));
       if (onDecided) onDecided();
     } catch (e) {
-      setError(e.message || "Request failed");
+      setError(e.message || tr("Request failed"));
       if (e.status === 409) { await reload(); if (onDecided) onDecided(); }
     }
     sending.current = false; setBusy(false);
   };
 
-  const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 86, flexShrink: 0, color: t.textMut }}>{label}</span><span style={{ color: t.text, minWidth: 0 }}>{value}</span></div>;
+  const row = (label, value) => <div key={label} style={{ display: "flex", gap: 10, fontSize: 12, marginBottom: 5 }}><span style={{ minWidth: 86, flexShrink: 0, color: t.textMut }}>{tr(label)}</span><span style={{ color: t.text, minWidth: 0 }}>{value}</span></div>;
   const shifts = Array.isArray(req.shifts) ? req.shifts : [];
   const decided = req.status === "approved" || req.status === "denied";
   const mine = !!myId && req.userId != null && String(req.userId) === myId;
 
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Time off request</div>
-      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Time off request")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
     </div>
     <div style={{ marginBottom: 14 }}>
       {row("Person", req.userName)}
@@ -4625,36 +4659,36 @@ function TimeOffWindow({ af, t, seed, myId, showToast, onClose, onDecided }) {
       {row("Hours", timeOffHours(req.hours))}
       {row("Status", timeOffStatus(req.status))}
       {row("Asked", timeOffMoment(req.createdAt))}
-      {row("Reason", req.reason ? String(req.reason) : "No reason given")}
+      {row("Reason", req.reason ? String(req.reason) : tr("No reason given"))}
     </div>
     <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
-      <Lbl>Shifts on these days</Lbl>
-      {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>No shifts on these days.</div>}
+      <Lbl>{tr("Shifts on these days")}</Lbl>
+      {shifts.length === 0 && <div style={{ fontSize: 12, color: t.textSec }}>{tr("No shifts on these days.")}</div>}
       {shifts.map((sh, i) => <div key={sh.id || i} style={{ fontSize: 12, color: t.text, marginBottom: 4 }}>{timeOffShiftLine(sh)}{sh.status && sh.status !== "scheduled" ? <span style={{ color: t.textMut }}> {sh.status}</span> : null}</div>)}
-      {shifts.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{TIME_OFF_SHIFT_NOTE}</div>}
+      {shifts.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(TIME_OFF_SHIFT_NOTE)}</div>}
     </div>
     {decided && <div style={{ marginBottom: 14 }}>
       {row("Decided by", req.decidedByName || "")}
       {row("Decided", timeOffMoment(req.decidedAt))}
-      {row("Note", req.decisionNote ? String(req.decisionNote) : "No note")}
+      {row("Note", req.decisionNote ? String(req.decisionNote) : tr("No note"))}
     </div>}
     {req.status === "cancelled" && <div style={{ marginBottom: 14, fontSize: 12, color: t.text }}>
-      <div style={{ marginBottom: 4 }}>Cancelled by the person who asked</div>
+      <div style={{ marginBottom: 4 }}>{tr("Cancelled by the person who asked")}</div>
       <div style={{ color: t.textSec }}>{timeOffMoment(req.cancelledAt)}</div>
     </div>}
-    {req.status === "requested" && mine && <div style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{TIME_OFF_OWN}</div>}
+    {req.status === "requested" && mine && <div style={{ marginBottom: 14, fontSize: 12, color: t.textSec }}>{tr(TIME_OFF_OWN)}</div>}
     {req.status === "requested" && !mine && <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
-      <Lbl>Note</Lbl>
-      <TArea t={t} rows={3} aria-label="Note" value={note} onChange={e => { setNote(e.target.value); if (noteError) setNoteError(""); }} placeholder="Optional when approving. Required when denying." />
+      <Lbl>{tr("Note")}</Lbl>
+      <TArea t={t} rows={3} aria-label={tr("Note")} value={note} onChange={e => { setNote(e.target.value); if (noteError) setNoteError(""); }} placeholder={tr("Optional when approving. Required when denying.")} />
       {noteError && <div style={{ fontSize: 12, color: RD, marginTop: 6 }}>{noteError}</div>}
-      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 10 }}>{TIME_OFF_NOTE_HINT}</div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, marginBottom: 10 }}>{tr(TIME_OFF_NOTE_HINT)}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Btn t={t} onClick={() => decide("approve")} disabled={busy} style={{ minHeight: 44 }}>Approve</Btn>
-        <Btn t={t} v="danger" onClick={() => decide("deny")} disabled={busy} style={{ minHeight: 44 }}>Deny</Btn>
+        <Btn t={t} onClick={() => decide("approve")} disabled={busy} style={{ minHeight: 44 }}>{tr("Approve")}</Btn>
+        <Btn t={t} v="danger" onClick={() => decide("deny")} disabled={busy} style={{ minHeight: 44 }}>{tr("Deny")}</Btn>
       </div>
     </div>}
     {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
-    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn></div>
+    <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
   </div></Mdl>);
 }
 
@@ -4672,40 +4706,40 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try { const d = await af(timeOffQuery(status, userId)); setRows(d && Array.isArray(d.requests) ? d.requests : []); }
-    catch (e) { setRows([]); setError(e.message || "Request failed"); }
+    catch (e) { setRows([]); setError(e.message || tr("Request failed")); }
     setLoading(false);
   }, [af, status, userId]);
   useEffect(() => { load(); }, [load]);
 
   const columns = [
-    { header: "Person", render: r => <span style={{ color: t.text }}>{r.userName}</span> },
-    { header: "Type", tdStyle: { color: t.textSec }, render: r => r.leaveTypeLabel },
-    { header: "Dates", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
-    { header: "Time", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
-    { header: "Hours", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
-    { header: "Shifts", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => Array.isArray(r.shifts) && r.shifts.length > 0 ? r.shifts.length : "None" },
-    { header: "Status", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffStatus(r.status) },
-    { header: "Asked", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
+    { header: tr("Person"), render: r => <span style={{ color: t.text }}>{r.userName}</span> },
+    { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => r.leaveTypeLabel },
+    { header: tr("Dates"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffDates(r.startsOn, r.endsOn) },
+    { header: tr("Time"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffTimes(r) },
+    { header: tr("Hours"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffHours(r.hours) },
+    { header: tr("Shifts"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => Array.isArray(r.shifts) && r.shifts.length > 0 ? r.shifts.length : tr("None|shifts") },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => timeOffStatus(r.status) },
+    { header: tr("Asked"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
   ];
-  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>;
+  const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{tr(l)}</button>;
   const empty = status === "requested" ? "No time off is waiting for a decision." : "No time off requests to show.";
 
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{statusBtn("requested", "Requested")}{statusBtn("approved", "Approved")}{statusBtn("denied", "Denied")}{statusBtn("cancelled", "Cancelled")}{statusBtn("all", "All")}</div>
-      <Sel t={t} aria-label="Person" value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: "Everyone" }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{statusBtn("requested", "Requested|request")}{statusBtn("approved", "Approved|request")}{statusBtn("denied", "Denied|request")}{statusBtn("cancelled", "Cancelled|request")}{statusBtn("all", "All|requests")}</div>
+      <Sel t={t} aria-label={tr("Person")} value={userId} onChange={e => setUserId(e.target.value)} options={[{ v: "", l: tr("Everyone") }, ...allStaff.map(u => ({ v: u.id, l: u.name || ((u.firstName || "") + " " + (u.lastName || "")).trim() }))]} style={{ width: 200, fontSize: 12 }} />
     </div>
-    {status === "requested" && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{TIME_OFF_ORDER_NOTE}</div>}
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading time off...</div>}
-    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
+    {status === "requested" && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr(TIME_OFF_ORDER_NOTE)}</div>}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading time off...")}</div>}
+    {!loading && error && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={columns} rows={rows} rowKey={r => r.id} onRowClick={r => setOpen(r)} empty={empty} />}
-    {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{TIME_OFF_CAPPED}</div>}
+    {!loading && !error && rows.length >= TIME_OFF_LIMIT && <div style={{ fontSize: 12, color: t.textMut, marginTop: 10 }}>{tr(TIME_OFF_CAPPED, TIME_OFF_LIMIT)}</div>}
     {open && <TimeOffWindow af={af} t={t} seed={open} myId={myId} showToast={showToast} onClose={() => setOpen(null)} onDecided={() => { load(); if (onCountChange) onCountChange(); }} />}
   </div>);
 }
 
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
-  const SERVICE_CATS = [{ v: "", l: "No specific service" }, ...getOpts("service_categories")];
+  const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories")];
   const [view, setView] = useState("week");
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
@@ -4764,14 +4798,14 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
   const getBuildingOpts = (siteId) => {
     const loc = siteLocations[siteId];
-    if (loc && loc.loading) return [{ v: "", l: "Loading buildings..." }];
-    if (!loc || loc.buildings.length === 0) return [{ v: "", l: "No buildings configured" }];
-    return [{ v: "", l: "Select building..." }, ...loc.buildings.map(b => ({ v: b, l: b }))];
+    if (loc && loc.loading) return [{ v: "", l: tr("Loading buildings...") }];
+    if (!loc || loc.buildings.length === 0) return [{ v: "", l: tr("No buildings configured") }];
+    return [{ v: "", l: tr("Select building...") }, ...loc.buildings.map(b => ({ v: b, l: b }))];
   };
   const getFloorOpts = (siteId, building) => {
     const loc = siteLocations[siteId];
-    if (!loc || loc.loading || !building || !loc.floors[building] || loc.floors[building].length === 0) return [{ v: "", l: "Select floor..." }];
-    return [{ v: "", l: "Select floor..." }, ...loc.floors[building].map(f => ({ v: f, l: "Floor " + f }))];
+    if (!loc || loc.loading || !building || !loc.floors[building] || loc.floors[building].length === 0) return [{ v: "", l: tr("Select floor...") }];
+    return [{ v: "", l: tr("Select floor...") }, ...loc.floors[building].map(f => ({ v: f, l: tr("Floor {0}", f) }))];
   };
 
   // The Started lane. One call per visible range to GET /api/shift-sessions/by-site, grouped by
@@ -4884,7 +4918,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   const toggleRepeatDay = (dayNum) => { setCreateForm(prev => { const days = prev.repeatDays.includes(dayNum) ? prev.repeatDays.filter(d => d !== dayNum) : [...prev.repeatDays, dayNum]; return { ...prev, repeatDays: days }; }); };
 
   const submitCreate = async () => {
-    if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) { showToast("Staff, site, start time, and end time are required", "error"); return; }
+    if (!createForm.userId || !createForm.siteId || !createForm.startTime || !createForm.endTime) { showToast(tr("Staff, site, start time, and end time are required"), "error"); return; }
     setPatternError(""); setPatternConflictId(""); setPatternSkipped(null);
     try {
       // A repeat with no end, or one that runs until a date, is a pattern the API keeps and refills.
@@ -4902,12 +4936,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
         if (createForm.notes) body.notes = createForm.notes;
         try {
           const r = await af("/api/schedule/patterns", { method: "POST", body });
-          showToast("Pattern saved. " + (Number(r && r.created) || 0) + " shifts added through " + patternDate(r && r.pattern && r.pattern.generatedThrough) + ".");
+          showToast(tr("Pattern saved. {0} shifts added through {1}.", Number(r && r.created) || 0, patternDate(r && r.pattern && r.pattern.generatedThrough)));
           loadCalendar(); setPatternsRefresh(n => n + 1);
           if (Number(r && r.skippedCount) > 0) { setPatternSkipped(Array.isArray(r.skipped) ? r.skipped : []); return; }
           setCreateModal(null);
         } catch (e) {
-          setPatternError(e.message || "Request failed");
+          setPatternError(e.message || tr("Request failed"));
           setPatternConflictId(e && e.body && e.body.patternId ? String(e.body.patternId) : "");
         }
         return;
@@ -4918,7 +4952,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
         const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(d.message);
       } else {
         await af("/api/schedule", { method: "POST", body: { user_id: createForm.userId, site_id: createForm.siteId, scheduled_date: createModal.date, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined }});
-        showToast("Shift scheduled");
+        showToast(tr("Shift scheduled"));
       }
       setCreateModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
@@ -4931,17 +4965,17 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   const submitEdit = async () => {
     try {
       await af("/api/schedule/" + editModal.id, { method: "PATCH", body: { user_id: editModal.user_id, site_id: editModal.site_id, start_time: editModal.startTime, end_time: editModal.endTime, notes: editModal.notes, status: editModal.status, building_name: editModal.buildingName, floor_number: editModal.floorNumber, service_category: editModal.serviceCategory }});
-      showToast("Schedule updated"); setEditModal(null); loadCalendar();
+      showToast(tr("Schedule updated")); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
   // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
   const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
-  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? "Cancel this shift? The pattern will not add it again." : "Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? "Shift cancelled" : "Shift removed"); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? "Cancel this shift? The pattern will not add it again." : "Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? tr("Shift cancelled") : tr("Shift removed")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
       await af("/api/pickups/convert/" + convertPickup.id, { method: "POST", body: { origin: convertPickup.origin, notes: convertPickup.notes } });
-      showToast("Shift converted to open pickup");
+      showToast(tr("Shift converted to open pickup"));
       setConvertPickup(null); setEditModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -4951,29 +4985,29 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     setInspModal(insp);
   };
   const submitInspReschedule = async () => {
-    if (!inspForm.scheduled_date) { showToast("Date is required", "error"); return; }
+    if (!inspForm.scheduled_date) { showToast(tr("Date is required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled/" + inspModal.id, { method: "PATCH", body: { assigned_to: inspForm.assigned_to || null, scheduled_date: inspForm.scheduled_date } });
-      showToast("Inspection rescheduled"); setInspModal(null); loadCalendar();
+      showToast(tr("Inspection rescheduled")); setInspModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
   const cancelInspFromSchedule = async (id) => {
     if (!window.confirm("Cancel this inspection?")) return;
     try {
       await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
-      showToast("Inspection cancelled"); setInspModal(null); loadCalendar();
+      showToast(tr("Inspection cancelled")); setInspModal(null); loadCalendar();
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const fmtShortDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
-  const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]; };
+  const fmtShortDate = (d) => new Date(d + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+  const fmtDayLabel = (d) => { const dt = new Date(d + "T00:00:00"); return tr(DAY_NAMES[dt.getDay() === 0 ? 6 : dt.getDay() - 1]); };
   const isToday = (d) => d === toISO(new Date());
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
   const startedLbl = { fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 };
 
   const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid " + t.border }}>
-      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>Staff</div>
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>{tr("Staff")}</div>
       {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 600, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
     </div>
     <div style={{ display: "flex", flexDirection: "column" }}>
@@ -4990,30 +5024,30 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.onRoster ? staff.id : "")} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
           {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
-            {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " F" + s.floor_number : ""}</span>}
+            {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " " + tr("F{0}", s.floor_number) : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
-            {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>Repeats</div>}
+            {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>{tr("Repeats")}</div>}
           </div>))}
           {startedHere.map(p => (<div key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
-            Started {fmtSessionStart(p.startedAt)}
-            {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " F" + p.floorNumber : ""}</span>}
+            {tr("Started")} {fmtSessionStart(p.startedAt)}
+            {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " " + tr("F{0}", p.floorNumber) : ""}</span>}
             {p.siteName && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.siteName}</div>}
-            {p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.tasksCompleted} of {p.tasksTotal} tasks</div>}
+            {p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
           </div>))}
           {openHere.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
-            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.hover }}>OPEN</span>
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.hover }}>{tr("OPEN")}</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
           </div>))}
           {dropReqs.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail({ ...p, isDropRequest: true }); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#F1C40F22", color: "#F1C40F", border: "1px dashed #F1C40F60" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
-            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: "#F1C40F30" }}>DROP REQ</span>
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: "#F1C40F30" }}>{tr("DROP REQ")}</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
           </div>))}
           {claimedByMe.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
-            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: OR + "25" }}>CLAIMED</span>
+            <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: OR + "25" }}>{tr("CLAIMED")}</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
             {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.claimed_by_name}</div>}
           </div>))}
@@ -5023,28 +5057,28 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     </div>))}
     </div>
     {(calData.inspections || []).length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
-      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: BL, textTransform: "uppercase" }}>Inspections</div>
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: BL, textTransform: "uppercase" }}>{tr("Inspections")}</div>
       {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
     </div>)}
     {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
   </div>);
 
-  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+  const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-      <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() - 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>&lt; Prev</button>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{MONTH_NAMES[startMonth]} {startYear}</div>
-      <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() + 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>Next &gt;</button>
+      <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() - 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>{tr("< Prev")}</button>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{new Date(startYear, startMonth, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" })}</div>
+      <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() + 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>{tr("Next >")}</button>
     </div>
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase" }}>{d}</div>)}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 1, marginBottom: 4 }}>{DAY_NAMES.map(d => <div key={d} style={{ padding: "6px 4px", textAlign: "center", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase" }}>{tr(d)}</div>)}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, flex: 1, gridAutoRows: "1fr" }}>
       {monthDays.map(d => { const dt = new Date(d + "T00:00:00"); const inMonth = dt.getMonth() === startMonth; const sched = getShiftsForDay(d); const startedHere = getStartedForDay(d); const insp = getInspForDay(d); const pks = getPickupsForDay(d);
         return (<div key={d} onClick={() => { setView("week"); const m = getMonday(dt); setDateRange({ start: toISO(m), end: toISO(new Date(m.getTime() + 6 * 86400000)) }); }} style={{ padding: 6, minHeight: 80, background: isToday(d) ? t.goldBg : inMonth ? t.card : t.hover, borderRadius: 4, cursor: "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : t.border), opacity: inMonth ? 1 : 0.4 }}>
           <div style={{ fontSize: 11, fontWeight: isToday(d) ? 700 : 500, color: isToday(d) ? t.goldText : t.text, marginBottom: 4 }}>{dt.getDate()}</div>
-          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.goldText, marginBottom: 1 }}>{sched.length} scheduled</div>}
-          {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: GR, marginBottom: 1 }}>{startedHere.length} started</div>}
-          {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.textMut, marginBottom: 1 }}>{pks.filter(p => p.status === "open").length} open</div>}
-          {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: OR, marginBottom: 1 }}>{pks.filter(p => p.status === "claimed").length} claimed</div>}
-          {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: BL }}>{insp.length} inspection{insp.length > 1 ? "s" : ""}</div>}
+          {sched.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.goldText, marginBottom: 1 }}>{tr("{0} scheduled", sched.length)}</div>}
+          {startedHere.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: GR, marginBottom: 1 }}>{tr("{0} started", startedHere.length)}</div>}
+          {pks.filter(p => p.status === "open").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: t.textMut, marginBottom: 1 }}>{tr("{0} open", pks.filter(p => p.status === "open").length)}</div>}
+          {pks.filter(p => p.status === "claimed").length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: OR, marginBottom: 1 }}>{tr("{0} claimed", pks.filter(p => p.status === "claimed").length)}</div>}
+          {insp.length > 0 && <div style={{ fontSize: 8, fontWeight: 600, color: BL }}>{trn("{0} inspection|count", insp.length)}</div>}
         </div>); })}
     </div></div>); };
 
@@ -5052,27 +5086,27 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
   return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-      <SecT t={t} action="Refresh" onAction={() => loadCalendar()}>Schedule</SecT>
+      <SecT t={t} action={tr("Refresh")} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
       <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Week</button>
-        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>Month</button>
-        <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>Patterns</button>
-        {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? "Time off (" + timeOffWaiting + ")" : "Time off"}</button>}
-        <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> Schedule Shift</Btn>
+        <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
+        <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
+        <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
+        {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
+        <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> {tr("Schedule Shift")}</Btn>
       </div>
     </div>
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
     {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} />}
     {view !== "patterns" && view !== "timeoff" && <>
-    {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: "This Week" }, { key: "lastWeek", label: "Last Week" }, { key: "nextWeek", label: "Next Week" }]} />}
+    {view === "week" && <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[{ key: "thisWeek", label: tr("This Week") }, { key: "lastWeek", label: tr("Last Week") }, { key: "nextWeek", label: tr("Next Week") }]} />}
     <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
-      <Inp t={t} value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder="Search staff..." style={{ width: 160, fontSize: 12 }} />
-      {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>Show</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{nn} staff</option>)}</select></div>}
+      <Sel t={t} value={filterSite} onChange={e => { const sid = e.target.value; setFilterSite(sid); setSchedPage(1); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 200, fontSize: 12 }} />
+      <Inp t={t} value={searchStaff} onChange={e => { setSearchStaff(e.target.value); setSchedPage(1); }} placeholder={tr("Search staff...")} style={{ width: 160, fontSize: 12 }} />
+      {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>{tr("Show")}</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{tr("{0} staff", nn)}</option>)}</select></div>}
     </div>
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading schedule...</div>}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading schedule...")}</div>}
     {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
-      {[{ c: GO, l: "Scheduled" }, { c: GR, l: "Started" }, { c: t.textMut, l: "Open" }, { c: "#F1C40F", l: "Drop Req" }, { c: OR, l: "Claimed" }, { c: BL, l: "Inspection" }].map(lg => (
+      {[{ c: GO, l: tr("Scheduled|shift") }, { c: GR, l: tr("Started") }, { c: t.textMut, l: tr("Open|shift") }, { c: "#F1C40F", l: tr("Drop Req") }, { c: OR, l: tr("Claimed|shift") }, { c: BL, l: tr("Inspection") }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
           <span style={{ fontSize: 9, color: t.textMut, fontWeight: 600 }}>{lg.l}</span>
@@ -5086,185 +5120,185 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Schedule Shift</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>Scheduling for {fmtShortDate(createModal.date)}</div>
-      <div style={{ marginBottom: 12 }}><Lbl>Staff Member *</Lbl>
-        <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder="Search staff" style={{ marginBottom: 6, fontSize: 12 }} />
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff Member *")}</Lbl>
+        <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder={tr("Search staff")} style={{ marginBottom: 6, fontSize: 12 }} />
         {(() => {
           const matches = staffForSite.filter(s => staffSearchMatch(s, pickerSearch));
           const picked = createForm.userId ? staffForSite.find(s => String(s.id) === String(createForm.userId)) : null;
           const opts = picked && !matches.includes(picked) ? [picked, ...matches] : matches;
           const noMatch = pickerSearch.trim().length > 0 && matches.length === 0;
           return (<>
-            {(!noMatch || opts.length > 0) && <Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...opts.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} />}
-            {noMatch && <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No staff match that search</div>}
+            {(!noMatch || opts.length > 0) && <Sel t={t} value={createForm.userId} onChange={e => setCreateForm({ ...createForm, userId: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...opts.map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} />}
+            {noMatch && <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No staff match that search")}</div>}
           </>);
         })()}
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => { const sid = e.target.value; setCreateForm({ ...createForm, siteId: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Start Time *</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
-        <div><Lbl>End Time *</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
+        <div><Lbl>{tr("Start Time *")}</Lbl><Inp t={t} type="time" value={createForm.startTime} onChange={e => setCreateForm({ ...createForm, startTime: e.target.value })} /></div>
+        <div><Lbl>{tr("End Time *")}</Lbl><Inp t={t} type="time" value={createForm.endTime} onChange={e => setCreateForm({ ...createForm, endTime: e.target.value })} /></div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Building</Lbl><Sel t={t} value={createForm.buildingName} onChange={e => setCreateForm({ ...createForm, buildingName: e.target.value, floorNumber: "" })} options={getBuildingOpts(createForm.siteId)} /></div>
-        <div><Lbl>Floor</Lbl><Sel t={t} value={createForm.floorNumber} onChange={e => setCreateForm({ ...createForm, floorNumber: e.target.value })} options={getFloorOpts(createForm.siteId, createForm.buildingName)} /></div>
+        <div><Lbl>{tr("Building")}</Lbl><Sel t={t} value={createForm.buildingName} onChange={e => setCreateForm({ ...createForm, buildingName: e.target.value, floorNumber: "" })} options={getBuildingOpts(createForm.siteId)} /></div>
+        <div><Lbl>{tr("Floor")}</Lbl><Sel t={t} value={createForm.floorNumber} onChange={e => setCreateForm({ ...createForm, floorNumber: e.target.value })} options={getFloorOpts(createForm.siteId, createForm.buildingName)} /></div>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={createForm.serviceCategory} onChange={e => setCreateForm({ ...createForm, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Optional notes" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={createForm.serviceCategory} onChange={e => setCreateForm({ ...createForm, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder={tr("Optional notes")} /></div>
       <div style={{ marginBottom: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: createForm.repeat ? 12 : 0 }}>
           <button onClick={() => setCreateForm({ ...createForm, repeat: !createForm.repeat, repeatMode: !createForm.repeat ? "none" : createForm.repeatMode })} style={{ width: 18, height: 18, borderRadius: 4, border: "2px solid " + (createForm.repeat ? GO : t.textMut), background: createForm.repeat ? GO : "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>{createForm.repeat && <ChkI sz={10} c={NAVY} />}</button>
-          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Repeat this shift</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{tr("Repeat this shift")}</span>
         </div>
         {createForm.repeat && (<div>
-          <div style={{ marginBottom: 10 }}><Lbl>Repeat on</Lbl><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
-            {[{ label: "Sun", val: 0 }, { label: "Mon", val: 1 }, { label: "Tue", val: 2 }, { label: "Wed", val: 3 }, { label: "Thu", val: 4 }, { label: "Fri", val: 5 }, { label: "Sat", val: 6 }].map(d => (
+          <div style={{ marginBottom: 10 }}><Lbl>{tr("Repeat on")}</Lbl><div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            {[{ label: tr("Sun"), val: 0 }, { label: tr("Mon"), val: 1 }, { label: tr("Tue"), val: 2 }, { label: tr("Wed"), val: 3 }, { label: tr("Thu"), val: 4 }, { label: tr("Fri"), val: 5 }, { label: tr("Sat"), val: 6 }].map(d => (
               <button key={d.val} onClick={() => toggleRepeatDay(d.val)} style={{ width: 36, height: 30, borderRadius: 6, fontSize: 10, fontWeight: createForm.repeatDays.includes(d.val) ? 700 : 500, cursor: "pointer", background: createForm.repeatDays.includes(d.val) ? GO : "transparent", color: createForm.repeatDays.includes(d.val) ? NAVY : t.textMut, border: "1px solid " + (createForm.repeatDays.includes(d.val) ? GO : t.border) }}>{d.label}</button>
             ))}</div>
-            {runsPastMidnight(createForm.startTime, createForm.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{OVERNIGHT_NOTE}</div>}
+            {runsPastMidnight(createForm.startTime, createForm.endTime) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(OVERNIGHT_NOTE)}</div>}
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>For</button>
-            {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>weeks</span></>)}
-            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>Until</button>
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "weeks" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "weeks" ? 700 : 500, background: createForm.repeatMode === "weeks" ? t.goldBg : "transparent", color: createForm.repeatMode === "weeks" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "weeks" ? t.goldBorder : "transparent"), cursor: "pointer" }}>{tr("For")}</button>
+            {createForm.repeatMode === "weeks" && (<><Inp t={t} type="number" min="1" max="52" value={createForm.repeatWeeks} onChange={e => setCreateForm({ ...createForm, repeatWeeks: e.target.value })} style={{ width: 60, textAlign: "center" }} /><span style={{ fontSize: 11, color: t.textSec }}>{tr("weeks")}</span></>)}
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "until" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "until" ? 700 : 500, background: createForm.repeatMode === "until" ? t.goldBg : "transparent", color: createForm.repeatMode === "until" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "until" ? t.goldBorder : "transparent"), cursor: "pointer" }}>{tr("Until")}</button>
             {createForm.repeatMode === "until" && <Inp t={t} type="date" value={createForm.repeatUntil} onChange={e => setCreateForm({ ...createForm, repeatUntil: e.target.value })} style={{ width: 150 }} />}
-            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "none" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "none" ? 700 : 500, background: createForm.repeatMode === "none" ? t.goldBg : "transparent", color: createForm.repeatMode === "none" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "none" ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>No end date</button>
+            <button onClick={() => setCreateForm({ ...createForm, repeatMode: "none" })} style={{ padding: "4px 10px", borderRadius: 5, fontSize: 10, fontWeight: createForm.repeatMode === "none" ? 700 : 500, background: createForm.repeatMode === "none" ? t.goldBg : "transparent", color: createForm.repeatMode === "none" ? t.goldText : t.textMut, border: "1px solid " + (createForm.repeatMode === "none" ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{tr("No end date")}</button>
           </div>
-          {createForm.repeatMode === "none" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.</div>}
-          {patternError && <div style={{ fontSize: 12, color: RD, marginTop: 10 }}>{patternError}{patternConflictId ? " " : ""}{patternConflictId && <button onClick={() => { setCreateModal(null); setView("patterns"); setPatternOpenId(patternConflictId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open that pattern</button>}</div>}
+          {createForm.repeatMode === "none" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.")}</div>}
+          {patternError && <div style={{ fontSize: 12, color: RD, marginTop: 10 }}>{patternError}{patternConflictId ? " " : ""}{patternConflictId && <button onClick={() => { setCreateModal(null); setView("patterns"); setPatternOpenId(patternConflictId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open that pattern")}</button>}</div>}
           {patternSkipped && <div style={{ fontSize: 12, color: t.text, marginTop: 10 }}>
-            <div style={{ color: OR, fontWeight: 600, marginBottom: 4 }}>{patternSkipped.length} dates were skipped because this person is already scheduled at that time:</div>
+            <div style={{ color: OR, fontWeight: 600, marginBottom: 4 }}>{tr("{0} dates were skipped because this person is already scheduled at that time:", patternSkipped.length)}</div>
             <ul style={{ margin: 0, paddingLeft: 18 }}>{patternSkipped.map((sk, i) => <li key={i}>{patternDate(sk.date)}</li>)}</ul>
-            <div style={{ marginTop: 8 }}><Btn t={t} onClick={() => { setPatternSkipped(null); setCreateModal(null); }} style={{ minHeight: 44 }}>Done</Btn></div>
+            <div style={{ marginTop: 8 }}><Btn t={t} onClick={() => { setPatternSkipped(null); setCreateModal(null); }} style={{ minHeight: 44 }}>{tr("Done")}</Btn></div>
           </div>}
         </div>)}
       </div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>Cancel</Btn><Btn t={t} onClick={submitCreate}>{createForm.repeat ? "Schedule All" : "Schedule Shift"}</Btn></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setCreateModal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitCreate}>{createForm.repeat ? tr("Schedule All") : tr("Schedule Shift")}</Btn></div>
     </div></Mdl>}
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Scheduled Shift</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>Part of a weekly pattern. Changes here apply to this date only. <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>Open the pattern</button></div>}
-      <div style={{ marginBottom: 12 }}><Lbl>Staff</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: "Select staff..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Start Time</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
-        <div><Lbl>End Time</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
+        <div><Lbl>{tr("Start Time")}</Lbl><Inp t={t} type="time" value={editModal.startTime} onChange={e => setEditModal({ ...editModal, startTime: e.target.value })} /></div>
+        <div><Lbl>{tr("End Time")}</Lbl><Inp t={t} type="time" value={editModal.endTime} onChange={e => setEditModal({ ...editModal, endTime: e.target.value })} /></div>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Status</Lbl><Sel t={t} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })} options={[{ v: "scheduled", l: "Scheduled" }, { v: "completed", l: "Completed" }, { v: "cancelled", l: "Cancelled" }, { v: "no_show", l: "No Show" }]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} value={editModal.status} onChange={e => setEditModal({ ...editModal, status: e.target.value })} options={[{ v: "scheduled", l: tr("Scheduled|shift") }, { v: "completed", l: tr("Completed|shift") }, { v: "cancelled", l: tr("Cancelled|shift") }, { v: "no_show", l: tr("No Show") }]} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Building</Lbl><Sel t={t} value={editModal.buildingName} onChange={e => setEditModal({ ...editModal, buildingName: e.target.value, floorNumber: "" })} options={getBuildingOpts(editModal.site_id)} /></div>
-        <div><Lbl>Floor</Lbl><Sel t={t} value={editModal.floorNumber} onChange={e => setEditModal({ ...editModal, floorNumber: e.target.value })} options={getFloorOpts(editModal.site_id, editModal.buildingName)} /></div>
+        <div><Lbl>{tr("Building")}</Lbl><Sel t={t} value={editModal.buildingName} onChange={e => setEditModal({ ...editModal, buildingName: e.target.value, floorNumber: "" })} options={getBuildingOpts(editModal.site_id)} /></div>
+        <div><Lbl>{tr("Floor")}</Lbl><Sel t={t} value={editModal.floorNumber} onChange={e => setEditModal({ ...editModal, floorNumber: e.target.value })} options={getFloorOpts(editModal.site_id, editModal.buildingName)} /></div>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Service Category</Lbl><Sel t={t} value={editModal.serviceCategory} onChange={e => setEditModal({ ...editModal, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
-      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><Inp t={t} value={editModal.notes || ""} onChange={e => setEditModal({ ...editModal, notes: e.target.value })} placeholder="Notes" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={editModal.serviceCategory} onChange={e => setEditModal({ ...editModal, serviceCategory: e.target.value })} options={SERVICE_CATS} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={editModal.notes || ""} onChange={e => setEditModal({ ...editModal, notes: e.target.value })} placeholder={tr("Notes")} /></div>
 
       {convertPickup && convertPickup.id === editModal.id && (
         <div style={{ padding: 12, borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: OR, marginBottom: 8 }}>Convert to Open Pickup</div>
-          <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: OR, marginBottom: 8 }}>{tr("Convert to Open Pickup")}</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>{tr("The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-            <div><Lbl>Reason</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
-            <div><Lbl>Notes</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder="e.g. Marcus called out" /></div>
+            <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
+            <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder={tr("e.g. Marcus called out")} /></div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Btn t={t} v="ghost" onClick={() => setConvertPickup(null)} style={{ fontSize: 11, padding: "6px 12px" }}>Cancel</Btn>
-            <Btn t={t} v="danger" onClick={submitConvertPickup} style={{ fontSize: 11, padding: "6px 12px" }}>Confirm Convert</Btn>
+            <Btn t={t} v="ghost" onClick={() => setConvertPickup(null)} style={{ fontSize: 11, padding: "6px 12px" }}>{tr("Cancel")}</Btn>
+            <Btn t={t} v="danger" onClick={submitConvertPickup} style={{ fontSize: 11, padding: "6px 12px" }}>{tr("Confirm Convert")}</Btn>
           </div>
         </div>
       )}
 
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? "Cancel this date" : "Delete"}</Btn>
-          {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />Pickup</button>}
+          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? tr("Cancel this date") : tr("Delete")}</Btn>
+          {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />{tr("Pickup")}</button>}
         </div>
-        <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div>
+        <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div>
       </div>
     </div></Mdl>}
 
     {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
     {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Started Shift</div><button onClick={() => setStartedDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div><div style={startedLbl}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
-        <div><div style={startedLbl}>Date</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
-        <div><div style={startedLbl}>Building</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
-        <div><div style={startedLbl}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? "Floor " + startedDetail.floorNumber : "-"}</div></div>
-        <div><div style={startedLbl}>Started</div><div style={{ fontSize: 13, fontWeight: 600, color: GR }}>{fmtSessionStart(startedDetail.startedAt) || "-"}</div></div>
-        <div><div style={startedLbl}>Task progress</div>{(() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{done} of {total}</span></div>); })()}</div>
+        <div><div style={startedLbl}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
+        <div><div style={startedLbl}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
+        <div><div style={startedLbl}>{tr("Building")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.buildingName || "-"}</div></div>
+        <div><div style={startedLbl}>{tr("Floor")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.floorNumber ? tr("Floor {0}", startedDetail.floorNumber) : "-"}</div></div>
+        <div><div style={startedLbl}>{tr("Started")}</div><div style={{ fontSize: 13, fontWeight: 600, color: GR }}>{fmtSessionStart(startedDetail.startedAt) || "-"}</div></div>
+        <div><div style={startedLbl}>{tr("Task progress")}</div>{(() => { const total = startedDetail.tasksTotal || 0; const done = startedDetail.tasksCompleted || 0; const pct = total > 0 ? Math.round(done / total * 100) : 0; return (<div style={{ display: "flex", alignItems: "center", gap: 8 }}><div style={{ width: 70, height: 5, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 3, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 13, color: t.text }}>{tr("{0} of {1}", done, total)}</span></div>); })()}</div>
       </div>
-      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 16 }}>Recorded when the person started the shift in the portal. There is no end time and no hours here.</div>
-      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setStartedDetail(null)}>Close</Btn></div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 16 }}>{tr("Recorded when the person started the shift in the portal. There is no end time and no hours here.")}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setStartedDetail(null)}>{tr("Close")}</Btn></div>
     </div></Mdl>}
 
     {/* INSPECTION RESCHEDULE MODAL */}
     {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Inspection Details</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Inspection Details")}</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
         <Bdg l={inspModal.status || "scheduled"} c={inspModal.status === "completed" ? GR : BL} />
       </div>
-      <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
-      <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
+      <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+      <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-        <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
-        <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setInspModal(null)}>Close</Btn><Btn t={t} onClick={submitInspReschedule}>Reschedule</Btn></div>
+        <Btn t={t} v="danger" onClick={() => cancelInspFromSchedule(inspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
+        <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setInspModal(null)}>{tr("Close")}</Btn><Btn t={t} onClick={submitInspReschedule}>{tr("Reschedule")}</Btn></div>
       </div>
     </div></Mdl>}
 
     {/* PICKUP DETAIL MODAL */}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? "Shift Drop Request" : pickupDetail.status === "open" ? "Open Marketplace Shift" : pickupDetail.status === "claimed" ? "Claimed Pickup Shift" : pickupDetail.status === "approved" ? "Approved Shift" : "Pickup Shift"}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-      {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.</div>}
-      {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>This shift is open in the marketplace and available for staff to claim.</div>}
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
+      {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>{tr("This shift is open in the marketplace and available for staff to claim.")}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
-        {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Requested By</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
-        {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
-        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Originally Assigned</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Time")}</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
+        {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Requested By")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
+        {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Claimed By")}</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Originally Assigned")}</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
       </div>
-      {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>Overtime risk: claiming this shift may push the worker past 40 weekly hours.</div>}
-      {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
+      {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>{tr("Overtime risk: claiming this shift may push the worker past 40 weekly hours.")}</div>}
+      {pickupDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Notes")}</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{pickupDetail.notes}</div></div>}
       <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
-        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ flex: 1 }}><Sel t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: "Select staff member..." }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
+          <div style={{ flex: 1 }}><Sel t={t} value={pickupDetail.reassignTo || ""} onChange={e => setPickupDetail({ ...pickupDetail, reassignTo: e.target.value })} options={[{ v: "", l: tr("Select staff member...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
           <Btn t={t} onClick={async () => {
-            if (!pickupDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
+            if (!pickupDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
             try {
               if (pickupDetail.status === "requested") {
                 await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" });
               }
               await af("/api/pickups/" + pickupDetail.id + "/assign", { method: "POST", body: { user_id: pickupDetail.reassignTo } });
-              showToast("Shift reassigned");
+              showToast(tr("Shift reassigned"));
               setPickupDetail(null);
               loadCalendar();
             } catch (e) { showToast(e.message, "error"); }
-          }} style={{ padding: "8px 16px", fontSize: 11 }}>Assign</Btn>
+          }} style={{ padding: "8px 16px", fontSize: 11 }}>{tr("Assign")}</Btn>
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         {pickupDetail.status === "requested" ? (
-          <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/deny-drop", { method: "POST" }); showToast("Drop request denied"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Deny Request</Btn>
+          <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/deny-drop", { method: "POST" }); showToast(tr("Drop request denied")); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Deny Request")}</Btn>
         ) : (
-          <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast("Shift released"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Release</Btn>
+          <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/release", { method: "POST" }); showToast(tr("Shift released")); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Release")}</Btn>
         )}
         <div style={{ display: "flex", gap: 10 }}>
-          <Btn t={t} v="ghost" onClick={() => setPickupDetail(null)}>Close</Btn>
+          <Btn t={t} v="ghost" onClick={() => setPickupDetail(null)}>{tr("Close")}</Btn>
           {pickupDetail.status === "requested" && (
-            <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" }); showToast("Drop approved, shift is now open"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve Drop</Btn>
+            <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved, shift is now open")); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>{tr("Approve Drop")}</Btn>
           )}
           {pickupDetail.status === "claimed" && (
-            <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>
+            <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + pickupDetail.id + "/approve", { method: "POST" }); showToast(tr("Shift approved")); setPickupDetail(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } }}>{tr("Approve")}</Btn>
           )}
         </div>
       </div>
@@ -5299,14 +5333,14 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
   const roleLabels = lkMap("staff_roles");
 
-  const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }); };
-  const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; return ((h % 12) || 12) + ":" + String(m).padStart(2, "0") + " " + ap; };
+  const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }); };
+  const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }); };
 
   const statusColor = { open: GO, claimed: BL, approved: GR, filled: GR, expired: "#7A8A9A", cancelled: "#7A8A9A", requested: "#F1C40F" };
   const lkOriginColors = lkColorMap("shift_origins");
   const lkOriginLabels = lkMap("shift_origins");
   const originColor = Object.keys(lkOriginColors).length > 0 ? lkOriginColors : { callout: RD, no_show: RD, extra_coverage: OR, voluntary_drop: BL, new_shift: GO };
-  const originLabel = Object.keys(lkOriginLabels).length > 0 ? lkOriginLabels : { callout: "Callout", no_show: "No-Show", extra_coverage: "Extra Coverage", voluntary_drop: "Voluntary Drop", new_shift: "New Shift" };
+  const originLabel = Object.keys(lkOriginLabels).length > 0 ? lkOriginLabels : { callout: tr("Callout"), no_show: tr("No-Show"), extra_coverage: tr("Extra Coverage"), voluntary_drop: tr("Voluntary Drop"), new_shift: tr("New Shift") };
   const urgencyBg = { urgent: t.redSubtle, normal: "transparent" };
   const urgencyBorder = { urgent: t.redBorder, normal: t.border };
   const [shiftDetail, setShiftDetail] = useState(null);
@@ -5386,11 +5420,11 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
   const postShift = async () => {
     if (!createForm.site_id || !createForm.scheduled_date || !createForm.start_time || !createForm.end_time) {
-      showToast("Site, date, and times are required", "error"); return;
+      showToast(tr("Site, date, and times are required"), "error"); return;
     }
     try {
       await af("/api/pickups", { method: "POST", body: createForm });
-      showToast("Open shift posted");
+      showToast(tr("Open shift posted"));
       setCreateForm(null);
       load();
     } catch (e) { showToast(e.message, "error"); }
@@ -5399,7 +5433,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const convertShift = async (shiftId) => {
     try {
       await af("/api/pickups/convert/" + shiftId, { method: "POST", body: { origin: convertOrigin, notes: convertNotes } });
-      showToast("Shift converted to open pickup");
+      showToast(tr("Shift converted to open pickup"));
       setConvertModal(false);
       setConvertNotes("");
       load();
@@ -5407,19 +5441,19 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   };
 
   const approveShift = async (id) => {
-    try { await af("/api/pickups/" + id + "/approve", { method: "POST" }); showToast("Shift approved"); load(); }
+    try { await af("/api/pickups/" + id + "/approve", { method: "POST" }); showToast(tr("Shift approved")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
   const releaseShift = async (id) => {
     if (!window.confirm("Release this shift back to the open pool?")) return;
-    try { await af("/api/pickups/" + id + "/release", { method: "POST" }); showToast("Shift released"); load(); }
+    try { await af("/api/pickups/" + id + "/release", { method: "POST" }); showToast(tr("Shift released")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
   const cancelShift = async (id) => {
     if (!window.confirm("Cancel this open shift? It will no longer be available for pickup.")) return;
-    try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast("Shift cancelled"); load(); }
+    try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -5434,44 +5468,44 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   };
 
   const tabs = [
-    { id: "open", l: "Open", count: analytics?.summary?.open_count },
-    { id: "requested", l: "Requests", count: requestCount > 0 ? requestCount : null },
-    { id: "claimed", l: "Claimed", count: claimedCount > 0 ? claimedCount : null },
-    { id: "filled", l: "Approved", count: null },
-    { id: "all", l: "All" },
-    { id: "analytics", l: "Analytics" },
+    { id: "open", l: tr("Open|shift"), count: analytics?.summary?.open_count },
+    { id: "requested", l: tr("Requests"), count: requestCount > 0 ? requestCount : null },
+    { id: "claimed", l: tr("Claimed|shift"), count: claimedCount > 0 ? claimedCount : null },
+    { id: "filled", l: tr("Approved|shift"), count: null },
+    { id: "all", l: tr("All|shifts") },
+    { id: "analytics", l: tr("Analytics") },
   ];
 
   return (<div>
-    <SecT t={t} action="Post Open Shift" onAction={() => setCreateForm({ site_id: "", scheduled_date: "", start_time: "", end_time: "", building_name: "", floor_number: "", service_category: "", origin: "new_shift", urgency: "normal", notes: "" })}>Shift Pickup Board</SecT>
-    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10, marginTop: -6 }}><button onClick={() => load()} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={11} c={t.textMut} /> Refresh</button></div>
+    <SecT t={t} action={tr("Post Open Shift")} onAction={() => setCreateForm({ site_id: "", scheduled_date: "", start_time: "", end_time: "", building_name: "", floor_number: "", service_category: "", origin: "new_shift", urgency: "normal", notes: "" })}>{tr("Shift Pickup Board")}</SecT>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10, marginTop: -6 }}><button onClick={() => load()} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 10, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={11} c={t.textMut} /> {tr("Refresh")}</button></div>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={[
-      { key: "thisWeek", label: "This Week" },
-      { key: "lastWeek", label: "Last Week" },
-      { key: "thisMonth", label: "This Month" },
-      { key: "last30", label: "Last 30 Days" },
+      { key: "thisWeek", label: tr("This Week") },
+      { key: "lastWeek", label: tr("Last Week") },
+      { key: "thisMonth", label: tr("This Month") },
+      { key: "last30", label: tr("Last 30 Days") },
     ]} />
 
     {/* Filters row */}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: "0 0 180px" }}>
-        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+        <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
       </div>
       <div style={{ flex: "0 0 160px" }}>
-        <Sel t={t} value={originFilter} onChange={e => setOriginFilter(e.target.value)} options={[{ v: "", l: "All Reasons" }, ...getOpts("shift_origins")]} />
+        <Sel t={t} value={originFilter} onChange={e => setOriginFilter(e.target.value)} options={[{ v: "", l: tr("All Reasons") }, ...getOpts("shift_origins")]} />
       </div>
       <div style={{ flex: 1 }} />
       <button onClick={openConvertModal} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + RD, background: RD + "12", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
-        <AlI sz={13} c={RD} /> Convert Callout
+        <AlI sz={13} c={RD} /> {tr("Convert Callout")}
       </button>
     </div>
 
     {/* Summary cards */}
     {analytics?.summary && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-      <SC t={t} label="Open Now" value={analytics.summary.open_count} color={GO} icon={SwpI} />
-      <SC t={t} label="Fill Rate" value={analytics.summary.fill_rate + "%"} color={analytics.summary.fill_rate >= 80 ? GR : analytics.summary.fill_rate >= 50 ? OR : RD} icon={ChkI} />
-      <SC t={t} label="Avg Fill Time" value={analytics.summary.avg_time_to_fill_minutes > 60 ? Math.round(analytics.summary.avg_time_to_fill_minutes / 60) + "h" : analytics.summary.avg_time_to_fill_minutes + "m"} color={BL} icon={CkI} />
-      <SC t={t} label="Callouts" value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? analytics.summary.no_show_count + " no-shows" : ""} color={RD} icon={AlI} />
+      <SC t={t} label={tr("Open Now")} value={analytics.summary.open_count} color={GO} icon={SwpI} />
+      <SC t={t} label={tr("Fill Rate")} value={analytics.summary.fill_rate + "%"} color={analytics.summary.fill_rate >= 80 ? GR : analytics.summary.fill_rate >= 50 ? OR : RD} icon={ChkI} />
+      <SC t={t} label={tr("Avg Fill Time")} value={analytics.summary.avg_time_to_fill_minutes > 60 ? Math.round(analytics.summary.avg_time_to_fill_minutes / 60) + "h" : analytics.summary.avg_time_to_fill_minutes + "m"} color={BL} icon={CkI} />
+      <SC t={t} label={tr("Callouts")} value={analytics.summary.callout_count} sub={analytics.summary.no_show_count > 0 ? tr("{0} no-shows", analytics.summary.no_show_count) : ""} color={RD} icon={AlI} />
     </div>}
 
     {/* Tabs */}
@@ -5491,14 +5525,14 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       ))}
     </div>
 
-    {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading...</div>}
+    {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading...")}</div>}
 
     {/* SHIFT LIST TABS */}
     {!loading && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder="Search site, service, staff, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={pkPerPage} onChange={e => { setPkPerPage(Number(e.target.value)); setPkPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={pkPerPage} onChange={e => { setPkPerPage(Number(e.target.value)); setPkPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
           const searched = shifts.filter(s => {
@@ -5510,12 +5544,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           const cur = Math.min(pkPage, totalPages);
           const items = searched.slice((cur - 1) * pkPerPage, cur * pkPerPage);
           const columns = [
-            { header: "Shift", render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {fmtTm(s.start_time)} to {fmtTm(s.end_time)}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>Bldg: {s.building_name}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>Floor: {s.floor_number}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
-            { header: "Status", render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? "Drop Request" : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l="URGENT" c={RD} />}{s.ot_warning && <Bdg l="OT Risk" c={OR} />}</div> },
-            { header: "Assigned", render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleLabels[s.claimed_by_role] || RL[s.claimed_by_role] || s.claimed_by_role})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
-            { header: "Actions", align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Release</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Cancel</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast("Drop approved"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Approve</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>Deny</button>}<button title="View shift" onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+            { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
+            { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? tr("Drop Request") : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
+            { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleLabels[s.claimed_by_role] || RL[s.claimed_by_role] || s.claimed_by_role})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
+            { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
-          return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty="No shifts found for this period and filter." footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
+          return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
         })()}
       </div>
     )}
@@ -5525,7 +5559,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       <div>
         {/* Analytics sub-tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-          {[{ id: "overview", l: "Overview" }, { id: "response", l: "Response Time" }, { id: "patterns", l: "Callout Patterns" }, { id: "reliability", l: "Staff Reliability" }].map(at => (
+          {[{ id: "overview", l: tr("Overview") }, { id: "response", l: tr("Response Time") }, { id: "patterns", l: tr("Callout Patterns") }, { id: "reliability", l: tr("Staff Reliability") }].map(at => (
             <button key={at.id} onClick={() => setAnalyticsTab(at.id)} style={{ padding: "6px 14px", borderRadius: 6, fontSize: 11, fontWeight: analyticsTab === at.id ? 700 : 500, cursor: "pointer", background: analyticsTab === at.id ? t.goldBg : "transparent", color: analyticsTab === at.id ? t.goldText : t.textMut, border: analyticsTab === at.id ? "1px solid " + t.goldBorder : "1px solid " + t.border }}>{at.l}</button>
           ))}
         </div>
@@ -5533,14 +5567,14 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* OVERVIEW SUB-TAB */}
         {analyticsTab === "overview" && (<div>
         <Crd t={t} style={{ marginBottom: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Reason Breakdown</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Reason Breakdown")}</div>
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
             {[
-              { k: "callout_count", l: "Callouts", c: RD },
-              { k: "no_show_count", l: "No-Shows", c: RD },
-              { k: "extra_coverage_count", l: "Extra Coverage", c: OR },
-              { k: "voluntary_drop_count", l: "Voluntary Drops", c: BL },
-              { k: "new_shift_count", l: "New Shifts", c: t.goldText },
+              { k: "callout_count", l: tr("Callouts"), c: RD },
+              { k: "no_show_count", l: tr("No-Shows"), c: RD },
+              { k: "extra_coverage_count", l: tr("Extra Coverage"), c: OR },
+              { k: "voluntary_drop_count", l: tr("Voluntary Drops"), c: BL },
+              { k: "new_shift_count", l: tr("New Shifts"), c: t.goldText },
             ].map(r => (
               <div key={r.k} style={{ textAlign: "center", minWidth: 80 }}>
                 <div style={{ fontFamily: FONT_HEAD, fontSize: 22, fontWeight: 600, color: r.c }}>{analytics.summary[r.k]}</div>
@@ -5553,13 +5587,13 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {analytics.summary.ot_warning_count > 0 && (
           <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
             <AlI sz={14} c={OR} />
-            <span style={{ fontSize: 12, color: OR, fontWeight: 600 }}>{analytics.summary.ot_warning_count} shift{analytics.summary.ot_warning_count !== 1 ? "s" : ""} claimed with overtime risk</span>
+            <span style={{ fontSize: 12, color: OR, fontWeight: 600 }}>{trn("{0} shift claimed with overtime risk|count", analytics.summary.ot_warning_count)}</span>
           </div>
         )}
 
         {analytics.sites?.length > 0 && (
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Coverage by Site</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Coverage by Site")}</div>
             {analytics.sites.map(s => {
               const fillPct = s.total > 0 ? Math.round(s.filled / s.total * 100) : 0;
               return (
@@ -5567,8 +5601,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.site_name}</span>
                     <span style={{ fontSize: 11 }}>
-                      <span style={{ color: fillPct >= 80 ? GR : fillPct >= 50 ? OR : RD, fontWeight: 600 }}>{fillPct}% filled</span>
-                      <span style={{ color: t.textMut, marginLeft: 8 }}>{s.total} total, {s.callouts} callouts</span>
+                      <span style={{ color: fillPct >= 80 ? GR : fillPct >= 50 ? OR : RD, fontWeight: 600 }}>{tr("{0}% filled", fillPct)}</span>
+                      <span style={{ color: t.textMut, marginLeft: 8 }}>{tr("{0} total, {1} callouts", s.total, s.callouts)}</span>
                     </span>
                   </div>
                   <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
@@ -5583,13 +5617,13 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* Fill Rate by Origin */}
         {fillRateData?.by_origin?.length > 0 && (
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Fill Rate by Reason</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Fill Rate by Reason")}</div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {fillRateData.by_origin.map(o => (
                 <div key={o.origin} style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid " + (originColor[o.origin] || GO) + "40", background: (originColor[o.origin] || GO) + "0A", minWidth: 120, textAlign: "center" }}>
                   <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: o.fill_rate >= 80 ? GR : o.fill_rate >= 50 ? OR : RD }}>{o.fill_rate}%</div>
                   <div style={{ fontSize: 10, color: t.textMut, marginBottom: 2 }}>{originLabel[o.origin] || o.origin}</div>
-                  <div style={{ fontSize: 9, color: t.textMut }}>{o.filled}/{o.total} filled</div>
+                  <div style={{ fontSize: 9, color: t.textMut }}>{tr("{0}/{1} filled", o.filled, o.total)}</div>
                 </div>
               ))}
             </div>
@@ -5598,7 +5632,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
         {analytics.trends?.length > 0 && (
           <Crd t={t}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Weekly Trend</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Weekly Trend")}</div>
             <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 100 }}>
               {analytics.trends.map((w, i) => {
                 const max = Math.max(...analytics.trends.map(x => x.total));
@@ -5620,14 +5654,14 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* RESPONSE TIME SUB-TAB */}
         {analyticsTab === "response" && responseTimeData && (<div>
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Response Time Summary</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Response Time Summary")}</div>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               {[
-                { l: "Average", v: responseTimeData.overall?.avg_minutes, u: "min" },
-                { l: "Median", v: responseTimeData.overall?.median_minutes, u: "min" },
-                { l: "Fastest", v: responseTimeData.overall?.min_minutes, u: "min" },
-                { l: "Slowest", v: responseTimeData.overall?.max_minutes, u: "min" },
-                { l: "Total Claimed", v: responseTimeData.overall?.claimed_count, u: "" },
+                { l: tr("Average"), v: responseTimeData.overall?.avg_minutes, u: "min" },
+                { l: tr("Median"), v: responseTimeData.overall?.median_minutes, u: "min" },
+                { l: tr("Fastest"), v: responseTimeData.overall?.min_minutes, u: "min" },
+                { l: tr("Slowest"), v: responseTimeData.overall?.max_minutes, u: "min" },
+                { l: tr("Total Claimed"), v: responseTimeData.overall?.claimed_count, u: "" },
               ].map((m, i) => {
                 const displayVal = m.u === "min" && m.v > 60 ? Math.round(m.v / 60) + "h " + (m.v % 60) + "m" : (m.v || 0) + (m.u ? " " + m.u : "");
                 return (
@@ -5642,20 +5676,20 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
           {responseTimeData.by_site?.length > 0 && (
             <Crd t={t} style={{ marginBottom: 14 }}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Response Time by Site</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Response Time by Site")}</div>
               <div style={{ overflow: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead><tr style={{ borderBottom: "2px solid " + t.border }}>
-                    <th style={{ textAlign: "left", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Site</th>
-                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Avg (min)</th>
-                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Median (min)</th>
-                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Claims</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Site")}</th>
+                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Avg (min)")}</th>
+                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Median (min)")}</th>
+                    <th style={{ textAlign: "right", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Claims")}</th>
                   </tr></thead>
                   <tbody>{responseTimeData.by_site.map(s => (
                     <tr key={s.site_id} style={{ borderBottom: "1px solid " + t.border }}>
                       <td style={{ padding: "8px 10px", fontWeight: 600, color: t.text }}>{s.site_name}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: s.avg_minutes <= 60 ? GR : s.avg_minutes <= 240 ? OR : RD, fontWeight: 600 }}>{s.avg_minutes > 60 ? Math.round(s.avg_minutes / 60) + "h" : s.avg_minutes + "m"}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", color: t.textSec }}>{s.median_minutes > 60 ? Math.round(s.median_minutes / 60) + "h" : s.median_minutes + "m"}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", color: s.avg_minutes <= 60 ? GR : s.avg_minutes <= 240 ? OR : RD, fontWeight: 600 }}>{s.avg_minutes > 60 ? tr("{0}h", Math.round(s.avg_minutes / 60)) : tr("{0}m", s.avg_minutes)}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", color: t.textSec }}>{s.median_minutes > 60 ? tr("{0}h", Math.round(s.median_minutes / 60)) : tr("{0}m", s.median_minutes)}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", color: t.textMut }}>{s.claimed_count}</td>
                     </tr>
                   ))}</tbody>
@@ -5666,13 +5700,13 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
           {responseTimeData.by_urgency?.length > 0 && (
             <Crd t={t}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Response Time by Urgency</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Response Time by Urgency")}</div>
               <div style={{ display: "flex", gap: 16 }}>
                 {responseTimeData.by_urgency.map(u => (
                   <div key={u.urgency} style={{ padding: "12px 20px", borderRadius: 8, border: "1px solid " + (u.urgency === "urgent" ? RD : GO) + "40", background: (u.urgency === "urgent" ? RD : GO) + "0A", textAlign: "center", minWidth: 120 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: u.urgency === "urgent" ? RD : t.goldText }}>{u.avg_minutes > 60 ? Math.round(u.avg_minutes / 60) + "h" : u.avg_minutes + "m"}</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: u.urgency === "urgent" ? RD : t.goldText }}>{u.avg_minutes > 60 ? tr("{0}h", Math.round(u.avg_minutes / 60)) : tr("{0}m", u.avg_minutes)}</div>
                     <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{u.urgency}</div>
-                    <div style={{ fontSize: 9, color: t.textMut }}>{u.claimed_count} claims</div>
+                    <div style={{ fontSize: 9, color: t.textMut }}>{tr("{0} claims", u.claimed_count)}</div>
                   </div>
                 ))}
               </div>
@@ -5683,7 +5717,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* CALLOUT PATTERNS SUB-TAB */}
         {analyticsTab === "patterns" && patternData && (<div>
           <Crd t={t} style={{ marginBottom: 14 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Shifts by Day of Week</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Shifts by Day of Week")}</div>
             {(() => {
               const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
               const maxTotal = Math.max(...(patternData.by_day || []).map(d => d.total), 1);
@@ -5702,8 +5736,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                         <div style={{ position: "relative", width: "70%", height: h, borderRadius: "4px 4px 0 0", background: GO + "30", minHeight: total > 0 ? 4 : 0, overflow: "hidden" }}>
                           {callouts > 0 && <div style={{ position: "absolute", bottom: 0, width: "100%", height: (callouts / total * 100) + "%", background: RD + "60", borderRadius: "0 0 0 0" }} />}
                         </div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: t.text, marginTop: 4 }}>{dayName}</div>
-                        {calloutPct > 0 && <div style={{ fontSize: 8, color: RD }}>{calloutPct}% callouts</div>}
+                        <div style={{ fontSize: 10, fontWeight: 600, color: t.text, marginTop: 4 }}>{tr(dayName)}</div>
+                        {calloutPct > 0 && <div style={{ fontSize: 8, color: RD }}>{tr("{0}% callouts", calloutPct)}</div>}
                       </div>
                     );
                   })}
@@ -5711,8 +5745,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
               );
             })()}
             <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: GO + "30" }} /><span style={{ fontSize: 9, color: t.textMut }}>Total</span></div>
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: RD + "60" }} /><span style={{ fontSize: 9, color: t.textMut }}>Callouts</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: GO + "30" }} /><span style={{ fontSize: 9, color: t.textMut }}>{tr("Total")}</span></div>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: RD + "60" }} /><span style={{ fontSize: 9, color: t.textMut }}>{tr("Callouts")}</span></div>
             </div>
           </Crd>
 
@@ -5723,12 +5757,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
             const maxVal = Math.max(...patternData.by_site_day.map(d => d.total), 1);
             return (
               <Crd t={t} style={{ marginBottom: 14 }}>
-                <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Site x Day Heatmap</div>
+                <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Site x Day Heatmap")}</div>
                 <div style={{ overflow: "auto" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                     <thead><tr>
                       <th style={{ textAlign: "left", padding: "6px 8px", fontSize: 10, color: t.textMut }}></th>
-                      {DOW.map(d => <th key={d} style={{ textAlign: "center", padding: "6px 4px", fontSize: 10, color: t.textMut, fontWeight: 600 }}>{d}</th>)}
+                      {DOW.map(d => <th key={d} style={{ textAlign: "center", padding: "6px 4px", fontSize: 10, color: t.textMut, fontWeight: 600 }}>{tr(d)}</th>)}
                     </tr></thead>
                     <tbody>{siteNames.map(sn => (
                       <tr key={sn}>
@@ -5750,7 +5784,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
           {patternData.by_month?.length > 0 && (
             <Crd t={t}>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Monthly Totals</div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Monthly Totals")}</div>
               <div style={{ display: "flex", gap: 2, alignItems: "flex-end", height: 100 }}>
                 {patternData.by_month.map((m, i) => {
                   const maxM = Math.max(...patternData.by_month.map(x => x.total));
@@ -5760,7 +5794,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{m.total}</div>
                       <div style={{ width: "70%", height: h, borderRadius: "4px 4px 0 0", background: m.callouts > m.total * 0.4 ? RD : GO, minHeight: 2 }} />
-                      <div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{mDate.toLocaleDateString("en-US", { month: "short" })}</div>
+                      <div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{mDate.toLocaleDateString(localeTag(), { month: "short" })}</div>
                     </div>
                   );
                 })}
@@ -5772,18 +5806,18 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         {/* STAFF RELIABILITY SUB-TAB */}
         {analyticsTab === "reliability" && reliabilityData && (<div>
           <Crd t={t}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Staff Reliability Metrics</div>
-            {reliabilityData.staff?.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No pickup activity found in this period.</div>}
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Staff Reliability Metrics")}</div>
+            {reliabilityData.staff?.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No pickup activity found in this period.")}</div>}
             {reliabilityData.staff?.length > 0 && (
               <div style={{ overflow: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead><tr style={{ borderBottom: "2px solid " + t.border }}>
-                    <th style={{ textAlign: "left", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Staff Member</th>
-                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Claims</th>
-                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Completed</th>
-                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Released</th>
-                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Drop Requests</th>
-                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>Reliability</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Staff Member")}</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Claims")}</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Completed|shift")}</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Released|shift")}</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Drop Requests")}</th>
+                    <th style={{ textAlign: "center", padding: "8px 10px", color: t.textMut, fontWeight: 600, fontSize: 10, textTransform: "uppercase" }}>{tr("Reliability")}</th>
                   </tr></thead>
                   <tbody>{reliabilityData.staff.map(s => {
                     const reliPct = s.total_claims > 0 ? Math.round(s.completed / s.total_claims * 100) : 0;
@@ -5813,143 +5847,143 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
     {/* POST OPEN SHIFT MODAL */}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Post Open Shift</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post Open Shift")}</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
 
-      <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Date *</Lbl><Inp t={t} type="date" value={createForm.scheduled_date} onChange={e => setCreateForm({ ...createForm, scheduled_date: e.target.value })} /></div>
-        <div><Lbl>Start Time *</Lbl><Inp t={t} type="time" value={createForm.start_time} onChange={e => setCreateForm({ ...createForm, start_time: e.target.value })} /></div>
-        <div><Lbl>End Time *</Lbl><Inp t={t} type="time" value={createForm.end_time} onChange={e => setCreateForm({ ...createForm, end_time: e.target.value })} /></div>
+        <div><Lbl>{tr("Date *")}</Lbl><Inp t={t} type="date" value={createForm.scheduled_date} onChange={e => setCreateForm({ ...createForm, scheduled_date: e.target.value })} /></div>
+        <div><Lbl>{tr("Start Time *")}</Lbl><Inp t={t} type="time" value={createForm.start_time} onChange={e => setCreateForm({ ...createForm, start_time: e.target.value })} /></div>
+        <div><Lbl>{tr("End Time *")}</Lbl><Inp t={t} type="time" value={createForm.end_time} onChange={e => setCreateForm({ ...createForm, end_time: e.target.value })} /></div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Building</Lbl><Sel t={t} value={createForm.building_name} onChange={e => setCreateForm({ ...createForm, building_name: e.target.value, floor_number: "" })} options={[{ v: "", l: "Select..." }, ...(siteLocations[createForm.site_id]?.buildings || []).map(b => ({ v: b, l: b }))]} /></div>
-        <div><Lbl>Floor</Lbl><Sel t={t} value={createForm.floor_number} onChange={e => setCreateForm({ ...createForm, floor_number: e.target.value })} options={[{ v: "", l: "Select..." }, ...(siteLocations[createForm.site_id]?.floors?.[createForm.building_name] || []).map(f => ({ v: f, l: f }))]} /></div>
+        <div><Lbl>{tr("Building")}</Lbl><Sel t={t} value={createForm.building_name} onChange={e => setCreateForm({ ...createForm, building_name: e.target.value, floor_number: "" })} options={[{ v: "", l: tr("Select...") }, ...(siteLocations[createForm.site_id]?.buildings || []).map(b => ({ v: b, l: b }))]} /></div>
+        <div><Lbl>{tr("Floor")}</Lbl><Sel t={t} value={createForm.floor_number} onChange={e => setCreateForm({ ...createForm, floor_number: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...(siteLocations[createForm.site_id]?.floors?.[createForm.building_name] || []).map(f => ({ v: f, l: f }))]} /></div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>Service Category</Lbl><Sel t={t} value={createForm.service_category} onChange={e => setCreateForm({ ...createForm, service_category: e.target.value })} options={[{ v: "", l: "Select..." }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
-        <div><Lbl>Reason</Lbl><Sel t={t} value={createForm.origin} onChange={e => setCreateForm({ ...createForm, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
-        <div><Lbl>Urgency</Lbl><Sel t={t} value={createForm.urgency} onChange={e => setCreateForm({ ...createForm, urgency: e.target.value })} options={[{ v: "normal", l: "Normal" }, { v: "urgent", l: "Urgent" }]} /></div>
+        <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={createForm.service_category} onChange={e => setCreateForm({ ...createForm, service_category: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
+        <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={createForm.origin} onChange={e => setCreateForm({ ...createForm, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
+        <div><Lbl>{tr("Urgency")}</Lbl><Sel t={t} value={createForm.urgency} onChange={e => setCreateForm({ ...createForm, urgency: e.target.value })} options={[{ v: "normal", l: tr("Normal") }, { v: "urgent", l: tr("Urgent") }]} /></div>
       </div>
 
-      <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><TArea t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder="Additional details about this shift..." rows={2} /></div>
+      <div style={{ marginBottom: 16 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} value={createForm.notes} onChange={e => setCreateForm({ ...createForm, notes: e.target.value })} placeholder={tr("Additional details about this shift...")} rows={2} /></div>
 
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-        <Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>Cancel</Btn>
-        <Btn t={t} onClick={postShift}>Post Shift</Btn>
+        <Btn t={t} v="ghost" onClick={() => setCreateForm(null)}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={postShift}>{tr("Post Shift")}</Btn>
       </div>
     </div></Mdl>}
 
     {/* CONVERT CALLOUT MODAL */}
     {convertModal && <Mdl t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Convert Scheduled Shift to Open Pickup</div><button onClick={() => setConvertModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Convert Scheduled Shift to Open Pickup")}</div><button onClick={() => setConvertModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14 }}>
-        Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.
+        {tr("Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.")}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <div><Lbl>Reason</Lbl><Sel t={t} value={convertOrigin} onChange={e => setConvertOrigin(e.target.value)} options={[{ v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "extra_coverage", l: "Extra Coverage" }]} /></div>
-        <div><Lbl>Notes</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder="e.g. Marcus called out sick" /></div>
+        <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertOrigin} onChange={e => setConvertOrigin(e.target.value)} options={[{ v: "callout", l: tr("Callout") }, { v: "no_show", l: tr("No-Show") }, { v: "voluntary_drop", l: tr("Voluntary Drop") }, { v: "extra_coverage", l: tr("Extra Coverage") }]} /></div>
+        <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder={tr("e.g. Marcus called out sick")} /></div>
       </div>
 
       <div style={{ maxHeight: 300, overflow: "auto" }}>
-        {schedShifts.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No upcoming scheduled shifts found.</div>}
+        {schedShifts.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No upcoming scheduled shifts found.")}</div>}
         {schedShifts.map(s => (
           <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: "1px solid " + t.border, marginBottom: 6, cursor: "pointer" }} onClick={() => convertShift(s.id)}>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.staff_name || "Unassigned"}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{s.staff_name || tr("Unassigned")}</div>
               <div style={{ fontSize: 11, color: t.textSec }}>{s.site_name} | {fmtDt(s.scheduled_date)}</div>
-              <div style={{ fontSize: 10, color: t.textMut }}>{fmtTm(s.start_time)} to {fmtTm(s.end_time)}{s.building_name ? " | " + s.building_name : ""}{s.floor_number ? " Fl " + s.floor_number : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut }}>{tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}{s.building_name ? " | " + s.building_name : ""}{s.floor_number ? " " + tr("Fl {0}", s.floor_number) : ""}</div>
             </div>
-            <span style={{ fontSize: 10, color: RD, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, flexShrink: 0 }}>Convert</span>
+            <span style={{ fontSize: 10, color: RD, fontWeight: 600, padding: "4px 10px", borderRadius: 6, border: "1px solid " + RD, flexShrink: 0 }}>{tr("Convert")}</span>
           </div>
         ))}
       </div>
 
       <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
-        <Btn t={t} v="ghost" onClick={() => setConvertModal(false)}>Close</Btn>
+        <Btn t={t} v="ghost" onClick={() => setConvertModal(false)}>{tr("Close")}</Btn>
       </div>
     </div></Mdl>}
 
     {/* SHIFT DETAIL MODAL */}
     {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{shiftDetail.status === "requested" ? "Shift Drop Request" : "Shift Details"}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{shiftDetail.status === "requested" ? tr("Shift Drop Request") : tr("Shift Details")}</div>
         <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
       </div>
-      {shiftDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>A staff member is requesting to drop this shift.</div>}
+      {shiftDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift.")}</div>}
 
       {!shiftDetail.editing ? (<>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Site</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Status</div><div style={{ fontSize: 14, fontWeight: 600, color: goldToText(t, statusColor[shiftDetail.status] || GO) }}>{shiftDetail.status === "requested" ? "Drop Requested" : (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1)}</div></div>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Date</div><div style={{ fontSize: 13, color: t.text }}>{fmtDt(shiftDetail.scheduled_date)}</div></div>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Time</div><div style={{ fontSize: 13, color: t.text }}>{fmtTm(shiftDetail.start_time)} to {fmtTm(shiftDetail.end_time)}</div></div>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Reason</div><div style={{ fontSize: 13, color: t.text }}>{originLabel[shiftDetail.origin] || shiftDetail.origin}</div></div>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Urgency</div><div style={{ fontSize: 13, color: t.text }}>{(shiftDetail.urgency || "normal").charAt(0).toUpperCase() + (shiftDetail.urgency || "normal").slice(1)}</div></div>
-          {shiftDetail.building_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Building</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.building_name}</div></div>}
-          {shiftDetail.floor_number && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Floor</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.floor_number}</div></div>}
-          {shiftDetail.claimed_by_name && shiftDetail.claimed_by_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Claimed By</div><div style={{ fontSize: 13, fontWeight: 600, color: BL }}>{shiftDetail.claimed_by_name}</div></div>}
-          {shiftDetail.original_user_name && shiftDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{shiftDetail.status === "requested" ? "Requested By" : "Originally Assigned"}</div><div style={{ fontSize: 13, color: t.textSec }}>{shiftDetail.original_user_name}</div></div>}
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: goldToText(t, statusColor[shiftDetail.status] || GO) }}>{shiftDetail.status === "requested" ? tr("Drop Requested") : (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1)}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{fmtDt(shiftDetail.scheduled_date)}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Time")}</div><div style={{ fontSize: 13, color: t.text }}>{tr("{0} to {1}", fmtTm(shiftDetail.start_time), fmtTm(shiftDetail.end_time))}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{originLabel[shiftDetail.origin] || shiftDetail.origin}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Urgency")}</div><div style={{ fontSize: 13, color: t.text }}>{(shiftDetail.urgency || "normal").charAt(0).toUpperCase() + (shiftDetail.urgency || "normal").slice(1)}</div></div>
+          {shiftDetail.building_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Building")}</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.building_name}</div></div>}
+          {shiftDetail.floor_number && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Floor")}</div><div style={{ fontSize: 13, color: t.text }}>{shiftDetail.floor_number}</div></div>}
+          {shiftDetail.claimed_by_name && shiftDetail.claimed_by_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Claimed By")}</div><div style={{ fontSize: 13, fontWeight: 600, color: BL }}>{shiftDetail.claimed_by_name}</div></div>}
+          {shiftDetail.original_user_name && shiftDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{shiftDetail.status === "requested" ? tr("Requested By") : tr("Originally Assigned")}</div><div style={{ fontSize: 13, color: t.textSec }}>{shiftDetail.original_user_name}</div></div>}
         </div>
-        {shiftDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Notes</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{shiftDetail.notes}</div></div>}
+        {shiftDetail.notes && <div style={{ marginBottom: 14 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Notes")}</div><div style={{ fontSize: 12, color: t.textSec, fontStyle: "italic" }}>{shiftDetail.notes}</div></div>}
 
         <div style={{ padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border, marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>Reassign To</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Reassign To")}</div>
           <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: siteStaff.length > 0 ? "Staff at this site..." : "Select staff member..." }, ...(siteStaff.length > 0 ? siteStaff : staff.filter(s => s.role !== "admin")).map(s => ({ v: s.id || s.user_id, l: staffName(s) }))]} /></div>
+            <div style={{ flex: 1 }}><Sel t={t} value={shiftDetail.reassignTo || ""} onChange={e => setShiftDetail({ ...shiftDetail, reassignTo: e.target.value })} options={[{ v: "", l: siteStaff.length > 0 ? tr("Staff at this site...") : tr("Select staff member...") }, ...(siteStaff.length > 0 ? siteStaff : staff.filter(s => s.role !== "admin")).map(s => ({ v: s.id || s.user_id, l: staffName(s) }))]} /></div>
             <Btn t={t} onClick={async () => {
-              if (!shiftDetail.reassignTo) { showToast("Select a staff member", "error"); return; }
+              if (!shiftDetail.reassignTo) { showToast(tr("Select a staff member"), "error"); return; }
               try {
                 if (shiftDetail.status === "requested") await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" });
                 await af("/api/pickups/" + shiftDetail.id + "/assign", { method: "POST", body: { user_id: shiftDetail.reassignTo } });
-                showToast("Shift assigned"); setShiftDetail(null); load();
+                showToast(tr("Shift assigned")); setShiftDetail(null); load();
               } catch (e) { showToast(e.message, "error"); }
-            }} style={{ padding: "8px 16px", fontSize: 11 }}>Assign</Btn>
+            }} style={{ padding: "8px 16px", fontSize: 11 }}>{tr("Assign")}</Btn>
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: 6 }}>
-            {shiftDetail.status === "requested" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/deny-drop", { method: "POST" }); showToast("Request denied"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Deny</Btn>}
-            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" } }); showToast("Shift cancelled"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>Cancel</Btn>}
-            {(shiftDetail.status === "claimed" || shiftDetail.status === "approved") && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/release", { method: "POST" }); showToast("Released"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: OR, borderColor: OR }}>Release</Btn>}
+            {shiftDetail.status === "requested" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Deny")}</Btn>}
+            {shiftDetail.status === "open" && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: RD, borderColor: RD }}>{tr("Cancel")}</Btn>}
+            {(shiftDetail.status === "claimed" || shiftDetail.status === "approved") && <Btn t={t} v="ghost" onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/release", { method: "POST" }); showToast(tr("Released|shift")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ color: OR, borderColor: OR }}>{tr("Release")}</Btn>}
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editSite: shiftDetail.site_id, editDate: String(shiftDetail.scheduled_date).slice(0, 10), editStart: String(shiftDetail.start_time).slice(0, 5), editEnd: String(shiftDetail.end_time).slice(0, 5), editBuilding: shiftDetail.building_name || "", editFloor: shiftDetail.floor_number || "", editService: shiftDetail.service_category || "", editOrigin: shiftDetail.origin, editUrgency: shiftDetail.urgency, editNotes: shiftDetail.notes || "" })}>Edit</Btn>
-            {shiftDetail.status === "requested" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" }); showToast("Drop approved, shift is open"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>Approve Drop</Btn>}
-            {shiftDetail.status === "claimed" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve", { method: "POST" }); showToast("Shift approved"); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>Approve</Btn>}
-            {shiftDetail.status !== "requested" && shiftDetail.status !== "claimed" && <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>Close</Btn>}
+            <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: true, editSite: shiftDetail.site_id, editDate: String(shiftDetail.scheduled_date).slice(0, 10), editStart: String(shiftDetail.start_time).slice(0, 5), editEnd: String(shiftDetail.end_time).slice(0, 5), editBuilding: shiftDetail.building_name || "", editFloor: shiftDetail.floor_number || "", editService: shiftDetail.service_category || "", editOrigin: shiftDetail.origin, editUrgency: shiftDetail.urgency, editNotes: shiftDetail.notes || "" })}>{tr("Edit")}</Btn>
+            {shiftDetail.status === "requested" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved, shift is open")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>{tr("Approve Drop")}</Btn>}
+            {shiftDetail.status === "claimed" && <Btn t={t} onClick={async () => { try { await af("/api/pickups/" + shiftDetail.id + "/approve", { method: "POST" }); showToast(tr("Shift approved")); setShiftDetail(null); load(); } catch (e) { showToast(e.message, "error"); } }}>{tr("Approve")}</Btn>}
+            {shiftDetail.status !== "requested" && shiftDetail.status !== "claimed" && <Btn t={t} v="ghost" onClick={() => setShiftDetail(null)}>{tr("Close")}</Btn>}
           </div>
         </div>
       </>) : (<>
-        <div style={{ marginBottom: 12 }}><Lbl>Site</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => { setShiftDetail({ ...shiftDetail, editSite: e.target.value }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={shiftDetail.editSite} onChange={e => { setShiftDetail({ ...shiftDetail, editSite: e.target.value }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Date</Lbl><Inp t={t} type="date" value={shiftDetail.editDate} onChange={e => setShiftDetail({ ...shiftDetail, editDate: e.target.value })} /></div>
-          <div><Lbl>Start</Lbl><Inp t={t} type="time" value={shiftDetail.editStart} onChange={e => setShiftDetail({ ...shiftDetail, editStart: e.target.value })} /></div>
-          <div><Lbl>End</Lbl><Inp t={t} type="time" value={shiftDetail.editEnd} onChange={e => setShiftDetail({ ...shiftDetail, editEnd: e.target.value })} /></div>
+          <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" value={shiftDetail.editDate} onChange={e => setShiftDetail({ ...shiftDetail, editDate: e.target.value })} /></div>
+          <div><Lbl>{tr("Start")}</Lbl><Inp t={t} type="time" value={shiftDetail.editStart} onChange={e => setShiftDetail({ ...shiftDetail, editStart: e.target.value })} /></div>
+          <div><Lbl>{tr("End")}</Lbl><Inp t={t} type="time" value={shiftDetail.editEnd} onChange={e => setShiftDetail({ ...shiftDetail, editEnd: e.target.value })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Building</Lbl><Inp t={t} value={shiftDetail.editBuilding} onChange={e => setShiftDetail({ ...shiftDetail, editBuilding: e.target.value })} /></div>
-          <div><Lbl>Floor</Lbl><Inp t={t} value={shiftDetail.editFloor} onChange={e => setShiftDetail({ ...shiftDetail, editFloor: e.target.value })} /></div>
+          <div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={shiftDetail.editBuilding} onChange={e => setShiftDetail({ ...shiftDetail, editBuilding: e.target.value })} /></div>
+          <div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={shiftDetail.editFloor} onChange={e => setShiftDetail({ ...shiftDetail, editFloor: e.target.value })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Service</Lbl><Sel t={t} value={shiftDetail.editService} onChange={e => setShiftDetail({ ...shiftDetail, editService: e.target.value })} options={[{ v: "", l: "Select..." }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
-          <div><Lbl>Reason</Lbl><Sel t={t} value={shiftDetail.editOrigin} onChange={e => setShiftDetail({ ...shiftDetail, editOrigin: e.target.value })} options={[{ v: "callout", l: "Callout" }, { v: "no_show", l: "No-Show" }, { v: "extra_coverage", l: "Extra Coverage" }, { v: "voluntary_drop", l: "Voluntary Drop" }, { v: "new_shift", l: "New Shift" }]} /></div>
-          <div><Lbl>Urgency</Lbl><Sel t={t} value={shiftDetail.editUrgency} onChange={e => setShiftDetail({ ...shiftDetail, editUrgency: e.target.value })} options={[{ v: "normal", l: "Normal" }, { v: "urgent", l: "Urgent" }]} /></div>
+          <div><Lbl>{tr("Service")}</Lbl><Sel t={t} value={shiftDetail.editService} onChange={e => setShiftDetail({ ...shiftDetail, editService: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
+          <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={shiftDetail.editOrigin} onChange={e => setShiftDetail({ ...shiftDetail, editOrigin: e.target.value })} options={[{ v: "callout", l: tr("Callout") }, { v: "no_show", l: tr("No-Show") }, { v: "extra_coverage", l: tr("Extra Coverage") }, { v: "voluntary_drop", l: tr("Voluntary Drop") }, { v: "new_shift", l: tr("New Shift") }]} /></div>
+          <div><Lbl>{tr("Urgency")}</Lbl><Sel t={t} value={shiftDetail.editUrgency} onChange={e => setShiftDetail({ ...shiftDetail, editUrgency: e.target.value })} options={[{ v: "normal", l: tr("Normal") }, { v: "urgent", l: tr("Urgent") }]} /></div>
         </div>
-        <div style={{ marginBottom: 14 }}><Lbl>Notes</Lbl><Inp t={t} value={shiftDetail.editNotes} onChange={e => setShiftDetail({ ...shiftDetail, editNotes: e.target.value })} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={shiftDetail.editNotes} onChange={e => setShiftDetail({ ...shiftDetail, editNotes: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: false })}>Cancel</Btn>
+          <Btn t={t} v="ghost" onClick={() => setShiftDetail({ ...shiftDetail, editing: false })}>{tr("Cancel")}</Btn>
           <Btn t={t} onClick={async () => {
             try {
               await af("/api/pickups/" + shiftDetail.id, { method: "PATCH", body: { site_id: shiftDetail.editSite, scheduled_date: shiftDetail.editDate, start_time: shiftDetail.editStart, end_time: shiftDetail.editEnd, building_name: shiftDetail.editBuilding, floor_number: shiftDetail.editFloor, service_category: shiftDetail.editService, origin: shiftDetail.editOrigin, urgency: shiftDetail.editUrgency, notes: shiftDetail.editNotes } });
-              showToast("Shift updated"); setShiftDetail(null); load();
+              showToast(tr("Shift updated")); setShiftDetail(null); load();
             } catch (e) { showToast(e.message, "error"); }
-          }}>Save Changes</Btn>
+          }}>{tr("Save Changes")}</Btn>
         </div>
       </>)}
     </div></Mdl>}
@@ -5965,8 +5999,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const cimsOpts = getOpts("cims_categories");
   const CIMS_CATS = cimsOpts.length > 0 ? cimsOpts.map(o => o.v) : ["SD", "HSE", "GB", "QS", "HR", "MC"];
   const STATUS_C = { scheduled: "#24A4F4", in_progress: "#F39C12", completed: "#2ECC71", cancelled: "#7A8A9A" };
-  const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
-  const fmtDT = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+  const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
+  const fmtDT = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 
   const [tab, setTab] = useState("templates");
   const [templates, setTemplates] = useState([]);
@@ -6574,7 +6608,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                           <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={pt.site_name + ": " + pct + "% on " + fmtDate(pt.scheduled_date)}>
                             <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2, writingMode: scoreTrend.length > 12 ? "vertical-rl" : "horizontal-tb", whiteSpace: "nowrap" }}>{pct}%</div>
                             <div style={{ width: "100%", maxWidth: 28, height: barH, borderRadius: 3, background: barColor, minWidth: 6, transition: "height 0.4s ease" }} />
-                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                            <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" })}</div>
                           </div>
                         );
                       })}
@@ -6667,7 +6701,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                     const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
                     const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${cimsLabels[c.cims_category] || c.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
                     const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${l.label}</td><td style="padding:8px">${l.zone}</td><td style="padding:8px">${cimsLabels[l.cims_category] || l.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
-                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsRange.start} to ${analyticsRange.end}${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by ${clientConfig.company.shortName} Operations Platform</div></body></html>`;
+                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsRange.start} to ${analyticsRange.end}${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by ${clientConfig.company.shortName} Operations Platform</div></body></html>`;
                     const w = window.open("", "_blank");
                     w.document.write(html); w.document.close();
                     setTimeout(() => w.print(), 600);
@@ -6938,7 +6972,7 @@ function PermissionsMatrixPanel({ t }) {
 
   const printMatrix = () => {
     const navy = NAVY, gold = GOLD, cName = clientConfig.company.name;
-    const gen = new Date().toLocaleString();
+    const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     let body = "";
     PERMISSION_GROUPS.forEach(g => {
@@ -7507,7 +7541,7 @@ function JotformPickerField({ af, form, setForm, t }) {
     return () => { cancelled = true; };
   }, [form.user_id, form.id, af]);
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
 
   const handlePick = (uuid) => {
     if (!uuid) {
@@ -7592,8 +7626,8 @@ const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "e
   + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
 const IR_SUPERVISOR_DESK_NOTE = "Fill this in at your desk. Answers are saved when you press Save, and a sign-off is made with its own button.";
 const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
-const irWhen = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
-const irDay = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
 function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
@@ -7745,8 +7779,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     if (!v || !v.at) return "Not signed";
     const tz = clientConfig.company.timeZone;
     const when = new Date(v.at);
-    const day = when.toLocaleDateString("en-US", { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
-    const time = when.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+    const day = when.toLocaleDateString(localeTag(), { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
+    const time = when.toLocaleTimeString(localeTag(), { timeZone: tz, hour: "numeric", minute: "2-digit" });
     return "Signed by " + (v.name || "someone") + " on " + day + " at " + time;
   };
   const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
@@ -8069,8 +8103,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     { v: "pickup", l: "Shift Pickup" },
   ];
 
-  const fmtDT = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "--";
+  const fmtDT = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
   const catLabel = (v) => (CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
@@ -9577,7 +9611,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
   const fmtRelDate = (d) => {
     if (!d) return "";
     const dt = new Date(d);
@@ -9766,8 +9800,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const trainingTypeMap = lkMap("training_types");
   const onbCatMap = lkMap("onboarding_categories");
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "";
-  const fmtTime = (d) => d ? new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
   const updateSubCategory = async (submissionUuid, newOverride) => {
     try {

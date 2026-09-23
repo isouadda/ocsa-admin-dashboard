@@ -30,6 +30,21 @@
       document.addEventListener("DOMContentLoaded", paint);
       var meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute("content", bg);
+      // The language, read the same way: the stored choice, then what the browser says it wants,
+      // then English. React sets it again when it loads; this is so the first frame is right.
+      var lang = "en";
+      try {
+        var want = localStorage.getItem("ocsa-lang");
+        if (want === "en" || want === "es") lang = want;
+        else {
+          var list = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language]) || [];
+          for (var i = 0; i < list.length; i += 1) {
+            var two = String(list[i] || "").slice(0, 2).toLowerCase();
+            if (two === "en" || two === "es") { lang = two; break; }
+          }
+        }
+      } catch (e) {}
+      document.documentElement.lang = lang;
     })();
   </script>
 </head>

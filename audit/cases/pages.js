@@ -3,6 +3,8 @@
 // For each page the suite records what is on screen AND what is absent, so a screen that should be
 // hidden and is not fails here. The narrow pass repeats every page at 1024 wide.
 "use strict";
+const { englishLeftOn } = require("../lib/english");
+const SPANISH_TODO = require("../spanish-todo.json");
 const seed = require("../seed");
 const layout = require("../lib/layout");
 
@@ -152,13 +154,17 @@ async function outlineNow(d) {
   });
 }
 
-async function run({ d, results, inventory, app, width, theme, textSize }) {
+async function run({ d, results, inventory, app, stubs, width, theme, textSize, lang }) {
   const light = theme === "light";
   const size = textSize || "standard";
+  const spanish = lang === "es";
   const suffix = (width === "narrow" ? " @1024" : "") + (light ? " light" : "")
-    + (size === "standard" ? "" : " " + size);
+    + (size === "standard" ? "" : " " + size) + (spanish ? " es" : "");
+  // The Spanish pass reads the screens a supervisor lives in, as the two people who live in them.
+  // The English passes already cover the other width, the other theme and the larger sizes.
+  const people = spanish ? ["admin", "supervisor"] : seed.PERSONAS;
 
-  for (const persona of seed.PERSONAS) {
+  for (const persona of people) {
     const who = seed.PERSONA_LABEL[persona];
     await d.signOutHard();
     await d.signIn(persona);
@@ -171,12 +177,14 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
     // The manage permissions capability opens Settings, so the person holding it is expected to
     // have that one item and none of the other three.
     const opensSettings = seed.PEOPLE[persona].singleCapability === "manage_permissions";
-    const allowed = isAdmin ? ADMIN_ONLY_NAV : opensSettings ? ["Settings"] : [];
+    // The nav is read in whichever language the pass is in, since a label is a word like any other.
+    const adminNav = ADMIN_ONLY_NAV.map((l) => d.say(l));
+    const allowed = isAdmin ? adminNav : opensSettings ? [d.say("Settings")] : [];
     // The nav labels are read with the panel open. The app collapses it below 1100 on its own, so it
     // is put back before anything is measured, or the page is measured in a state nobody is in.
     if (width === "narrow") await d.collapseSidebar();
     const missing = allowed.filter((l) => nav.indexOf(l) < 0);
-    const present = ADMIN_ONLY_NAV.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
+    const present = adminNav.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
     results.check("page", "nav/" + persona + suffix, missing.length === 0 && present.length === 0,
       missing.length ? "a " + who + " is missing " + missing.join(", ")
         : present.length ? "a " + who + " can see " + present.join(", ")
@@ -189,7 +197,7 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
       const shellText = await d.text();
       const body = await d.bodyText();
       const bodyLen = await d.bodyLength();
-      const header = shellText.indexOf(p.label) >= 0;
+      const header = shellText.indexOf(d.say(p.label)) >= 0;
 
       // What the page does with the space it has, at whatever size the text is set to. This runs on
       // every page case, the gated ones included: the line a person cannot open a page with is a
@@ -203,7 +211,7 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
         "a control cannot be hit at its own center: " + g.unreachable.join(", "));
 
       // Where everything sits at Standard, which every later commit has to match.
-      if (size === "standard" && !light && persona === "admin") {
+      if (size === "standard" && !light && !spanish && persona === "admin") {
         await d.settle(300);
         let snap = await boxes(d);
         if (!layout.matches(p.id, width, snap)) { await d.settle(600); snap = await boxes(d); }
@@ -219,16 +227,73 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
         // The page must not render its contents, AND the person must be told why. The page label
         // still sits in the header, so only the content area is read here.
         const leaked = body.indexOf(p.expect) >= 0;
-        const explained = /not available|no access|cannot|ask an admin|only an admin|is for admins|permission/i.test(body);
+        // The ruling, in whichever language the page is drawn in.
+        const explained = /not available|no access|cannot|ask an admin|only an admin|is for admins|permission/i.test(body)
+          || body.indexOf(d.say("This page is for admins.")) >= 0;
         results.check("page", id, !leaked && explained,
           leaked ? "a " + who + " can read this admin page, the body holds " + JSON.stringify(p.expect) :
             "the body is " + bodyLen + " characters and says nothing about why");
         continue;
       }
 
+      // On a Spanish pass, every word on the page has to be Spanish from the table, something the
+      // API served, a number, a date or a time, or the company's own name.
+      if (spanish) {
+        const listed = SPANISH_TODO.pages[p.id];
+        const left = englishLeftOn(await d.readable(), stubs.calls);
+        const said = left.slice(0, 3).map((x) => JSON.stringify(x.left)).join(", ");
+        if (listed) {
+          results.check("spanish", "spanish/" + p.id + "/" + persona, left.length > 0,
+            "this page reads Spanish now. Take " + JSON.stringify(p.id) + " off audit/spanish-todo.json, where it is listed for " + listed.part);
+          if (left.length > 0 && persona === "admin") {
+            results.note("still English, " + listed.part + ": " + p.id + ", " + left.length + " lines");
+          }
+        } else {
+          results.check("spanish", "spanish/" + p.id + "/" + persona, left.length === 0,
+            left.length + " lines a " + who + " reads are not Spanish: " + said);
+          // A page is more than the view it opens on. Every view the page holds is read too, so
+          // Schedule is checked on Month, Patterns and Time off as well as Week.
+          for (const v of inventory.VIEWS.filter((x) => x.page === p.id)) {
+            // The page again first, so a window one view opened is not still covering the next.
+            await d.goto(p.id);
+            await d.settle(150);
+            let opened = true;
+            let missed = "";
+            for (const step of [].concat(v.word || v.click || [])) {
+              const word = d.say(step);
+              // The control whose whole name is the word, with any count beside it taken off. The
+              // Spanish for Open is inside the Spanish for Post Open Shift, so a control that
+              // merely contains the word is the wrong one.
+              let clicked = await d.page.evaluate((w) => {
+                const strip = (s) => String(s).replace(/\s+/g, " ").trim().replace(/\s*\(?\d+\)?$/, "").trim();
+                const hit = Array.from(document.querySelectorAll("button, [role='tab'], a"))
+                  .filter((b) => b.offsetParent !== null).find((b) => strip(b.innerText) === w);
+                if (!hit) return false;
+                hit.click();
+                return true;
+              }, word);
+              if (!clicked) {
+                try { clicked = await d.clickText(word, { exact: false }); } catch (e) { clicked = false; }
+              }
+              if (!clicked) { opened = false; missed = word; break; }
+              await d.settle(250);
+            }
+            if (!opened) {
+              results.check("spanish", "spanish/" + v.id + "/" + persona, false,
+                "the view did not open from " + JSON.stringify(missed));
+              continue;
+            }
+            const vleft = englishLeftOn(await d.readable(), stubs.calls);
+            results.check("spanish", "spanish/" + v.id + "/" + persona, vleft.length === 0,
+              vleft.length + " lines a " + who + " reads are not Spanish: "
+                + vleft.slice(0, 3).map((x) => JSON.stringify(x.left)).join(", "));
+          }
+        }
+      }
+
       const newErrors = d.pageErrors.slice(errsBefore);
       results.check("page", id, header && bodyLen > 40 && newErrors.length === 0,
-        !header ? "the header does not say " + p.label :
+        !header ? "the header does not say " + d.say(p.label) :
           bodyLen <= 40 ? "the body is only " + bodyLen + " characters" :
           newErrors.length ? "the page threw: " + newErrors[0] : "");
 
@@ -287,7 +352,7 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
 
   // A hash the app does not know falls back to the Dashboard rather than a blank screen.
   await d.goto("not-a-page");
-  results.check("page", "page/unknown-hash" + suffix, await d.has("Welcome back"),
+  results.check("page", "page/unknown-hash" + suffix, await d.has(d.say("Welcome back, {0}").split("{0}")[0].trim()),
     "an unknown hash lands on the Dashboard");
 
   // The page in the hash survives a reload.
@@ -299,13 +364,16 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
 
   // The nav search box reaches a page without the sidebar.
   await d.goto("overview");
-  const navSearch = d.page.locator("input[placeholder*='Search' i]").first();
+  // The box is found by its own placeholder, in whichever language it is drawn.
+  const navSearch = d.page.getByPlaceholder(d.say("Search pages")).first();
   if (await navSearch.count()) {
-    await navSearch.fill("vend");
+    // The first letters of the word the nav actually draws, since the list is filtered by its labels.
+    await navSearch.fill(d.say("Vendors").slice(0, 4).toLowerCase());
     await d.settle(320);
-    const hit = d.page.locator("button", { hasText: "Vendors" }).first();
+    const hit = d.page.locator("button", { hasText: d.say("Vendors") }).first();
     if (await hit.count()) { await hit.click(); await d.settle(); }
-    results.check("page", "page/nav-search" + suffix, await d.has("Vendor"), "typing vend reaches the Vendor Registry");
+    results.check("page", "page/nav-search" + suffix, await d.has(d.say("Vendor Registry")),
+      "typing vend reaches the Vendor Registry");
   } else {
     results.fail("page", "page/nav-search" + suffix, "no nav search box on screen");
   }
@@ -313,7 +381,7 @@ async function run({ d, results, inventory, app, width, theme, textSize }) {
   // Signing out from the user menu empties the shell back to the login card.
   await d.goto("overview");
   await d.signOut();
-  results.check("page", "page/sign-out" + suffix, await d.has("Admin Dashboard"),
+  results.check("page", "page/sign-out" + suffix, await d.has(d.say("Admin Dashboard")),
     "the login card is back after Sign Out");
 }
 

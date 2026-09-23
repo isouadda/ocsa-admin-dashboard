@@ -47,11 +47,11 @@ const VIEWS = [
   { id: "reports/run", page: "reports", click: "Run", expect: "Back to reports" },
   { id: "reports/edit", page: "reports", click: "New report", expect: "Cancel" },
 
-  { id: "marketplace/open", page: "marketplace", click: "Open", expect: "Shift Pickup Board" },
+  { id: "marketplace/open", page: "marketplace", click: "Open", word: "Open|shift", expect: "Shift Pickup Board" },
   { id: "marketplace/requested", page: "marketplace", click: "Requests", expect: "Shift Pickup Board" },
-  { id: "marketplace/claimed", page: "marketplace", click: "Claimed", expect: "Shift Pickup Board" },
-  { id: "marketplace/filled", page: "marketplace", click: "Approved", expect: "Shift Pickup Board" },
-  { id: "marketplace/all", page: "marketplace", click: "All", expect: "Shift Pickup Board" },
+  { id: "marketplace/claimed", page: "marketplace", click: "Claimed", word: "Claimed|shift", expect: "Shift Pickup Board" },
+  { id: "marketplace/filled", page: "marketplace", click: "Approved", word: "Approved|shift", expect: "Shift Pickup Board" },
+  { id: "marketplace/all", page: "marketplace", click: "All", word: "All|shifts", expect: "Shift Pickup Board" },
   { id: "marketplace/analytics", page: "marketplace", click: "Analytics", expect: "Fill Rate" },
 
   { id: "inspections/templates", page: "inspections", click: "Templates", expect: "Monthly quality walk" },
@@ -113,79 +113,79 @@ const VIEWS = [
 // Two entries carry two lines because the app renders one window from two places.
 // ---------------------------------------------------------------------------
 const WINDOWS = [
-  { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1261] },
-  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1262] },
-  { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1316] },
-  { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1322] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1329] },
-  { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1376] },
-  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1385] },
+  { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1293] },
+  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1294] },
+  { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1348] },
+  { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1354] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1361] },
+  { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1408] },
+  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1417] },
 
-  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [1935] },
-  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [2032] },
-  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [2069] },
-  { id: "sites/add-task", page: "sites", title: "Add Task", lines: [2091] },
-  { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [2105] },
-  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2121] },
-  { id: "sites/add", page: "sites", title: "Add Site", lines: [2163] },
+  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [1967] },
+  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [2064] },
+  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [2101] },
+  { id: "sites/add-task", page: "sites", title: "Add Task", lines: [2123] },
+  { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [2137] },
+  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2153] },
+  { id: "sites/add", page: "sites", title: "Add Site", lines: [2195] },
 
-  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2228] },
-  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2253] },
+  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2260] },
+  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2285] },
 
-  { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2290] },
-  { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2291] },
-  { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [2292] },
+  { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2322] },
+  { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2323] },
+  { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [2324] },
 
-  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [3889] },
-  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [3914] },
-  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [3921] },
+  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [3921] },
+  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [3946] },
+  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [3953] },
 
-  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [4063] },
-  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [4071] },
-  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [4127] },
-  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [4135] },
-  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [4150] },
+  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [4095] },
+  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [4103] },
+  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [4159] },
+  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [4167] },
+  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [4182] },
 
-  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4266] },
-  { id: "services/add", page: "services", title: "Add Service", lines: [4320] },
-  { id: "services/edit", page: "services", title: "Edit Service", lines: [4328] },
-  { id: "services/link-site", page: "services", title: "Link Site", lines: [4336] },
+  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4298] },
+  { id: "services/add", page: "services", title: "Add Service", lines: [4352] },
+  { id: "services/edit", page: "services", title: "Edit Service", lines: [4360] },
+  { id: "services/link-site", page: "services", title: "Link Site", lines: [4368] },
 
-  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4433] },
-  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [4615] },
-  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5088] },
-  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5147] },
-  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5189] },
-  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5205] },
-  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5221] },
+  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4465] },
+  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [4649] },
+  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5122] },
+  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5181] },
+  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5223] },
+  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5239] },
+  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5255] },
 
-  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [5815] },
-  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [5846] },
-  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [5878] },
+  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [5849] },
+  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [5880] },
+  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [5912] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6344, 6697] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6689] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6708] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6378, 6731] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6723] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6742] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7379] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7388] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7396] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7410] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7424] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7435] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7413] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7422] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7430] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7444] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7458] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7469] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7830] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9320] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9373] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9488] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9525] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [7864] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9354] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9407] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9522] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9559] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10117] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10151] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10613] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [10635] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10666] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [10647] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [10669] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10700] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -328,6 +328,13 @@ const REFUSALS = [
 // The house style bans this acronym from anything staff or a client reads. The suite scans
 // src/App.js for it rather than carrying a list, so a new one is caught.
 const HOUSE_STYLE = { id: "house-style/banned-acronym" };
+// Every file under src/ is plain ASCII. A language is written as escapes in source and as itself
+// only in the translator's CSV.
+const ASCII_ONLY = { id: "house-style/ascii-only-under-src" };
+// The word table and the translator's CSV are two copies of one thing.
+const WORD_TABLE = { id: "house-style/the-table-and-the-csv-agree" };
+// A sentence with a value in it carries the same values in every language.
+const WORD_SLOTS = { id: "house-style/a-translated-sentence-keeps-its-values" };
 
 // ---------------------------------------------------------------------------
 // Every state the filed report window can be in past its first draw: what its
@@ -386,4 +393,4 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/what-is-still-needed-shrinks", name: "The still-needed line drops a question once it is answered" },
 ];
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, WINDOW_STATES, FILED_FORM_STATES };
+module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, WINDOW_STATES, FILED_FORM_STATES };

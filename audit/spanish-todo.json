@@ -1,0 +1,69 @@
+{
+  "note": "Every page the dashboard still draws in English, with the part that takes it. On a Spanish pass the check runs on every page; a page listed here is expected to be English and does not fail the run, and a page that is not listed has to be Spanish through and through. A page listed here that starts passing DOES fail the run, so a part is never finished without its entries coming off. A part takes its pages off as it translates them.",
+  "pages": {
+    "staff": {
+      "part": "part two",
+      "why": "Staff Management, its profile and its windows"
+    },
+    "hr": {
+      "part": "part two",
+      "why": "HR Records, the folders and the grids"
+    },
+    "sites": {
+      "part": "part three",
+      "why": "Sites and everything a site holds"
+    },
+    "assigned": {
+      "part": "part three",
+      "why": "Assigned Tasks"
+    },
+    "operations": {
+      "part": "part three",
+      "why": "Live Operations"
+    },
+    "issues": {
+      "part": "part three",
+      "why": "The issue tracker"
+    },
+    "supplies": {
+      "part": "part four",
+      "why": "Supplies and inventory"
+    },
+    "vendors": {
+      "part": "part four",
+      "why": "The vendor registry"
+    },
+    "services": {
+      "part": "part four",
+      "why": "The service catalog"
+    },
+    "chat": {
+      "part": "part four",
+      "why": "Messages"
+    },
+    "reports": {
+      "part": "part five",
+      "why": "The reporting engine and its four report screens"
+    },
+    "inspections": {
+      "part": "part five",
+      "why": "Inspections and their templates"
+    },
+    "forms": {
+      "part": "part six",
+      "why": "Forms, the filed reports and the report window"
+    },
+    "settings": {
+      "part": "part six",
+      "why": "Settings and its five panels"
+    },
+    "cases": {
+      "part": "part six",
+      "why": "Speak Up cases"
+    },
+    "help": {
+      "part": "part six",
+      "why": "Help and the agent"
+    }
+  }
+}
