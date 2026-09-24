@@ -1125,7 +1125,8 @@ function createStubs() {
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[4];
       const tp = INSPECTION_TEMPLATES.find((x) => x.id === id) || INSPECTION_TEMPLATES[0];
-      return ok({ template: tp, items: INSPECTION_ITEMS });
+      // The template's panel reads its name and id beside its items, at the top level.
+      return ok(Object.assign({}, tp, { template: tp, items: INSPECTION_ITEMS }));
     }
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path)) return ok({ message: "Template updated" });
     if (path === "/api/inspections/scheduled" && method === "GET") {
@@ -1165,10 +1166,11 @@ function createStubs() {
     if (path.startsWith("/api/inspections/analytics/site-comparison")) return ok(seed.INSPECTION_SITE_COMPARISON);
     if (path.startsWith("/api/inspections/analytics/lowest-items")) return ok(seed.INSPECTION_LOWEST_ITEMS);
     if (path.startsWith("/api/inspections/analytics/category-breakdown")) {
+      // Shaped to the Reports tab, which reads the items scored and the points beside the average.
       return ok([
-        { cims_category: "SD", avg_score_pct: 88, item_count: 6 },
-        { cims_category: "HSE", avg_score_pct: 71, item_count: 3 },
-        { cims_category: "GB", avg_score_pct: 94, item_count: 1 },
+        { cims_category: "SD", avg_score_pct: 88, item_count: 6, total_items: 6, total_score: 53, total_max: 60 },
+        { cims_category: "HSE", avg_score_pct: 70, item_count: 3, total_items: 3, total_score: 21, total_max: 30 },
+        { cims_category: "GB", avg_score_pct: 90, item_count: 1, total_items: 1, total_score: 9, total_max: 10 },
       ]);
     }
     if (path.startsWith("/api/inspections/analytics/export")) {

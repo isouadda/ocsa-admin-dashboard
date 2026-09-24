@@ -6225,6 +6225,18 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
   const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
+  // Where the page only shows one: a service category is the lookup's shown label, then the label
+  // table's word; an item's label and zone are the display the API sent, then for a zone the zones
+  // lookup's shown label or the table's word for a zone this page offers, then the zone as typed.
+  // The template editor edits items, so it keeps each item's own English, and the exports keep the
+  // English words the API holds.
+  const lkCimsShown = lkMap("cims_categories", true);
+  const catWord = (c) => serviceCategoryWord(c, lkCimsShown);
+  const zoneChoice = choiceWordOf(lkMap, "zones");
+  const zoneWord = (it) => { const z = it.zone; if (!z) return z; if (it.display && it.display.zone) return it.display.zone; const w = zoneChoice(z); return w !== z ? w : (ZONES.indexOf(z) >= 0 ? tr(z + "|zone") : z); };
+  // An inspection's status is a code; the English keys are the codes, as the page has always drawn them.
+  const inspStateWord = { scheduled: tr("scheduled|inspection"), in_progress: tr("in progress"), completed: tr("completed|inspection"), cancelled: tr("cancelled|inspection") };
+  const stateOf = (st) => inspStateWord[st] || st.replace("_", " ");
   const cimsOpts = getOpts("cims_categories");
   const CIMS_CATS = cimsOpts.length > 0 ? cimsOpts.map(o => o.v) : ["SD", "HSE", "GB", "QS", "HR", "MC"];
   const STATUS_C = { scheduled: "#24A4F4", in_progress: "#F39C12", completed: "#2ECC71", cancelled: "#7A8A9A" };
@@ -6281,7 +6293,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         af("/api/inspections/analytics/lowest-items" + q),
       ]);
       setScoreTrend(trend); setSiteComp(comp); setCatBreakdown(cats); setLowestItems(low);
-    } catch (e) { showToast("Failed to load analytics: " + e.message, "error"); }
+    } catch (e) { showToast(tr("Failed to load analytics: {0}", e.message), "error"); }
     setAnalyticsLoading(false);
   }, [af]);
 
@@ -6299,10 +6311,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   };
 
   const createTemplate = async () => {
-    if (!newTplForm.name.trim()) { showToast("Name required", "error"); return; }
+    if (!newTplForm.name.trim()) { showToast(tr("Name required"), "error"); return; }
     try {
       await af("/api/inspections/templates", { method: "POST", body: newTplForm });
-      showToast("Template created"); setNewTplModal(false); setNewTplForm({ name: "", description: "" }); loadTemplates();
+      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "" }); loadTemplates();
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -6310,13 +6322,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     if (!addItemForm.label.trim() || !selectedTemplate) return;
     try {
       await af("/api/inspections/templates/" + selectedTemplate.id + "/items", { method: "POST", body: addItemForm });
-      showToast("Item added"); setAddItemForm({ label: "", zone: "General", cims_category: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
+      showToast(tr("Item added")); setAddItemForm({ label: "", zone: "General", cims_category: "SD", max_score: 10 }); openTemplate(selectedTemplate.id);
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const deleteItem = async (itemId) => {
-    if (!window.confirm("Remove this line item?")) return;
-    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast("Item removed"); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this line item?"))) return;
+    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast(tr("Item removed")); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
   };
 
   const [editItemId, setEditItemId] = useState(null);
@@ -6331,23 +6343,23 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     if (!editItemForm.label.trim() || !selectedTemplate) return;
     try {
       await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + editItemId, { method: "PUT", body: editItemForm });
-      showToast("Item saved"); setEditItemId(null); openTemplate(selectedTemplate.id);
+      showToast(tr("Item saved")); setEditItemId(null); openTemplate(selectedTemplate.id);
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const deleteTemplate = async (id) => {
-    if (!window.confirm("Delete this template? All scheduled inspections using it will also be removed.")) return;
+    if (!window.confirm(tr("Delete this template? All scheduled inspections using it will also be removed."))) return;
     try {
       await af("/api/inspections/templates/" + id, { method: "DELETE" });
-      showToast("Template deleted"); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
+      showToast(tr("Template deleted")); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const scheduleInspection = async () => {
-    if (!scheduleForm.template_id || !scheduleForm.site_id || !scheduleForm.scheduled_date) { showToast("Template, site, and date are required", "error"); return; }
+    if (!scheduleForm.template_id || !scheduleForm.site_id || !scheduleForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled", { method: "POST", body: scheduleForm });
-      showToast("Inspection scheduled"); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" }); loadScheduled();
+      showToast(tr("Inspection scheduled")); setScheduleModal(false); setScheduleForm({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" }); loadScheduled();
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -6356,8 +6368,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   };
 
   const deleteScheduled = async (id) => {
-    if (!window.confirm("Delete this inspection?")) return;
-    try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast("Deleted"); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this inspection?"))) return;
+    try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast(tr("Deleted|inspection")); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const openEditInspection = (si) => {
@@ -6365,18 +6377,18 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     setEditInspModal(si);
   };
   const submitEditInspection = async () => {
-    if (!editInspForm.template_id || !editInspForm.site_id || !editInspForm.scheduled_date) { showToast("Template, site, and date are required", "error"); return; }
+    if (!editInspForm.template_id || !editInspForm.site_id || !editInspForm.scheduled_date) { showToast(tr("Template, site, and date are required"), "error"); return; }
     try {
       await af("/api/inspections/scheduled/" + editInspModal.id, { method: "PATCH", body: { template_id: editInspForm.template_id, site_id: editInspForm.site_id, assigned_to: editInspForm.assigned_to || null, scheduled_date: editInspForm.scheduled_date } });
-      showToast("Inspection updated"); setEditInspModal(null); loadScheduled();
+      showToast(tr("Inspection updated")); setEditInspModal(null); loadScheduled();
       if (detailView && detailView.id === editInspModal.id) { openDetail(editInspModal.id); }
     } catch (e) { showToast(e.message, "error"); }
   };
   const cancelInspection = async (id) => {
-    if (!window.confirm("Cancel this inspection?")) return;
+    if (!window.confirm(tr("Cancel this inspection?"))) return;
     try {
       await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
-      showToast("Inspection cancelled"); setEditInspModal(null); loadScheduled();
+      showToast(tr("Inspection cancelled")); setEditInspModal(null); loadScheduled();
       if (detailView && detailView.id === id) setDetailView(null);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -6407,10 +6419,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       const barW = Math.round((iPct / 100) * 200);
       return `
         <tr style="border-bottom:1px solid #eee">
-          <td style="padding:10px 8px;font-size:13px;font-weight:600">${item.label}</td>
-          <td style="padding:10px 8px;font-size:12px;color:#666">${item.zone}</td>
+          <td style="padding:10px 8px;font-size:13px;font-weight:600">${shownItem(item).label}</td>
+          <td style="padding:10px 8px;font-size:12px;color:#666">${zoneWord(item)}</td>
           <td style="padding:10px 8px;text-align:center">
-            <span style="background:${(CIMS_C[item.cims_category] || "#3498DB") + "22"};color:${CIMS_C[item.cims_category] || "#3498DB"};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${cimsLabels[item.cims_category] || item.cims_category}</span>
+            <span style="background:${(CIMS_C[item.cims_category] || "#3498DB") + "22"};color:${CIMS_C[item.cims_category] || "#3498DB"};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${catWord(item.cims_category)}</span>
           </td>
           <td style="padding:10px 8px">
             <div style="display:flex;align-items:center;gap:8px">
@@ -6425,14 +6437,14 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </tr>`;
     }).join("");
 
-    const html = `<!DOCTYPE html><html><head><title>Inspection Report</title>
+    const html = `<!DOCTYPE html><html><head><title>${tr("Inspection Report")}</title>
       <style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}
       table{width:100%;border-collapse:collapse}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}
       @media print{body{padding:16px}}</style></head>
       <body>
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}">
           <div>
-            <div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">Inspection Report</div>
+            <div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${tr("Inspection Report")}</div>
             <div style="font-size:14px;color:#555;margin-top:4px">${d.template_name}</div>
           </div>
           <div style="text-align:right">
@@ -6441,37 +6453,60 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
           <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Site</div>
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Site")}</div>
             <div style="font-size:14px;font-weight:600">${d.site_name}</div>
           </div>
           <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Scheduled Date</div>
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Scheduled Date")}</div>
             <div style="font-size:14px;font-weight:600">${fmtDate(d.scheduled_date)}</div>
           </div>
           <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Completed</div>
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Completed|inspection")}</div>
             <div style="font-size:14px;font-weight:600">${fmtDT(d.result.completed_at)}</div>
           </div>
           <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Completed By</div>
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Completed By")}</div>
             <div style="font-size:14px;font-weight:600">${d.result.completed_by_name || "--"}</div>
           </div>
           <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Overall Score</div>
-            <div style="font-size:24px;font-weight:700;color:${scoreColor}">${pct}% <span style="font-size:13px;color:#888;font-weight:400">${d.result.total_score}/${d.result.max_possible_score} pts</span></div>
+            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Overall Score")}</div>
+            <div style="font-size:24px;font-weight:700;color:${scoreColor}">${pct}% <span style="font-size:13px;color:#888;font-weight:400">${tr("{0}/{1} pts", d.result.total_score, d.result.max_possible_score)}</span></div>
           </div>
-          ${d.result.overall_notes ? `<div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Notes</div><div style="font-size:13px;color:#333">${d.result.overall_notes}</div></div>` : ""}
+          ${d.result.overall_notes ? `<div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Notes")}</div><div style="font-size:13px;color:#333">${d.result.overall_notes}</div></div>` : ""}
         </div>
         <table>
-          <thead><tr><th>Item</th><th>Zone</th><th>Category</th><th>Score</th><th>Notes</th><th>Photo</th></tr></thead>
+          <thead><tr><th>${tr("Item")}</th><th>${tr("Zone")}</th><th>${tr("Category")}</th><th>${tr("Score")}</th><th>${tr("Notes")}</th><th>${tr("Photo")}</th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by ${clientConfig.company.shortName} Operations Platform</div>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div>
       </body></html>`;
 
     const w = window.open("", "_blank");
     w.document.write(html);
     w.document.close();
+    setTimeout(() => w.print(), 600);
+  };
+
+  // The analytics export, a data file: its columns and words stay the English the API holds.
+  const exportAnalyticsCsv = () => {
+    const q = "?start_date=" + analyticsRange.start + "&end_date=" + analyticsRange.end + (analyticsSite ? "&site_id=" + analyticsSite : "");
+    af("/api/inspections/analytics/export" + q).then(rows => {
+      if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
+      const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
+      showToast(trn("Exported {0} row|count", rows.length));
+    }).catch(e => showToast(e.message, "error"));
+  };
+
+  // The analytics report, printed from a window of its own.
+  const printAnalytics = () => {
+    const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
+    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${catWord(c.cims_category)}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
+    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${shownItem(l).label}</td><td style="padding:8px">${zoneWord(l)}</td><td style="padding:8px">${catWord(l.cims_category)}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
+    const html = `<!DOCTYPE html><html><head><title>${tr("Inspection Analytics Report")}</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${tr("Inspection Analytics Report")}</div><div style="font-size:14px;color:#555;margin-top:4px">${tr("Last {0} to {1}", analyticsRange.start, analyticsRange.end)}${analyticsSite ? "" : " " + tr("(All Sites)")}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${tr("Site Performance")}</h3><table><thead><tr><th>${tr("Site")}</th><th style="text-align:center">${tr("Latest Score")}</th><th style="text-align:center">${tr("Average")}</th><th style="text-align:center">${tr("Inspections")}</th><th>${tr("Latest Date")}</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${tr("Category Breakdown")}</h3><table><thead><tr><th>${tr("Category")}</th><th style="text-align:center">${tr("Avg Score")}</th><th style="text-align:center">${tr("Items Scored")}</th><th style="text-align:center">${tr("Points")}</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">${tr("Areas Needing Improvement")}</h3><table><thead><tr><th>${tr("Item")}</th><th>${tr("Zone")}</th><th>${tr("Category")}</th><th style="text-align:center">${tr("Avg Score")}</th><th style="text-align:center">${tr("Occurrences")}</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div></body></html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html); w.document.close();
     setTimeout(() => w.print(), 600);
   };
 
@@ -6486,7 +6521,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={() => setDetailView(null)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
-            <Ic d="M15 18l-6-6 6-6" sz={14} c={t.textSec} /> Back
+            <Ic d="M15 18l-6-6 6-6" sz={14} c={t.textSec} /> {tr("Back")}
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{d.template_name}</div>
@@ -6495,39 +6530,39 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           {isComplete && (
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => exportCSV(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
-                CSV
+                {tr("CSV")}
               </button>
               <button onClick={() => exportPrint(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                Export PDF
+                {tr("Export PDF")}
               </button>
             </div>
           )}
           {!isComplete && isAdmin && (
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => openEditInspection(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
-                <EdI sz={12} c={t.textSec} /> Edit
+                <EdI sz={12} c={t.textSec} /> {tr("Edit")}
               </button>
               <button onClick={() => cancelInspection(d.id)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + RD + "40", background: RD + "10", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-                Cancel
+                {tr("Cancel")}
               </button>
             </div>
           )}
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 20 }}>
-          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Scheduled Date</div><div style={{ fontWeight: 600, color: t.text }}>{fmtDate(d.scheduled_date)}</div></Crd>
-          {d.assigned_name && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Assigned To</div><div style={{ fontWeight: 600, color: t.text }}>{d.assigned_name}</div></Crd>}
-          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Status</div><Bdg l={d.status.replace("_", " ")} c={STATUS_C[d.status] || BL} /></Crd>
+          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Scheduled Date")}</div><div style={{ fontWeight: 600, color: t.text }}>{fmtDate(d.scheduled_date)}</div></Crd>
+          {d.assigned_name && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Assigned To")}</div><div style={{ fontWeight: 600, color: t.text }}>{d.assigned_name}</div></Crd>}
+          <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Status")}</div><Bdg l={stateOf(d.status)} c={STATUS_C[d.status] || BL} /></Crd>
           {isComplete && <>
-            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed At</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
-            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Completed By</div><div style={{ fontWeight: 600, color: t.text }}>{d.result.completed_by_name}</div></Crd>
-            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Overall Score</div><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{d.result.total_score}/{d.result.max_possible_score} pts</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed At")}</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed By")}</div><div style={{ fontWeight: 600, color: t.text }}>{d.result.completed_by_name}</div></Crd>
+            <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Overall Score")}</div><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", d.result.total_score, d.result.max_possible_score)}</div></Crd>
           </>}
         </div>
 
         {isComplete && d.result.overall_notes && (
           <Crd t={t} style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>Overall Notes</div>
+            <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 6 }}>{tr("Overall Notes")}</div>
             <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5 }}>{d.result.overall_notes}</div>
           </Crd>
         )}
@@ -6542,10 +6577,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             return (
               <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                 <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={cimsLabels[item.cims_category]}>{item.cims_category}</div>
+                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={catWord(item.cims_category)}>{item.cims_category}</div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{item.label}</div>
-                    <div style={{ fontSize: 11, color: t.textMut }}>{item.zone}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{shownItem(item).label}</div>
+                    <div style={{ fontSize: 11, color: t.textMut }}>{zoneWord(item)}</div>
                   </div>
                   {sr && (
                     <div style={{ textAlign: "right", marginRight: 8 }}>
@@ -6567,7 +6602,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                       <>
                         <div style={{ display: "flex", gap: 12 }}>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Score</div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Score")}</div>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                               <div style={{ flex: 1, height: 8, background: t.border, borderRadius: 4, overflow: "hidden" }}>
                                 <div style={{ height: "100%", width: iPct + "%", background: iColor, borderRadius: 4 }} />
@@ -6578,24 +6613,24 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                         </div>
                         {sr.notes && (
                           <div>
-                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>Notes</div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Notes")}</div>
                             <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, padding: "8px 12px", background: t.cardAlt, borderRadius: 8 }}>{sr.notes}</div>
                           </div>
                         )}
                         {sr.photo_url ? (
                           <div>
-                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Attached Photo</div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Attached Photo")}</div>
                             <a href={sr.photo_url} target="_blank" rel="noreferrer">
-                              <img src={sr.photo_url} alt="Inspection photo" style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
+                              <img src={sr.photo_url} alt={tr("Inspection photo")} style={{ maxWidth: "100%", maxHeight: 280, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer" }} />
                             </a>
-                            <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Click photo to open full size</div>
+                            <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
                           </div>
                         ) : (
-                          <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>No photo attached for this item.</div>
+                          <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("No photo attached for this item.")}</div>
                         )}
                       </>
                     ) : (
-                      <div style={{ fontSize: 12, color: t.textMut }}>This item was not scored (inspection not yet completed).</div>
+                      <div style={{ fontSize: 12, color: t.textMut }}>{tr("This item was not scored (inspection not yet completed).")}</div>
                     )}
                   </div>
                 )}
@@ -6605,14 +6640,14 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-          <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
-          <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
-          <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+          <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-            <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
-            <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>Close</Btn><Btn t={t} onClick={submitEditInspection}>Save</Btn></div>
+            <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
+            <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>{tr("Close")}</Btn><Btn t={t} onClick={submitEditInspection}>{tr("Save")}</Btn></div>
           </div>
         </div></Mdl>}
       </div>
@@ -6623,7 +6658,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     <div>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
-        {[["templates", "Templates"], ["scheduled", "Scheduled"], ["completed", "Completed"], ["reports", "Reports"]].map(([tb, lbl]) => (
+        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")], ["reports", tr("Reports")]].map(([tb, lbl]) => (
           <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
         ))}
       </div>
@@ -6632,7 +6667,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       {tab === "templates" && (
         <div style={{ display: "flex", gap: 20 }}>
           <div style={{ flex: 1 }}>
-            <SecT t={t} action="New Template" onAction={() => setNewTplModal(true)}>Inspection Templates</SecT>
+            <SecT t={t} action={tr("New Template")} onAction={() => setNewTplModal(true)}>{tr("Inspection Templates")}</SecT>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
               {templates.map(tp => (
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
@@ -6641,10 +6676,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                     {isAdmin && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
-                  <div style={{ fontSize: 10, color: t.textMut }}>{tp.item_count} line items</div>
+                  <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
               ))}
-              {templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>No templates yet. Create one to get started.</div>}
+              {templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>{tr("No templates yet. Create one to get started.")}</div>}
             </div>
           </div>
 
@@ -6659,43 +6694,43 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                   <div key={item.id} style={{ borderRadius: 8, background: t.cardAlt, marginBottom: 6, overflow: "hidden" }}>
                     {editItemId === item.id ? (
                       <div style={{ padding: "10px 12px" }}>
-                        <div style={{ marginBottom: 6 }}><Inp t={t} value={editItemForm.label} onChange={e => setEditItemForm({ ...editItemForm, label: e.target.value })} placeholder="Item label" style={{ fontSize: 12 }} /></div>
+                        <div style={{ marginBottom: 6 }}><Inp t={t} value={editItemForm.label} onChange={e => setEditItemForm({ ...editItemForm, label: e.target.value })} placeholder={tr("Item label")} style={{ fontSize: 12 }} /></div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 6 }}>
-                          <Sel t={t} value={editItemForm.zone} onChange={e => setEditItemForm({ ...editItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: z }))} />
-                          <Sel t={t} value={editItemForm.cims_category} onChange={e => setEditItemForm({ ...editItemForm, cims_category: e.target.value })} options={getOpts("cims_categories")} />
+                          <Sel t={t} value={editItemForm.zone} onChange={e => setEditItemForm({ ...editItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: tr(z + "|zone") }))} />
+                          <Sel t={t} value={editItemForm.cims_category} onChange={e => setEditItemForm({ ...editItemForm, cims_category: e.target.value })} options={getOpts("cims_categories", null, true)} />
                         </div>
-                        <div style={{ marginBottom: 8 }}><Inp t={t} type="number" min="1" max="100" value={editItemForm.max_score} onChange={e => setEditItemForm({ ...editItemForm, max_score: parseInt(e.target.value) || 10 })} placeholder="Max score" style={{ fontSize: 12 }} /></div>
+                        <div style={{ marginBottom: 8 }}><Inp t={t} type="number" min="1" max="100" value={editItemForm.max_score} onChange={e => setEditItemForm({ ...editItemForm, max_score: parseInt(e.target.value) || 10 })} placeholder={tr("Max score")} style={{ fontSize: 12 }} /></div>
                         <div style={{ display: "flex", gap: 6 }}>
-                          <Btn t={t} onClick={saveItem} style={{ flex: 1, padding: "6px 10px", fontSize: 11 }}>Save</Btn>
-                          <Btn t={t} v="ghost" onClick={() => setEditItemId(null)} style={{ flex: 1, padding: "6px 10px", fontSize: 11 }}>Cancel</Btn>
+                          <Btn t={t} onClick={saveItem} style={{ flex: 1, padding: "6px 10px", fontSize: 11 }}>{tr("Save")}</Btn>
+                          <Btn t={t} v="ghost" onClick={() => setEditItemId(null)} style={{ flex: 1, padding: "6px 10px", fontSize: 11 }}>{tr("Cancel")}</Btn>
                         </div>
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={cimsLabels[item.cims_category]}>{item.cims_category}</div>
+                        <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={catWord(item.cims_category)}>{item.cims_category}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
-                          <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - max {item.max_score} pts</div>
+                          <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - {tr("max {0} pts", item.max_score)}</div>
                         </div>
-                        <button onClick={() => startEditItem(item)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, color: t.textSec, fontSize: 10 }}>Edit</button>
+                        <button onClick={() => startEditItem(item)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, color: t.textSec, fontSize: 10 }}>{tr("Edit")}</button>
                         <button onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
                       </div>
                     )}
                   </div>
                 ))}
                 {(!selectedTemplate.items || selectedTemplate.items.length === 0) && (
-                  <div style={{ fontSize: 11, color: t.textMut, padding: "8px 0" }}>No items yet. Add your first line item below.</div>
+                  <div style={{ fontSize: 11, color: t.textMut, padding: "8px 0" }}>{tr("No items yet. Add your first line item below.")}</div>
                 )}
               </div>
               <Crd t={t} style={{ padding: 14 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>Add Line Item</div>
-                <div style={{ marginBottom: 8 }}><Lbl>Item Label *</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder="e.g. Toilets scrubbed and sanitized" onKeyDown={e => e.key === "Enter" && addItem()} /></div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 10 }}>{tr("Add Line Item")}</div>
+                <div style={{ marginBottom: 8 }}><Lbl>{tr("Item Label *")}</Lbl><Inp t={t} value={addItemForm.label} onChange={e => setAddItemForm({ ...addItemForm, label: e.target.value })} placeholder={tr("e.g. Toilets scrubbed and sanitized")} onKeyDown={e => e.key === "Enter" && addItem()} /></div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-                  <div><Lbl>Zone</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: z }))} /></div>
-                  <div><Lbl>Service Category</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={getOpts("cims_categories")} /></div>
+                  <div><Lbl>{tr("Zone")}</Lbl><Sel t={t} value={addItemForm.zone} onChange={e => setAddItemForm({ ...addItemForm, zone: e.target.value })} options={ZONES.map(z => ({ v: z, l: tr(z + "|zone") }))} /></div>
+                  <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addItemForm.cims_category} onChange={e => setAddItemForm({ ...addItemForm, cims_category: e.target.value })} options={getOpts("cims_categories", null, true)} /></div>
                 </div>
-                <div style={{ marginBottom: 10 }}><Lbl>Max Score (points)</Lbl><Inp t={t} type="number" min="1" max="100" value={addItemForm.max_score} onChange={e => setAddItemForm({ ...addItemForm, max_score: parseInt(e.target.value) || 10 })} /></div>
-                <Btn t={t} onClick={addItem} style={{ width: "100%" }}>Add Item</Btn>
+                <div style={{ marginBottom: 10 }}><Lbl>{tr("Max Score (points)")}</Lbl><Inp t={t} type="number" min="1" max="100" value={addItemForm.max_score} onChange={e => setAddItemForm({ ...addItemForm, max_score: parseInt(e.target.value) || 10 })} /></div>
+                <Btn t={t} onClick={addItem} style={{ width: "100%" }}>{tr("Add Item")}</Btn>
               </Crd>
             </div>
           )}
@@ -6706,12 +6741,12 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       {tab === "scheduled" && (
         <div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 14 }}>
-            <Btn t={t} onClick={() => setScheduleModal(true)}>Schedule Inspection</Btn>
+            <Btn t={t} onClick={() => setScheduleModal(true)}>{tr("Schedule Inspection")}</Btn>
           </div>
-          <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: "All", count: scheduled.length, color: t.goldText }, { id: "scheduled", label: "Scheduled", count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: "In Progress", count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
+          <FilterTabs t={t} value={schedStatus} onChange={s => { setSchedStatus(s); setSchedPage(1); }} tabs={[{ id: "all", label: tr("All|inspections"), count: scheduled.length, color: t.goldText }, { id: "scheduled", label: tr("Scheduled|inspections"), count: scheduled.filter(s => s.status === "scheduled").length, color: BL }, { id: "in_progress", label: tr("In Progress"), count: scheduled.filter(s => s.status === "in_progress").length, color: OR }]} />
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={schedQ} onChange={e => { setSchedQ(e.target.value); setSchedPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
             const filtered = schedStatus === "all" ? scheduled : scheduled.filter(s => s.status === schedStatus);
@@ -6724,13 +6759,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             const cur = Math.min(schedPage, totalPages);
             const items = searched.slice((cur - 1) * inspPerPage, cur * inspPerPage);
             const columns = [
-              { header: "Inspection", render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
-              { header: "Scheduled", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
-              { header: "Assigned", render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>Unassigned</span> },
-              { header: "Status", render: si => <Bdg l={si.status.replace("_", " ")} c={STATUS_C[si.status] || BL} /> },
-              { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title="Edit" onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+              { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
+              { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
+              { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
-            return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? "No pending inspections." : "No inspections match these filters."} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
+            return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
           })()}
         </div>
       )}
@@ -6739,8 +6774,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       {tab === "completed" && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder="Search template, site, assignee" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setCompPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+            <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={compQ} onChange={e => { setCompQ(e.target.value); setCompPage(1); }} placeholder={tr("Search template, site, assignee")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={inspPerPage} onChange={e => { setInspPerPage(Number(e.target.value)); setCompPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
           </div>
           {(() => {
             const searched = completed.filter(si => {
@@ -6752,13 +6787,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             const cur = Math.min(compPage, totalPages);
             const items = searched.slice((cur - 1) * inspPerPage, cur * inspPerPage);
             const columns = [
-              { header: "Inspection", render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
-              { header: "Scheduled", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
-              { header: "Assigned", render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
-              { header: "Score", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{si.total_score}/{si.max_possible_score} pts</div></div>; } },
-              { header: "Actions", align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title="View inspection" onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title="Delete" onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+              { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
+              { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
+              { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", si.total_score, si.max_possible_score)}</div></div>; } },
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
-            return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? "No completed inspections yet." : "No inspections match this search."} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
+            return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
         </div>
       )}
@@ -6770,34 +6805,25 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           <div style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 300 }}>
               <DateRangePicker value={analyticsRange} onChange={setAnalyticsRange} t={t} presets={[
-                { key: "last30", label: "Last 30 Days" },
-                { key: "last60", label: "Last 60 Days" },
-                { key: "last90", label: "Last 90 Days" },
+                { key: "last30", label: tr("Last 30 Days") },
+                { key: "last60", label: tr("Last 60 Days") },
+                { key: "last90", label: tr("Last 90 Days") },
               ]} />
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: "All Sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
-              <button onClick={() => {
-                const q = "?start_date=" + analyticsRange.start + "&end_date=" + analyticsRange.end + (analyticsSite ? "&site_id=" + analyticsSite : "");
-                af("/api/inspections/analytics/export" + q).then(rows => {
-                  if (!rows.length) { showToast("No data to export", "error"); return; }
-                  const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-                  const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
-                  dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
-                  showToast("Exported " + rows.length + " rows");
-                }).catch(e => showToast(e.message, "error"));
-              }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={t.goldText} /> Export CSV</button>
+              <Sel t={t} value={analyticsSite} onChange={e => setAnalyticsSite(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ width: 180, padding: "5px 10px", fontSize: 11 }} />
+              <button onClick={exportAnalyticsCsv} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={12} c={t.goldText} /> {tr("Export CSV")}</button>
             </div>
           </div>
 
-          {analyticsLoading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading analytics...</div>}
+          {analyticsLoading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading analytics...")}</div>}
 
           {!analyticsLoading && (
             <div>
               {/* SITE COMPARISON BARS */}
               {siteComp.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Site Comparison</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Site Comparison")}</div>
                   <Crd t={t}>
                     {siteComp.map((sc, i) => {
                       const pct = Number(sc.latest_score_pct);
@@ -6808,14 +6834,14 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{sc.site_name}</div>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ fontSize: 10, color: t.textMut }}>{sc.inspection_count} inspections, avg {avg}%</span>
+                              <span style={{ fontSize: 10, color: t.textMut }}>{trn("{0} inspections, avg {1}%|count", sc.inspection_count, avg)}</span>
                               <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: barColor }}>{pct}%</span>
                             </div>
                           </div>
                           <div style={{ height: 8, borderRadius: 4, background: t.cardAlt, overflow: "hidden" }}>
                             <div style={{ height: "100%", borderRadius: 4, background: barColor, width: pct + "%", transition: "width 0.5s ease" }} />
                           </div>
-                          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>Latest: {fmtDate(sc.latest_date)}</div>
+                          <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Latest: {0}", fmtDate(sc.latest_date))}</div>
                         </div>
                       );
                     })}
@@ -6826,7 +6852,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* SCORE TREND CHART */}
               {scoreTrend.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Score Trend</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Score Trend")}</div>
                   <Crd t={t}>
                     <div style={{ display: "flex", alignItems: "flex-end", gap: 2, height: 160, padding: "0 4px" }}>
                       {scoreTrend.map((pt, i) => {
@@ -6834,7 +6860,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                         const barColor = pct >= 80 ? GR : pct >= 60 ? OR : RD;
                         const barH = Math.max(8, (pct / 100) * 140);
                         return (
-                          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={pt.site_name + ": " + pct + "% on " + fmtDate(pt.scheduled_date)}>
+                          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", height: "100%" }} title={tr("{0}: {1}% on {2}", pt.site_name, pct, fmtDate(pt.scheduled_date))}>
                             <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2, writingMode: scoreTrend.length > 12 ? "vertical-rl" : "horizontal-tb", whiteSpace: "nowrap" }}>{pct}%</div>
                             <div style={{ width: "100%", maxWidth: 28, height: barH, borderRadius: 3, background: barColor, minWidth: 6, transition: "height 0.4s ease" }} />
                             <div style={{ fontSize: 7, color: t.textMut, marginTop: 3, textAlign: "center", lineHeight: 1.2 }}>{new Date(pt.scheduled_date.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" })}</div>
@@ -6864,7 +6890,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* SERVICE CATEGORY BREAKDOWN */}
               {catBreakdown.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Score by Service Category</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Score by Service Category")}</div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                     {catBreakdown.map(cat => {
                       const pct = Number(cat.avg_score_pct);
@@ -6872,13 +6898,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                       return (
                         <Crd key={cat.cims_category} t={t} style={{ flex: "1 1 160px", minWidth: 140 }}>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{cimsLabels[cat.cims_category] || cat.cims_category}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600, textTransform: "uppercase", padding: "2px 6px", borderRadius: 3, background: catColor + "18", color: catColor }}>{catWord(cat.cims_category)}</span>
                             <span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: pct >= 80 ? GR : pct >= 60 ? OR : RD }}>{pct}%</span>
                           </div>
                           <div style={{ height: 6, borderRadius: 3, background: t.cardAlt, overflow: "hidden" }}>
                             <div style={{ height: "100%", borderRadius: 3, background: catColor, width: pct + "%" }} />
                           </div>
-                          <div style={{ fontSize: 10, color: t.textMut, marginTop: 6 }}>{cat.total_items} items scored, {cat.total_score}/{cat.total_max} pts</div>
+                          <div style={{ fontSize: 10, color: t.textMut, marginTop: 6 }}>{trn("{0} items scored, {1}/{2} pts|count", cat.total_items, cat.total_score, cat.total_max)}</div>
                         </Crd>
                       );
                     })}
@@ -6889,16 +6915,16 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* LOWEST SCORING ITEMS */}
               {lowestItems.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
-                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>Lowest Scoring Items</div>
+                  <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Lowest Scoring Items")}</div>
                   <Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead>
                         <tr style={{ background: t.cardAlt }}>
-                          <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Item</th>
-                          <th style={{ padding: "10px 8px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Zone</th>
-                          <th style={{ padding: "10px 8px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Category</th>
-                          <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Avg Score</th>
-                          <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>Times Scored</th>
+                          <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>{tr("Item")}</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>{tr("Zone")}</th>
+                          <th style={{ padding: "10px 8px", textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>{tr("Category")}</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>{tr("Avg Score")}</th>
+                          <th style={{ padding: "10px 8px", textAlign: "center", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>{tr("Times Scored")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -6907,10 +6933,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                           const lColor = lPct >= 80 ? GR : lPct >= 60 ? OR : RD;
                           return (
                             <tr key={i} style={{ borderBottom: "1px solid " + t.border }}>
-                              <td style={{ padding: "10px 12px", fontWeight: 600, color: t.text }}>{li.label}</td>
-                              <td style={{ padding: "10px 8px", color: t.textSec }}>{li.zone}</td>
+                              <td style={{ padding: "10px 12px", fontWeight: 600, color: t.text }}>{shownItem(li).label}</td>
+                              <td style={{ padding: "10px 8px", color: t.textSec }}>{zoneWord(li)}</td>
                               <td style={{ padding: "10px 8px" }}>
-                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{cimsLabels[li.cims_category] || li.cims_category}</span>
+                                <span style={{ fontSize: 9, fontWeight: 600, padding: "2px 6px", borderRadius: 3, background: (CIMS_C[li.cims_category] || BL) + "18", color: CIMS_C[li.cims_category] || BL }}>{catWord(li.cims_category)}</span>
                               </td>
                               <td style={{ padding: "10px 8px", textAlign: "center", fontWeight: 600, color: lColor }}>{lPct}%</td>
                               <td style={{ padding: "10px 8px", textAlign: "center", color: t.textMut }}>{li.occurrences}</td>
@@ -6926,21 +6952,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               {/* Print Report */}
               {siteComp.length > 0 && (
                 <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-                  <button onClick={() => {
-                    const siteRows = siteComp.map(sc => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${sc.site_name}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(sc.latest_score_pct) >= 80 ? '#2ECC71' : Number(sc.latest_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${sc.latest_score_pct}%</td><td style="padding:8px;text-align:center">${sc.avg_score_pct}%</td><td style="padding:8px;text-align:center">${sc.inspection_count}</td><td style="padding:8px;font-size:12px;color:#666">${fmtDate(sc.latest_date)}</td></tr>`).join("");
-                    const catRows = catBreakdown.map(c => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${cimsLabels[c.cims_category] || c.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700">${c.avg_score_pct}%</td><td style="padding:8px;text-align:center">${c.total_items}</td><td style="padding:8px;text-align:center">${c.total_score}/${c.total_max}</td></tr>`).join("");
-                    const lowRows = lowestItems.slice(0, 10).map(l => `<tr><td style="padding:8px 12px;font-size:13px;font-weight:600">${l.label}</td><td style="padding:8px">${l.zone}</td><td style="padding:8px">${cimsLabels[l.cims_category] || l.cims_category}</td><td style="padding:8px;text-align:center;font-weight:700;color:${Number(l.avg_score_pct) >= 80 ? '#2ECC71' : Number(l.avg_score_pct) >= 60 ? '#F39C12' : '#E74C3C'}">${l.avg_score_pct}%</td><td style="padding:8px;text-align:center">${l.occurrences}</td></tr>`).join("");
-                    const html = `<!DOCTYPE html><html><head><title>Inspection Analytics Report</title><style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}table{width:100%;border-collapse:collapse;margin-bottom:24px}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}tr{border-bottom:1px solid #eee}@media print{body{padding:16px}}</style></head><body><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}"><div><div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">Inspection Analytics Report</div><div style="font-size:14px;color:#555;margin-top:4px">Last ${analyticsRange.start} to ${analyticsRange.end}${analyticsSite ? "" : " (All Sites)"}</div></div><div style="text-align:right"><div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div><div style="font-size:12px;color:#666;margin-top:2px">${new Date().toLocaleDateString(localeTag(), { year: "numeric", month: "long", day: "numeric" })}</div></div></div><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Site Performance</h3><table><thead><tr><th>Site</th><th style="text-align:center">Latest Score</th><th style="text-align:center">Average</th><th style="text-align:center">Inspections</th><th>Latest Date</th></tr></thead><tbody>${siteRows}</tbody></table><h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Category Breakdown</h3><table><thead><tr><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Items Scored</th><th style="text-align:center">Points</th></tr></thead><tbody>${catRows}</tbody></table>${lowRows ? `<h3 style="font-size:15px;color:${NAVY_DARK};margin:0 0 12px">Areas Needing Improvement</h3><table><thead><tr><th>Item</th><th>Zone</th><th>Category</th><th style="text-align:center">Avg Score</th><th style="text-align:center">Occurrences</th></tr></thead><tbody>${lowRows}</tbody></table>` : ""}<div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">Generated by ${clientConfig.company.shortName} Operations Platform</div></body></html>`;
-                    const w = window.open("", "_blank");
-                    w.document.write(html); w.document.close();
-                    setTimeout(() => w.print(), 600);
-                  }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 16px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={NAVY} /> Print Report</button>
+                  <button onClick={printAnalytics} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 16px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={NAVY} /> {tr("Print Report")}</button>
                 </div>
               )}
 
               {scoreTrend.length === 0 && siteComp.length === 0 && (
                 <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>
-                  No completed inspections in the selected date range. Complete some inspections to see analytics here.
+                  {tr("No completed inspections in the selected date range. Complete some inspections to see analytics here.")}
                 </div>
               )}
             </div>
@@ -6950,31 +6968,31 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
       {/* NEW TEMPLATE MODAL */}
       {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>New Inspection Template</div><button onClick={() => setNewTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Template Name *</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder="e.g. Standard Office Cleaning" /></div>
-        <div style={{ marginBottom: 20 }}><Lbl>Description</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder="Optional: describe what this template covers" /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>Cancel</Btn><Btn t={t} onClick={createTemplate}>Create Template</Btn></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Template Name *")}</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder={tr("e.g. Standard Office Cleaning")} /></div>
+        <div style={{ marginBottom: 20 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder={tr("Optional: describe what this template covers")} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={createTemplate}>{tr("Create Template")}</Btn></div>
       </div></Mdl>}
 
       {/* SCHEDULE MODAL */}
       {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Scheduled Inspection</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
-        <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={editInspForm.scheduled_date} onChange={e => setEditInspForm({ ...editInspForm, scheduled_date: e.target.value })} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
-          <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>Cancel Inspection</Btn>
-          <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>Close</Btn><Btn t={t} onClick={submitEditInspection}>Save</Btn></div>
+          <Btn t={t} v="danger" onClick={() => cancelInspection(editInspModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{tr("Cancel Inspection")}</Btn>
+          <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditInspModal(null)}>{tr("Close")}</Btn><Btn t={t} onClick={submitEditInspection}>{tr("Save")}</Btn></div>
         </div>
       </div></Mdl>}
       {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Schedule Inspection</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Template *</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: "Select template..." }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Site *</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: "Select site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 14 }}><Lbl>Assigned Supervisor</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: "Unassigned" }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
-        <div style={{ marginBottom: 20 }}><Lbl>Scheduled Date *</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>Cancel</Btn><Btn t={t} onClick={scheduleInspection}>Schedule</Btn></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
+        <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={scheduleForm.scheduled_date} onChange={e => setScheduleForm({ ...scheduleForm, scheduled_date: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setScheduleModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={scheduleInspection}>{tr("Schedule|verb")}</Btn></div>
       </div></Mdl>}
     </div>
   );

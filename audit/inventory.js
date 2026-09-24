@@ -55,8 +55,8 @@ const VIEWS = [
   { id: "marketplace/analytics", page: "marketplace", click: "Analytics", expect: "Fill Rate" },
 
   { id: "inspections/templates", page: "inspections", click: "Templates", expect: "Monthly quality walk" },
-  { id: "inspections/scheduled", page: "inspections", click: "Scheduled", expect: "Scheduled" },
-  { id: "inspections/completed", page: "inspections", click: "Completed", expect: "Inspection" },
+  { id: "inspections/scheduled", page: "inspections", click: "Scheduled", word: "Scheduled|inspections", expect: "Scheduled" },
+  { id: "inspections/completed", page: "inspections", click: "Completed", word: "Completed|inspections", expect: "Inspection" },
   { id: "inspections/reports", page: "inspections", click: "Reports", expect: "score" },
 
   { id: "settings/company", page: "settings", click: "Company", expect: "Save Company Settings" },
@@ -164,28 +164,28 @@ const WINDOWS = [
   { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [6141] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6607, 6960] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6952] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6971] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6642, 6978] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [6970] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [6989] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7642] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7651] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7659] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7673] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7687] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7698] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7660] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7669] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7677] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7691] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7705] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7716] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8093] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9583] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9636] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9751] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9788] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8111] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9601] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9654] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9769] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9806] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10384] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10402] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10882] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [10904] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10935] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [10900] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [10922] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [10953] },
 ];
 
 // ---------------------------------------------------------------------------

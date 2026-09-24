@@ -211,16 +211,18 @@ const INSPECTION_SCORES = [
 // hand: total score 86 + 92 + 78 + 94 = 350. total max 100 x 4 = 400.
 // hand: avg = round(1000 x 350 / 400) / 10 = round(875) / 10 = 87.5, shown as "87.5%".
 // hand: 4 inspections, 3 sites.
+// The Reports tab on Inspections also reads each site's latest score and date: insp-4, insp-2 and insp-3.
 const INSPECTION_SITE_COMPARISON = [
-  { site_id: SITES[0].id, site_name: SITES[0].name, inspection_count: 2, avg_score_pct: 90 },
-  { site_id: SITES[1].id, site_name: SITES[1].name, inspection_count: 1, avg_score_pct: 92 },
-  { site_id: SITES[2].id, site_name: SITES[2].name, inspection_count: 1, avg_score_pct: 78 },
+  { site_id: SITES[0].id, site_name: SITES[0].name, inspection_count: 2, avg_score_pct: 90, latest_score_pct: 94, latest_date: shift(-7) },
+  { site_id: SITES[1].id, site_name: SITES[1].name, inspection_count: 1, avg_score_pct: 92, latest_score_pct: 92, latest_date: shift(-48) },
+  { site_id: SITES[2].id, site_name: SITES[2].name, inspection_count: 1, avg_score_pct: 78, latest_score_pct: 78, latest_date: shift(-26) },
 ];
 // hand: Harbor Point holds insp-1 (86) and insp-4 (94), so its average is (86 + 94) / 2 = 90.
+// The Reports tab reads how often each was scored as occurrences.
 const INSPECTION_LOWEST_ITEMS = [
-  { item_id: "it-1", label: "Dock floor markings", zone: "Dock", cims_category: "SD", avg_score_pct: 52, inspection_count: 1 },
-  { item_id: "it-2", label: "Stairwell handrails", zone: "Stairwell", cims_category: "HSE", avg_score_pct: 64, inspection_count: 2 },
-  { item_id: "it-3", label: "Lobby glass", zone: "Lobby", cims_category: "SD", avg_score_pct: 71, inspection_count: 3 },
+  { item_id: "it-1", label: "Dock floor markings", zone: "Dock", cims_category: "SD", avg_score_pct: 52, inspection_count: 1, occurrences: 1 },
+  { item_id: "it-2", label: "Stairwell handrails", zone: "Stairwell", cims_category: "HSE", avg_score_pct: 64, inspection_count: 2, occurrences: 2 },
+  { item_id: "it-3", label: "Lobby glass", zone: "Lobby", cims_category: "SD", avg_score_pct: 71, inspection_count: 3, occurrences: 3 },
 ];
 const INSPECTION_HAND = { avgScore: "87.5%", inspections: 4, sites: 3 };
 
