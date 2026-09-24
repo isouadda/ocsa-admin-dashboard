@@ -234,6 +234,13 @@ const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supp
 // language the call asked for, and the item's own English wherever it sends none. A screen that edits
 // an item reads the item's own fields, so the English is what it shows and what it saves.
 const shownItem = (it) => { const d = (it && it.display) || {}; return { label: d.label || it.label, description: d.description || it.description, zone: d.zone || it.zone }; };
+// A pick list choice on a screen that only shows it: the shown label where the API sent one that
+// differs from the English label, and the code otherwise, which is what the English screen has
+// always drawn. The code is still what every form holds and every call sends.
+const choiceWordOf = (lkMap, slug) => { const shown = lkMap(slug, true); const plain = lkMap(slug); return (c) => (shown[c] && shown[c] !== plain[c] ? shown[c] : c); };
+// A service category on a screen that only shows it: the cims_categories lookup's shown label where
+// the page reads the lookup, then the label table through the word table, then the code.
+const serviceCategoryWord = (code, shown) => (shown && shown[code]) || (CIMS_LABELS[code] ? tr(CIMS_LABELS[code]) : code);
 // A site's checklist read answers only today's items of the caller's open shift unless it is told
 // otherwise, which a manager testing from the portal has. Every read that feeds an editor or its
 // pickers asks for every item of every shift.
@@ -768,7 +775,7 @@ export default function AdminDashboard() {
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
-        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkHasOther={lkHasOther} />}
+        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
@@ -1541,7 +1548,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const priOf = (v) => priWord[v] || v;
   // A pick list choice that arrives as its code: the choice's displayLabel where the API sent one in
   // another language, and otherwise the code as it arrives, which is what the English screen draws.
-  const choiceOf = (slug) => { const shown = lkMap(slug, true); const plain = lkMap(slug); return (c) => (shown[c] && shown[c] !== plain[c] ? shown[c] : c); };
+  const choiceOf = (slug) => choiceWordOf(lkMap, slug);
   const contractOf = choiceOf("contract_types");
   const supplyCatOf = choiceOf("supply_categories");
   const supplyUnitOf = choiceOf("supply_units");
@@ -2005,7 +2012,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}>
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {cimsLabels[tk.cims_category] || (CIMS_LABELS[tk.cims_category] ? tr(CIMS_LABELS[tk.cims_category]) : tk.cims_category)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fd(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fd(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
               <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
@@ -2406,35 +2413,42 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   </div>);
 }
 
-function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkHasOther }) {
+function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkMap, lkHasOther }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
   const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
   useEffect(() => { loadSupplies(); loadRequests(); }, []);
-  const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast("Name, category, and unit required", "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Supply updated"); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast("Supply removed"); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast("Request " + handleReq.status); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
+  const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
   const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(API + "/qr/" + code);
-  const cats = getOpts("supply_categories");
-  const units = getOpts("supply_units");
+  // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
+  const cats = getOpts("supply_categories", null, true);
+  const units = getOpts("supply_units", null, true);
+  const catOf = choiceWordOf(lkMap, "supply_categories");
+  const unitOf = choiceWordOf(lkMap, "supply_units");
   const reqColor = { pending: OR, approved: BL, denied: RD, fulfilled: GR };
+  // A request's state, urgency and type are codes; the English keys are the codes themselves.
+  const reqStateWord = { pending: tr("pending"), approved: tr("approved|request"), denied: tr("denied|request"), fulfilled: tr("fulfilled|request") };
+  const urgencyWord = { low: tr("low"), normal: tr("normal"), high: tr("high"), urgent: tr("urgent") };
+  const reqTypeWord = { refill: tr("Refill Request"), damage_report: tr("Damage Report"), new_gear: tr("New Gear Request") };
   const pendingCount = requests.filter(r => r.status === "pending").length;
   return (<div>
-    <SecT t={t} action={isAdmin ? "Add Supply" : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>Supplies and Inventory</SecT>
+    <SecT t={t} action={isAdmin ? tr("Add Supply") : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-      <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Inventory ({supplies.length})</button>
-      <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>Requests {pendingCount > 0 ? "(" + pendingCount + " pending)" : ""}</button>
+      <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
+      <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
     </div>
-    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt="QR" style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l="Green" c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{s.category} | {s.unit} | Stock: {s.current_stock}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>QR: {s.qr_code}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l="Low Stock" c={RD} />}</div></Crd>))}
-    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No supplies configured.{isAdmin ? ' Click "Add Supply" to start.' : ""}</div>}
-    {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{r.request_type === "refill" ? "Refill Request" : r.request_type === "damage_report" ? "Damage Report" : r.request_type === "new_gear" ? "New Gear Request" : "New Supply Request"}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || "General"} {r.site_name ? "at " + r.site_name : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Approve</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>Deny</button></div>}</div></Crd>))}
-    {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>No supply requests yet.</div>}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Supply</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>A unique QR code will be generated automatically.</div><div style={{ marginBottom: 12 }}><Lbl>Name *</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder="e.g. All-Purpose Cleaner" /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category *</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit *</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder="e.g. Green Seal" /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Supply</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Supply</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt="QR" style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Print this QR code and attach it to the supply container</div></div>}<div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Category</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>Unit</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>Specify Category</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder="Describe the category" /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>Stock</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>Low Threshold</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>Cost/Unit</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>Manufacturer</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>EPA Reg #</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>Green Cert Type</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Green Certified Product</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>Remove</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save</Btn></div></div></Mdl>}
-    {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? "Approve" : "Deny"} Request</div><div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder="Add a note..." /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>Cancel</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? "Approve" : "Deny"}</Btn></div></div></Mdl>}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
+    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{isAdmin ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
+    {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
+    {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
+    {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
 
@@ -4423,37 +4437,36 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
   };
 
   const submitAdd = async () => {
-    if (!addForm.name) { showToast("Service name required", "error"); return; }
-    try { await af("/api/services", { method: "POST", body: addForm }); showToast("Service added"); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!addForm.name) { showToast(tr("Service name required"), "error"); return; }
+    try { await af("/api/services", { method: "POST", body: addForm }); showToast(tr("Service added")); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const submitEdit = async () => {
-    try { await af("/api/services/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Service updated"); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/services/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Service updated")); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
   };
 
   const deactivate = async id => {
-    try { await af("/api/services/" + id, { method: "DELETE" }); showToast("Service removed"); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/services/" + id, { method: "DELETE" }); showToast(tr("Service removed")); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const submitLinkSite = async () => {
-    if (!linkSite.siteId) { showToast("Select a site", "error"); return; }
-    try { await af("/api/services/" + linkSite.serviceId + "/link-site", { method: "POST", body: { siteId: linkSite.siteId, notes: linkSite.notes } }); showToast("Site linked"); setLinkSite(null); loadDetail(linkSite.serviceId); } catch (e) { showToast(e.message, "error"); }
+    if (!linkSite.siteId) { showToast(tr("Select a site"), "error"); return; }
+    try { await af("/api/services/" + linkSite.serviceId + "/link-site", { method: "POST", body: { siteId: linkSite.siteId, notes: linkSite.notes } }); showToast(tr("Site linked")); setLinkSite(null); loadDetail(linkSite.serviceId); } catch (e) { showToast(e.message, "error"); }
   };
 
   const unlinkSite = async (serviceId, siteId) => {
-    try { await af("/api/services/" + serviceId + "/site/" + siteId, { method: "DELETE" }); showToast("Site unlinked"); loadDetail(serviceId); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/services/" + serviceId + "/site/" + siteId, { method: "DELETE" }); showToast(tr("Site unlinked")); loadDetail(serviceId); } catch (e) { showToast(e.message, "error"); }
   };
 
   const exportCatalog = () => {
-    if (services.length === 0) { showToast("No services to export", "error"); return; }
+    if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + new Date().toISOString().slice(0, 10) + ".csv",
       ["Service Name", "Description", "Rate Structure", "Required Certifications", "Service Category", "Active Sites"],
       services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", s.cims_category || "", s.linked_site_count || 0])
     );
-    showToast("Service catalog exported");
+    showToast(tr("Service catalog exported"));
   };
 
-  const cimsLabel = CIMS_LABELS;
   const cimsColor = { SD: BL, HSE: OR, GB: GR, QS: GO, HR: "#9B59B6", MC: "#1ABC9C" };
 
   const serviceIcons = {
@@ -4468,22 +4481,22 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
   };
 
   const formFields = (form, setForm) => (<>
-    <div style={{ marginBottom: 12 }}><Lbl>Service Name *</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Office Cleaning" /></div>
-    <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><TArea t={t} value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Describe what this service covers..." /></div>
-    <div style={{ marginBottom: 12 }}><Lbl>Rate Structure</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder="How is this service priced?" /></div>
-    <div style={{ marginBottom: 12 }}><Lbl>Required Certifications</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder="Certifications staff must hold..." /></div>
-    <div style={{ marginBottom: 16 }}><Lbl>Service Category</Lbl>
-      <Sel t={t} value={form.cimsCategory || form.cims_category || "SD"} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
-        options={[{ v: "SD", l: "SD - Service Delivery" }, { v: "HSE", l: "HSE - Health Safety Environmental" }, { v: "GB", l: "GB - Green Buildings" }, { v: "QS", l: "QS - Quality System" }, { v: "HR", l: "HR - Human Resources" }, { v: "MC", l: "MC - Management Commitment" }]} />
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Service Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. Office Cleaning")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} value={form.description || ""} onChange={e => setForm({ ...form, description: e.target.value })} rows={3} placeholder={tr("Describe what this service covers...")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Rate Structure")}</Lbl><TArea t={t} value={form.rateStructure || form.rate_structure || ""} onChange={e => setForm({ ...form, rateStructure: e.target.value, rate_structure: e.target.value })} rows={2} placeholder={tr("How is this service priced?")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Required Certifications")}</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder={tr("Certifications staff must hold...")} /></div>
+    <div style={{ marginBottom: 16 }}><Lbl>{tr("Service Category")}</Lbl>
+      <Sel t={t} value={form.cimsCategory || form.cims_category || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
+        options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: c + " - " + serviceCategoryWord(c) }))} />
     </div>
   </>);
 
   return (<div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Service Catalog</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Service Catalog")}</div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> Export</button>
-        {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> Add Service</button>}
+        <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export")}</button>
+        {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
       </div>
     </div>
 
@@ -4497,16 +4510,16 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
               </div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
-            <Bdg l={cimsLabel[s.cims_category] || s.cims_category} c={cimsColor[s.cims_category] || GO} />
+            <Bdg l={serviceCategoryWord(s.cims_category)} c={cimsColor[s.cims_category] || GO} />
           </div>
           {s.description && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.description}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid " + t.border }}>
-            <span style={{ fontSize: 10, color: t.textMut }}>{cimsLabel[s.cims_category] || s.cims_category}</span>
-            {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{s.linked_site_count} site{s.linked_site_count !== 1 ? "s" : ""}</span>}
+            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category)}</span>
+            {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{trn("{0} site|count", s.linked_site_count)}</span>}
           </div>
         </Crd>
       ))}
-      {services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>No services yet.</div>}
+      {services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
     </div>
 
     {detail && <Mdl t={t} onClose={() => setDetail(null)}>
@@ -4514,23 +4527,23 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.service.name}</div>
-            <div style={{ marginTop: 6 }}><Bdg l={cimsLabel[detail.service.cims_category] || detail.service.cims_category} c={cimsColor[detail.service.cims_category] || GO} /><span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{cimsLabel[detail.service.cims_category]}</span></div>
+            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category)} c={cimsColor[detail.service.cims_category] || GO} /><span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{CIMS_LABELS[detail.service.cims_category] ? serviceCategoryWord(detail.service.cims_category) : null}</span></div>
           </div>
           <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
         </div>
 
         {detail.service.description && <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Description</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Description")}</div>
           <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.description}</div>
         </div>}
 
         {detail.service.rate_structure && <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Rate Structure</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Rate Structure")}</div>
           <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>{detail.service.rate_structure}</div>
         </div>}
 
         {detail.service.required_certifications && <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Required Certifications</div>
+          <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Required Certifications")}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
             {detail.service.required_certifications.split(",").map((c, i) => (
               <span key={i} style={{ padding: "3px 8px", borderRadius: 4, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR }}>{c.trim()}</span>
@@ -4540,10 +4553,10 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Active Sites</div>
-            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Link Site</button>}
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Active Sites")}</div>
+            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Site")}</button>}
           </div>
-          {(!detail.linkedSites || detail.linkedSites.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No sites linked yet</div>}
+          {(!detail.linkedSites || detail.linkedSites.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No sites linked yet")}</div>}
           {detail.linkedSites?.map((ls, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div>
@@ -4551,40 +4564,40 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
                 {ls.city && <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.city}, {ls.state}</div>}
                 {ls.notes && <div style={{ fontSize: 10, color: t.textSec, marginTop: 2 }}>{ls.notes}</div>}
               </div>
-              {isAdmin && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Unlink</button>}
+              {isAdmin && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
         </div>
 
         {isAdmin && <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>Edit</Btn>
-          <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm("Remove this service?")) deactivate(detail.service.id); }}>Remove</Btn>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this service?"))) deactivate(detail.service.id); }}>{tr("Remove")}</Btn>
         </div>}
       </div>
     </Mdl>}
 
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Service</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Service")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(addForm, setAddForm)}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Service</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Service")}</Btn></div>
       </div>
     </Mdl>}
 
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Service</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Service")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(editForm, setEditForm)}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save Changes")}</Btn></div>
       </div>
     </Mdl>}
 
     {linkSite && <Mdl t={t} onClose={() => setLinkSite(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Link Site to Service</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Site *</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-        <div style={{ marginBottom: 16 }}><Lbl>Notes (optional)</Lbl><Inp t={t} value={linkSite.notes} onChange={e => setLinkSite({ ...linkSite, notes: e.target.value })} placeholder="e.g. Green cleaning only, monthly frequency" /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSite(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSite}>Link Site</Btn></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Site to Service")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={linkSite.siteId} onChange={e => setLinkSite({ ...linkSite, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={linkSite.notes} onChange={e => setLinkSite({ ...linkSite, notes: e.target.value })} placeholder={tr("e.g. Green cleaning only, monthly frequency")} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSite(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitLinkSite}>{tr("Link Site")}</Btn></div>
       </div>
     </Mdl>}
   </div>);

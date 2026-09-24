@@ -10,20 +10,24 @@ A reason for reassignment is required,Se requiere un motivo para reasignar,"Assi
 A staff member is requesting to drop this shift.,Una persona solicita darse de baja de este turno.,Shift Pickup
 "A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.","Una persona solicita darse de baja de este turno. Apruebe para abrirlo a quien quiera tomarlo, deniegue para dejar la asignación original, o reasigne directamente.",Schedule
 "A staff member is requesting to drop this shift. Approve to open it for pickup, or deny to keep it assigned.","Una persona solicita darse de baja de este turno. Apruebe para abrirlo a quien quiera tomarlo, o deniegue para dejarlo asignado.","Schedule, a shift with a drop request"
+A unique QR code will be generated automatically.,Se generará automáticamente un código QR único.,"Inventory, adding a supply"
 Actions,Acciones,"Shift Pickup; Sites, the list"
 Active,Activo,"Schedule, Patterns"
+Active Sites,Sitios activos,"Service Catalog, a service"
 Active only,Solo activas,"HR Records, Employees, the status filter, which agrees with personas"
 Activity Timeline,Historial de actividad,"Issue Tracker, the issue window; Assigned Tasks, the task window"
 Add,Agregar,"Sites, Supplies; HR Records"
 Add Custom Onboarding Step,Agregar un paso de incorporación personalizado,"HR Records, adding an onboarding step"
 Add Document,Agregar documento,"HR Records, adding a document"
+Add Service,Agregar servicio,"Service Catalog; Service Catalog, adding a service"
 Add Site,Agregar sitio,"Sites, the list"
 Add Step,Agregar el paso,"HR Records, adding an onboarding step"
-Add Supply,Agregar suministro,"Sites, Supplies"
+Add Supply,Agregar suministro,"Sites, Supplies; Inventory; Inventory, adding a supply"
 Add Supply to Site,Agregar un suministro al sitio,"Sites, Supplies"
 Add Task,Agregar tarea,"Sites, Service Details"
 Add Training Record,Agregar un registro de capacitación,"HR Records, adding a training record"
 Add a note saying why,Agregue una nota explicando por qué,"Schedule, Time off, when a denial has no note"
+Add a note...,Agregue una nota...,"Inventory, approving or denying a supply request"
 Add a photo,Agregar una foto,"Help, the camera button"
 Add {0} to your home screen,Agregue {0} a su pantalla de inicio,"The add to home screen sheet, the title"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
@@ -53,8 +57,9 @@ All statuses,Todos los estados,"HR Records, Employees, the status filter"
 All supplies are already assigned to this site,Todos los suministros ya están asignados a este sitio,"Sites, Supplies"
 Analytics,Análisis,Shift Pickup
 Annual,Anual,"Sites, editing a site, Billing"
-Approve,Aprobar,"Schedule; Shift Pickup; Schedule, a time off request"
+Approve,Aprobar,"Schedule; Shift Pickup; Schedule, a time off request; Inventory, a supply request"
 Approve Drop,Aprobar la baja,Schedule; Shift Pickup
+Approve Request,Aprobar la solicitud,"Inventory, approving a supply request"
 Approved,Aprobada,"Shift Pickup; Schedule, Time off"
 Approved Shift,Turno aprobado,Schedule
 Asked,Solicitado,"Schedule, Time off; Schedule, a time off request"
@@ -103,9 +108,11 @@ Cancel this shift? The pattern will not add it again.,¿Cancelar este turno? El 
 Cancelled,Cancelado,"Schedule; Schedule, Time off"
 Cancelled by the person who asked,Cancelada por quien la solicitó,"Schedule, a time off request"
 Cases,Casos,The shell
-Category,Categoría,HR Records
+Category,Categoría,"HR Records; Inventory, editing a supply"
+Category *,Categoría *,"Inventory, adding a supply"
 Category is required,La categoría es obligatoria,"HR Records, adding a document"
 Category updated,Categoría actualizada,"HR Records, a folder"
+Certifications staff must hold...,Certificaciones que el personal debe tener...,"Service Catalog, adding or editing a service"
 Change,Cambiar,"Schedule, a pattern"
 Changes start on,Los cambios comienzan el,"Schedule, a pattern"
 Chat,Chat,"Sites, a site's profile"
@@ -115,6 +122,7 @@ Claimed By,Tomado por,Schedule; Shift Pickup
 Claimed Pickup Shift,Turno disponible tomado,Schedule
 Claims,Turnos tomados,Shift Pickup
 Clear,Borrar,"Sites, Timeline, the dates"
+"Click ""Add Supply"" to start.","Haga clic en ""Agregar suministro"" para empezar.","Inventory, an empty list"
 "Click ""Create Task"" to assign one.","Haga clic en ""Crear tarea"" para asignar una.","Assigned Tasks, when the list is empty"
 Client,Cliente,"Sites, General Info; Sites, adding a site"
 Client Contact,Contacto del cliente,"Sites, General Info; Sites, editing a site"
@@ -145,6 +153,7 @@ Convert to Open Pickup,Convertir en turno abierto,Schedule
 Copied,Copiado,"The add to home screen sheet, after the address is copied"
 Copy,Copiar,"The add to home screen sheet, beside the address"
 Copy the address below and paste it there.,Copie la dirección de abajo y péguela allí.,"The add to home screen sheet, inside another app's browser"
+Cost/Unit,Costo por unidad,"Inventory, adding or editing a supply"
 Could not load folder.,No se pudo cargar la carpeta.,"HR Records, a folder"
 Coverage by Site,Cobertura por sitio,Shift Pickup
 Create,Crear,"Sites, adding a site or a task"
@@ -160,6 +169,7 @@ Custom,Personalizado,"The shell, the date range"
 DELETE,ELIMINAR,"Sites, deleting a site, the word a person types"
 DROP REQ,SOL. DE BAJA,Schedule
 Daily Checklist,Lista diaria,"Sites, adding or editing a task, Task Type"
+Damage Report,Reporte de daños,"Inventory, Requests, a request's type"
 Dark Mode,Modo oscuro,The shell
 Dark mode,Modo oscuro,The shell
 Dashboard,Panel,The shell
@@ -181,9 +191,12 @@ Delete this scheduled shift? This cannot be undone.,¿Eliminar este turno progra
 Delete this step?,¿Eliminar este paso?,"HR Records, Onboarding"
 Delete this training record?,¿Eliminar este registro de capacitación?,"HR Records, Training"
 Denied,Denegada,"Schedule, Time off"
-Deny,Denegar,"Shift Pickup; Schedule, a time off request"
-Deny Request,Denegar la solicitud,Schedule
+Deny,Denegar,"Shift Pickup; Schedule, a time off request; Inventory, a supply request"
+Deny Request,Denegar la solicitud,"Schedule; Inventory, denying a supply request"
+Describe the category,Describa la categoría,"Inventory, adding or editing a supply"
 Describe what happened,Describa qué pasó,"Help, the box a question is written in"
+Describe what this service covers...,Describa lo que cubre este servicio...,"Service Catalog, adding or editing a service"
+Description,Descripción,"Service Catalog, a service; Service Catalog, adding or editing a service"
 Description *,Descripción *,"Sites, adding a task"
 Detailed Instructions,Instrucciones detalladas,"Assigned Tasks, creating a task; Sites, editing a task"
 Detailed Instructions (optional),Instrucciones detalladas (opcional),"Sites, adding a task"
@@ -207,11 +220,14 @@ Drop request denied,Solicitud de baja denegada,Schedule
 Due Date,Fecha límite,"Assigned Tasks, the task window; Assigned Tasks, creating a task; Sites, adding or editing a task"
 Due Time,Hora límite,"Assigned Tasks, creating a task; Sites, adding or editing a task"
 Due: {0},Vence: {0},"Assigned Tasks, the day a task is due; Sites, Service Details"
+EPA Reg #,N.º de registro de la EPA,"Inventory, adding or editing a supply"
 Edit,Editar,"Shift Pickup; Sites, Service Details; HR Records"
 Edit Details,Editar los detalles,"Sites, General Info"
 Edit Document,Editar el documento,"HR Records, editing a document"
 Edit Scheduled Shift,Editar el turno programado,Schedule
+Edit Service,Editar el servicio,"Service Catalog, editing a service"
 Edit Site Details,Editar los detalles del sitio,"Sites, editing a site"
+Edit Supply,Editar el suministro,"Inventory, editing a supply"
 Edit Task,Editar la tarea,"Sites, editing a task"
 Edit Training Record,Editar el registro de capacitación,"HR Records, editing a training record"
 Email,Correo,"Sites, General Info; Sites, editing a site"
@@ -247,6 +263,7 @@ Expiry Date,Fecha de vencimiento,"HR Records, adding a training record"
 Expiry Date (optional),Fecha de vencimiento (opcional),"HR Records, adding a document"
 Explain why this is being reassigned...,Explique por qué se reasigna...,"Issue Tracker, giving an issue to a person"
 Explain why this task is being reassigned...,Explique por qué se reasigna esta tarea...,"Assigned Tasks, reassigning a task"
+Export,Exportar,Service Catalog
 Export CSV,Exportar CSV,"Sites, Timeline"
 Extra Coverage,Cobertura adicional,Shift Pickup
 Extra large,Muy grande,"The shell, the text size chooser"
@@ -271,15 +288,17 @@ Form default: {0},Del formulario: {0},"HR Records, a folder, a form's category"
 Forms,Formularios,"The shell; HR Records, Compliance"
 Fri,Vie,Schedule; Shift Pickup
 F{0},P{0},"Schedule, Week, the floor beside a building name, short"
-General,General,"Issue Tracker and Assigned Tasks, the zone when none is set"
+General,General,"Issue Tracker and Assigned Tasks, the zone when none is set; Inventory, a request for no one supply"
 General Info,Información general,"Sites, a site's profile"
-Green,Ecológico,"Sites, Supplies, a supply with a green certification"
-Green Buildings,Edificios sostenibles,"Sites, Service Details, a service category"
+Green,Ecológico,"Sites, Supplies, a supply with a green certification; Inventory, a supply with a green certification"
+Green Buildings,Edificios sostenibles,"Sites, Service Details, a service category; Service Catalog, a service's category"
+Green Cert Type,Tipo de certificación ecológica,"Inventory, adding or editing a supply"
+Green Certified Product,Producto con certificación ecológica,"Inventory, adding or editing a supply"
 HR - Onboarding,RR. HH. - Incorporación,"HR Records, a record's category"
 HR - Ongoing / Annual,RR. HH. - Continuo / Anual,"HR Records, a record's category"
 HR Records,Expedientes de personal,The shell
 Has details,Tiene detalles,"Sites, Service Details"
-"Health, Safety & Environment","Salud, seguridad y medio ambiente","Sites, Service Details, a service category"
+"Health, Safety & Environment","Salud, seguridad y medio ambiente","Sites, Service Details, a service category; Service Catalog, a service's category"
 Help,Ayuda,The shell; Help
 Hide,Ocultar,"Live Operations, hiding the people who have not started"
 Hide manual entry,Ocultar la entrada manual,"HR Records, adding a document"
@@ -288,7 +307,8 @@ Hire Date (newest),Fecha de contratación (más reciente),"HR Records, Employees
 Hire Date (oldest),Fecha de contratación (más antigua),"HR Records, Employees, the order"
 Hired {0},Contratación: {0},"HR Records, a folder"
 Hours,Horas,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
-Human Resources,Recursos humanos,"Sites, Service Details, a service category"
+How is this service priced?,¿Cómo se cobra este servicio?,"Service Catalog, adding or editing a service"
+Human Resources,Recursos humanos,"Sites, Service Details, a service category; Service Catalog, a service's category"
 In Progress,En curso,"Assigned Tasks, the state filter"
 Inactive only,Solo inactivas,"HR Records, Employees, the status filter, which agrees with personas"
 Inheriting form's category. Pick a value to override.,Usa la categoría del formulario. Elija un valor para cambiarla.,"HR Records, a folder, a form's category"
@@ -303,6 +323,7 @@ Inspections (Last 30 Days),Inspecciones (últimos 30 días),"Sites, Shifts & Sch
 Install,Instalar,"The add to home screen sheet, the button on Android"
 Integrations,Integraciones,The shell
 Inventory,Inventario,The shell
+Inventory ({0}),Inventario ({0}),"Inventory, a tab"
 Issue,Incidencia,"Issue Tracker, the issue photo for a screen reader; Assigned Tasks, a task made from an issue"
 Issue Detail,Detalle de la incidencia,"Issue Tracker, the issue window"
 Issue Tracker,Registro de incidencias,The shell; Issue Tracker
@@ -330,6 +351,8 @@ Last day,Último día,"Schedule, a pattern"
 Legal / Consent,Legal / Consentimiento,"HR Records, a record's category"
 Light Mode,Modo claro,The shell
 Light mode,Modo claro,The shell
+Link Site,Vincular un sitio,"Service Catalog, a service; Service Catalog, linking a site"
+Link Site to Service,Vincular un sitio al servicio,"Service Catalog, linking a site"
 Live Operations,Operaciones en vivo,The shell
 Live Ops,Operaciones en vivo,The shell
 Load More,Ver más,"Sites, Timeline"
@@ -342,7 +365,10 @@ Loading submissions...,Cargando los envíos...,"HR Records, adding a document"
 Loading time off...,Cargando el tiempo libre...,"Schedule, Time off"
 Loading...,Cargando...,"The shell; The bell; Dashboard; Schedule, a pattern; Shift Pickup; Assigned Tasks; Sites; HR Records"
 Logout,Cerrar sesión,The shell
-Management Commitment,Compromiso de la dirección,"Sites, Service Details, a service category"
+Low Stock,Existencias bajas,"Inventory, a supply below its threshold"
+Low Threshold,Existencias mínimas,"Inventory, adding or editing a supply"
+Management Commitment,Compromiso de la dirección,"Sites, Service Details, a service category; Service Catalog, a service's category"
+Manufacturer,Fabricante,"Inventory, adding or editing a supply"
 Mark all read,Marcar todo como leído,The bell
 Marketplace,Tablero,"Sites, Timeline"
 Marketplace Coverage (Last 30 Days),Cobertura en el tablero (últimos 30 días),"Sites, Shifts & Schedule"
@@ -359,12 +385,15 @@ Monthly Value ($),Valor mensual ($),"Sites, editing a site"
 Most Recent Activity,Actividad más reciente,"HR Records, Employees, the order"
 Most recent inspection per site,Inspección más reciente por sitio,Dashboard
 N/A,N/D,"Sites, a site's profile"
-Name,Nombre,"Sites, General Info"
-Name *,Nombre *,"Sites, adding a site"
+Name,Nombre,"Sites, General Info; Inventory, editing a supply"
+Name *,Nombre *,"Sites, adding a site; Inventory, adding a supply"
 Name and address required,El nombre y la dirección son obligatorios,"Sites, adding a site"
 Name and category are required,El nombre y la categoría son obligatorios,"HR Records, adding an onboarding step"
+"Name, category, and unit required","El nombre, la categoría y la unidad son obligatorios","Inventory, adding a supply"
+New Gear Request,Solicitud de equipo nuevo,"Inventory, Requests, a request's type"
 New Shift,Turno nuevo,Shift Pickup
 New Shifts,Turnos nuevos,Shift Pickup
+New Supply Request,Solicitud de suministro nuevo,"Inventory, Requests, a request's type"
 Next,Siguiente,"The shell, under a table"
 Next >,Siguiente >,Schedule
 Next Week,La próxima semana,Schedule
@@ -399,6 +428,8 @@ No reason given,Sin motivo,"Schedule, a time off request"
 No records match this search.,Ningún registro coincide con la búsqueda.,"HR Records, Training"
 No role,Sin rol,"HR Records, a person with no role"
 No scope of work documented yet.,Todavía no se ha documentado el alcance del trabajo.,"Sites, Scope of Work"
+No services to export,No hay servicios para exportar,"Service Catalog, Export"
+No services yet.,Todavía no hay servicios.,"Service Catalog, an empty list"
 No shift started on {0} ({1}),Sin turno iniciado el {0} ({1}),"Live Operations, the people who did not start on a day that is not today, and how many"
 No shift started today ({0}),Sin turno iniciado hoy ({0}),"Live Operations, the people who have not started, and how many"
 No shifts found for this period and filter.,No hay turnos en este periodo con este filtro.,Shift Pickup
@@ -406,10 +437,13 @@ No shifts on these days.,No hay turnos en estos días.,"Schedule, a time off req
 No shifts started on {0}.,Ningún turno iniciado el {0}.,"Live Operations, a day that is not today with nobody started"
 No shifts started yet today.,Todavía no ha iniciado ningún turno hoy.,Dashboard; Live Operations
 No sites found.,No se encontraron sitios.,"Sites, the list"
+No sites linked yet,Todavía no hay sitios vinculados,"Service Catalog, a service"
 No specific service,Ningún servicio en particular,Schedule
 No staff assigned,No hay personal asignado,"Sites, General Info"
 No staff match that search,Ninguna persona coincide con esa búsqueda,Schedule
 No supplies assigned to this site,No hay suministros asignados a este sitio,"Sites, Supplies"
+No supplies configured.,No hay suministros configurados.,"Inventory, an empty list"
+No supply requests yet.,Todavía no hay solicitudes de suministros.,"Inventory, Requests"
 No tasks configured for this site,No hay tareas configuradas para este sitio,"Sites, Service Details"
 No training records found.,No se encontraron registros de capacitación.,"HR Records, Training"
 "No unlinked Jotform submissions for this employee. Sync the Forms page if needed, or use manual entry.","Esta persona no tiene envíos de Jotform sin vincular. Sincronice la página Formularios si hace falta, o use la entrada manual.","HR Records, adding a document"
@@ -424,7 +458,7 @@ Not sent.,No se envió.,"Help, a message that did not go"
 Note,Nota,"Schedule, a time off request"
 Note to previous assignee (optional),Nota para quien la tenía asignada (opcional),"Issue Tracker, giving an issue to a person"
 Notes,Notas,"Schedule, a pattern; Schedule; Shift Pickup; Sites, General Info; HR Records, Other"
-Notes (optional),Notas (opcional),"HR Records, adding a document or a training record"
+Notes (optional),Notas (opcional),"HR Records, adding a document or a training record; Inventory, approving or denying a supply request; Service Catalog, linking a site"
 Nothing changed yet.,Nada ha cambiado todavía.,"Schedule, a pattern"
 Nothing yet.,Nada todavía.,The bell
 Notifications,Avisos,The shell; The bell
@@ -492,12 +526,16 @@ Post Shift,Publicar turno,Shift Pickup
 Prev,Anterior,"The shell, under a table"
 Prime Contractor,Contratista principal,"Sites, General Info; Sites, adding or editing a site"
 Print,Imprimir,"Sites, Chat; Sites, Timeline; Sites, the record window"
+Print this QR code and attach it to the supply container,Imprima este código QR y péguelo en el envase del suministro,"Inventory, editing a supply"
 Priority,Prioridad,"Assigned Tasks, creating a task; Sites, adding or editing a task"
 Private conversations,Conversaciones privadas,Messages
 Private message,Mensaje privado,"Messages, under the person's name"
+QR,QR,"Inventory, a supply's QR code picture"
+QR: {0},QR: {0},"Inventory, a supply's QR code"
 Quality,Calidad,The shell
-Quality System,Sistema de calidad,"Sites, Service Details, a service category"
+Quality System,Sistema de calidad,"Sites, Service Details, a service category; Service Catalog, a service's category"
 Quarterly,Trimestral,"Sites, editing a site, Billing"
+Rate Structure,Estructura de tarifas,"Service Catalog, a service; Service Catalog, adding or editing a service"
 Reactivate,Reactivar,"Sites, a site's profile"
 Reason,Motivo,"Schedule; Shift Pickup; Schedule, a time off request"
 Reason Breakdown,Desglose por motivo,Shift Pickup
@@ -512,6 +550,7 @@ Record Detail,Detalle del registro,"Sites, the record window"
 Record Fields,Campos del registro,"Sites, the record window"
 Recorded when the person started the shift in the portal. There is no end time and no hours here.,Registrado cuando la persona inició el turno en el portal. Aquí no hay hora de fin ni horas.,Schedule
 Records,Registros,"HR Records, Employees, a card"
+Refill Request,Solicitud de reposición,"Inventory, Requests, a request's type"
 Refresh,Actualizar,Dashboard; Shift Pickup; Live Operations
 Related Items ({0}),Elementos relacionados ({0}),"Sites, the record window"
 Release,Liberar,Schedule; Shift Pickup
@@ -521,6 +560,7 @@ Reliability,Cumplimiento,Shift Pickup
 Remove,Quitar,"Sites; HR Records, Onboarding"
 Remove photo,Quitar la foto,"Help, a photo waiting to be sent, for a screen reader"
 Remove this floor plan?,¿Quitar este plano?,"Sites, General Info"
+Remove this service?,¿Quitar este servicio?,"Service Catalog, a service"
 Remove this supply from the site?,¿Quitar este suministro del sitio?,"Sites, Supplies"
 Repeat on,Repetir los,Schedule
 Repeat this shift,Repetir este turno,Schedule
@@ -533,11 +573,13 @@ Reported,Reportada,"Issue Tracker, the issue window, an incidencia was reported"
 Reported At,Fecha del reporte,"Issue Tracker, the issue window"
 Reported By,Reportada por,"Issue Tracker, the issue window, who reported the incidencia"
 Reports,Informes,The shell
-Request denied,Solicitud denegada,Shift Pickup
+Request approved,Solicitud aprobada,"Inventory, approving a supply request"
+Request denied,Solicitud denegada,"Shift Pickup; Inventory, denying a supply request"
 Request failed,La solicitud falló,"Schedule, a pattern; Schedule, Patterns; Schedule, Time off; Schedule, a time off request; Help; Any page, a call the API refused without a reason"
 Requested,Solicitado,"Schedule, Time off"
 Requested By,Solicitado por,Schedule; Shift Pickup
-Requests,Solicitudes,Shift Pickup
+Requests,Solicitudes,"Shift Pickup; Inventory, a tab"
+Required Certifications,Certificaciones requeridas,"Service Catalog, a service; Service Catalog, adding or editing a service"
 Reschedule,Reprogramar,Schedule
 Resolution,Resolución,"Issue Tracker, the issue window, the photo taken when it was resolved; Assigned Tasks, the task window, the resolution photo for a screen reader"
 Resolution Photo,Foto de la resolución,"Issue Tracker, the issue window, the activity; Assigned Tasks, the task window"
@@ -555,7 +597,7 @@ Role,Rol,"HR Records, Compliance"
 Safety / Incident,Seguridad / Incidente,"HR Records, a record's category"
 Sat,Sáb,"Schedule, the week and the pattern picker"
 Save,Guardar,"Schedule; Sites, editing a site; HR Records"
-Save Changes,Guardar los cambios,"Shift Pickup; Sites, editing a task"
+Save Changes,Guardar los cambios,"Shift Pickup; Sites, editing a task; Service Catalog, editing a service"
 Save Scope,Guardar el alcance,"Sites, Scope of Work"
 Save changes,Guardar los cambios,"Schedule, a pattern"
 Saved,Guardado,"Sites, Scope of Work"
@@ -580,6 +622,8 @@ Search staff,Buscar personal,Schedule; Messages
 Search staff...,Buscar personal...,Schedule
 Select (optional),Seleccione (opcional),"Sites, adding a task, Assign To"
 Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.,Seleccione un turno programado abajo. El turno original se cancela y se reemplaza por un turno abierto que el personal elegible puede tomar.,Shift Pickup
+Select a site,Seleccione un sitio,"Service Catalog, linking a site"
+Select a site...,Seleccione un sitio...,"Service Catalog, linking a site"
 Select a staff member,Seleccione a una persona,"Schedule; Shift Pickup; Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task"
 Select a staff member...,Seleccione a una persona...,"Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task"
 Select a synced submission...,Seleccione un envío sincronizado...,"HR Records, adding a document"
@@ -597,11 +641,17 @@ Select type...,Seleccione un tipo...,"HR Records, adding a training record"
 Select...,Seleccione...,Shift Pickup
 Send,Enviar,"Help, the send button, for a screen reader"
 Service,Servicio,Shift Pickup
-Service Catalog,Catálogo de servicios,The shell
-Service Category,Categoría de servicio,"Schedule; Shift Pickup; Sites, adding or editing a task"
-Service Delivery,Prestación del servicio,"Sites, Service Details, a service category"
+Service Catalog,Catálogo de servicios,"The shell; Service Catalog, the page's title"
+Service Category,Categoría de servicio,"Schedule; Shift Pickup; Sites, adding or editing a task; Service Catalog, adding or editing a service"
+Service Delivery,Prestación del servicio,"Sites, Service Details, a service category; Service Catalog, a service's category"
 Service Details,Detalles del servicio,"Sites, a site's profile"
+Service Name *,Nombre del servicio *,"Service Catalog, adding or editing a service"
+Service added,Servicio agregado,"Service Catalog, adding a service"
+Service catalog exported,Catálogo de servicios exportado,"Service Catalog, Export"
 Service category,Categoría de servicio,"Schedule, a pattern"
+Service name required,El nombre del servicio es obligatorio,"Service Catalog, adding a service"
+Service removed,Servicio quitado,"Service Catalog, removing a service"
+Service updated,Servicio actualizado,"Service Catalog, editing a service"
 Services,Servicios,The shell
 Session expired,La sesión expiró,"Any page, when the sign-in has run out"
 Settings,Configuración,The shell
@@ -634,14 +684,16 @@ Sign Out,Cerrar sesión,The shell
 Signing in...,Iniciando sesión...,The sign-in card
 Since midnight,Desde la medianoche,Dashboard
 Site,Sitio,"Schedule, Patterns; Schedule; Shift Pickup; Issue Tracker, the issue window; Assigned Tasks, the task window; Sites"
-Site *,Sitio *,"Schedule; Shift Pickup; Assigned Tasks, creating a task"
+Site *,Sitio *,"Schedule; Shift Pickup; Assigned Tasks, creating a task; Service Catalog, linking a site"
 Site Channel Messages,Mensajes del canal del sitio,"Sites, Chat"
 Site Name,Nombre del sitio,"Sites, editing a site"
 Site Notes,Notas del sitio,"Sites, editing a site"
 Site created,Sitio creado,"Sites, adding a site"
 Site deactivated,Sitio desactivado,"Sites, a site's profile"
+Site linked,Sitio vinculado,"Service Catalog, linking a site"
 Site permanently deleted,Sitio eliminado de forma permanente,"Sites, deleting a site"
 Site reactivated,Sitio reactivado,"Sites, a site's profile"
+Site unlinked,Sitio desvinculado,"Service Catalog, a service"
 Site updated,Sitio actualizado,"Sites, editing a site"
 Site x Day Heatmap,Mapa de calor de sitio por día,Shift Pickup
 "Site, date, and times are required","El sitio, la fecha y las horas son obligatorios",Shift Pickup
@@ -651,6 +703,7 @@ Slowest,Más lento,Shift Pickup
 Someone else has to decide your own request.,Otra persona tiene que decidir su propia solicitud.,"Schedule, Time off, when the approver opens a request of their own"
 Soonest first. Deciding a request leaves the schedule as it is.,Primero las más próximas. Decidir una solicitud deja el horario como está.,"Schedule, Time off, the note above the list"
 Source record not found. The original data may have been deleted.,No se encontró el registro de origen. Es posible que los datos originales se hayan eliminado.,"Sites, the record window"
+Specify Category,Especifique la categoría,"Inventory, adding or editing a supply"
 Staff,Personal,The shell; Schedule; Sites
 Staff Management,Gestión de personal,The shell
 Staff Member,Persona,Shift Pickup
@@ -683,16 +736,19 @@ Step-by-step instructions or notes...,Instrucciones paso a paso o notas...,"Assi
 "Step-by-step instructions, tips, or notes for the cleaner...","Instrucciones paso a paso, consejos o notas para quien limpia...","Sites, adding a task"
 "Step-by-step instructions, tips, or notes...","Instrucciones paso a paso, consejos o notas...","Sites, editing a task"
 Still needed before you can submit:,Falta esto antes de poder enviarlo:,"Help, the questions a report still needs"
-Stock: {0},Existencias: {0},"Sites, Supplies"
+Stock,Existencias,"Inventory, adding or editing a supply"
+Stock: {0},Existencias: {0},"Sites, Supplies; Inventory, a supply"
 Submit report,Enviar el informe,Help
 Submitting...,Enviando...,"Help, while a report is sent"
 Sun,Dom,Schedule; Shift Pickup
 Supervisor,Supervisor,"The shell; Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
 Supplies,Suministros,The shell; Sites
 Supplies & Inventory,Suministros e inventario,The shell
+Supplies and Inventory,Suministros e inventario,"Inventory, the page's title"
 Supplies at This Site ({0}),Suministros en este sitio ({0}),"Sites, Supplies"
 Supply assigned,Suministro asignado,"Sites, Supplies"
-Supply removed,Suministro quitado,"Sites, Supplies"
+Supply removed,Suministro quitado,"Sites, Supplies; Inventory, removing a supply"
+Supply updated,Suministro actualizado,"Inventory, editing a supply"
 System,Sistema,"Issue Tracker and Assigned Tasks, the activity, when no person made the change; Sites, the record window"
 TEST,PRUEBA,"HR Records, a test account"
 Tap Add or Install.,Toque Agregar o Instalar.,"The add to home screen sheet, Android by hand"
@@ -765,7 +821,10 @@ Unable to Resolve,No se pudo resolver,"Issue Tracker and Assigned Tasks, the act
 Unassigned,Sin asignar,"Schedule; Shift Pickup; Assigned Tasks, the task window"
 Uncategorized,Sin categoría,"HR Records, a record's category"
 Unfinished reports,Informes sin terminar,Help
+Unit,Unidad,"Inventory, editing a supply"
+Unit *,Unidad *,"Inventory, adding a supply"
 Unknown,Desconocido,"Sites, Chat, a message with no sender"
+Unlink,Desvincular,"Service Catalog, a service"
 Until,Hasta,Schedule
 Upcoming,Próximos,"Schedule, Patterns"
 Upcoming Shifts (Next 7 Days),Próximos turnos (siguientes 7 días),"Sites, Shifts & Schedule"
@@ -810,6 +869,7 @@ Zone,Zona,"Issue Tracker, the issue window; Assigned Tasks, the task window; Sit
 Zone *,Zona *,"Assigned Tasks, creating a task; Sites, adding a task"
 Zones,Zonas,"Sites, General Info"
 annual,anual,"Sites, General Info, how often a site is billed"
+at {0},en {0},"Inventory, Requests, the site a request is for"
 biweekly,quincenal,"Sites, General Info, how often a site is billed"
 by {0},por {0},"Issue Tracker and Assigned Tasks, the activity, who made the change; HR Records, who gave a training or finished a step"
 clock in,entrada registrada,"Sites, the record window, what happened"
@@ -817,28 +877,32 @@ critical,crítica,"Assigned Tasks, how urgent a task is, which agrees with prior
 e.g. 1,p. ej. 1,"Assigned Tasks, creating a task, the floor"
 "e.g. 1, 2, B","p. ej. 1, 2, B","Sites, adding or editing a task"
 e.g. 95% or Pass,p. ej. 95% o Aprobado,"HR Records, adding a training record"
+e.g. All-Purpose Cleaner,p. ej. Limpiador multiusos,"Inventory, adding a supply"
 e.g. Clean window blinds in conference room,p. ej. Limpiar las persianas de la sala de reuniones,"Assigned Tasks, creating a task"
 e.g. Complete bloodborne pathogens training,p. ej. Completar la capacitación sobre patógenos transmitidos por la sangre,"HR Records, adding an onboarding step"
 e.g. General Cleaning Training,p. ej. Capacitación general de limpieza,"HR Records, adding a training record"
+"e.g. Green cleaning only, monthly frequency","p. ej. Solo limpieza ecológica, frecuencia mensual","Service Catalog, linking a site"
 e.g. Main,p. ej. Principal,"Assigned Tasks, creating a task, the building; Sites, adding or editing a task"
 e.g. Marcus called out,p. ej. una persona se reportó ausente,Schedule
 e.g. Marcus called out sick,p. ej. una persona se reportó enferma,Shift Pickup
+e.g. Office Cleaning,p. ej. Limpieza de oficinas,"Service Catalog, adding or editing a service"
 e.g. Offices,p. ej. Oficinas,"Assigned Tasks, creating a task, the zone"
 e.g. Restrooms,p. ej. Baños,"Sites, adding a task"
 e.g. Vacuum carpets,p. ej. Aspirar las alfombras,"Sites, adding a task"
-e.g. {0},p. ej. {0},"HR Records, adding a training record, an example of who gave it"
+e.g. {0},p. ej. {0},"HR Records, adding a training record, an example of who gave it; Inventory, adding a supply, an example of a certification"
 ends next day,termina al día siguiente,"Schedule, Patterns, the hours of a pattern that runs past midnight"
 ends {0},termina el {0},"Schedule, Patterns, the pattern window, the end date"
-high,alta,"Issue Tracker, how serious an issue is, which agrees with gravedad; Assigned Tasks, how urgent a task is, which agrees with prioridad; Sites, Service Details, a task's priority"
+high,alta,"Issue Tracker, how serious an issue is, which agrees with gravedad; Assigned Tasks, how urgent a task is, which agrees with prioridad; Sites, Service Details, a task's priority; Inventory, a supply request's urgency"
 in progress,en curso,"Issue Tracker, the filter and an incidencia being worked on; Assigned Tasks, a tarea being worked on; HR Records, a folder, a record's status"
 issue reported,incidencia reportada,"Sites, the record window, what happened"
-low,baja,"Issue Tracker, how serious an issue is, which agrees with gravedad"
+low,baja,"Issue Tracker, how serious an issue is, which agrees with gravedad; Inventory, a supply request's urgency"
 medium,media,"Issue Tracker, how serious an issue is, which agrees with gravedad"
 message sent,mensaje enviado,"Sites, the record window, what happened"
 monthly,mensual,"Sites, General Info, how often a site is billed"
+normal,normal,"Inventory, a supply request's urgency"
 note: {0},nota: {0},"HR Records, a folder"
 of {0} active,de {0} activos,"Dashboard, under the started tile"
-pending,pendiente,"Assigned Tasks, a task nobody has started; HR Records, a person's or a record's status"
+pending,pendiente,"Assigned Tasks, a task nobody has started; HR Records, a person's or a record's status; Inventory, a supply request's state"
 quarterly,trimestral,"Sites, General Info, how often a site is billed"
 shift created,turno creado,"Sites, the record window, what happened"
 shift deleted,turno eliminado,"Sites, the record window, what happened"
@@ -851,7 +915,7 @@ task completed,tarea completada,"Sites, the record window, what happened"
 to {0},a {0},"Sites, General Info, the end of the contract dates"
 today,hoy,"HR Records, a card's last activity"
 unable to resolve,no se pudo resolver,"Assigned Tasks, a task that could not be done"
-urgent,urgente,"Assigned Tasks, how urgent a task is; Sites, Service Details, a task's priority"
+urgent,urgente,"Assigned Tasks, how urgent a task is; Sites, Service Details, a task's priority; Inventory, a supply request's urgency"
 weekly,semanal,"Sites, General Info, how often a site is billed"
 weeks,semanas,"Schedule, adding a shift, the word after the number of weeks"
 yesterday,ayer,"HR Records, a card's last activity"
@@ -937,14 +1001,17 @@ Time,Horarios,"The side panel, the section that holds Schedule and Shift Pickup"
 active,activo,"Sites, a site's status, which agrees with sitio"
 active,activa,"HR Records, a person's status, which agrees with persona"
 all,todas,"Issue Tracker, the filter that agrees with incidencias"
+approved,aprobada,"Inventory, a supply request's state, which agrees with solicitud"
 assigned,asignada,"Sites, Service Details, a one-off task, which agrees with tarea"
 closed,cerrada,"Issue Tracker, an incidencia that is finished"
 completed,completado,"HR Records, a folder, a record's status, which agrees with registro"
 completed at,fecha de finalización,"Sites, the record window, a field"
 created at,fecha de creación,"Sites, the record window, a field"
+denied,denegada,"Inventory, a supply request's state, which agrees with solicitud"
 description,descripción,"Sites, the record window, a field"
 escalated,escalada,"Issue Tracker, an incidencia passed up the line"
 escalated,escaladas,"Issue Tracker, the filter for incidencias passed up the line"
+fulfilled,entregada,"Inventory, a supply request's state, which agrees with solicitud"
 inactive,inactivo,"Sites, a site's status, which agrees with sitio"
 inactive,inactiva,"HR Records, a person's status, which agrees with persona"
 kind,tipo,"Sites, the record window, a field"
@@ -1005,3 +1072,7 @@ zone,zona,"Sites, the record window, a field"
 {1} of {0} steps complete,{1} de {0} pasos completados,"HR Records, Onboarding, when the count is more than one"
 {0} item,{0} elemento,"HR Records, Other, when the count is one"
 {0} items,{0} elementos,"HR Records, Other, when the count is more than one"
+({0} pending),({0} pendiente),"Inventory, the Requests tab, when the count is one"
+({0} pending),({0} pendientes),"Inventory, the Requests tab, when the count is more than one"
+{0} site,{0} sitio,"Service Catalog, a service's card, when the count is one"
+{0} sites,{0} sitios,"Service Catalog, a service's card, when the count is more than one"

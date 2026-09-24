@@ -64,6 +64,9 @@ function createStubs() {
       { id: "lv-1", value: "SD", label: "Service Delivery", is_active: true, sort_order: 1, color: "#24A4F4" },
       { id: "lv-2", value: "HSE", label: "Health, Safety and Environment", is_active: true, sort_order: 2, color: "#F39C12" },
       { id: "lv-3", value: "GB", label: "Green Buildings", is_active: true, sort_order: 3, color: "#2ECC71" },
+      { id: "lv-30", value: "QS", label: "Quality System", is_active: true, sort_order: 4, color: "#C9A84C" },
+      { id: "lv-31", value: "HR", label: "Human Resources", is_active: true, sort_order: 5, color: "#9B59B6" },
+      { id: "lv-32", value: "MC", label: "Management Commitment", is_active: true, sort_order: 6, color: "#2C3E50" },
     ] },
     { id: "lk-2", slug: "supply_categories", name: "Supply categories", values: [
       { id: "lv-4", value: "chemical", label: "Chemical", is_active: true, sort_order: 1 },
@@ -127,10 +130,15 @@ function createStubs() {
   ];
   // hand: 5 supplies, 2 of them chemicals, so the chemical export writes 2 rows plus a header.
 
+  // Shaped to Inventory's Requests tab: a request's type, urgency, created_at and description,
+  // beside the fields the rows have always carried.
   const SUPPLY_REQUESTS = [
-    { id: "sr-1", supply_name: "Can liner 40x46", supply_id: "sp-3", quantity: 6, unit: "case", status: "pending", requested_by_name: "Tomasz Wisniewski", site_name: S[0].name, notes: "Dock run is short.", requested_at: seed.shift(-1) + "T13:00:00Z", admin_notes: null },
-    { id: "sr-2", supply_name: "Hand soap refill", supply_id: "sp-4", quantity: 4, unit: "each", status: "pending", requested_by_name: "Ngozi Okonkwo", site_name: S[1].name, notes: "", requested_at: seed.shift(-2) + "T09:30:00Z", admin_notes: null },
-    { id: "sr-3", supply_name: "Mop head 24oz", supply_id: "sp-7", quantity: 10, unit: "each", status: "fulfilled", requested_by_name: "Elena Barbosa", site_name: S[2].name, notes: "", requested_at: seed.shift(-11) + "T15:45:00Z", admin_notes: "Delivered." },
+    { id: "sr-1", supply_name: "Can liner 40x46", supply_id: "sp-3", quantity: 6, unit: "case", status: "pending", requested_by_name: "Tomasz Wisniewski", site_name: S[0].name, notes: "Dock run is short.", requested_at: seed.shift(-1) + "T13:00:00Z", admin_notes: null,
+      request_type: "refill", urgency: "urgent", created_at: seed.shift(-1) + "T13:00:00Z", description: "Dock run is short." },
+    { id: "sr-2", supply_name: "Hand soap refill", supply_id: "sp-4", quantity: 4, unit: "each", status: "pending", requested_by_name: "Ngozi Okonkwo", site_name: S[1].name, notes: "", requested_at: seed.shift(-2) + "T09:30:00Z", admin_notes: null,
+      request_type: "damage_report", urgency: "high", created_at: seed.shift(-2) + "T09:30:00Z", description: "" },
+    { id: "sr-3", supply_name: "Mop head 24oz", supply_id: "sp-7", quantity: 10, unit: "each", status: "fulfilled", requested_by_name: "Elena Barbosa", site_name: S[2].name, notes: "", requested_at: seed.shift(-11) + "T15:45:00Z", admin_notes: "Delivered.",
+      request_type: "new_gear", urgency: "normal", created_at: seed.shift(-11) + "T15:45:00Z", description: "" },
   ];
 
   // The list and the approved-vendor export both read approval_status.
@@ -142,8 +150,8 @@ function createStubs() {
   // hand: 3 vendors, 2 approved. The approved-vendor export writes 2 rows plus a header.
 
   const SERVICES = [
-    { id: "sv-1", name: "Daily janitorial", slug: "daily-janitorial", description: "Nightly cleaning of occupied floors.", rate_structure: "Per square foot, monthly", required_certifications: "Bloodborne pathogen awareness", cims_category: "SD", linked_sites: 3, is_active: true },
-    { id: "sv-2", name: "Floor restoration", slug: "floor-restoration", description: "Strip, seal and finish hard floors.", rate_structure: "Per project", required_certifications: "Machine operation", cims_category: "GB", linked_sites: 2, is_active: true },
+    { id: "sv-1", name: "Daily janitorial", slug: "daily-janitorial", description: "Nightly cleaning of occupied floors.", rate_structure: "Per square foot, monthly", required_certifications: "Bloodborne pathogen awareness", cims_category: "SD", linked_sites: 3, linked_site_count: 3, is_active: true },
+    { id: "sv-2", name: "Floor restoration", slug: "floor-restoration", description: "Strip, seal and finish hard floors.", rate_structure: "Per project", required_certifications: "Machine operation", cims_category: "GB", linked_sites: 2, linked_site_count: 2, is_active: true },
   ];
 
   const PICKUPS = [
@@ -659,6 +667,7 @@ function createStubs() {
     "Atrium": "Atrio", "Loading Bay": "Zona de carga", "North Wing": "Ala norte", "Floor 3": "Piso 3",
     "Subcontractor": "Subcontratista", "Direct": "Directo",
     "Safety": "Seguridad", "Equipment": "Equipo", "Paperwork": "Documentaci\u00f3n",
+    "Quality System": "Sistema de calidad", "Human Resources": "Recursos humanos", "Management Commitment": "Compromiso de la direcci\u00f3n",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -934,10 +943,15 @@ function createStubs() {
     if (path === "/api/services" && method === "GET") return ok(SERVICES);
     if (path === "/api/services" && method === "POST") return created({ message: "Service added" });
     if (/^\/api\/services\/[^/]+\/sites/.test(path)) return ok({ message: "Site linked" });
+    if (/^\/api\/services\/[^/]+\/link-site$/.test(path)) return ok({ message: "Site linked" });
+    if (/^\/api\/services\/[^/]+\/site\/[^/]+$/.test(path) && method === "DELETE") return ok({ message: "Site unlinked" });
+    // The catalog's window reads the service and the sites it runs at as linkedSites.
     if (/^\/api\/services\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];
       const sv = SERVICES.find((x) => x.id === id) || SERVICES[0];
-      return ok({ service: sv, sites: state.sites.slice(0, 2), supplies: SUPPLIES.slice(0, 2) });
+      const here = state.sites.slice(0, 2);
+      return ok({ service: sv, sites: here, supplies: SUPPLIES.slice(0, 2),
+        linkedSites: here.map((x, i) => ({ site_id: x.id, site_name: x.name, city: x.city, state: x.state, notes: i === 0 ? "Nightly, occupied floors first." : "" })) });
     }
     if (/^\/api\/services\/[^/]+$/.test(path)) return ok({ message: "Service updated" });
 
