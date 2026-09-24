@@ -98,6 +98,12 @@ function createStubs() {
       { id: "lv-21", value: "compliance", label: "Compliance", is_active: true, sort_order: 2 },
       { id: "lv-22", value: "other", label: "Other", is_active: true, sort_order: 3 },
     ] },
+    // What a site's contract type is saved as: the code of a choice, which Sites draws as the choice's
+    // word in the language the call asked for.
+    { id: "lk-9", slug: "contract_types", name: "Contract types", values: [
+      { id: "lv-23", value: "subcontractor", label: "Subcontractor", is_active: true, sort_order: 1 },
+      { id: "lv-24", value: "direct", label: "Direct", is_active: true, sort_order: 2 },
+    ] },
   ];
 
   const SUPPLIES = [
@@ -602,6 +608,7 @@ function createStubs() {
     "Lobby": "Vest\u00edbulo", "Restroom": "Ba\u00f1o", "Dock": "Muelle", "Vacation": "Vacaciones", "Sick": "Enfermedad",
     "Standard": "Est\u00e1ndar", "Urgent": "Urgente", "Training": "Capacitaci\u00f3n", "Compliance": "Cumplimiento", "Other": "Otro",
     "Atrium": "Atrio", "Loading Bay": "Zona de carga", "North Wing": "Ala norte", "Floor 3": "Piso 3",
+    "Subcontractor": "Subcontratista", "Direct": "Directo",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -687,11 +694,11 @@ function createStubs() {
         address_line: s0.address, city: s0.city, state: s0.state, zip_code: s0.zip,
         client_name: "Fairhaven Property Group", prime_contractor: "None",
         client_contact_name: "R. Villanueva", client_contact_email: "contact@fairhavenpg.example.invalid", client_contact_phone: "2155559200",
-        contract_type: "Fixed monthly", contract_value_monthly: 18400, billing_frequency: "Monthly",
+        contract_type: "subcontractor", contract_value_monthly: 18400, billing_frequency: "monthly",
         contract_start_date: seed.shift(-400), contract_end_date: seed.shift(330),
         site_notes: "Nightly cleaning of occupied floors and daily restroom service.",
       },
-      staff: staffHere.map((st) => ({ id: st.id, name: st.name, role: st.role, status: st.status })),
+      staff: staffHere.map((st) => ({ id: st.id, name: st.name, first_name: st.first_name, last_name: st.last_name, role: st.role, status: st.status })),
       zones: ["Lobby", "Restroom", "Corridor", "Dock"],
       floorPlans: [{ id: "fp-1", label: "North Wing, floor 3", file_url: "", uploaded_at: seed.shift(-120) + "T12:00:00Z" }],
       taskCount: ASSIGNED_TASKS.filter((t0) => t0.site_id === s0.id).length,
@@ -700,9 +707,10 @@ function createStubs() {
       marketplaceSummary: { total_pickups: 2, worked: 1, pending: 1 },
       upcomingShifts: (state.schedule || SCHEDULE).filter((sh) => sh.site_id === s0.id).map((sh) => ({
         id: sh.id, scheduled_date: sh.scheduled_date, start_time: sh.start_time, end_time: sh.end_time,
-        user_name: sh.user_name, status: sh.status,
+        user_name: sh.user_name, first_name: String(sh.user_name || "").split(" ")[0], last_name: String(sh.user_name || "").split(" ").slice(1).join(" "),
+        status: sh.status,
       })),
-      supplies: SUPPLIES.slice(0, 2).map((sp0) => ({ id: "ss-" + sp0.id, supply_id: sp0.id, name: sp0.name, par_level: 12, unit: sp0.unit, current_stock: sp0.current_stock })),
+      supplies: SUPPLIES.slice(0, 2).map((sp0) => ({ id: "ss-" + sp0.id, supply_id: sp0.id, name: sp0.name, par_level: 12, category: sp0.category, unit: sp0.unit, current_stock: sp0.current_stock, low_threshold: sp0.low_threshold, is_green_certified: sp0.is_green_certified })),
     };
   };
   // hand: Harbor Point Center holds 4 of the 12 staff rows (every third row from the first), one
