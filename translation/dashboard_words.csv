@@ -1,4 +1,9 @@
 English,Spanish,Where it appears
+(use form default),(usar la del formulario),"HR Records, a folder, a form's category"
++ Add Document,+ Agregar documento,"HR Records, a folder; HR Records, Documents"
++ Add Other,+ Agregar otro,"HR Records, Other"
++ Add Training,+ Agregar capacitación,"HR Records, Training"
++ Custom Step,+ Paso personalizado,"HR Records, Onboarding"
 2150000000 or name@email.com,2150000000 o nombre@correo.com,The sign-in card
 < Prev,< Anterior,Schedule
 A reason for reassignment is required,Se requiere un motivo para reasignar,"Assigned Tasks, reassigning a task"
@@ -7,32 +12,44 @@ A staff member is requesting to drop this shift.,Una persona solicita darse de b
 "A staff member is requesting to drop this shift. Approve to open it for pickup, or deny to keep it assigned.","Una persona solicita darse de baja de este turno. Apruebe para abrirlo a quien quiera tomarlo, o deniegue para dejarlo asignado.","Schedule, a shift with a drop request"
 Actions,Acciones,"Shift Pickup; Sites, the list"
 Active,Activo,"Schedule, Patterns"
+Active only,Solo activas,"HR Records, Employees, the status filter, which agrees with personas"
 Activity Timeline,Historial de actividad,"Issue Tracker, the issue window; Assigned Tasks, the task window"
-Add,Agregar,"Sites, Supplies"
+Add,Agregar,"Sites, Supplies; HR Records"
+Add Custom Onboarding Step,Agregar un paso de incorporación personalizado,"HR Records, adding an onboarding step"
+Add Document,Agregar documento,"HR Records, adding a document"
 Add Site,Agregar sitio,"Sites, the list"
+Add Step,Agregar el paso,"HR Records, adding an onboarding step"
 Add Supply,Agregar suministro,"Sites, Supplies"
 Add Supply to Site,Agregar un suministro al sitio,"Sites, Supplies"
 Add Task,Agregar tarea,"Sites, Service Details"
+Add Training Record,Agregar un registro de capacitación,"HR Records, adding a training record"
 Add a note saying why,Agregue una nota explicando por qué,"Schedule, Time off, when a denial has no note"
 Add a photo,Agregar una foto,"Help, the camera button"
 Add {0} to your home screen,Agregue {0} a su pantalla de inicio,"The add to home screen sheet, the title"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
 Address,Dirección,"Sites, editing a site"
 Address *,Dirección *,"Sites, adding a site"
-Admin,Administrador,"The shell; Dashboard; Live Operations, a person's role; Sites, General Info, a person's role"
+Admin,Administrador,"The shell; Dashboard; Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
 Admin Dashboard,Panel de administración,The shell
 Admin access required,Se requiere acceso de administrador,The shell
+Administered By,Impartida por,"HR Records, Training; HR Records, adding a training record"
 Administrator,Administrador,The shell
+Aliases,Alias,"HR Records, Compliance"
+All ({0}),Todos ({0}),"HR Records, a folder, every record, which agrees with registros"
 All Buildings,Todos los edificios,"Assigned Tasks, the building filter"
+All Employees,Todo el personal,"HR Records, the person filter"
 All Floors,Todos los pisos,"Assigned Tasks, the floor filter"
 All Reasons,Todos los motivos,Shift Pickup
 All Sites,Todos los sitios,"Schedule; Shift Pickup; Assigned Tasks, the site filter"
 All Staff,Todo el personal,"Assigned Tasks, the person filter"
 All Status,Todos los estados,"Assigned Tasks, the state filter"
 All Zones,Todas las zonas,"Assigned Tasks, the zone filter"
+All current,Todo al día,"HR Records, Employees, a card"
 All day,Todo el día,"Schedule, Time off, a request that covers the whole day"
 All people,Todas las personas,"Schedule, Patterns"
+All roles,Todos los roles,"HR Records, Employees, the role filter"
 All sites,Todos los sitios,"Schedule, Patterns"
+All statuses,Todos los estados,"HR Records, Employees, the status filter"
 All supplies are already assigned to this site,Todos los suministros ya están asignados a este sitio,"Sites, Supplies"
 Analytics,Análisis,Shift Pickup
 Annual,Anual,"Sites, editing a site, Billing"
@@ -62,8 +79,10 @@ Avg Fill Time,Tiempo medio de cobertura,Shift Pickup
 Avg Score,Puntaje promedio,"Sites, Shifts & Schedule"
 Avg Score (30d),Puntaje promedio (30 d),"Sites, a site's profile"
 Back to Dashboard,Volver al panel,The admin line
+Back to Employees,Volver al personal,"HR Records, a folder"
 Back to Sites,Volver a Sitios,"Sites, a site's profile"
 Based on {0},Según {0},"Help, the documents an answer comes from"
+Benefits / Payroll,Beneficios / Nómina,"HR Records, a record's category"
 Bi-Weekly,Quincenal,"Sites, editing a site, Billing"
 Billing,Facturación,"Sites, General Info; Sites, editing a site"
 Bldg: {0},Edificio: {0},"Shift Pickup, a shift card"
@@ -74,13 +93,16 @@ CSV exported,CSV exportado,"Sites, Timeline"
 Callout,Ausencia,Shift Pickup
 Callout Patterns,Patrones de ausencias,Shift Pickup
 Callouts,Ausencias,Shift Pickup
-Cancel,Cancelar,"Schedule, a pattern; Schedule; Shift Pickup; Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task; Assigned Tasks, creating a task; Sites"
+Cancel,Cancelar,"Schedule, a pattern; Schedule; Shift Pickup; Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task; Assigned Tasks, creating a task; Sites; HR Records"
 Cancel Inspection,Cancelar la inspección,Schedule
 Cancel ending this pattern,Cancelar el fin de este patrón,"Schedule, a pattern"
 Cancel this date,Cancelar esta fecha,Schedule
 Cancelled,Cancelado,"Schedule; Schedule, Time off"
 Cancelled by the person who asked,Cancelada por quien la solicitó,"Schedule, a time off request"
 Cases,Casos,The shell
+Category,Categoría,HR Records
+Category is required,La categoría es obligatoria,"HR Records, adding a document"
+Category updated,Categoría actualizada,"HR Records, a folder"
 Change,Cambiar,"Schedule, a pattern"
 Changes start on,Los cambios comienzan el,"Schedule, a pattern"
 Chat,Chat,"Sites, a site's profile"
@@ -93,11 +115,15 @@ Clear,Borrar,"Sites, Timeline, the dates"
 "Click ""Create Task"" to assign one.","Haga clic en ""Crear tarea"" para asignar una.","Assigned Tasks, when the list is empty"
 Client,Cliente,"Sites, General Info; Sites, adding a site"
 Client Contact,Contacto del cliente,"Sites, General Info; Sites, editing a site"
+Client Forms,Formularios del cliente,"HR Records, a record's category"
 Client Name,Nombre del cliente,"Sites, editing a site"
 Clock,Asistencia,"Sites, Timeline"
 Close,Cerrar,"Schedule, a pattern; Schedule; Shift Pickup; Schedule, a time off request; Issue Tracker, the issue window; Assigned Tasks, the task window"
 Collapse sidebar,Contraer el panel lateral,The shell
-Completed,Completado,Schedule; Shift Pickup
+Completed,Completado,"Schedule; Shift Pickup; HR Records, Training"
+Completed Date,Fecha de finalización,"HR Records, adding a training record"
+Completed {0},Completado el {0},"HR Records, Onboarding, a finished step, which agrees with paso"
+Compliance,Cumplimiento,"HR Records, a tab"
 Confirm Convert,Confirmar la conversión,Schedule
 Confirm ending this pattern,Confirmar el fin de este patrón,"Schedule, a pattern"
 Confirm on the next screen.,Confirme en la siguiente pantalla.,"The add to home screen sheet, Android"
@@ -107,7 +133,7 @@ Contract,Contrato,"Sites, the list; Sites, editing a site"
 Contract Dates,Fechas del contrato,"Sites, General Info"
 Contract Details,Detalles del contrato,"Sites, General Info"
 Contract Type,Tipo de contrato,"Sites, General Info; Sites, adding or editing a site"
-Contractor,Contratista,"Live Operations, a person's role; Sites, General Info, a person's role"
+Contractor,Contratista,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
 Conversation,Conversación,"Messages, a conversation whose person has no name"
 Convert,Convertir,Shift Pickup
 Convert Callout,Convertir la ausencia,Shift Pickup
@@ -116,6 +142,7 @@ Convert to Open Pickup,Convertir en turno abierto,Schedule
 Copied,Copiado,"The add to home screen sheet, after the address is copied"
 Copy,Copiar,"The add to home screen sheet, beside the address"
 Copy the address below and paste it there.,Copie la dirección de abajo y péguela allí.,"The add to home screen sheet, inside another app's browser"
+Could not load folder.,No se pudo cargar la carpeta.,"HR Records, a folder"
 Coverage by Site,Cobertura por sitio,Shift Pickup
 Create,Crear,"Sites, adding a site or a task"
 Create Assigned Task,Crear una tarea asignada,"Assigned Tasks, creating a task"
@@ -124,8 +151,8 @@ Create and Assign,Crear y asignar,"Assigned Tasks, creating a task"
 Created,Fecha de creación,"Assigned Tasks, the task window"
 Created By,Creada por,"Assigned Tasks, the task window, who created the tarea"
 Currently assigned to: {0}. They will be notified of the change.,Asignada ahora a: {0}. Recibirá un aviso del cambio.,"Assigned Tasks, reassigning a task, the name in bold"
-Custodial Laborer,Auxiliar de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role"
-Custodial Lead,Líder de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role"
+Custodial Laborer,Auxiliar de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
+Custodial Lead,Líder de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
 Custom,Personalizado,"The shell, the date range"
 DELETE,ELIMINAR,"Sites, deleting a site, the word a person types"
 DROP REQ,SOL. DE BAJA,Schedule
@@ -133,19 +160,22 @@ Daily Checklist,Lista diaria,"Sites, adding or editing a task, Task Type"
 Dark Mode,Modo oscuro,The shell
 Dark mode,Modo oscuro,The shell
 Dashboard,Panel,The shell
-Date,Fecha,Schedule; Shift Pickup; Live Operations
+Date,Fecha,"Schedule; Shift Pickup; Live Operations; HR Records, Documents and Other"
 Date *,Fecha *,Shift Pickup
 Date is required,La fecha es obligatoria,Schedule
 Dates,Fechas,"Schedule, Time off; Schedule, a time off request"
-Day Porter,Conserje de día,"Live Operations, a person's role; Sites, General Info, a person's role"
+Day Porter,Conserje de día,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
 Days,Días,"Schedule, Patterns"
 Deactivate,Desactivar,"Sites, a site's profile"
 Deactivate this site?,¿Desactivar este sitio?,"Sites, a site's profile"
 Decided,Decidido,"Schedule, a time off request"
 Decided by,Decidido por,"Schedule, a time off request"
 Deciding this request leaves these shifts as they are. Change or cover them on the schedule.,Decidir esta solicitud deja estos turnos como están. Cámbielos o cúbralos en el horario.,"Schedule, Time off, the note above the shifts a request covers"
-Delete,Eliminar,"Schedule; Sites, a site's profile"
+Delete,Eliminar,"Schedule; Sites, a site's profile; HR Records"
 Delete Permanently,Eliminar de forma permanente,"Sites, deleting a site"
+Delete this document?,¿Eliminar este documento?,"HR Records, Documents"
+Delete this step?,¿Eliminar este paso?,"HR Records, Onboarding"
+Delete this training record?,¿Eliminar este registro de capacitación?,"HR Records, Training"
 Denied,Denegada,"Schedule, Time off"
 Deny,Denegar,"Shift Pickup; Schedule, a time off request"
 Deny Request,Denegar la solicitud,Schedule
@@ -153,7 +183,13 @@ Describe what happened,Describa qué pasó,"Help, the box a question is written 
 Description *,Descripción *,"Sites, adding a task"
 Detailed Instructions,Instrucciones detalladas,"Assigned Tasks, creating a task; Sites, editing a task"
 Detailed Instructions (optional),Instrucciones detalladas (opcional),"Sites, adding a task"
+Document,Documento,"HR Records, a folder, where a record came from"
+Document added,Documento agregado,"HR Records, adding a document"
+Document deleted,Documento eliminado,"HR Records, Documents"
+Document not found,No se encontró el documento,"HR Records, a folder"
 Document the scope of work for this site...,Documente el alcance del trabajo de este sitio...,"Sites, Scope of Work"
+Document updated,Documento actualizado,"HR Records, editing a document"
+Documents,Documentos,"HR Records, a tab; HR Records, Compliance"
 Don't show again,No volver a mostrar,"The add to home screen sheet, the button that ends it"
 Done,Listo,Schedule
 Drop Req,Sol. de baja,Schedule
@@ -167,12 +203,19 @@ Drop request denied,Solicitud de baja denegada,Schedule
 Due Date,Fecha límite,"Assigned Tasks, the task window; Assigned Tasks, creating a task; Sites, adding or editing a task"
 Due Time,Hora límite,"Assigned Tasks, creating a task; Sites, adding or editing a task"
 Due: {0},Vence: {0},"Assigned Tasks, the day a task is due; Sites, Service Details"
-Edit,Editar,"Shift Pickup; Sites, Service Details"
+Edit,Editar,"Shift Pickup; Sites, Service Details; HR Records"
 Edit Details,Editar los detalles,"Sites, General Info"
+Edit Document,Editar el documento,"HR Records, editing a document"
 Edit Scheduled Shift,Editar el turno programado,Schedule
 Edit Site Details,Editar los detalles del sitio,"Sites, editing a site"
 Edit Task,Editar la tarea,"Sites, editing a task"
+Edit Training Record,Editar el registro de capacitación,"HR Records, editing a training record"
 Email,Correo,"Sites, General Info; Sites, editing a site"
+Employee,Persona,HR Records
+Employee is required,La persona es obligatoria,"HR Records, adding a document"
+"Employee, name, and type are required","La persona, el nombre y el tipo son obligatorios","HR Records, adding a training record"
+Employees,Personal,"HR Records, a tab"
+Empty,Vacío,"HR Records, Employees, a card with no records"
 End,Fin,"Schedule, a pattern; Shift Pickup"
 End Date,Fecha de fin,"Sites, editing a site"
 End Time,Hora de fin,Schedule
@@ -186,6 +229,18 @@ Ends,Termina,"Schedule, Patterns"
 Enter,Ingrese,The sign-in card
 Everyone,Todos,"Schedule, Time off"
 Expand sidebar,Ampliar el panel lateral,The shell
+Expired Docs,Docs. vencidos,"HR Records, Compliance"
+Expired Documents,Documentos vencidos,"HR Records, Compliance"
+Expired Items,Elementos vencidos,"HR Records, Compliance"
+Expired Training,Capacitaciones vencidas,"HR Records, Compliance"
+Expires in {0}d,Vence en {0} d,"HR Records, Documents, Training and Other"
+Expires {0}d,Vence en {0} d,"HR Records, a folder"
+Expiring (30 days),Por vencer (30 días),"HR Records, Compliance"
+Expiring (30d),Por vencer (30 d),"HR Records, Employees, a filter"
+Expiring Within 30 Days,Vencen en los próximos 30 días,"HR Records, Compliance"
+Expiry,Vencimiento,"HR Records, Documents, Training and Other"
+Expiry Date,Fecha de vencimiento,"HR Records, adding a training record"
+Expiry Date (optional),Fecha de vencimiento (opcional),"HR Records, adding a document"
 Explain why this is being reassigned...,Explique por qué se reasigna...,"Issue Tracker, giving an issue to a person"
 Explain why this task is being reassigned...,Explique por qué se reasigna esta tarea...,"Assigned Tasks, reassigning a task"
 Export CSV,Exportar CSV,"Sites, Timeline"
@@ -193,10 +248,13 @@ Extra Coverage,Cobertura adicional,Shift Pickup
 Extra large,Muy grande,"The shell, the text size chooser"
 Failed to load supplies,No se pudieron cargar los suministros,"Sites, Supplies"
 Fastest,Más rápido,Shift Pickup
+File,Archivo,"HR Records, Documents and Other"
+File fetch failed ({0}): {1},No se pudo obtener el archivo ({0}): {1},HR Records
 File must be under 50MB,El archivo debe pesar menos de 50 MB,"Assigned Tasks, creating a task, a file that is too large; Sites"
 Fill Rate,Tasa de cobertura,Shift Pickup
 Fill Rate by Reason,Tasa de cobertura por motivo,Shift Pickup
 Filled through {0},Cubierto hasta el {0},"Schedule, Patterns, how far a pattern reaches"
+First Name A-Z,Nombre A-Z,"HR Records, Employees, the order"
 Fl {0},Piso {0},"Shift Pickup, the floor on the shift line in a window; Assigned Tasks, where a task is; Sites, Service Details"
 Floor,Piso,"Schedule, a pattern; Schedule; Shift Pickup; Assigned Tasks, the task window; Assigned Tasks, creating a task; Sites, adding or editing a task"
 Floor Plans ({0}),Planos ({0}),"Sites, General Info"
@@ -205,21 +263,32 @@ Floor plan uploaded,Plano subido,"Sites, General Info"
 Floor {0},Piso {0},"Schedule and Shift Pickup, a shift card; Assigned Tasks, the floor filter; Live Operations, where a person is"
 Floor: {0},Piso: {0},"Shift Pickup, a shift card"
 For,Por,"Schedule, adding a shift, repeat for a number of weeks"
-Forms,Formularios,The shell
+Form default: {0},Del formulario: {0},"HR Records, a folder, a form's category"
+Forms,Formularios,"The shell; HR Records, Compliance"
 Fri,Vie,Schedule; Shift Pickup
 F{0},P{0},"Schedule, Week, the floor beside a building name, short"
 General,General,"Issue Tracker and Assigned Tasks, the zone when none is set"
 General Info,Información general,"Sites, a site's profile"
 Green,Ecológico,"Sites, Supplies, a supply with a green certification"
 Green Buildings,Edificios sostenibles,"Sites, Service Details, a service category"
+HR - Onboarding,RR. HH. - Incorporación,"HR Records, a record's category"
+HR - Ongoing / Annual,RR. HH. - Continuo / Anual,"HR Records, a record's category"
 HR Records,Expedientes de personal,The shell
 Has details,Tiene detalles,"Sites, Service Details"
 "Health, Safety & Environment","Salud, seguridad y medio ambiente","Sites, Service Details, a service category"
 Help,Ayuda,The shell; Help
 Hide,Ocultar,"Live Operations, hiding the people who have not started"
+Hide manual entry,Ocultar la entrada manual,"HR Records, adding a document"
+Hide test accounts,Ocultar las cuentas de prueba,"HR Records, Employees"
+Hire Date (newest),Fecha de contratación (más reciente),"HR Records, Employees, the order"
+Hire Date (oldest),Fecha de contratación (más antigua),"HR Records, Employees, the order"
+Hired {0},Contratación: {0},"HR Records, a folder"
 Hours,Horas,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
 Human Resources,Recursos humanos,"Sites, Service Details, a service category"
 In Progress,En curso,"Assigned Tasks, the state filter"
+Inactive only,Solo inactivas,"HR Records, Employees, the status filter, which agrees with personas"
+Inheriting form's category. Pick a value to override.,Usa la categoría del formulario. Elija un valor para cambiarla.,"HR Records, a folder, a form's category"
+Initialize Onboarding,Iniciar la incorporación,"HR Records, Onboarding"
 Inspection,Inspección,Schedule
 Inspection Details,Detalles de la inspección,Schedule
 Inspection cancelled,Inspección cancelada,Schedule
@@ -235,6 +304,11 @@ Issue Detail,Detalle de la incidencia,"Issue Tracker, the issue window"
 Issue Tracker,Registro de incidencias,The shell; Issue Tracker
 Issues,Incidencias,"The shell; Sites, Timeline"
 "It opens like an app, one tap from your home screen.","Se abre como una aplicación, a un toque desde su pantalla de inicio.","The add to home screen sheet, under the title"
+Jotform Form,Formulario de Jotform,"HR Records, a folder, where a record came from"
+Jotform Reference,Referencia de Jotform,"HR Records, editing a document"
+Jotform Submission (optional),Envío de Jotform (opcional),"HR Records, adding a document"
+Jotform is not configured. Use the manual entry below.,Jotform no está configurado. Use la entrada manual de abajo.,"HR Records, adding a document"
+Jotform submission ID or URL,ID o enlace del envío de Jotform,"HR Records, adding or editing a document"
 LIVE,EN VIVO,The shell
 Label,Nombre,"Sites, General Info, a floor plan's name"
 Label and zone required,La descripción y la zona son obligatorias,"Sites, adding a task"
@@ -244,8 +318,12 @@ Largest,Máximo,"The shell, the text size chooser"
 Last 30 Days,Últimos 30 días,"The shell, the date range; Shift Pickup"
 Last 90 Days,Últimos 90 días,"The shell, the date range"
 Last Inspection,Última inspección,"Sites, Shifts & Schedule"
+Last Name A-Z,Apellido A-Z,"HR Records, Employees, the order"
+Last Name Z-A,Apellido Z-A,"HR Records, Employees, the order"
 Last Week,La semana pasada,"The shell, the date range; Schedule; Shift Pickup"
+Last activity,Última actividad,"HR Records, Employees, a card"
 Last day,Último día,"Schedule, a pattern"
+Legal / Consent,Legal / Consentimiento,"HR Records, a record's category"
 Light Mode,Modo claro,The shell
 Light mode,Modo claro,The shell
 Live Operations,Operaciones en vivo,The shell
@@ -253,10 +331,12 @@ Live Ops,Operaciones en vivo,The shell
 Load More,Ver más,"Sites, Timeline"
 Load more,Ver más,The bell
 Loading buildings...,Cargando los edificios...,Schedule
+Loading folder...,Cargando la carpeta...,"HR Records, a folder"
 Loading patterns...,Cargando los patrones...,"Schedule, Patterns"
 Loading schedule...,Cargando el horario...,Schedule
+Loading submissions...,Cargando los envíos...,"HR Records, adding a document"
 Loading time off...,Cargando el tiempo libre...,"Schedule, Time off"
-Loading...,Cargando...,"The shell; The bell; Dashboard; Schedule, a pattern; Shift Pickup; Assigned Tasks; Sites"
+Loading...,Cargando...,"The shell; The bell; Dashboard; Schedule, a pattern; Shift Pickup; Assigned Tasks; Sites; HR Records"
 Logout,Cerrar sesión,The shell
 Management Commitment,Compromiso de la dirección,"Sites, Service Details, a service category"
 Mark all read,Marcar todo como leído,The bell
@@ -272,26 +352,37 @@ Monthly,Mensual,"Sites, editing a site, Billing"
 Monthly Totals,Totales del mes,Shift Pickup
 Monthly Value,Valor mensual,"Sites, General Info"
 Monthly Value ($),Valor mensual ($),"Sites, editing a site"
+Most Recent Activity,Actividad más reciente,"HR Records, Employees, the order"
 Most recent inspection per site,Inspección más reciente por sitio,Dashboard
 N/A,N/D,"Sites, a site's profile"
 Name,Nombre,"Sites, General Info"
 Name *,Nombre *,"Sites, adding a site"
 Name and address required,El nombre y la dirección son obligatorios,"Sites, adding a site"
+Name and category are required,El nombre y la categoría son obligatorios,"HR Records, adding an onboarding step"
 New Shift,Turno nuevo,Shift Pickup
 New Shifts,Turnos nuevos,Shift Pickup
 Next,Siguiente,"The shell, under a table"
 Next >,Siguiente >,Schedule
 Next Week,La próxima semana,Schedule
+No HR records on file for this employee yet.,Todavía no hay expedientes de personal para esta persona.,"HR Records, a folder"
 No Show,No se presentó,Schedule
 No activity recorded for this site,No hay actividad registrada para este sitio,"Sites, Timeline"
 No assigned tasks found.,No se encontraron tareas asignadas.,"Assigned Tasks, when the list is empty"
 No buildings configured,No hay edificios configurados,Schedule
+No checklist initialized,No se ha iniciado la lista,"HR Records, Onboarding"
 No conversations.,No hay conversaciones.,"Messages, when nobody has written"
 No data to export,No hay datos para exportar,"Sites, Timeline"
 No data to print,No hay datos para imprimir,"Sites, Timeline"
+No documents found. Use Add Document to upload.,No se encontraron documentos. Use Agregar documento para subir uno.,"HR Records, Documents"
+No documents match this search.,Ningún documento coincide con la búsqueda.,"HR Records, Documents"
+No employees match your filters.,Ninguna persona coincide con los filtros.,"HR Records, Employees"
 No end,Sin fin,"Schedule, a pattern"
 No end date,Sin fecha de fin,Schedule
+No file,Sin archivo,"HR Records, Documents and Other"
 No inspections recorded yet.,Todavía no hay inspecciones registradas.,Dashboard
+No items filed under Other. Use Add Other to upload.,No hay nada archivado en Otros. Use Agregar otro para subir algo.,"HR Records, Other"
+No items in this category.,No hay elementos en esta categoría.,"HR Records, a folder"
+No items match this search.,Ningún elemento coincide con la búsqueda.,"HR Records, Other"
 No matching pages,Ninguna página coincide,The shell
 No messages in this site channel,No hay mensajes en el canal de este sitio,"Sites, Chat"
 No messages to print,No hay mensajes para imprimir,"Sites, Chat"
@@ -301,6 +392,8 @@ No note,Sin nota,"Schedule, a time off request"
 No patterns yet. Turn on Repeat when adding a shift to create one.,Todavía no hay patrones. Active Repetir al agregar un turno para crear uno.,"Schedule, Patterns"
 No pickup activity found in this period.,No hay actividad de turnos disponibles en este periodo.,Shift Pickup
 No reason given,Sin motivo,"Schedule, a time off request"
+No records match this search.,Ningún registro coincide con la búsqueda.,"HR Records, Training"
+No role,Sin rol,"HR Records, a person with no role"
 No scope of work documented yet.,Todavía no se ha documentado el alcance del trabajo.,"Sites, Scope of Work"
 No shift started on {0} ({1}),Sin turno iniciado el {0} ({1}),"Live Operations, the people who did not start on a day that is not today, and how many"
 No shift started today ({0}),Sin turno iniciado hoy ({0}),"Live Operations, the people who have not started, and how many"
@@ -314,6 +407,8 @@ No staff assigned,No hay personal asignado,"Sites, General Info"
 No staff match that search,Ninguna persona coincide con esa búsqueda,Schedule
 No supplies assigned to this site,No hay suministros asignados a este sitio,"Sites, Supplies"
 No tasks configured for this site,No hay tareas configuradas para este sitio,"Sites, Service Details"
+No training records found.,No se encontraron registros de capacitación.,"HR Records, Training"
+"No unlinked Jotform submissions for this employee. Sync the Forms page if needed, or use manual entry.","Esta persona no tiene envíos de Jotform sin vincular. Sincronice la página Formularios si hace falta, o use la entrada manual.","HR Records, adding a document"
 No upcoming scheduled shifts found.,No hay turnos programados próximos.,Shift Pickup
 No upcoming shifts,No hay próximos turnos,"Sites, Shifts & Schedule"
 No-Show,No se presentó,Shift Pickup
@@ -324,31 +419,46 @@ Not now,Ahora no,"The add to home screen sheet, the button that puts it off"
 Not sent.,No se envió.,"Help, a message that did not go"
 Note,Nota,"Schedule, a time off request"
 Note to previous assignee (optional),Nota para quien la tenía asignada (opcional),"Issue Tracker, giving an issue to a person"
-Notes,Notas,"Schedule, a pattern; Schedule; Shift Pickup; Sites, General Info"
+Notes,Notas,"Schedule, a pattern; Schedule; Shift Pickup; Sites, General Info; HR Records, Other"
+Notes (optional),Notas (opcional),"HR Records, adding a document or a training record"
 Nothing changed yet.,Nada ha cambiado todavía.,"Schedule, a pattern"
 Nothing yet.,Nada todavía.,The bell
 Notifications,Avisos,The shell; The bell
 Notifications did not load.,Los avisos no se cargaron.,The bell
 OPEN,ABIERTO,Schedule
 OT Risk,Riesgo de horas extra,Shift Pickup
+Oldest Activity,Actividad más antigua,"HR Records, Employees, the order"
+Onboarding,Incorporación,"HR Records, a tab; HR Records, Compliance"
+Onboarding Progress,Avance de la incorporación,"HR Records, Compliance"
+Onboarding Step,Paso de incorporación,"HR Records, a folder, where a record came from"
+Onboarding incomplete,Incorporación incompleta,"HR Records, Employees, a filter"
+Onboarding initialized,Incorporación iniciada,"HR Records, Onboarding"
+Onboarding {0}/{1},Incorporación {0}/{1},"HR Records, Employees, a card"
 One-Off Assigned,Asignada una sola vez,"Sites, adding or editing a task, Task Type"
 Open,Abierto,Schedule; Shift Pickup
 Open Issues,Incidencias abiertas,"Dashboard; Sites, a site's profile"
 Open Marketplace Shift,Turno abierto en el tablero,Schedule
 Open Now,Abiertos ahora,Shift Pickup
+Open file,Abrir el archivo,"HR Records, a folder"
 Open shift posted,Turno abierto publicado,Shift Pickup
 Open that pattern,Abrir ese patrón,Schedule
 Open the browser menu (the three dots).,Abra el menú del navegador (los tres puntos).,"The add to home screen sheet, Android by hand"
 Open the pattern,Abrir el patrón,Schedule
 Open this page in Safari or Chrome first.,Abra esta página primero en Safari o Chrome.,"The add to home screen sheet, inside another app's browser"
+Operational,Operativo,"HR Records, a record's category"
 Operations,Operaciones,The shell
 Operations overview.,Resumen de operaciones.,Dashboard
 Optional notes,Notas opcionales,Schedule
 Optional when approving. Required when denying.,Opcional al aprobar. Obligatoria al denegar.,"Schedule, a time off request"
+Or enter manually,O escríbala a mano,"HR Records, adding a document, which agrees with referencia"
 Original,Original,"Issue Tracker, the issue window, the photo taken when it was reported"
 Originally Assigned,Asignado originalmente,Schedule; Shift Pickup
+Other,Otro,"HR Records, a record's category"
+Override active. Pick blank to revert to form default.,Categoría cambiada a mano. Elija la opción en blanco para volver a la del formulario.,"HR Records, a folder, a form's category"
 Overtime risk: claiming this shift may push the worker past 40 weekly hours.,Riesgo de horas extra: tomar este turno puede llevar a la persona a más de 40 horas semanales.,Schedule
 Overview,Resumen,Shift Pickup
+PDF fetch failed ({0}): {1},No se pudo obtener el PDF ({0}): {1},"HR Records, a folder"
+"PDF is being captured, check back in a few minutes.",Se está capturando el PDF. Vuelva a revisar en unos minutos.,"HR Records, a folder"
 PIN,PIN,The sign-in card
 Page {0},Página {0},"The shell, under a table"
 Page {0} / {1},Página {0} / {1},"The shell, under a table"
@@ -356,7 +466,7 @@ Part of a weekly pattern. Changes here apply to this date only.,Parte de un patr
 Paste a URL or upload below,Pegue un enlace o suba un archivo abajo,"Assigned Tasks, creating a task; Sites, adding or editing a task"
 Pattern saved. {0} shifts added through {1}.,Patrón guardado. {0} turnos agregados hasta el {1}.,"Schedule, the message after a pattern is saved"
 Patterns,Patrones,Schedule
-Pending,Pendiente,"Dashboard; Assigned Tasks, the state filter"
+Pending,Pendiente,"Dashboard; Assigned Tasks, the state filter; HR Records, Training"
 Permanently Delete Site,Eliminar el sitio de forma permanente,"Sites, deleting a site"
 Person,Persona,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
 Phone,Teléfono,"Sites, General Info; Sites, editing a site"
@@ -372,6 +482,7 @@ Photos ({0}),Fotos ({0}),"Issue Tracker, the issue window, how many photos it ho
 Pick a conversation on the left to start.,Elija una conversación a la izquierda para empezar.,"Messages, before a conversation is picked"
 Pickup,Turno disponible,Schedule
 Pickup Shift,Turno disponible,Schedule
+Please choose a file to upload,Elija un archivo para subir,"HR Records, adding a document"
 Post Open Shift,Publicar turno abierto,Shift Pickup
 Post Shift,Publicar turno,Shift Pickup
 Prev,Anterior,"The shell, under a table"
@@ -396,12 +507,13 @@ Reassigned,Reasignada,"Issue Tracker and Assigned Tasks, an incidencia or a tare
 Record Detail,Detalle del registro,"Sites, the record window"
 Record Fields,Campos del registro,"Sites, the record window"
 Recorded when the person started the shift in the portal. There is no end time and no hours here.,Registrado cuando la persona inició el turno en el portal. Aquí no hay hora de fin ni horas.,Schedule
+Records,Registros,"HR Records, Employees, a card"
 Refresh,Actualizar,Dashboard; Shift Pickup; Live Operations
 Related Items ({0}),Elementos relacionados ({0}),"Sites, the record window"
 Release,Liberar,Schedule; Shift Pickup
 Released,Liberado,Shift Pickup
 Reliability,Cumplimiento,Shift Pickup
-Remove,Quitar,Sites
+Remove,Quitar,"Sites; HR Records, Onboarding"
 Remove photo,Quitar la foto,"Help, a photo waiting to be sent, for a screen reader"
 Remove this floor plan?,¿Quitar este plano?,"Sites, General Info"
 Remove this supply from the site?,¿Quitar este suministro del sitio?,"Sites, Supplies"
@@ -434,8 +546,10 @@ Response Time by Site,Tiempo de respuesta por sitio,Shift Pickup
 Response Time by Urgency,Tiempo de respuesta por urgencia,Shift Pickup
 Resume,Continuar,"Help, picking an unfinished report back up"
 Retry,Reintentar,"Help, sending a message again"
+Role,Rol,"HR Records, Compliance"
+Safety / Incident,Seguridad / Incidente,"HR Records, a record's category"
 Sat,Sáb,"Schedule, the week and the pattern picker"
-Save,Guardar,"Schedule; Sites, editing a site"
+Save,Guardar,"Schedule; Sites, editing a site; HR Records"
 Save Changes,Guardar los cambios,"Shift Pickup; Sites, editing a task"
 Save Scope,Guardar el alcance,"Sites, Scope of Work"
 Save changes,Guardar los cambios,"Schedule, a pattern"
@@ -448,8 +562,12 @@ Scheduled,Programado,Schedule
 Scheduled Date *,Fecha programada *,Schedule
 Scheduling for,Programando para,Schedule
 Scope of Work,Alcance del trabajo,"Sites, a site's profile"
-Score,Puntaje,Dashboard
+Score,Puntaje,"Dashboard; HR Records, Training; HR Records, adding a training record"
 Scroll down and tap Add to Home Screen.,Desplácese hacia abajo y toque Agregar a pantalla de inicio.,"The add to home screen sheet, Safari"
+"Search employee, category, file, uploaded by","Buscar persona, categoría, archivo o quién lo subió","HR Records, Documents"
+"Search employee, file, notes","Buscar persona, archivo o notas","HR Records, Other"
+"Search employee, training, type, administered by","Buscar persona, capacitación, tipo o quién la impartió","HR Records, Training"
+"Search name, email, or role...","Buscar por nombre, correo o rol...","HR Records, Employees"
 Search pages,Buscar páginas,The shell
 "Search site, address, contract","Buscar sitio, dirección o contrato","Sites, the list"
 "Search site, service, staff, notes","Buscar por sitio, servicio, personal o notas",Shift Pickup
@@ -459,11 +577,18 @@ Select (optional),Seleccione (opcional),"Sites, adding a task, Assign To"
 Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.,Seleccione un turno programado abajo. El turno original se cancela y se reemplaza por un turno abierto que el personal elegible puede tomar.,Shift Pickup
 Select a staff member,Seleccione a una persona,"Schedule; Shift Pickup; Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task"
 Select a staff member...,Seleccione a una persona...,"Issue Tracker, giving an issue to a person; Assigned Tasks, reassigning a task"
+Select a synced submission...,Seleccione un envío sincronizado...,"HR Records, adding a document"
+Select an employee first,Primero seleccione a una persona,"HR Records, Onboarding"
+Select an employee first to see matching Jotform submissions.,Primero seleccione a una persona para ver sus envíos de Jotform.,"HR Records, adding a document"
+Select an employee to view their onboarding checklist.,Seleccione a una persona para ver su lista de incorporación.,"HR Records, Onboarding"
 Select building...,Seleccione un edificio...,Schedule
+Select category...,Seleccione una categoría...,"HR Records, adding a document or an onboarding step"
+Select employee...,Seleccione a una persona...,"HR Records, adding a document or a training record"
 Select floor...,Seleccione un piso...,Schedule
 Select site...,Seleccione un sitio...,"Schedule; Shift Pickup; Assigned Tasks, creating a task"
 Select staff member...,Seleccione a la persona...,Schedule; Shift Pickup
 Select staff...,Seleccione personal...,"Schedule; Assigned Tasks, creating a task"
+Select type...,Seleccione un tipo...,"HR Records, adding a training record"
 Select...,Seleccione...,Shift Pickup
 Send,Enviar,"Help, the send button, for a screen reader"
 Service,Servicio,Shift Pickup
@@ -495,7 +620,8 @@ Shifts & Schedule,Turnos y horario,"Sites, a site's profile"
 Shifts before this date stay as they are. Shifts someone changed or cancelled by hand are kept.,Los turnos anteriores a esta fecha quedan como están. Los turnos que alguien cambió o canceló a mano se conservan.,"Schedule, a pattern"
 Shifts by Day of Week,Turnos por día de la semana,Shift Pickup
 Shifts on these days,Turnos en estos días,"Schedule, a time off request"
-Show,Mostrar,"Schedule and Shift Pickup, the label beside the rows per page chooser; Live Operations, showing the people who have not started; Sites, the list"
+Show,Mostrar,"Schedule and Shift Pickup, the label beside the rows per page chooser; Live Operations, showing the people who have not started; Sites, the list; HR Records"
+Show test accounts,Mostrar las cuentas de prueba,"HR Records, Employees"
 Showing the first {0}. Choose a person to narrow the list.,Mostrando los primeros {0}. Elija una persona para acotar la lista.,"Schedule, Time off, when the list is longer than the page holds"
 Showing {0} to {1} of {2},Mostrando {0} a {1} de {2},"The shell, under a table"
 Sign In,Iniciar sesión,The sign-in card
@@ -526,7 +652,9 @@ Staff Member,Persona,Shift Pickup
 Staff Member *,Persona *,Schedule
 Staff Reliability,Cumplimiento del personal,Shift Pickup
 Staff Reliability Metrics,Indicadores de cumplimiento del personal,Shift Pickup
+Staff Summary,Resumen del personal,"HR Records, Compliance"
 Staff at this site...,Personal de este sitio...,Shift Pickup
+Staff with Onboarding,Personal en incorporación,"HR Records, Compliance"
 "Staff, site, start time, and end time are required","La persona, el sitio, la hora de inicio y la hora de fin son obligatorios",Schedule
 Standard,Estándar,"The shell, the text size chooser"
 Start,Inicio,Shift Pickup
@@ -543,6 +671,9 @@ Starts,Comienza,"Schedule, a pattern; Schedule, Patterns"
 State,Estado,"Sites, adding or editing a site"
 Status,Estado,"Schedule; Shift Pickup; Schedule, Time off; Schedule, a time off request; Sites, the list"
 Status Changed,Cambio de estado,"Issue Tracker, the issue window, the activity"
+Step Name,Nombre del paso,"HR Records, adding an onboarding step"
+Step added,Paso agregado,"HR Records, adding an onboarding step"
+Step deleted,Paso eliminado,"HR Records, Onboarding"
 Step-by-step instructions or notes...,Instrucciones paso a paso o notas...,"Assigned Tasks, creating a task"
 "Step-by-step instructions, tips, or notes for the cleaner...","Instrucciones paso a paso, consejos o notas para quien limpia...","Sites, adding a task"
 "Step-by-step instructions, tips, or notes...","Instrucciones paso a paso, consejos o notas...","Sites, editing a task"
@@ -551,13 +682,14 @@ Stock: {0},Existencias: {0},"Sites, Supplies"
 Submit report,Enviar el informe,Help
 Submitting...,Enviando...,"Help, while a report is sent"
 Sun,Dom,Schedule; Shift Pickup
-Supervisor,Supervisor,"The shell; Live Operations, a person's role; Sites, General Info, a person's role"
+Supervisor,Supervisor,"The shell; Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role"
 Supplies,Suministros,The shell; Sites
 Supplies & Inventory,Suministros e inventario,The shell
 Supplies at This Site ({0}),Suministros en este sitio ({0}),"Sites, Supplies"
 Supply assigned,Suministro asignado,"Sites, Supplies"
 Supply removed,Suministro quitado,"Sites, Supplies"
 System,Sistema,"Issue Tracker and Assigned Tasks, the activity, when no person made the change; Sites, the record window"
+TEST,PRUEBA,"HR Records, a test account"
 Tap Add or Install.,Toque Agregar o Instalar.,"The add to home screen sheet, Android by hand"
 Tap Add to Home Screen.,Toque Agregar a pantalla de inicio.,"The add to home screen sheet, another browser on iPhone"
 Tap Add to Home screen or Install app.,Toque Agregar a pantalla de inicio o Instalar aplicación.,"The add to home screen sheet, Android by hand"
@@ -578,6 +710,7 @@ Task reference,Referencia de la tarea,"Sites, editing a task, the picture's name
 Task updated,Tarea actualizada,"Sites, editing a task"
 Tasks,Tareas,Sites
 Tasks ({0}),Tareas ({0}),"Sites, Service Details"
+Tax Forms,Formularios de impuestos,"HR Records, a record's category"
 Tell me what happened and I will tell you what to do.,Cuénteme qué pasó y le digo qué hacer.,"Help, before anything is written"
 Text size,Tamaño del texto,The shell
 That one is for admins. Ask an admin to take a look.,Ese es para administradores. Pídale a un administrador que lo revise.,The shell
@@ -607,10 +740,17 @@ Today,Hoy,"The shell, the date range"
 Total,Total,Shift Pickup
 Total Claimed,Total tomados,Shift Pickup
 Total Pickups,Turnos tomados,"Sites, Shifts & Schedule"
+Training,Capacitación,HR Records
+Training Name,Nombre de la capacitación,"HR Records, Training; HR Records, adding a training record"
+Training Type,Tipo de capacitación,"HR Records, adding a training record"
+Training record added,Registro de capacitación agregado,"HR Records, adding a training record"
+Training record deleted,Registro de capacitación eliminado,"HR Records, Training"
+Training record not found,No se encontró el registro de capacitación,"HR Records, a folder"
+Training record updated,Registro de capacitación actualizado,"HR Records, editing a training record"
 Try again,Intentar de nuevo,"The bell; Schedule, Patterns; Schedule, Time off; Help, a photo that did not upload; Help, reading an answer back after the connection dropped"
 Try clearing filters.,Pruebe a quitar los filtros.,"Assigned Tasks, when the list is empty and a filter is set"
 Tue,Mar,Schedule; Shift Pickup
-Type,Tipo,"Schedule, Time off; Schedule, a time off request"
+Type,Tipo,"Schedule, Time off; Schedule, a time off request; HR Records, Training"
 Type a message,Escriba un mensaje,"Messages, the box a message is written in"
 Type {0} here,Escriba {0} aquí,"Sites, deleting a site"
 Type {0} to confirm,Escriba {0} para confirmar,"Sites, deleting a site"
@@ -618,23 +758,30 @@ Type {0} to confirm.,Escriba {0} para confirmar.,"Sites, deleting a site"
 URGENT,URGENTE,Shift Pickup
 Unable to Resolve,No se pudo resolver,"Issue Tracker and Assigned Tasks, the activity in the window; Assigned Tasks, the state filter"
 Unassigned,Sin asignar,"Schedule; Shift Pickup; Assigned Tasks, the task window"
+Uncategorized,Sin categoría,"HR Records, a record's category"
 Unfinished reports,Informes sin terminar,Help
 Unknown,Desconocido,"Sites, Chat, a message with no sender"
 Until,Hasta,Schedule
 Upcoming,Próximos,"Schedule, Patterns"
 Upcoming Shifts (Next 7 Days),Próximos turnos (siguientes 7 días),"Sites, Shifts & Schedule"
 Updated,Actualizado,"Issue Tracker, after an issue's state is changed"
+Upload File,Subir un archivo,"HR Records, adding a document"
 "Upload a photo or video (up to 50MB), or paste a YouTube link above","Suba una foto o un video (hasta 50 MB), o pegue arriba un enlace de YouTube","Assigned Tasks, creating a task; Sites, adding or editing a task"
 Upload failed,No se pudo subir el archivo,"Assigned Tasks, creating a task; Help, a photo that did not upload; Any page, an upload the API refused without a reason; Sites, adding or editing a task"
+Upload failed ({0}): {1},No se pudo subir el archivo ({0}): {1},"HR Records, adding a document"
 Upload failed: {0},No se pudo subir el archivo: {0},"Sites, General Info"
 Uploaded,Archivo subido,"Assigned Tasks, creating a task; Sites, adding or editing a task"
+Uploaded By,Subido por,"HR Records, Documents and Other"
 Uploading...,Subiendo...,"Assigned Tasks, creating a task; Help, a photo on its way; Sites"
 Urgency,Urgencia,Shift Pickup
 Urgent,Urgente,Shift Pickup
+Valid,Vigente,"HR Records, a record not yet expired"
+Vendor / W-9,Proveedor / W-9,"HR Records, a record's category"
 Vendor Registry,Registro de proveedores,The shell
 Vendors,Proveedores,The shell
 View,Ver,"Sites, General Info"
 View All,Ver todo,"Assigned Tasks, clearing the filters"
+View PDF,Ver el PDF,"HR Records, a folder"
 View all,Ver todo,"Dashboard, the link above a chart"
 View shift,Ver el turno,Shift Pickup
 View site,Ver el sitio,"Sites, the list"
@@ -659,29 +806,34 @@ Zone *,Zona *,"Assigned Tasks, creating a task; Sites, adding a task"
 Zones,Zonas,"Sites, General Info"
 annual,anual,"Sites, General Info, how often a site is billed"
 biweekly,quincenal,"Sites, General Info, how often a site is billed"
-by {0},por {0},"Issue Tracker and Assigned Tasks, the activity, who made the change"
+by {0},por {0},"Issue Tracker and Assigned Tasks, the activity, who made the change; HR Records, who gave a training or finished a step"
 clock in,entrada registrada,"Sites, the record window, what happened"
 critical,crítica,"Assigned Tasks, how urgent a task is, which agrees with prioridad; Sites, Service Details, a task's priority"
 e.g. 1,p. ej. 1,"Assigned Tasks, creating a task, the floor"
 "e.g. 1, 2, B","p. ej. 1, 2, B","Sites, adding or editing a task"
+e.g. 95% or Pass,p. ej. 95% o Aprobado,"HR Records, adding a training record"
 e.g. Clean window blinds in conference room,p. ej. Limpiar las persianas de la sala de reuniones,"Assigned Tasks, creating a task"
+e.g. Complete bloodborne pathogens training,p. ej. Completar la capacitación sobre patógenos transmitidos por la sangre,"HR Records, adding an onboarding step"
+e.g. General Cleaning Training,p. ej. Capacitación general de limpieza,"HR Records, adding a training record"
 e.g. Main,p. ej. Principal,"Assigned Tasks, creating a task, the building; Sites, adding or editing a task"
 e.g. Marcus called out,p. ej. una persona se reportó ausente,Schedule
 e.g. Marcus called out sick,p. ej. una persona se reportó enferma,Shift Pickup
 e.g. Offices,p. ej. Oficinas,"Assigned Tasks, creating a task, the zone"
 e.g. Restrooms,p. ej. Baños,"Sites, adding a task"
 e.g. Vacuum carpets,p. ej. Aspirar las alfombras,"Sites, adding a task"
+e.g. {0},p. ej. {0},"HR Records, adding a training record, an example of who gave it"
 ends next day,termina al día siguiente,"Schedule, Patterns, the hours of a pattern that runs past midnight"
 ends {0},termina el {0},"Schedule, Patterns, the pattern window, the end date"
 high,alta,"Issue Tracker, how serious an issue is, which agrees with gravedad; Assigned Tasks, how urgent a task is, which agrees with prioridad; Sites, Service Details, a task's priority"
-in progress,en curso,"Issue Tracker, the filter and an incidencia being worked on; Assigned Tasks, a tarea being worked on"
+in progress,en curso,"Issue Tracker, the filter and an incidencia being worked on; Assigned Tasks, a tarea being worked on; HR Records, a folder, a record's status"
 issue reported,incidencia reportada,"Sites, the record window, what happened"
 low,baja,"Issue Tracker, how serious an issue is, which agrees with gravedad"
 medium,media,"Issue Tracker, how serious an issue is, which agrees with gravedad"
 message sent,mensaje enviado,"Sites, the record window, what happened"
 monthly,mensual,"Sites, General Info, how often a site is billed"
+note: {0},nota: {0},"HR Records, a folder"
 of {0} active,de {0} activos,"Dashboard, under the started tile"
-pending,pendiente,"Assigned Tasks, a task nobody has started"
+pending,pendiente,"Assigned Tasks, a task nobody has started; HR Records, a person's or a record's status"
 quarterly,trimestral,"Sites, General Info, how often a site is billed"
 shift created,turno creado,"Sites, the record window, what happened"
 shift deleted,turno eliminado,"Sites, the record window, what happened"
@@ -692,10 +844,12 @@ standard,estándar,"Sites, Service Details, a task's priority"
 supply logged,suministro registrado,"Sites, the record window, what happened"
 task completed,tarea completada,"Sites, the record window, what happened"
 to {0},a {0},"Sites, General Info, the end of the contract dates"
+today,hoy,"HR Records, a card's last activity"
 unable to resolve,no se pudo resolver,"Assigned Tasks, a task that could not be done"
 urgent,urgente,"Assigned Tasks, how urgent a task is; Sites, Service Details, a task's priority"
 weekly,semanal,"Sites, General Info, how often a site is billed"
 weeks,semanas,"Schedule, adding a shift, the word after the number of weeks"
+yesterday,ayer,"HR Records, a card's last activity"
 {0} Admin,{0} Administración,The shell
 {0} Supervisor,{0} Supervisión,The shell
 "{0} added, {1} removed, {2} kept","{0} agregados, {1} quitados, {2} conservados","Schedule, Patterns, the pattern window, the result of a change"
@@ -706,6 +860,7 @@ weeks,semanas,"Schedule, adding a shift, the word after the number of weeks"
 {0} claimed with overtime risk,{0} tomados con riesgo de horas extra,"Shift Pickup, Analytics"
 {0} claims,{0} tomados,"Shift Pickup, Analytics, how many shifts a person took"
 {0} dates were skipped because this person is already scheduled at that time:,Se omitieron {0} fechas porque esta persona ya tiene un turno a esa hora:,"Schedule, after a pattern is saved"
+{0} days ago,hace {0} días,"HR Records, a card's last activity"
 {0} of {1},{0} de {1},"Dashboard, the tasks done on a shift"
 {0} of {1} answered,{0} de {1} respondidas,"Help, how many questions of a report are answered"
 {0} of {1} tasks,{0} de {1} tareas,"Schedule, Week, the tasks done on a shift; Live Operations, the tasks done on a shift"
@@ -724,6 +879,7 @@ weeks,semanas,"Schedule, adding a shift, the word after the number of weeks"
 {0}d,{0}d,"The bell, an age in days"
 {0}h,{0}h,"The bell, an age in hours"
 {0}m,{0}m,"The bell, an age in minutes"
+{0}w ago,hace {0} sem.,"HR Records, a card's last activity"
 Active,Activo,"Schedule, Patterns, a patron that is running"
 Active,Activa,"Staff, a persona who is working"
 Active,Activos,"Sites, the list, the filter that agrees with sitios"
@@ -746,17 +902,24 @@ Closed,Cerrado,"Cases, a caso that is finished"
 Closed,Cerrado,"Shift Pickup, a turno that is finished"
 Completed,Completada,"Schedule, an inspeccion that is finished"
 Completed,Completado,"Schedule, a turno that is finished"
+DOC,DOC,"HR Records, a folder, the short name for a document"
 Denied,Denegada,"Schedule, Time off, a solicitud that was denied"
 Ended,Terminado,"Schedule, Patterns, a patron that has stopped"
+Expired,Vencidos,"HR Records, Employees, the filter for expired records"
+Expired,Vencido,"HR Records, a record past its expiry date"
 Inactive,Inactivos,"Sites, the list, the filter that agrees with sitios"
+JF,JF,"HR Records, a folder, the short name for a Jotform form"
 New,Nueva,"Schedule, a new solicitud"
 New,Nuevo,"Schedule, a new turno"
 None,Ninguna,"The note that is empty, which agrees with nota"
 None,Ninguno,"The site that is not set, which agrees with sitio"
 None,Ninguno,"Schedule, Time off, a request that covers no shifts"
 None,Ninguna,"Sites, Shifts & Schedule, no inspection yet, which agrees with inspección"
+None,Ninguna,"HR Records, Employees, a card with no activity, which agrees with actividad"
+ONB,INC,"HR Records, a folder, the short name for an onboarding step"
 Open,Abierta,"Dashboard, an incidencia nobody has closed"
 Open,Abierto,"Shift Pickup, a turno nobody has taken"
+Other,Otros,"HR Records, the tab for records filed under Other"
 Pending,Pendientes,"Sites, Shifts & Schedule, pickups not yet worked, which agrees with turnos"
 Released,Liberado,"Shift Pickup, a turno somebody gave back"
 Removed,Tarea quitada,"Sites, Service Details, once a task is removed"
@@ -764,17 +927,21 @@ Requested,Solicitada,"Schedule, Time off, a solicitud waiting on a decision"
 Scheduled,Programada,"Schedule, an inspeccion on the calendar"
 Scheduled,Programado,"Schedule, a turno on the calendar"
 Start,Iniciar,"Issue Tracker, the button that starts work on an incidencia"
+TR,CAP,"HR Records, a folder, the short name for a training record"
 Time,Horarios,"The side panel, the section that holds Schedule and Shift Pickup"
 active,activo,"Sites, a site's status, which agrees with sitio"
+active,activa,"HR Records, a person's status, which agrees with persona"
 all,todas,"Issue Tracker, the filter that agrees with incidencias"
 assigned,asignada,"Sites, Service Details, a one-off task, which agrees with tarea"
 closed,cerrada,"Issue Tracker, an incidencia that is finished"
+completed,completado,"HR Records, a folder, a record's status, which agrees with registro"
 completed at,fecha de finalización,"Sites, the record window, a field"
 created at,fecha de creación,"Sites, the record window, a field"
 description,descripción,"Sites, the record window, a field"
 escalated,escalada,"Issue Tracker, an incidencia passed up the line"
 escalated,escaladas,"Issue Tracker, the filter for incidencias passed up the line"
 inactive,inactivo,"Sites, a site's status, which agrees with sitio"
+inactive,inactiva,"HR Records, a person's status, which agrees with persona"
 kind,tipo,"Sites, the record window, a field"
 label,nombre,"Sites, the record window, a field"
 notes,notas,"Sites, the record window, a field"
@@ -788,6 +955,7 @@ resolved,resuelta,"Assigned Tasks, a tarea that was done"
 severity,gravedad,"Sites, the record window, a field"
 site name,nombre del sitio,"Sites, the record window, a field"
 status,estado,"Sites, the record window, a field"
+submitted,enviado,"HR Records, a folder, a record's status, which agrees with registro"
 title,título,"Sites, the record window, a field"
 updated at,fecha de actualización,"Sites, the record window, a field"
 zone,zona,"Sites, the record window, a field"
@@ -813,3 +981,21 @@ zone,zona,"Sites, the record window, a field"
 {0} staff,{0} personas,"Sites, the list, when the count is more than one"
 {0} task,{0} tarea,"Sites, the list, when the count is one"
 {0} tasks,{0} tareas,"Sites, the list, when the count is more than one"
+{0}mo ago,hace {0} mes,"HR Records, a card's last activity, when the count is one"
+{0}mo ago,hace {0} meses,"HR Records, a card's last activity, when the count is more than one"
+{0}y ago,hace {0} año,"HR Records, a card's last activity, when the count is one"
+{0}y ago,hace {0} años,"HR Records, a card's last activity, when the count is more than one"
+{0} employee,{0} persona,"HR Records, Employees, when the count is one"
+{0} employees,{0} personas,"HR Records, Employees, when the count is more than one"
+{0} expired,{0} vencido,"HR Records, Employees, a card, when the count is one"
+{0} expired,{0} vencidos,"HR Records, Employees, a card, when the count is more than one"
+{0} expiring,{0} por vencer,"HR Records, Employees, a card, when the count is one"
+{0} expiring,{0} por vencer,"HR Records, Employees, a card, when the count is more than one"
+{0} document,{0} documento,"HR Records, Documents, when the count is one"
+{0} documents,{0} documentos,"HR Records, Documents, when the count is more than one"
+{0} record,{0} registro,"HR Records, Training, when the count is one"
+{0} records,{0} registros,"HR Records, Training, when the count is more than one"
+{1} of {0} step complete,{1} de {0} paso completado,"HR Records, Onboarding, when the count is one"
+{1} of {0} steps complete,{1} de {0} pasos completados,"HR Records, Onboarding, when the count is more than one"
+{0} item,{0} elemento,"HR Records, Other, when the count is one"
+{0} items,{0} elementos,"HR Records, Other, when the count is more than one"

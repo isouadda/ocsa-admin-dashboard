@@ -225,6 +225,10 @@ const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.2
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
 const MoonI = p => <Ic d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" {...p} />;
 const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodial Lead", custodial_laborer: "Custodial Laborer", day_porter: "Day Porter", contractor: "Contractor" };
+// A role and a person's status as words in the language the screen is drawn in. The code is what is
+// sent and compared; a code with no word here is drawn as it arrives.
+const roleWord = (r) => (RL[r] ? tr(RL[r]) : r);
+const personStateOf = (s) => ({ active: tr("active|person"), inactive: tr("inactive|person"), pending: tr("pending") })[s] || s;
 const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
 // What a checklist item says on a screen that only shows it: the display the API sends in the
 // language the call asked for, and the item's own English wherever it sends none. A screen that edits
@@ -1544,7 +1548,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // A person's role at the site as a word: the site role they hold there, or else their own role.
   const siteRoleShown = lkMap("site_roles", true);
   const staffRoleShown = lkMap("staff_roles", true);
-  const roleOf = (p) => p.role_at_site ? (siteRoleShown[p.role_at_site] || p.role_at_site) : (staffRoleShown[p.role] || (RL[p.role] ? tr(RL[p.role]) : p.role));
+  const roleOf = (p) => p.role_at_site ? (siteRoleShown[p.role_at_site] || p.role_at_site) : (staffRoleShown[p.role] || roleWord(p.role));
   // What the record window names an action and a field with. Both are the API's own names: one with
   // a word here is drawn as that word, and any other as the name with its underscores as spaces,
   // which is what the window has always drawn.
@@ -7770,31 +7774,31 @@ function JotformPickerField({ af, form, setForm, t }) {
     // Edit mode: show existing jotform_reference as plain text field
     return (
       <div>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Jotform Reference</div>
-        <Inp t={t} placeholder="Jotform submission ID or URL" value={form.jotform_reference || ""} onChange={e => setForm({ ...form, jotform_reference: e.target.value })} />
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Jotform Reference")}</div>
+        <Inp t={t} placeholder={tr("Jotform submission ID or URL")} value={form.jotform_reference || ""} onChange={e => setForm({ ...form, jotform_reference: e.target.value })} />
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Jotform Submission (optional)</div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Jotform Submission (optional)")}</div>
       {!form.user_id && (
-        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>Select an employee first to see matching Jotform submissions.</div>
+        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("Select an employee first to see matching Jotform submissions.")}</div>
       )}
       {form.user_id && loading && (
-        <div style={{ padding: "8px 12px", fontSize: 11, color: t.textMut }}>Loading submissions...</div>
+        <div style={{ padding: "8px 12px", fontSize: 11, color: t.textMut }}>{tr("Loading submissions...")}</div>
       )}
       {form.user_id && noKey && (
-        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>Jotform is not configured. Use the manual entry below.</div>
+        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("Jotform is not configured. Use the manual entry below.")}</div>
       )}
       {form.user_id && !loading && !noKey && pickerOptions.length === 0 && (
-        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>No unlinked Jotform submissions for this employee. Sync the Forms page if needed, or use manual entry.</div>
+        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("No unlinked Jotform submissions for this employee. Sync the Forms page if needed, or use manual entry.")}</div>
       )}
       {form.user_id && !loading && pickerOptions.length > 0 && (
         <Sel
           options={[
-            { v: "", l: "Select a synced submission..." },
+            { v: "", l: tr("Select a synced submission...") },
             ...pickerOptions.map(s => ({
               v: s.id,
               l: (s.form_title || s.jotform_form_id) + " - " + fmtDate(s.submitted_at) + (s.submitter_name ? " (" + s.submitter_name + ")" : "")
@@ -7807,12 +7811,12 @@ function JotformPickerField({ af, form, setForm, t }) {
       )}
       <div style={{ marginTop: 6 }}>
         <button type="button" onClick={() => setShowManual(!showManual)} style={{ background: "none", border: "none", color: BL, fontSize: 11, cursor: "pointer", padding: 0 }}>
-          {showManual ? "Hide manual entry" : "Or enter manually"}
+          {showManual ? tr("Hide manual entry") : tr("Or enter manually")}
         </button>
       </div>
       {showManual && (
         <div style={{ marginTop: 6 }}>
-          <Inp t={t} placeholder="Jotform submission ID or URL" value={form.jotform_reference || ""} onChange={e => setForm({ ...form, jotform_reference: e.target.value, _submission_uuid_to_link: null, _submission_uuid_preselected: null })} />
+          <Inp t={t} placeholder={tr("Jotform submission ID or URL")} value={form.jotform_reference || ""} onChange={e => setForm({ ...form, jotform_reference: e.target.value, _submission_uuid_to_link: null, _submission_uuid_preselected: null })} />
         </div>
       )}
     </div>
@@ -9825,19 +9829,19 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
     const dt = new Date(d);
     const now = new Date();
     const diff = Math.floor((now - dt) / 86400000);
-    if (diff <= 0) return "today";
-    if (diff === 1) return "yesterday";
-    if (diff < 7) return diff + " days ago";
-    if (diff < 30) return Math.floor(diff / 7) + "w ago";
-    if (diff < 365) return Math.floor(diff / 30) + "mo ago";
-    return Math.floor(diff / 365) + "y ago";
+    if (diff <= 0) return tr("today");
+    if (diff === 1) return tr("yesterday");
+    if (diff < 7) return tr("{0} days ago", diff);
+    if (diff < 30) return tr("{0}w ago", Math.floor(diff / 7));
+    if (diff < 365) return trn("{0}mo ago|count", Math.floor(diff / 30));
+    return trn("{0}y ago|count", Math.floor(diff / 365));
   };
 
   const roleOptions = useMemo(() => {
     const set = new Set();
     employees.forEach(e => { if (e.role) set.add(e.role); });
-    const opts = [{ v: "all", l: "All roles" }];
-    Array.from(set).sort().forEach(r => opts.push({ v: r, l: r.charAt(0).toUpperCase() + r.slice(1) }));
+    const opts = [{ v: "all", l: tr("All roles") }];
+    Array.from(set).sort().forEach(r => opts.push({ v: r, l: roleWord(r) }));
     return opts;
   }, [employees]);
 
@@ -9848,7 +9852,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
       arr = arr.filter(e => {
         const name = (e.first_name + " " + e.last_name).toLowerCase();
         const email = (e.email || "").toLowerCase();
-        const role = (e.role || "").toLowerCase();
+        // The role's code and its word, so a person finds a role by what the card says.
+        const role = ((e.role || "") + " " + (e.role ? roleWord(e.role) : "")).toLowerCase();
         return name.includes(q) || email.includes(q) || role.includes(q);
       });
     }
@@ -9881,19 +9886,19 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
   }, [employees, search, sortBy, roleFilter, filterExpiring, filterExpired, filterOnbIncomplete]);
 
   const sortOpts = [
-    { v: "last_name_asc", l: "Last Name A-Z" },
-    { v: "last_name_desc", l: "Last Name Z-A" },
-    { v: "first_name_asc", l: "First Name A-Z" },
-    { v: "activity_desc", l: "Most Recent Activity" },
-    { v: "activity_asc", l: "Oldest Activity" },
-    { v: "hire_desc", l: "Hire Date (newest)" },
-    { v: "hire_asc", l: "Hire Date (oldest)" },
+    { v: "last_name_asc", l: tr("Last Name A-Z") },
+    { v: "last_name_desc", l: tr("Last Name Z-A") },
+    { v: "first_name_asc", l: tr("First Name A-Z") },
+    { v: "activity_desc", l: tr("Most Recent Activity") },
+    { v: "activity_asc", l: tr("Oldest Activity") },
+    { v: "hire_desc", l: tr("Hire Date (newest)") },
+    { v: "hire_asc", l: tr("Hire Date (oldest)") },
   ];
 
   const statusOpts = [
-    { v: "active", l: "Active only" },
-    { v: "inactive", l: "Inactive only" },
-    { v: "all", l: "All statuses" },
+    { v: "active", l: tr("Active only") },
+    { v: "inactive", l: tr("Inactive only") },
+    { v: "all", l: tr("All statuses") },
   ];
 
   const chip = (label, active, onClick, color) => (
@@ -9905,7 +9910,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
       {/* Top filter row */}
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
         <div style={{ flex: "1 1 260px", minWidth: 200 }}>
-          <Inp t={t} placeholder="Search name, email, or role..." value={search} onChange={e => setSearch(e.target.value)} />
+          <Inp t={t} placeholder={tr("Search name, email, or role...")} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ minWidth: 200 }}>
           <Sel options={sortOpts} value={sortBy} onChange={e => setSortBy(e.target.value)} t={t} />
@@ -9918,15 +9923,15 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
         <div style={{ minWidth: 140 }}>
           <Sel options={roleOptions} value={roleFilter} onChange={e => setRoleFilter(e.target.value)} t={t} />
         </div>
-        {chip("Expiring (30d)", filterExpiring, () => setFilterExpiring(v => !v), OR)}
-        {chip("Expired", filterExpired, () => setFilterExpired(v => !v), RD)}
-        {chip("Onboarding incomplete", filterOnbIncomplete, () => setFilterOnbIncomplete(v => !v), BL)}
-        {chip(showTest ? "Hide test accounts" : "Show test accounts", showTest, () => setShowTest(v => !v), GO)}
+        {chip(tr("Expiring (30d)"), filterExpiring, () => setFilterExpiring(v => !v), OR)}
+        {chip(tr("Expired|filter"), filterExpired, () => setFilterExpired(v => !v), RD)}
+        {chip(tr("Onboarding incomplete"), filterOnbIncomplete, () => setFilterOnbIncomplete(v => !v), BL)}
+        {chip(showTest ? tr("Hide test accounts") : tr("Show test accounts"), showTest, () => setShowTest(v => !v), GO)}
       </div>
 
       {/* Result count */}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>
-        {loading ? "Loading..." : (filtered.length + " employee" + (filtered.length === 1 ? "" : "s"))}
+        {loading ? tr("Loading...") : trn("{0} employee|count", filtered.length)}
       </div>
 
       {/* Card grid (3 columns desktop, auto-fit) */}
@@ -9952,26 +9957,26 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role || "No role"}{e.status !== "active" ? " . " + e.status : ""}{e.is_test_account ? " . TEST" : ""}</div>
+                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleWord(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStateOf(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
                     {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: t.goldText, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", borderTop: "1px solid " + t.border, borderBottom: "1px solid " + t.border, margin: "0 -16px 12px", padding: "10px 16px" }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, lineHeight: 1 }}>{totalItems}</div>
-                    <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", marginTop: 3 }}>Records</div>
+                    <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", marginTop: 3 }}>{tr("Records")}</div>
                   </div>
                   <div style={{ flex: 1.4, borderLeft: "1px solid " + t.border, paddingLeft: 14 }}>
-                    <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.textSec, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.last_activity_date ? fmtRelDate(e.last_activity_date) : "None"}</div>
-                    <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", marginTop: 3 }}>Last activity</div>
+                    <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.textSec, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{e.last_activity_date ? fmtRelDate(e.last_activity_date) : tr("None|activity")}</div>
+                    <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "0.5px", marginTop: 3 }}>{tr("Last activity")}</div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 5, flexWrap: "wrap", minHeight: 20 }}>
-                  {expired > 0 && <Bdg l={expired + " expired"} c={RD} />}
-                  {expiring > 0 && <Bdg l={expiring + " expiring"} c={OR} />}
-                  {onbIncomplete && <Bdg l={"Onboarding " + e.onboarding_completed + "/" + e.onboarding_total} c={BL} />}
-                  {expired === 0 && expiring === 0 && !onbIncomplete && totalItems > 0 && <Bdg l="All current" c={GR} />}
-                  {totalItems === 0 && <Bdg l="Empty" c="#94A3B8" />}
+                  {expired > 0 && <Bdg l={trn("{0} expired|count", expired)} c={RD} />}
+                  {expiring > 0 && <Bdg l={trn("{0} expiring|count", expiring)} c={OR} />}
+                  {onbIncomplete && <Bdg l={tr("Onboarding {0}/{1}", e.onboarding_completed, e.onboarding_total)} c={BL} />}
+                  {expired === 0 && expiring === 0 && !onbIncomplete && totalItems > 0 && <Bdg l={tr("All current")} c={GR} />}
+                  {totalItems === 0 && <Bdg l={tr("Empty")} c="#94A3B8" />}
                 </div>
               </div>
             </Crd>
@@ -9980,7 +9985,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
       </div>
       {!loading && filtered.length === 0 && (
         <div style={{ padding: 40, textAlign: "center", color: t.textMut, background: t.card, borderRadius: 12, border: "1px solid " + t.border }}>
-          No employees match your filters.
+          {tr("No employees match your filters.")}
         </div>
       )}
     </div>
@@ -10004,9 +10009,12 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
   useEffect(() => { load(); }, [load, refreshKey]);
 
-  const docTypeMap = lkMap("document_types");
-  const trainingTypeMap = lkMap("training_types");
-  const onbCatMap = lkMap("onboarding_categories");
+  // Each of these only shows a choice, so each reads the choice's displayLabel.
+  const docTypeMap = lkMap("document_types", true);
+  const trainingTypeMap = lkMap("training_types", true);
+  const onbCatMap = lkMap("onboarding_categories", true);
+  // What a row's status code says. A code with no word here is drawn as it arrives.
+  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item") })[s] || s;
 
   const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
@@ -10014,7 +10022,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const updateSubCategory = async (submissionUuid, newOverride) => {
     try {
       await af("/api/jotform/submissions/" + submissionUuid, { method: "PATCH", body: { category_override: newOverride === "" ? null : newOverride } });
-      showToast("Category updated");
+      showToast(tr("Category updated"));
       load();
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -10031,12 +10039,12 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       // Session 24: 202 means PDF not yet captured by email ingestion (still pending)
       if (resp.status === 202) {
         const body = await resp.json().catch(() => ({}));
-        showToast(body.message || "PDF is being captured, check back in a few minutes.");
+        showToast(body.message || tr("PDF is being captured, check back in a few minutes."));
         return;
       }
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
-        throw new Error("PDF fetch failed (" + resp.status + "): " + errText.slice(0, 200));
+        throw new Error(tr("PDF fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -10057,7 +10065,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       });
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
-        throw new Error("File fetch failed (" + resp.status + "): " + errText.slice(0, 200));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -10071,16 +10079,16 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     const dt = new Date(typeof d === "string" ? d.split("T")[0] + "T00:00:00" : d);
     const now = new Date(); now.setHours(0, 0, 0, 0);
     const diff = Math.ceil((dt - now) / 86400000);
-    if (diff < 0) return <Bdg l="Expired" c={RD} />;
-    if (diff <= 30) return <Bdg l={"Expires " + diff + "d"} c={OR} />;
-    return <Bdg l="Valid" c={GR} />;
+    if (diff < 0) return <Bdg l={tr("Expired|item")} c={RD} />;
+    if (diff <= 30) return <Bdg l={tr("Expires {0}d", diff)} c={OR} />;
+    return <Bdg l={tr("Valid")} c={GR} />;
   };
 
   const sourceLabel = (s) => ({
-    document: "Document",
-    training: "Training",
-    onboarding: "Onboarding Step",
-    jotform: "Jotform Form",
+    document: tr("Document"),
+    training: tr("Training"),
+    onboarding: tr("Onboarding Step"),
+    jotform: tr("Jotform Form"),
   })[s] || s;
 
   const sourceColor = (s) => ({
@@ -10091,10 +10099,10 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   })[s] || t.textMut;
 
   if (loading && !data) {
-    return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading folder...</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading folder...")}</div>;
   }
   if (!data) {
-    return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Could not load folder.</div>;
+    return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Could not load folder.")}</div>;
   }
 
   const e = data.employee;
@@ -10114,30 +10122,30 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     <div>
       {/* Header: back + employee profile + add document */}
       <button onClick={onBack} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-        <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> Back to Employees
+        <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> {tr("Back to Employees")}
       </button>
       <ProfileBanner t={t}
         avatar={e.profile_photo_url
           ? <img src={e.profile_photo_url} alt="" style={{ width: 84, height: 84, borderRadius: "50%", objectFit: "cover" }} />
           : <Ini name={fullName} sz={84} />}
-        name={fullName + (e.is_test_account ? " (TEST)" : "")}
+        name={fullName + (e.is_test_account ? " (" + tr("TEST") + ")" : "")}
         idCode={e.employee_id}
-        subtitle={<span style={{ textTransform: "capitalize" }}>{e.role || "No role"}{e.hire_date ? " . Hired " + fmtDate(e.hire_date) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
-        badges={e.status ? <Bdg l={e.status} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
-        actions={<Btn t={t} onClick={() => onAddDocument(userId)}>+ Add Document</Btn>}
+        subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleWord(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
+        badges={e.status ? <Bdg l={personStateOf(e.status)} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
+        actions={<Btn t={t} onClick={() => onAddDocument(userId)}>{tr("+ Add Document")}</Btn>}
       />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <button onClick={() => setActiveCategory("all")} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (activeCategory === "all" ? GO : t.border), background: activeCategory === "all" ? t.goldBg : "transparent", color: activeCategory === "all" ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-          All ({totalItems})
+          {tr("All ({0})", totalItems)}
         </button>
         {categoryEntries.map(c => {
           const active = activeCategory === c.v;
           const color = HR_CATEGORY_COLOR[c.v] || GO;
           return (
             <button key={c.v} onClick={() => setActiveCategory(c.v)} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (active ? color : t.border), background: active ? (color + "22") : "transparent", color: active ? color : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-              {c.l} ({c.count})
+              {tr(c.l)} ({c.count})
             </button>
           );
         })}
@@ -10146,7 +10154,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       {/* Item list */}
       {filtered.length === 0 ? (
         <div style={{ padding: 40, textAlign: "center", color: t.textMut, background: t.card, borderRadius: 12, border: "1px solid " + t.border }}>
-          {totalItems === 0 ? "No HR records on file for this employee yet." : "No items in this category."}
+          {totalItems === 0 ? tr("No HR records on file for this employee yet.") : tr("No items in this category.")}
         </div>
       ) : (
         <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
@@ -10161,7 +10169,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                 {/* Source icon column */}
                 <div style={{ width: 30, height: 30, borderRadius: 6, background: srcColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }} title={sourceLabel(it.source)}>
                   <span style={{ fontSize: 9, fontWeight: 600, color: srcColor, textTransform: "uppercase" }}>
-                    {it.source === "document" ? "DOC" : it.source === "training" ? "TR" : it.source === "onboarding" ? "ONB" : "JF"}
+                    {it.source === "document" ? tr("DOC|source") : it.source === "training" ? tr("TR|source") : it.source === "onboarding" ? tr("ONB|source") : tr("JF|source")}
                   </span>
                 </div>
 
@@ -10176,11 +10184,11 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                           it.source === "document" ? (docTypeMap[it.raw_category_label] || it.raw_category_label) :
                           it.source === "training" ? (trainingTypeMap[it.raw_category_label] || it.raw_category_label) :
                           it.source === "onboarding" ? (onbCatMap[it.raw_category_label] || it.raw_category_label) :
-                          HR_CATEGORY_LABEL(it.raw_category_label)
+                          tr(HR_CATEGORY_LABEL(it.raw_category_label))
                         ) : ""}
                         {it.submitter_name ? " . " + it.submitter_name : ""}
-                        {it.administered_by ? " . by " + it.administered_by : ""}
-                        {it.status ? " . " + it.status : ""}
+                        {it.administered_by ? " . " + tr("by {0}", it.administered_by) : ""}
+                        {it.status ? " . " + itemStateOf(it.status) : ""}
                       </div>
                     </div>
                     <div style={{ fontSize: 11, color: t.textSec, whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -10197,13 +10205,13 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         value={it.category_override || ""}
                         onChange={e => updateSubCategory(it.source_id, e.target.value)}
                         style={{ padding: "3px 8px", borderRadius: 6, border: "1px solid " + catColor, background: catColor + "1A", color: catColor, fontSize: 11, fontWeight: 600, cursor: "pointer" }}
-                        title={it.category_override ? "Override active. Pick blank to revert to form default." : "Inheriting form's category. Pick a value to override."}
+                        title={it.category_override ? tr("Override active. Pick blank to revert to form default.") : tr("Inheriting form's category. Pick a value to override.")}
                       >
-                        <option value="">{it.category_override ? "(use form default)" : ("Form default: " + HR_CATEGORY_LABEL(it.category))}</option>
-                        {HR_CATEGORY_OPTS.map(c => <option key={c.v} value={c.v}>{c.l}</option>)}
+                        <option value="">{it.category_override ? tr("(use form default)") : tr("Form default: {0}", tr(HR_CATEGORY_LABEL(it.category)))}</option>
+                        {HR_CATEGORY_OPTS.map(c => <option key={c.v} value={c.v}>{tr(c.l)}</option>)}
                       </select>
                     ) : (
-                      <span style={{ padding: "3px 8px", borderRadius: 6, background: catColor + "1A", color: catColor, fontSize: 11, fontWeight: 600 }}>{HR_CATEGORY_LABEL(it.category)}</span>
+                      <span style={{ padding: "3px 8px", borderRadius: 6, background: catColor + "1A", color: catColor, fontSize: 11, fontWeight: 600 }}>{tr(HR_CATEGORY_LABEL(it.category))}</span>
                     )}
 
                     {/* Expiry badge */}
@@ -10211,24 +10219,24 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
                     {/* Action buttons */}
                     {it.source === "document" && (
-                      <button onClick={() => viewDoc(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Open file</button>
+                      <button onClick={() => viewDoc(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Open file")}</button>
                     )}
                     {it.source === "document" && (
-                      <button onClick={() => onEditDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => onEditDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Edit")}</button>
                     )}
                     {it.source === "document" && (
-                      <button onClick={() => onDeleteDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Delete</button>
+                      <button onClick={() => onDeleteDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Delete")}</button>
                     )}
                     {it.source === "training" && (
-                      <button onClick={() => onEditTraining(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Edit</button>
+                      <button onClick={() => onEditTraining(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Edit")}</button>
                     )}
                     {it.source === "jotform" && (
                       <button onClick={() => viewPdf(it.source_id)} disabled={pdfBusy === it.source_id} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: pdfBusy === it.source_id ? "wait" : "pointer", fontWeight: 600 }}>
-                        {pdfBusy === it.source_id ? "Loading..." : "View PDF"}
+                        {pdfBusy === it.source_id ? tr("Loading...") : tr("View PDF")}
                       </button>
                     )}
                     {it.notes && (
-                      <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={it.notes}>note: {it.notes.slice(0, 40)}{it.notes.length > 40 ? "..." : ""}</span>
+                      <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={it.notes}>{tr("note: {0}", it.notes.slice(0, 40) + (it.notes.length > 40 ? "..." : ""))}</span>
                     )}
                   </div>
                 </div>
@@ -10419,13 +10427,15 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
   const [otQ, setOtQ] = useState(""); const [otPage, setOtPage] = useState(1);
   const [hrPerPage, setHrPerPage] = useState(10);
 
-  const staffOpts = [{ v: "", l: "All Employees" }, ...allStaff.map(s => ({ v: s.id, l: s.firstName + " " + s.lastName }))];
-  const docTypeMap = lkMap("document_types");
-  const trainingTypeMap = lkMap("training_types");
-  const onbCatMap = lkMap("onboarding_categories");
-  const docTypeOpts = getOpts("document_types", "Select type...");
-  const trainingTypeOpts = getOpts("training_types", "Select type...");
-  const onbCatOpts = getOpts("onboarding_categories", "Select category...");
+  const staffOpts = [{ v: "", l: tr("All Employees") }, ...allStaff.map(s => ({ v: s.id, l: s.firstName + " " + s.lastName }))];
+  // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
+  const docTypeMap = lkMap("document_types", true);
+  const trainingTypeMap = lkMap("training_types", true);
+  const trainingTypePlain = lkMap("training_types");
+  const onbCatMap = lkMap("onboarding_categories", true);
+  const docTypeOpts = getOpts("document_types", tr("Select type..."), true);
+  const trainingTypeOpts = getOpts("training_types", tr("Select type..."), true);
+  const onbCatOpts = getOpts("onboarding_categories", tr("Select category..."), true);
 
   const loadDocs = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/documents" + q); setDocs(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadTraining = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/training" + q); setTraining(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
@@ -10446,7 +10456,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       });
       if (!resp.ok) {
         const errText = await resp.text().catch(() => "");
-        throw new Error("File fetch failed (" + resp.status + "): " + errText.slice(0, 200));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -10461,8 +10471,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
   // The legacy uf() public-bucket flow is no longer used.
   const submitDoc = async () => {
     try {
-      if (!form.user_id) { showToast("Employee is required", "error"); return; }
-      if (!form.category) { showToast("Category is required", "error"); return; }
+      if (!form.user_id) { showToast(tr("Employee is required"), "error"); return; }
+      if (!form.category) { showToast(tr("Category is required"), "error"); return; }
 
       let docResult;
 
@@ -10474,10 +10484,10 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           expiry_date: form.expiry_date || null,
         };
         docResult = await af("/api/jotform/employee-documents/" + form.id, { method: "PATCH", body: patchBody });
-        showToast("Document updated");
+        showToast(tr("Document updated"));
       } else {
         // Create new document: requires a file upload via multipart
-        if (!file) { showToast("Please choose a file to upload", "error"); return; }
+        if (!file) { showToast(tr("Please choose a file to upload"), "error"); return; }
         const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
         const fd = new FormData();
         fd.append("file", file);
@@ -10491,10 +10501,10 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
         });
         if (!resp.ok) {
           const errText = await resp.text().catch(() => "");
-          throw new Error("Upload failed (" + resp.status + "): " + errText.slice(0, 200));
+          throw new Error(tr("Upload failed ({0}): {1}", resp.status, errText.slice(0, 200)));
         }
         docResult = await resp.json();
-        showToast("Document added");
+        showToast(tr("Document added"));
       }
 
       // Preserve the Jotform submission link side-effect from Session 22.
@@ -10516,24 +10526,24 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteDoc = async (id) => { if (!window.confirm("Delete this document?")) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast("Document deleted"); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteDoc = async (id) => { if (!window.confirm(tr("Delete this document?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Document deleted")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const submitTraining = async () => {
     try {
-      if (!form.user_id || !form.training_name || !form.training_type) { showToast("Employee, name, and type are required", "error"); return; }
-      if (form.id) { await af("/api/hr/training/" + form.id, { method: "PUT", body: form }); showToast("Training record updated"); }
-      else { await af("/api/hr/training", { method: "POST", body: form }); showToast("Training record added"); }
+      if (!form.user_id || !form.training_name || !form.training_type) { showToast(tr("Employee, name, and type are required"), "error"); return; }
+      if (form.id) { await af("/api/hr/training/" + form.id, { method: "PUT", body: form }); showToast(tr("Training record updated")); }
+      else { await af("/api/hr/training", { method: "POST", body: form }); showToast(tr("Training record added")); }
       setShowModal(null); setForm({}); loadTraining();
       if (folderUserId) setFolderRefresh(v => v + 1);
       if (compliance) loadCompliance();
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteTraining = async (id) => { if (!window.confirm("Delete this training record?")) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast("Training record deleted"); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteTraining = async (id) => { if (!window.confirm(tr("Delete this training record?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Training record deleted")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const initOnboarding = async () => {
-    if (!selUser) { showToast("Select an employee first", "error"); return; }
-    try { const d = await af("/api/hr/onboarding/initialize", { method: "POST", body: { user_id: selUser } }); setOnboarding(d); showToast("Onboarding initialized"); } catch (e) { showToast(e.message, "error"); }
+    if (!selUser) { showToast(tr("Select an employee first"), "error"); return; }
+    try { const d = await af("/api/hr/onboarding/initialize", { method: "POST", body: { user_id: selUser } }); setOnboarding(d); showToast(tr("Onboarding initialized")); } catch (e) { showToast(e.message, "error"); }
   };
 
   const toggleStep = async (step) => {
@@ -10541,19 +10551,19 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
   };
 
   const addCustomStep = async () => {
-    if (!selUser || !form.step_name || !form.step_category) { showToast("Name and category are required", "error"); return; }
-    try { await af("/api/hr/onboarding/step", { method: "POST", body: { user_id: selUser, ...form } }); showToast("Step added"); setShowModal(null); setForm({}); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
+    if (!selUser || !form.step_name || !form.step_category) { showToast(tr("Name and category are required"), "error"); return; }
+    try { await af("/api/hr/onboarding/step", { method: "POST", body: { user_id: selUser, ...form } }); showToast(tr("Step added")); setShowModal(null); setForm({}); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteStep = async (id) => { if (!window.confirm("Delete this step?")) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast("Step deleted"); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteStep = async (id) => { if (!window.confirm(tr("Delete this step?"))) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast(tr("Step deleted")); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
 
   const tabs = [
-    { id: "employees", l: "Employees" },
-    { id: "documents", l: "Documents" },
-    { id: "training", l: "Training" },
-    { id: "onboarding", l: "Onboarding" },
-    { id: "compliance", l: "Compliance" },
-    { id: "other", l: "Other" },
+    { id: "employees", l: tr("Employees") },
+    { id: "documents", l: tr("Documents") },
+    { id: "training", l: tr("Training") },
+    { id: "onboarding", l: tr("Onboarding") },
+    { id: "compliance", l: tr("Compliance") },
+    { id: "other", l: tr("Other|items") },
   ];
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -10562,9 +10572,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
     const dt = new Date(fmtDate(d) + "T00:00:00");
     const now = new Date(); now.setHours(0,0,0,0);
     const diff = Math.ceil((dt - now) / 86400000);
-    if (diff < 0) return badge("Expired", t.redSubtle, RD);
-    if (diff <= 30) return badge("Expires in " + diff + "d", t.orangeSubtle, OR);
-    return badge("Valid", t.greenSubtle, GR);
+    if (diff < 0) return badge(tr("Expired|item"), t.redSubtle, RD);
+    if (diff <= 30) return badge(tr("Expires in {0}d", diff), t.orangeSubtle, OR);
+    return badge(tr("Valid"), t.greenSubtle, GR);
   };
 
   return (
@@ -10610,7 +10620,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
               const list = await af("/api/hr/documents?user_id=" + folderUserId);
               const d = (list || []).find(x => x.id === docId);
               if (d) { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }
-              else showToast("Document not found", "error");
+              else showToast(tr("Document not found"), "error");
             } catch (e) { showToast(e.message, "error"); }
           }}
           onDeleteDocument={(docId) => deleteDoc(docId)}
@@ -10619,7 +10629,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
               const list = await af("/api/hr/training?user_id=" + folderUserId);
               const r = (list || []).find(x => x.id === trId);
               if (r) { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }
-              else showToast("Training record not found", "error");
+              else showToast(tr("Training record not found"), "error");
             } catch (e) { showToast(e.message, "error"); }
           }}
         />
@@ -10628,70 +10638,70 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* DOCUMENTS TAB */}
       {tab === "documents" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{docs.length} document{docs.length !== 1 ? "s" : ""}</div>
-          <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>+ Add Document</Btn>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} document|count", docs.length)}</div>
+          <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Document")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder="Search employee, category, file, uploaded by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setDocPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={docQ} onChange={e => { setDocQ(e.target.value); setDocPage(1); }} placeholder={tr("Search employee, category, file, uploaded by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setDocPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
-          const searched = docs.filter(d => { if (!docQ.trim()) return true; const hay = ((d.user_name || "") + " " + (HR_CATEGORY_LABEL(d.category) || "") + " " + (d.file_name || "") + " " + (d.uploaded_by_name || "")).toLowerCase(); return hay.includes(docQ.trim().toLowerCase()); });
+          const searched = docs.filter(d => { if (!docQ.trim()) return true; const hay = ((d.user_name || "") + " " + (HR_CATEGORY_LABEL(d.category) || "") + " " + tr(HR_CATEGORY_LABEL(d.category) || "") + " " + (d.file_name || "") + " " + (d.uploaded_by_name || "")).toLowerCase(); return hay.includes(docQ.trim().toLowerCase()); });
           const totalPages = Math.max(1, Math.ceil(searched.length / hrPerPage));
           const cur = Math.min(docPage, totalPages);
           const items = searched.slice((cur - 1) * hrPerPage, cur * hrPerPage);
           const columns = [
-            { header: "Employee", render: d => <span style={{ color: t.text }}>{d.user_name}</span> },
-            { header: "Category", render: d => <span style={{ color: t.text }}>{HR_CATEGORY_LABEL(d.category)}</span> },
-            { header: "File", render: d => d.file_name ? <button onClick={() => viewDoc(d.id)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button> : <span style={{ color: t.textMut }}>No file</span> },
-            { header: "Expiry", render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
-            { header: "Uploaded By", tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
-            { header: "Date", tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
-            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>Edit</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>Delete</button></div> }
+            { header: tr("Employee"), render: d => <span style={{ color: t.text }}>{d.user_name}</span> },
+            { header: tr("Category"), render: d => <span style={{ color: t.text }}>{tr(HR_CATEGORY_LABEL(d.category))}</span> },
+            { header: tr("File"), render: d => d.file_name ? <button onClick={() => viewDoc(d.id)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button> : <span style={{ color: t.textMut }}>{tr("No file")}</span> },
+            { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
+            { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
+            { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
+            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
           ];
-          return <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={docs.length === 0 ? "No documents found. Use Add Document to upload." : "No documents match this search."} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setDocPage} />} />;
+          return <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={docs.length === 0 ? tr("No documents found. Use Add Document to upload.") : tr("No documents match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setDocPage} />} />;
         })()}
       </div>}
 
       {/* TRAINING TAB */}
       {tab === "training" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{training.length} record{training.length !== 1 ? "s" : ""}</div>
-          <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>+ Add Training</Btn>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
+          <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder="Search employee, training, type, administered by" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
         {(() => {
-          const searched = training.filter(r => { if (!trQ.trim()) return true; const hay = ((r.user_name || "") + " " + (r.training_name || "") + " " + (trainingTypeMap[r.training_type] || r.training_type || "") + " " + (r.administered_by || "")).toLowerCase(); return hay.includes(trQ.trim().toLowerCase()); });
+          const searched = training.filter(r => { if (!trQ.trim()) return true; const hay = ((r.user_name || "") + " " + (r.training_name || "") + " " + (trainingTypePlain[r.training_type] || r.training_type || "") + " " + (trainingTypeMap[r.training_type] || "") + " " + (r.administered_by || "")).toLowerCase(); return hay.includes(trQ.trim().toLowerCase()); });
           const totalPages = Math.max(1, Math.ceil(searched.length / hrPerPage));
           const cur = Math.min(trPage, totalPages);
           const items = searched.slice((cur - 1) * hrPerPage, cur * hrPerPage);
           const columns = [
-            { header: "Employee", render: r => <span style={{ color: t.text }}>{r.user_name}</span> },
-            { header: "Training Name", tdStyle: { color: t.text, fontWeight: 500 }, render: r => r.training_name },
-            { header: "Type", tdStyle: { color: t.textSec }, render: r => trainingTypeMap[r.training_type] || r.training_type },
-            { header: "Completed", tdStyle: { fontSize: 12, whiteSpace: "nowrap" }, render: r => r.completed_date ? <span style={{ color: t.textSec }}>{fmtDate(r.completed_date)}</span> : <span style={{ color: OR }}>Pending</span> },
-            { header: "Expiry", render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
-            { header: "Score", tdStyle: { color: t.textSec }, render: r => r.score || "" },
-            { header: "Administered By", tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
-            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>Edit</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>Delete</button></div> }
+            { header: tr("Employee"), render: r => <span style={{ color: t.text }}>{r.user_name}</span> },
+            { header: tr("Training Name"), tdStyle: { color: t.text, fontWeight: 500 }, render: r => r.training_name },
+            { header: tr("Type"), tdStyle: { color: t.textSec }, render: r => trainingTypeMap[r.training_type] || r.training_type },
+            { header: tr("Completed"), tdStyle: { fontSize: 12, whiteSpace: "nowrap" }, render: r => r.completed_date ? <span style={{ color: t.textSec }}>{fmtDate(r.completed_date)}</span> : <span style={{ color: OR }}>{tr("Pending")}</span> },
+            { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
+            { header: tr("Score"), tdStyle: { color: t.textSec }, render: r => r.score || "" },
+            { header: tr("Administered By"), tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
+            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
           ];
-          return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? "No training records found." : "No records match this search."} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
+          return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
       </div>}
 
       {/* ONBOARDING TAB */}
       {tab === "onboarding" && <div>
-        {!selUser ? <div style={{ padding: 40, textAlign: "center", color: t.textMut, background: t.card, borderRadius: 12, border: "1px solid " + t.border }}>Select an employee to view their onboarding checklist.</div> : <>
+        {!selUser ? <div style={{ padding: 40, textAlign: "center", color: t.textMut, background: t.card, borderRadius: 12, border: "1px solid " + t.border }}>{tr("Select an employee to view their onboarding checklist.")}</div> : <>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <div style={{ fontSize: 14, color: t.textSec }}>
-              {onboarding.length > 0 ? onboarding.filter(s => s.is_completed).length + " of " + onboarding.length + " steps complete" : "No checklist initialized"}
+              {onboarding.length > 0 ? trn("{1} of {0} steps complete|count", onboarding.length, onboarding.filter(s => s.is_completed).length) : tr("No checklist initialized")}
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              {onboarding.length === 0 && <Btn t={t} onClick={initOnboarding}>Initialize Onboarding</Btn>}
-              {onboarding.length > 0 && <Btn t={t} v="ghost" onClick={() => { setForm({}); setShowModal("onbStep"); }}>+ Custom Step</Btn>}
+              {onboarding.length === 0 && <Btn t={t} onClick={initOnboarding}>{tr("Initialize Onboarding")}</Btn>}
+              {onboarding.length > 0 && <Btn t={t} v="ghost" onClick={() => { setForm({}); setShowModal("onbStep"); }}>{tr("+ Custom Step")}</Btn>}
             </div>
           </div>
           {onboarding.length > 0 && (() => {
@@ -10705,9 +10715,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
                       <input type="checkbox" checked={step.is_completed} onChange={() => toggleStep(step)} style={{ width: 18, height: 18, cursor: "pointer", accentColor: GO }} />
                       <div style={{ flex: 1 }}>
                         <div style={{ color: step.is_completed ? t.textMut : t.text, textDecoration: step.is_completed ? "line-through" : "none", fontSize: 13 }}>{step.step_name}</div>
-                        {step.is_completed && step.completed_date && <div style={{ fontSize: 11, color: t.textMut }}>Completed {fmtDate(step.completed_date)}{step.completed_by_name ? " by " + step.completed_by_name : ""}</div>}
+                        {step.is_completed && step.completed_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}{step.completed_by_name ? " " + tr("by {0}", step.completed_by_name) : ""}</div>}
                       </div>
-                      <button onClick={() => deleteStep(step.id)} style={{ background: "none", border: "none", color: t.textMut, cursor: "pointer", fontSize: 11 }}>Remove</button>
+                      <button onClick={() => deleteStep(step.id)} style={{ background: "none", border: "none", color: t.textMut, cursor: "pointer", fontSize: 11 }}>{tr("Remove")}</button>
                     </div>
                   ))}
                 </div>
@@ -10719,13 +10729,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
 
       {/* COMPLIANCE TAB */}
       {tab === "compliance" && <div>
-        {!compliance ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div> : <>
+        {!compliance ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
             {[
-              { label: "Expired Documents", val: compliance.expiredDocs.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
-              { label: "Expiring (30 days)", val: compliance.expiringDocs.length + compliance.expiringTraining.length, bg: t.orangeSubtle, bdr: t.orangeBorder, c: OR },
-              { label: "Expired Training", val: compliance.expiredTraining.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
-              { label: "Staff with Onboarding", val: compliance.onboardingProgress.length, bg: t.blueSubtle, bdr: t.blueBorder, c: BL },
+              { label: tr("Expired Documents"), val: compliance.expiredDocs.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
+              { label: tr("Expiring (30 days)"), val: compliance.expiringDocs.length + compliance.expiringTraining.length, bg: t.orangeSubtle, bdr: t.orangeBorder, c: OR },
+              { label: tr("Expired Training"), val: compliance.expiredTraining.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
+              { label: tr("Staff with Onboarding"), val: compliance.onboardingProgress.length, bg: t.blueSubtle, bdr: t.blueBorder, c: BL },
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, border: "1px solid " + s.bdr, borderRadius: 12, padding: "16px 20px" }}>
                 <div style={{ fontFamily: FONT_HEAD, fontSize: 28, fontWeight: 600, color: s.c }}>{s.val}</div>
@@ -10735,12 +10745,12 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           </div>
 
           {(compliance.expiredDocs.length > 0 || compliance.expiredTraining.length > 0) && <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: RD, marginBottom: 10 }}>Expired Items</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: RD, marginBottom: 10 }}>{tr("Expired Items")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.redBorder, overflow: "hidden" }}>
               {compliance.expiredDocs.map(d => (
                 <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
                   <span style={{ color: t.text }}>{d.user_name}</span>
-                  <span style={{ color: t.textSec }}>{HR_CATEGORY_LABEL(d.category || d.document_type)}</span>
+                  <span style={{ color: t.textSec }}>{tr(HR_CATEGORY_LABEL(d.category || d.document_type))}</span>
                   <span style={{ color: RD }}>{fmtDate(d.expiry_date)}</span>
                 </div>
               ))}
@@ -10755,12 +10765,12 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           </div>}
 
           {(compliance.expiringDocs.length > 0 || compliance.expiringTraining.length > 0) && <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: OR, marginBottom: 10 }}>Expiring Within 30 Days</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: OR, marginBottom: 10 }}>{tr("Expiring Within 30 Days")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.orangeBorder, overflow: "hidden" }}>
               {compliance.expiringDocs.map(d => (
                 <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
                   <span style={{ color: t.text }}>{d.user_name}</span>
-                  <span style={{ color: t.textSec }}>{HR_CATEGORY_LABEL(d.category || d.document_type)}</span>
+                  <span style={{ color: t.textSec }}>{tr(HR_CATEGORY_LABEL(d.category || d.document_type))}</span>
                   <span style={{ color: OR }}>{fmtDate(d.expiry_date)}</span>
                 </div>
               ))}
@@ -10775,7 +10785,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           </div>}
 
           {compliance.onboardingProgress.length > 0 && <div style={{ marginBottom: 24 }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Onboarding Progress</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Onboarding Progress")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
               {compliance.onboardingProgress.map(o => {
                 const pct = Math.round((o.completed_steps / o.total_steps) * 100);
@@ -10793,16 +10803,16 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
           </div>}
 
           <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>Staff Summary</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Staff Summary")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
-                  {["Employee", "Role", "Documents", "Forms", "Training", "Onboarding", "Aliases", "Expired Docs", "Expired Training"].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{h}</th>)}
+                  {[tr("Employee"), tr("Role"), tr("Documents"), tr("Forms"), tr("Training"), tr("Onboarding"), tr("Aliases"), tr("Expired Docs"), tr("Expired Training")].map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{h}</th>)}
                 </tr></thead>
                 <tbody>{compliance.staffSummary.map(s => (
                   <tr key={s.id} style={{ borderBottom: "1px solid " + t.border }}>
                     <td style={{ padding: "10px 12px", color: t.text }}>{s.user_name}</td>
-                    <td style={{ padding: "10px 12px", color: t.textSec }}>{s.role}</td>
+                    <td style={{ padding: "10px 12px", color: t.textSec }}>{roleWord(s.role)}</td>
                     <td style={{ padding: "10px 12px", color: t.textSec }}>{s.doc_count}</td>
                     <td style={{ padding: "10px 12px", color: t.textSec }}>{s.jotform_count || 0}</td>
                     <td style={{ padding: "10px 12px", color: t.textSec }}>{s.training_count}</td>
@@ -10831,44 +10841,44 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* OTHER TAB */}
       {tab === "other" && <div>
         {(() => { const otherDocs = docs.filter(d => d.category === "other"); const searched = otherDocs.filter(d => { if (!otQ.trim()) return true; const hay = ((d.user_name || "") + " " + (d.file_name || "") + " " + (d.notes || "")).toLowerCase(); return hay.includes(otQ.trim().toLowerCase()); }); const totalPages = Math.max(1, Math.ceil(searched.length / hrPerPage)); const cur = Math.min(otPage, totalPages); const items = searched.slice((cur - 1) * hrPerPage, cur * hrPerPage); const columns = [
-            { header: "Employee", render: d => <span style={{ color: t.text }}>{d.user_name}</span> },
-            { header: "File", render: d => d.file_name ? <button onClick={() => viewDoc(d.id)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button> : <span style={{ color: t.textMut }}>No file</span> },
-            { header: "Notes", tdStyle: { color: t.textSec, fontSize: 12, maxWidth: 280 }, render: d => d.notes || "" },
-            { header: "Expiry", render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
-            { header: "Uploaded By", tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
-            { header: "Date", tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
-            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>Edit</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>Delete</button></div> }
+            { header: tr("Employee"), render: d => <span style={{ color: t.text }}>{d.user_name}</span> },
+            { header: tr("File"), render: d => d.file_name ? <button onClick={() => viewDoc(d.id)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", padding: 0, fontSize: 13, textAlign: "left", fontFamily: "inherit" }}>{d.file_name}</button> : <span style={{ color: t.textMut }}>{tr("No file")}</span> },
+            { header: tr("Notes"), tdStyle: { color: t.textSec, fontSize: 12, maxWidth: 280 }, render: d => d.notes || "" },
+            { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
+            { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
+            { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
+            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
           ]; return (<>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: t.textSec }}>{otherDocs.length} item{otherDocs.length !== 1 ? "s" : ""}</div>
-          <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>+ Add Other</Btn>
+          <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}</div>
+          <Btn t={t} onClick={() => { setForm({ user_id: selUser, category: "other" }); setFile(null); setShowModal("doc"); }}>{tr("+ Add Other")}</Btn>
         </div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder="Search employee, file, notes" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+          <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={otQ} onChange={e => { setOtQ(e.target.value); setOtPage(1); }} placeholder={tr("Search employee, file, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setOtPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
         </div>
-        <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? "No items filed under Other. Use Add Other to upload." : "No items match this search."} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
+        <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={otherDocs.length === 0 ? tr("No items filed under Other. Use Add Other to upload.") : tr("No items match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setOtPage} />} />
         </>); })()}
       </div>}
 
       {/* DOCUMENT MODAL */}
       {showModal === "doc" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); setFile(null); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? "Edit Document" : "Add Document"}</div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Employee</div>
-            <Sel options={[{ v: "", l: "Select employee..." }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Category</div>
-            <Sel options={[{ v: "", l: "Select category..." }, ...HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: c.l }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
-          {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Upload File</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Document") : tr("Add Document")}</div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
+            <Sel options={[{ v: "", l: tr("Select employee...") }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
+            <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
+          {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
             <input type="file" onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} /></div>)}
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Expiry Date (optional)</div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
             <Inp t={t} type="date" value={form.expiry_date || ""} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></div>
           <JotformPickerField af={af} form={form} setForm={setForm} t={t} />
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Notes (optional)</div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Notes (optional)")}</div>
             <textarea value={form.notes || ""} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, resize: "vertical" }} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn t={t} v="ghost" onClick={() => { setShowModal(null); setForm({}); setFile(null); }}>Cancel</Btn>
-            <Btn t={t} onClick={submitDoc}>{form.id ? "Save" : "Add"}</Btn>
+            <Btn t={t} v="ghost" onClick={() => { setShowModal(null); setForm({}); setFile(null); }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={submitDoc}>{form.id ? tr("Save") : tr("Add")}</Btn>
           </div>
         </div></div>
       </Mdl>}
@@ -10876,30 +10886,30 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* TRAINING MODAL */}
       {showModal === "training" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? "Edit Training Record" : "Add Training Record"}</div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Employee</div>
-            <Sel options={[{ v: "", l: "Select employee..." }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Training Name</div>
-            <Inp t={t} placeholder="e.g. General Cleaning Training" value={form.training_name || ""} onChange={e => setForm({ ...form, training_name: e.target.value })} /></div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Training Type</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Training Record") : tr("Add Training Record")}</div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
+            <Sel options={[{ v: "", l: tr("Select employee...") }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Name")}</div>
+            <Inp t={t} placeholder={tr("e.g. General Cleaning Training")} value={form.training_name || ""} onChange={e => setForm({ ...form, training_name: e.target.value })} /></div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Type")}</div>
             <Sel options={trainingTypeOpts} value={form.training_type || ""} onChange={e => setForm({ ...form, training_type: e.target.value })} t={t} /></div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Completed Date</div>
+            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Completed Date")}</div>
               <Inp t={t} type="date" value={form.completed_date || ""} onChange={e => setForm({ ...form, completed_date: e.target.value })} /></div>
-            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Expiry Date</div>
+            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date")}</div>
               <Inp t={t} type="date" value={form.expiry_date || ""} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></div>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Score</div>
-              <Inp t={t} placeholder="e.g. 95% or Pass" value={form.score || ""} onChange={e => setForm({ ...form, score: e.target.value })} /></div>
-            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Administered By</div>
-              <Inp t={t} placeholder="e.g. Sameerah" value={form.administered_by || ""} onChange={e => setForm({ ...form, administered_by: e.target.value })} /></div>
+            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Score")}</div>
+              <Inp t={t} placeholder={tr("e.g. 95% or Pass")} value={form.score || ""} onChange={e => setForm({ ...form, score: e.target.value })} /></div>
+            <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Administered By")}</div>
+              <Inp t={t} placeholder={tr("e.g. {0}", "Sameerah")} value={form.administered_by || ""} onChange={e => setForm({ ...form, administered_by: e.target.value })} /></div>
           </div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Notes (optional)</div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Notes (optional)")}</div>
             <textarea value={form.notes || ""} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, resize: "vertical" }} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn t={t} v="ghost" onClick={() => { setShowModal(null); setForm({}); }}>Cancel</Btn>
-            <Btn t={t} onClick={submitTraining}>{form.id ? "Save" : "Add"}</Btn>
+            <Btn t={t} v="ghost" onClick={() => { setShowModal(null); setForm({}); }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={submitTraining}>{form.id ? tr("Save") : tr("Add")}</Btn>
           </div>
         </div></div>
       </Mdl>}
@@ -10907,14 +10917,14 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Custom Onboarding Step</div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Step Name</div>
-            <Inp t={t} placeholder="e.g. Complete bloodborne pathogens training" value={form.step_name || ""} onChange={e => setForm({ ...form, step_name: e.target.value })} /></div>
-          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>Category</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Custom Onboarding Step")}</div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Step Name")}</div>
+            <Inp t={t} placeholder={tr("e.g. Complete bloodborne pathogens training")} value={form.step_name || ""} onChange={e => setForm({ ...form, step_name: e.target.value })} /></div>
+          <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
             <Sel options={onbCatOpts} value={form.step_category || ""} onChange={e => setForm({ ...form, step_category: e.target.value })} t={t} /></div>
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-            <Btn t={t} v="ghost" onClick={() => { setShowModal(null); setForm({}); }}>Cancel</Btn>
-            <Btn t={t} onClick={addCustomStep}>Add Step</Btn>
+            <Btn t={t} v="ghost" onClick={() => { setShowModal(null); setForm({}); }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={addCustomStep}>{tr("Add Step")}</Btn>
           </div>
         </div></div>
       </Mdl>}

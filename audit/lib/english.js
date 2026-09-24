@@ -146,12 +146,15 @@ function englishLeftOn(texts, calls) {
     seen.add(line);
     if (runs.has(line)) return;
     // A shape matches only when what landed in its gaps is accounted for as well. "{0}h", the
-    // bell's short age, would otherwise swallow any word ending in h.
-    const fits = shapes.some((re) => {
-      const m = re.exec(line);
+    // bell's short age, would otherwise swallow any word ending in h. A run can open with the mark
+    // a screen puts between two things, as a folder's " . " before the hire date does, so the shape
+    // is tried on the run with that mark taken off too.
+    const bare = line.replace(/^[\s.,;:|/-]+/, "");
+    const fits = shapes.some((re) => [line, bare].some((text) => {
+      const m = re.exec(text);
       if (!m) return false;
       return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
-    });
+    }));
     if (fits) return;
     const left = residue(line, sorted);
     if (left && /[A-Za-z]{2}/.test(left)) bad.push({ line: line.slice(0, 80), left: left.slice(0, 60) });

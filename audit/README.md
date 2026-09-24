@@ -82,6 +82,12 @@ site for an admin and for a supervisor and reads Service Details, which has to d
 every checklist read any suite makes has to send `day=all&shift=`. The `forms-menu` suite holds the
 sidebar's Forms to the test the Forms page opens by.
 
+**A role on HR Records is a word.** The stub answers the Employees grid and a person's folder in the
+shapes the page has read since Session 22, so the grid draws a card for each person. The `hr-roles`
+suite reads every card, the first person's folder and the Staff Summary on Compliance, in English and
+in Spanish, and holds each role to the word the table has for it. The role labels are read out of
+`src/App.js`, so the check follows the app, and the role's own code is never an answer.
+
 ## How to run less of it
 
 ```
@@ -93,7 +99,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu` and `house-style`.
+`forms-menu`, `hr-roles` and `house-style`.
 
 ## Known failures
 

@@ -233,7 +233,7 @@ function createStubs() {
     id: "hd-" + (i + 1),
     user_id: seed.STAFF[i % seed.STAFF.length].id,
     user_name: seed.STAFF[i % seed.STAFF.length].name,
-    category: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
+    category: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "legal",
     document_type: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
     title: ["Handbook acknowledgement", "Safety briefing", "Equipment sign-out", "Language preference note"][i % 4],
     file_name: "doc-" + (i + 1) + ".pdf",
@@ -265,6 +265,43 @@ function createStubs() {
     { id: "ob-5", step_category: "equipment", step_name: "Keys and badge issued", is_completed: false, completed_date: null, completed_by_name: null },
   ];
   // hand: 5 steps in 3 categories, 3 complete, so the line reads "3 of 5 steps complete".
+
+  // A card on the Employees grid, shaped to what the grid reads since Session 22. The last activity
+  // runs today, yesterday, days, a week, a month and a year back down the list, so each way a card
+  // says it is drawn, and the counts come from the records the other tabs list.
+  const ACTIVITY_DAYS = [0, 1, 3, 10, 45, 400];
+  const hrCard = (p, i) => {
+    const mine = (list) => list.filter((x) => x.user_id === p.id).length;
+    return {
+      id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email, role: p.role, status: p.status,
+      employee_id: p.employee_id, hire_date: p.hire_date, profile_photo_url: null, is_test_account: false,
+      doc_count: mine(HR_DOCUMENTS), training_count: mine(HR_TRAINING), jotform_count: mine(JOTFORM_SUBMISSIONS),
+      onboarding_total: i % 3 === 0 ? 0 : 5, onboarding_completed: i % 3 === 1 ? 3 : 5,
+      expired_doc_count: mine(HR_COMPLIANCE.expiredDocs), expiring_doc_count: mine(HR_COMPLIANCE.expiringDocs),
+      expired_training_count: mine(HR_COMPLIANCE.expiredTraining), expiring_training_count: mine(HR_COMPLIANCE.expiringTraining),
+      last_activity_date: i < ACTIVITY_DAYS.length ? seed.shift(-ACTIVITY_DAYS[i]) + "T22:00:00Z" : null,
+    };
+  };
+  // A person's folder: the person, and every record they have as one list, with the count in each
+  // category. The onboarding steps carry the status the folder draws beside them.
+  const hrFolder = (p) => {
+    const items = [].concat(
+      HR_DOCUMENTS.filter((x) => x.user_id === p.id).map((x) => ({ source: "document", source_id: x.id, title: x.title, category: x.category,
+        raw_category_label: null, date: x.created_at, expiry_date: x.expiry_date })),
+      HR_TRAINING.filter((x) => x.user_id === p.id).map((x) => ({ source: "training", source_id: x.id, title: x.training_name, category: "training",
+        raw_category_label: x.training_type, date: x.completed_date + "T12:00:00Z", expiry_date: x.expiry_date, administered_by: x.administered_by })),
+      HR_ONBOARDING.map((x) => ({ source: "onboarding", source_id: x.id, title: x.step_name, category: "hr_onboarding", raw_category_label: x.step_category,
+        date: x.completed_date ? x.completed_date + "T12:00:00Z" : null, status: x.is_completed ? "completed" : "pending" })),
+      JOTFORM_SUBMISSIONS.filter((x) => x.user_id === p.id).map((x) => ({ source: "jotform", source_id: x.id, title: x.form_title, category: "hr_ongoing",
+        category_override: null, raw_category_label: null, date: x.submitted_at, submitter_name: x.submitter_name })));
+    const counts = {};
+    items.forEach((x) => { counts[x.category] = (counts[x.category] || 0) + 1; });
+    return {
+      employee: { id: p.id, first_name: p.first_name, last_name: p.last_name, role: p.role, status: p.status, email: p.email, phone: p.phone,
+        employee_id: p.employee_id, hire_date: p.hire_date, profile_photo_url: null, is_test_account: false },
+      items: items, counts_by_category: counts, total_items: items.length,
+    };
+  };
 
   // The compliance roll-up, shaped to what the Compliance tab reads: five lists, each counted.
   const HR_COMPLIANCE = {
@@ -1150,17 +1187,13 @@ function createStubs() {
       return ok(uid ? HR_TRAINING.filter((d) => d.user_id === uid) : HR_TRAINING);
     }
     if (path === "/api/hr/employees-summary") {
-      return ok(state.staff.map((s) => ({
-        user_id: s.id, name: s.name, role: s.role, status: s.status,
-        document_count: 3, training_count: 2, onboarding_pct: 80,
-        earliest_expiry: s.status === "active" ? seed.shift(25) : null,
-      })));
+      const want = q("status") || "active";
+      return ok({ employees: state.staff.filter((s) => want === "all" || s.status === want).map(hrCard) });
     }
     if (path === "/api/hr/compliance") return ok(HR_COMPLIANCE);
     if (path.startsWith("/api/hr/employee-folder/")) {
       const uid = idAfter("/api/hr/employee-folder/");
-      const u = state.staff.find((s) => s.id === uid) || state.staff[0];
-      return ok({ user: u, documents: HR_DOCUMENTS.slice(0, 3), training: HR_TRAINING.slice(0, 2), onboarding: HR_ONBOARDING, submissions: JOTFORM_SUBMISSIONS.slice(0, 1) });
+      return ok(hrFolder(state.staff.find((s) => s.id === uid) || state.staff[0]));
     }
     if (path.startsWith("/api/hr/onboarding")) {
       if (method !== "GET") return ok({ message: "Onboarding updated" });
