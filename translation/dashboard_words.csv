@@ -97,6 +97,9 @@ Cancel,Cancelar,"Schedule, a pattern; Schedule; Shift Pickup; Issue Tracker, giv
 Cancel Inspection,Cancelar la inspección,Schedule
 Cancel ending this pattern,Cancelar el fin de este patrón,"Schedule, a pattern"
 Cancel this date,Cancelar esta fecha,Schedule
+Cancel this inspection?,¿Cancelar esta inspección?,"Schedule, an inspection's window"
+Cancel this open shift? It will no longer be available for pickup.,¿Cancelar este turno abierto? Ya nadie podrá tomarlo.,"Shift Pickup, canceling an open shift"
+Cancel this shift? The pattern will not add it again.,¿Cancelar este turno? El patrón no lo volverá a agregar.,"Schedule, canceling a date of a pattern's shift"
 Cancelled,Cancelado,"Schedule; Schedule, Time off"
 Cancelled by the person who asked,Cancelada por quien la solicitó,"Schedule, a time off request"
 Cases,Casos,The shell
@@ -174,6 +177,7 @@ Deciding this request leaves these shifts as they are. Change or cover them on t
 Delete,Eliminar,"Schedule; Sites, a site's profile; HR Records"
 Delete Permanently,Eliminar de forma permanente,"Sites, deleting a site"
 Delete this document?,¿Eliminar este documento?,"HR Records, Documents"
+Delete this scheduled shift? This cannot be undone.,¿Eliminar este turno programado? Esta acción no se puede deshacer.,"Schedule, deleting a shift"
 Delete this step?,¿Eliminar este paso?,"HR Records, Onboarding"
 Delete this training record?,¿Eliminar este registro de capacitación?,"HR Records, Training"
 Denied,Denegada,"Schedule, Time off"
@@ -511,6 +515,7 @@ Records,Registros,"HR Records, Employees, a card"
 Refresh,Actualizar,Dashboard; Shift Pickup; Live Operations
 Related Items ({0}),Elementos relacionados ({0}),"Sites, the record window"
 Release,Liberar,Schedule; Shift Pickup
+Release this shift back to the open pool?,¿Liberar este turno y devolverlo a los turnos abiertos?,"Shift Pickup, releasing a claimed shift"
 Released,Liberado,Shift Pickup
 Reliability,Cumplimiento,Shift Pickup
 Remove,Quitar,"Sites; HR Records, Onboarding"
@@ -957,6 +962,7 @@ site name,nombre del sitio,"Sites, the record window, a field"
 status,estado,"Sites, the record window, a field"
 submitted,enviado,"HR Records, a folder, a record's status, which agrees with registro"
 title,título,"Sites, the record window, a field"
+to,a,"Schedule, Shift Pickup and Inspections, a custom date range, between its two dates"
 updated at,fecha de actualización,"Sites, the record window, a field"
 zone,zona,"Sites, the record window, a field"
 {0} hour,{0} hora,"Schedule, Time off, the hours a request covers, when the count is one"

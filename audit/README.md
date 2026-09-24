@@ -86,7 +86,18 @@ sidebar's Forms to the test the Forms page opens by.
 shapes the page has read since Session 22, so the grid draws a card for each person. The `hr-roles`
 suite reads every card, the first person's folder and the Staff Summary on Compliance, in English and
 in Spanish, and holds each role to the word the table has for it. The role labels are read out of
-`src/App.js`, so the check follows the app, and the role's own code is never an answer.
+`src/App.js`, so the check follows the app, and the role's own code is never an answer. The stub
+carries the `training_types` and `onboarding_categories` lookups with Spanish, and the same suite
+holds the Training table's Type column and the Onboarding checklist's headings to the word each
+lookup the page was served gives the code.
+
+**A question is in the language of the screen.** The `questions` suite presses each button on
+Schedule and Shift Pickup that asks before it changes something, reads the browser's question box
+and answers No, and holds the question to the table's words in English and in Spanish. It reads the
+word a custom date range puts between its two dates the same way. The `zone-chips` suite reads the
+zone chips on the first site's General Info: a zone a task at the site carries draws the task's
+display, one no task carries draws the zones lookup's shown label, and one neither carries is drawn
+as it was typed. It takes the words from what the stub answered the page, in the language asked for.
 
 ## How to run less of it
 
@@ -99,7 +110,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu`, `hr-roles` and `house-style`.
+`forms-menu`, `hr-roles`, `questions`, `zone-chips` and `house-style`.
 
 ## How much is left in English
 

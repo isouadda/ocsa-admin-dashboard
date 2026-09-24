@@ -49,8 +49,14 @@ const SUITES = [
   // The checklist editor on Sites asks for every item, and Forms is in the menu for whoever it opens for.
   { name: "checklist", mod: "./cases/checklist", widths: ["wide"] },
   { name: "forms-menu", mod: "./cases/forms-menu", widths: ["wide"] },
-  // The role on HR Records is a word, in both languages.
+  // The role, the training type and the onboarding category on HR Records are words, in both languages.
   { name: "hr-roles", mod: "./cases/hr-roles", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The questions Schedule and Shift Pickup ask before they change something, and a site's zone
+  // chips, in both languages.
+  { name: "questions", mod: "./cases/questions", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  { name: "zone-chips", mod: "./cases/zone-chips", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];

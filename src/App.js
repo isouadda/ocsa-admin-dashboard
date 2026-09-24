@@ -327,7 +327,7 @@ function DateRangePicker({ value, onChange, t, presets }) {
       {showCustom && (
         <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
           <input type="date" value={value.start} onChange={e => { onChange({ ...value, start: e.target.value }); setActivePreset(null); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: FONT_BODY }} />
-          <span style={{ fontSize: 11, color: t.textMut }}>to</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{tr("to|between two dates")}</span>
           <input type="date" value={value.end} onChange={e => { onChange({ ...value, end: e.target.value }); setActivePreset(null); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: FONT_BODY }} />
         </div>
       )}
@@ -1873,9 +1873,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   if (selectedSite && siteProfile) {
     const sp = siteProfile;
     const s = sp.site;
-    // A zone as the screen says it where it only shows one: the display the API sent with a task in
-    // that zone. Service Details and the task windows edit the tasks and keep the English.
-    const zoneWord = {}; st.forEach(tk => { if (tk.zone) zoneWord[tk.zone] = shownItem(tk).zone; });
+    // A zone as the screen says it where it only shows one: the display a task at the site carries
+    // for it, then the zones lookup's shown label, then the zone as it was typed. Service Details and
+    // the task windows edit the tasks and keep the English.
+    const zoneWord = {}; st.forEach(tk => { if (tk.zone && tk.display && tk.display.zone) zoneWord[tk.zone] = tk.display.zone; });
+    const zoneShown = lkMap("zones", true);
     // The word a person types to delete the site, in the language they read.
     const deleteWord = tr("DELETE");
     const tabs = [
@@ -1964,7 +1966,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
         {sp.zones.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Zones")}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{sp.zones.map(z => <span key={z} style={{ padding: "4px 10px", borderRadius: 6, background: t.cardAlt, border: "1px solid " + t.border, fontSize: 11, color: t.textSec }}>{zoneWord[z] || z}</span>)}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{sp.zones.map(z => <span key={z} style={{ padding: "4px 10px", borderRadius: 6, background: t.cardAlt, border: "1px solid " + t.border, fontSize: 11, color: t.textSec }}>{zoneWord[z] || zoneShown[z] || z}</span>)}</div>
         </Crd>}
 
         <Crd t={t} style={{ marginBottom: 16 }}>
@@ -5182,7 +5184,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   };
   // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
   const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
-  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? "Cancel this shift? The pattern will not add it again." : "Delete this scheduled shift? This cannot be undone.")) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? tr("Shift cancelled") : tr("Shift removed")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? tr("Cancel this shift? The pattern will not add it again.") : tr("Delete this scheduled shift? This cannot be undone."))) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? tr("Shift cancelled") : tr("Shift removed")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
@@ -5204,7 +5206,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     } catch (e) { showToast(e.message, "error"); }
   };
   const cancelInspFromSchedule = async (id) => {
-    if (!window.confirm("Cancel this inspection?")) return;
+    if (!window.confirm(tr("Cancel this inspection?"))) return;
     try {
       await af("/api/inspections/scheduled/" + id, { method: "PATCH", body: { status: "cancelled" } });
       showToast(tr("Inspection cancelled")); setInspModal(null); loadCalendar();
@@ -5658,13 +5660,13 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   };
 
   const releaseShift = async (id) => {
-    if (!window.confirm("Release this shift back to the open pool?")) return;
+    if (!window.confirm(tr("Release this shift back to the open pool?"))) return;
     try { await af("/api/pickups/" + id + "/release", { method: "POST" }); showToast(tr("Shift released")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
   const cancelShift = async (id) => {
-    if (!window.confirm("Cancel this open shift? It will no longer be available for pickup.")) return;
+    if (!window.confirm(tr("Cancel this open shift? It will no longer be available for pickup."))) return;
     try { await af("/api/pickups/" + id, { method: "PATCH", body: { status: "cancelled" } }); showToast(tr("Shift cancelled")); load(); }
     catch (e) { showToast(e.message, "error"); }
   };

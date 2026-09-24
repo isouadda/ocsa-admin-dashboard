@@ -104,6 +104,18 @@ function createStubs() {
       { id: "lv-23", value: "subcontractor", label: "Subcontractor", is_active: true, sort_order: 1 },
       { id: "lv-24", value: "direct", label: "Direct", is_active: true, sort_order: 2 },
     ] },
+    // What HR Records draws a training record's type and an onboarding step's category as: the
+    // choice's word in the language the call asked for. The codes are the ones the training records
+    // and the onboarding steps below hold.
+    { id: "lk-10", slug: "training_types", name: "Training types", values: [
+      { id: "lv-25", value: "safety", label: "Safety", is_active: true, sort_order: 1 },
+      { id: "lv-26", value: "equipment", label: "Equipment", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-11", slug: "onboarding_categories", name: "Onboarding categories", values: [
+      { id: "lv-27", value: "paperwork", label: "Paperwork", is_active: true, sort_order: 1 },
+      { id: "lv-28", value: "training", label: "Training", is_active: true, sort_order: 2 },
+      { id: "lv-29", value: "equipment", label: "Equipment", is_active: true, sort_order: 3 },
+    ] },
   ];
 
   const SUPPLIES = [
@@ -646,6 +658,7 @@ function createStubs() {
     "Standard": "Est\u00e1ndar", "Urgent": "Urgente", "Training": "Capacitaci\u00f3n", "Compliance": "Cumplimiento", "Other": "Otro",
     "Atrium": "Atrio", "Loading Bay": "Zona de carga", "North Wing": "Ala norte", "Floor 3": "Piso 3",
     "Subcontractor": "Subcontratista", "Direct": "Directo",
+    "Safety": "Seguridad", "Equipment": "Equipo", "Paperwork": "Documentaci\u00f3n",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
