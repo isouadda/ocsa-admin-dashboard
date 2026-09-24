@@ -46,6 +46,12 @@ const SUITES = [
   // Help's answer as it is written, read part way through, in both languages.
   { name: "help-stream", mod: "./cases/help-stream", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The checklist editor on Sites asks for every item, and Forms is in the menu for whoever it opens for.
+  { name: "checklist", mod: "./cases/checklist", widths: ["wide"] },
+  { name: "forms-menu", mod: "./cases/forms-menu", widths: ["wide"] },
+  // The role on HR Records is a word, in both languages.
+  { name: "hr-roles", mod: "./cases/hr-roles", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
@@ -118,6 +124,8 @@ async function main() {
     }
     // Every call any suite made, in either language, said the language its screen is drawn in.
     require("./cases/language").runLate(ctx);
+    // Every read of a site's checklist any suite made asked for every item of every shift.
+    require("./cases/checklist").runLate(ctx);
   } finally {
     await browser.close();
     await srv.close();

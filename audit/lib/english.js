@@ -54,6 +54,16 @@ function localeDateWords(tag) {
       out.add(new Date(2026, 0, d).toLocaleDateString(tag, { weekday: width }));
     }
   });
+  // The words the formatter joins a date with, "de" in "17 de mar de 2026". The language writes them
+  // and no word table holds them either.
+  [{ weekday: "short", month: "short", day: "numeric", year: "numeric" }, { month: "long", day: "numeric", year: "numeric" },
+    { weekday: "long", month: "long", day: "numeric" }, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }]
+    .forEach((o) => {
+      new Intl.DateTimeFormat(tag, o).formatToParts(new Date(2026, 2, 17, 21, 30)).forEach((part) => {
+        if (part.type !== "literal") return;
+        part.value.split(/[\s.,:;/-]+/).forEach((w) => { if (/[A-Za-z]/.test(w)) out.add(w); });
+      });
+    });
   const morning = new Date(2026, 0, 5, 9, 30).toLocaleTimeString(tag, { hour: "numeric", minute: "2-digit" });
   const evening = new Date(2026, 0, 5, 21, 30).toLocaleTimeString(tag, { hour: "numeric", minute: "2-digit" });
   [morning, evening].forEach((t) => {
@@ -74,6 +84,17 @@ function patternRe(value) {
   return new RegExp("^" + parts.join("([\\s\\S]*?)") + "$");
 }
 
+// A piece shorter than three letters is taken out only where it stands as a word of its own. Out of
+// the middle of a word it takes part of an English word with it and hides the rest: the language
+// codes the seed serves, "es" and "en", left "Sites" as "Sit" and "Yes" as one letter, and the "am"
+// of a Spanish time left "Name" as two.
+const SHORT = 3;
+const wordRes = new Map();
+function wordRe(word) {
+  if (!wordRes.has(word)) wordRes.set(word, new RegExp("(?<!\\p{L})" + escapeRe(word) + "(?!\\p{L})", "gu"));
+  return wordRes.get(word);
+}
+
 // What is left of a line once everything allowed is taken out of it.
 function residue(line, allowedSorted) {
   let left = " " + String(line) + " ";
@@ -81,7 +102,7 @@ function residue(line, allowedSorted) {
     const word = allowedSorted[i];
     if (!word || word.length < 2) continue;
     if (left.indexOf(word) < 0) continue;
-    left = left.split(word).join(" ");
+    left = word.length < SHORT ? left.replace(wordRe(word), " ") : left.split(word).join(" ");
     if (!/[A-Za-z]/.test(left)) return "";
   }
   left = left.replace(NUMBERS, " ").replace(PUNCT, " ").trim();
@@ -125,12 +146,15 @@ function englishLeftOn(texts, calls) {
     seen.add(line);
     if (runs.has(line)) return;
     // A shape matches only when what landed in its gaps is accounted for as well. "{0}h", the
-    // bell's short age, would otherwise swallow any word ending in h.
-    const fits = shapes.some((re) => {
-      const m = re.exec(line);
+    // bell's short age, would otherwise swallow any word ending in h. A run can open with the mark
+    // a screen puts between two things, as a folder's " . " before the hire date does, so the shape
+    // is tried on the run with that mark taken off too.
+    const bare = line.replace(/^[\s.,;:|/-]+/, "");
+    const fits = shapes.some((re) => [line, bare].some((text) => {
+      const m = re.exec(text);
       if (!m) return false;
       return m.slice(1).every((gap) => !/[A-Za-z]{2}/.test(residue(gap, sorted)));
-    });
+    }));
     if (fits) return;
     const left = residue(line, sorted);
     if (left && /[A-Za-z]{2}/.test(left)) bad.push({ line: line.slice(0, 80), left: left.slice(0, 60) });

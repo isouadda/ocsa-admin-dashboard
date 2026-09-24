@@ -183,12 +183,13 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     // sidebar collapsed to one icon per group, so it is expanded first and the labels read there.
     await d.expandSidebar();
     const nav = (await d.visibleNavItems()).join(" | ");
-    // The manage permissions capability opens Settings, so the person holding it is expected to
-    // have that one item and none of the other three.
+    // The manage permissions capability opens Settings, and a person the forms API lets list filed
+    // reports opens Forms, so each is expected to have the item they open and none of the others.
     const opensSettings = seed.PEOPLE[persona].singleCapability === "manage_permissions";
+    const opensForms = seed.PEOPLE[persona].readsFiledForms === true;
     // The nav is read in whichever language the pass is in, since a label is a word like any other.
     const adminNav = ADMIN_ONLY_NAV.map((l) => d.say(l));
-    const allowed = isAdmin ? adminNav : opensSettings ? [d.say("Settings")] : [];
+    const allowed = isAdmin ? adminNav : [].concat(opensSettings ? [d.say("Settings")] : [], opensForms ? [d.say("Forms")] : []);
     // The nav labels are read with the panel open. The app collapses it below 1100 on its own, so it
     // is put back before anything is measured, or the page is measured in a state nobody is in.
     if (width === "narrow") await d.collapseSidebar();
@@ -270,15 +271,21 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
             await d.settle(150);
             let opened = true;
             let missed = "";
-            for (const step of [].concat(v.word || v.click || [])) {
+            // A view inside a row, a site's profile for one, opens the row first, the way the
+            // views suite reaches it.
+            if (v.openRow != null && !(await d.clickRow(v.openRow))) { opened = false; missed = "row " + v.openRow; }
+            for (const step of (opened ? [].concat(v.word || v.click || []) : [])) {
               const word = d.say(step);
               // The control whose whole name is the word, with any count beside it taken off. The
               // Spanish for Open is inside the Spanish for Post Open Shift, so a control that
-              // merely contains the word is the wrong one.
+              // merely contains the word is the wrong one. It is looked for in the page's own area
+              // first, since a tab on Sites carries the same word as a page in the sidebar.
               let clicked = await d.page.evaluate((w) => {
                 const strip = (s) => String(s).replace(/\s+/g, " ").trim().replace(/\s*\(?\d+\)?$/, "").trim();
-                const hit = Array.from(document.querySelectorAll("button, [role='tab'], a"))
+                const find = (root) => Array.from(root.querySelectorAll("button, [role='tab'], a"))
                   .filter((b) => b.offsetParent !== null).find((b) => strip(b.innerText) === w);
+                const area = document.querySelector("div[style*='padding: 16px 24px 30px']");
+                const hit = (area && find(area)) || find(document);
                 if (!hit) return false;
                 hit.click();
                 return true;

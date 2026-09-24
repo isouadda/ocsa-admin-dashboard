@@ -21,22 +21,37 @@ const LABEL_HOLDER = /labels?$/i;
 const RENDER_KEYS = new Set(["render", "cell", "format"]);
 // Calls whose first argument is a line a person reads.
 const SAY_CALLS = new Set(["showToast", "alert", "confirm", "setError", "setActionError", "setNoteError"]);
-// A word that is the same in every language, or is not a word at all.
-const NOT_A_WORD = (s) => {
+// The same call written window.confirm(...), which is how the app asks nearly every question it asks.
+const says = (callee) => !!callee && (SAY_CALLS.has(callee.name)
+  || (callee.type === "MemberExpression" && callee.object && callee.object.name === "window"
+    && callee.property && SAY_CALLS.has(callee.property.name)));
+// What is never a word, wherever it is written.
+const NEVER_A_WORD = (s) => {
   const v = String(s).trim();
   if (!v) return true;
   if (!/[A-Za-z]/.test(v)) return true;               // numbers, punctuation, a dash
-  if (/^[a-z0-9_.\-/#?=&:{}]+$/.test(v) && !/\s/.test(v)) return true; // a code, a path, a key
   if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return true;      // a color
   if (/^\d+(px|%|vh|vw|em|rem|s|ms)$/.test(v)) return true;
-  if (/^[MmLlHhVvCcSsQqTtAaZz0-9\s.,\-]+$/.test(v)) return true;  // the d of an icon's path
+  // The d of an icon's path, which always carries numbers. Without them it is a word spelled with
+  // path letters only, "Chat", "All" or "Last", and a person reads it.
+  if (/^[MmLlHhVvCcSsQqTtAaZz0-9\s.,\-]+$/.test(v) && /\d/.test(v)) return true;
   if (/^[a-z]{2}-[A-Z]{2}$/.test(v)) return true;                 // a locale tag
-  if (/^[A-Z][a-z]+\/[A-Z]/.test(v)) return true;                 // a time zone
+  // A time zone, named by the area it sits in. "Photo/Video" has the same shape and is a word.
+  if (/^(Africa|America|Antarctica|Arctic|Asia|Atlantic|Australia|Europe|Indian|Pacific|Etc)\/[A-Z]/.test(v)) return true;
   if (/^rgba?\($/.test(v)) return true;                           // half of a color
   if (/^T\d{2}:\d{2}(:\d{2})?$/.test(v)) return true;             // the tail of an ISO moment
   if (/^[a-z]+[A-Z][A-Za-z]*$/.test(v)) return true;              // a key written in camel case
+  // A style's value, translateY(-3px) or scale(1.02): numbers inside, so "form(s)" is still a word.
+  if (/^[a-z][a-zA-Z]*\(-?[\d.]+(px|%|deg|em|rem|s|ms)?(,\s*-?[\d.]+(px|%|deg|em|rem|s|ms)?)*\)$/.test(v)) return true;
   return false;
 };
+// A code, a path or a key: lowercase, with no space.
+const CODE_SHAPED = (s) => /^[a-z0-9_.\-/#?=&:{}]+$/.test(String(s).trim()) && !/\s/.test(String(s).trim());
+// A word that is the same in every language, or is not a word at all.
+const NOT_A_WORD = (s) => NEVER_A_WORD(s) || CODE_SHAPED(s);
+// Between tags, or in an attribute a person reads, a lone lowercase word is drawn, the way "note:"
+// is and a badge's "assigned" is. It is a code there only when it has the marks of one.
+const NOT_A_DRAWN_WORD = (s) => NEVER_A_WORD(s) || (CODE_SHAPED(s) && /[_/#?=&{}\d]/.test(String(s)));
 
 function walk(node, visit, parents) {
   if (!node || typeof node !== "object") return;
@@ -153,7 +168,8 @@ function findStrings() {
   const shapes = translatedShapes(ast);
   const found = [];
   const add = (text, line, parents, how, node) => {
-    if (NOT_A_WORD(text)) return;
+    const drawn = how === "text" || how.indexOf("attribute ") === 0;
+    if (drawn ? NOT_A_DRAWN_WORD(text) : NOT_A_WORD(text)) return;
     const done = inTr(parents) || (node ? handedToTr(node, parents, shapes) : false);
     found.push({ text: String(text), line: line, owner: owner(line), how: how, translated: done });
   };
@@ -170,7 +186,7 @@ function findStrings() {
       if (inStyle(parents)) return;
       const inJsx = parents.some((x) => x.type === "JSXExpressionContainer");
       const p = parents[parents.length - 1];
-      const said = p && p.type === "CallExpression" && p.callee && SAY_CALLS.has(p.callee.name);
+      const said = p && p.type === "CallExpression" && says(p.callee);
       const attr = p && p.type === "JSXAttribute" && p.name && READ_ATTRS.has(String(p.name.name));
       if (!inJsx && !said && !attr) return;
       let pattern = "";
@@ -226,11 +242,11 @@ function findStrings() {
         return;
       }
       // The line a toast or a box says.
-      if (p && p.type === "CallExpression" && p.callee && SAY_CALLS.has(p.callee.name) && p.arguments[0] === node) {
+      if (p && p.type === "CallExpression" && says(p.callee) && p.arguments[0] === node) {
         add(node.value, node.loc.start.line, parents, "said", node);
         return;
       }
-      if (gp && gp.type === "CallExpression" && gp.callee && SAY_CALLS.has(gp.callee.name)) {
+      if (gp && gp.type === "CallExpression" && says(gp.callee)) {
         add(node.value, node.loc.start.line, parents, "said", node);
       }
       return;

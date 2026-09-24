@@ -80,11 +80,11 @@ async function run({ d, results, inventory, stubs }) {
   let itemWhy = "the task editor did not open";
   await d.goto("sites");
   await d.clickRow(0);
-  await d.clickText("Service Details", { exact: false });
+  await d.clickText(d.say("Service Details"), { exact: false });
   if (await d.clickText(ITEM.english, { exact: false }).catch(() => false)) {
     const values = await d.modal().locator("input, textarea").evaluateAll((els) => els.map((e) => e.value));
     const mark = d.mark();
-    await d.clickText("Save Changes", { inModal: true });
+    await d.clickText(d.say("Save Changes"), { inModal: true });
     const sent = d.callsSince(mark).filter((c) => c.method === "PATCH" && c.path.indexOf("/tasks/" + ITEM.id) >= 0).pop();
     const showsEnglish = values.indexOf(ITEM.english) >= 0 && values.indexOf(ITEM.zone) >= 0
       && values.indexOf(ITEM.spanish) < 0 && values.indexOf(ITEM.zoneSpanish) < 0;

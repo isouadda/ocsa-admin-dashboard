@@ -17,6 +17,8 @@ function createStubs() {
   // Every call the run makes, counted, and the ones that did not ask for the language their screen is
   // drawn in. Nothing resets this.
   const language = { calls: 0, misses: [] };
+  // Every read of a site's checklist the run makes, with its query, which no reset clears either.
+  const checklistReads = [];
   let refusals = [];
   // A path held open on purpose, so a window that shows a loading state can be caught in it.
   let delays = [];
@@ -95,6 +97,12 @@ function createStubs() {
       { id: "lv-20", value: "training", label: "Training", is_active: true, sort_order: 1 },
       { id: "lv-21", value: "compliance", label: "Compliance", is_active: true, sort_order: 2 },
       { id: "lv-22", value: "other", label: "Other", is_active: true, sort_order: 3 },
+    ] },
+    // What a site's contract type is saved as: the code of a choice, which Sites draws as the choice's
+    // word in the language the call asked for.
+    { id: "lk-9", slug: "contract_types", name: "Contract types", values: [
+      { id: "lv-23", value: "subcontractor", label: "Subcontractor", is_active: true, sort_order: 1 },
+      { id: "lv-24", value: "direct", label: "Direct", is_active: true, sort_order: 2 },
     ] },
   ];
 
@@ -225,7 +233,7 @@ function createStubs() {
     id: "hd-" + (i + 1),
     user_id: seed.STAFF[i % seed.STAFF.length].id,
     user_name: seed.STAFF[i % seed.STAFF.length].name,
-    category: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
+    category: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "legal",
     document_type: i % 4 === 3 ? "other" : i % 2 === 0 ? "training" : "compliance",
     title: ["Handbook acknowledgement", "Safety briefing", "Equipment sign-out", "Language preference note"][i % 4],
     file_name: "doc-" + (i + 1) + ".pdf",
@@ -257,6 +265,43 @@ function createStubs() {
     { id: "ob-5", step_category: "equipment", step_name: "Keys and badge issued", is_completed: false, completed_date: null, completed_by_name: null },
   ];
   // hand: 5 steps in 3 categories, 3 complete, so the line reads "3 of 5 steps complete".
+
+  // A card on the Employees grid, shaped to what the grid reads since Session 22. The last activity
+  // runs today, yesterday, days, a week, a month and a year back down the list, so each way a card
+  // says it is drawn, and the counts come from the records the other tabs list.
+  const ACTIVITY_DAYS = [0, 1, 3, 10, 45, 400];
+  const hrCard = (p, i) => {
+    const mine = (list) => list.filter((x) => x.user_id === p.id).length;
+    return {
+      id: p.id, first_name: p.first_name, last_name: p.last_name, email: p.email, role: p.role, status: p.status,
+      employee_id: p.employee_id, hire_date: p.hire_date, profile_photo_url: null, is_test_account: false,
+      doc_count: mine(HR_DOCUMENTS), training_count: mine(HR_TRAINING), jotform_count: mine(JOTFORM_SUBMISSIONS),
+      onboarding_total: i % 3 === 0 ? 0 : 5, onboarding_completed: i % 3 === 1 ? 3 : 5,
+      expired_doc_count: mine(HR_COMPLIANCE.expiredDocs), expiring_doc_count: mine(HR_COMPLIANCE.expiringDocs),
+      expired_training_count: mine(HR_COMPLIANCE.expiredTraining), expiring_training_count: mine(HR_COMPLIANCE.expiringTraining),
+      last_activity_date: i < ACTIVITY_DAYS.length ? seed.shift(-ACTIVITY_DAYS[i]) + "T22:00:00Z" : null,
+    };
+  };
+  // A person's folder: the person, and every record they have as one list, with the count in each
+  // category. The onboarding steps carry the status the folder draws beside them.
+  const hrFolder = (p) => {
+    const items = [].concat(
+      HR_DOCUMENTS.filter((x) => x.user_id === p.id).map((x) => ({ source: "document", source_id: x.id, title: x.title, category: x.category,
+        raw_category_label: null, date: x.created_at, expiry_date: x.expiry_date })),
+      HR_TRAINING.filter((x) => x.user_id === p.id).map((x) => ({ source: "training", source_id: x.id, title: x.training_name, category: "training",
+        raw_category_label: x.training_type, date: x.completed_date + "T12:00:00Z", expiry_date: x.expiry_date, administered_by: x.administered_by })),
+      HR_ONBOARDING.map((x) => ({ source: "onboarding", source_id: x.id, title: x.step_name, category: "hr_onboarding", raw_category_label: x.step_category,
+        date: x.completed_date ? x.completed_date + "T12:00:00Z" : null, status: x.is_completed ? "completed" : "pending" })),
+      JOTFORM_SUBMISSIONS.filter((x) => x.user_id === p.id).map((x) => ({ source: "jotform", source_id: x.id, title: x.form_title, category: "hr_ongoing",
+        category_override: null, raw_category_label: null, date: x.submitted_at, submitter_name: x.submitter_name })));
+    const counts = {};
+    items.forEach((x) => { counts[x.category] = (counts[x.category] || 0) + 1; });
+    return {
+      employee: { id: p.id, first_name: p.first_name, last_name: p.last_name, role: p.role, status: p.status, email: p.email, phone: p.phone,
+        employee_id: p.employee_id, hire_date: p.hire_date, profile_photo_url: null, is_test_account: false },
+      items: items, counts_by_category: counts, total_items: items.length,
+    };
+  };
 
   // The compliance roll-up, shaped to what the Compliance tab reads: five lists, each counted.
   const HR_COMPLIANCE = {
@@ -575,12 +620,21 @@ function createStubs() {
   const TASK_WORDS_ES = {
     "at-1": { label: "Decapar y encerar el vest\u00edbulo", description: "Decapar, sellar y encerar el piso del vest\u00edbulo.", zone: "Vest\u00edbulo" },
     "at-2": { label: "Reabastecer los ba\u00f1os de la cl\u00ednica", description: "", zone: "Ba\u00f1o" },
+    "ck-1": { label: "Vaciar la basura del vest\u00edbulo", description: "", zone: "Vest\u00edbulo" },
+    "ck-2": { label: "Limpiar los vidrios del vest\u00edbulo", description: "", zone: "Vest\u00edbulo" },
+    "ck-3": { label: "Tallar las juntas del ba\u00f1o", description: "", zone: "Ba\u00f1o" },
+    "ck-4": { label: "Pulir el pasillo de arriba", description: "", zone: "Vest\u00edbulo" },
+    "ck-5": { label: "Limpiar los rieles de las ventanas", description: "", zone: "Atrio" },
   };
+  // The shift and the block of a checklist row, in the language the call asked for.
+  const SHIFT_WORDS_ES = { "Night": "Noche", "Day": "D\u00eda", "Start of shift": "Inicio del turno", "End of shift": "Fin del turno" };
   const withDisplay = (item, lang) => {
     const es = TASK_WORDS_ES[item.id];
-    if (!es) return item;
+    const sayShift = (v) => (lang === "es" && SHIFT_WORDS_ES[v] ? SHIFT_WORDS_ES[v] : v);
+    const around = item.shift ? { shift: sayShift(item.shift), block: sayShift(item.block) } : {};
+    if (!es) return item.shift ? Object.assign({}, item, { display: around }) : item;
     const say = (field) => (lang === "es" && item[field] ? es[field] : item[field]);
-    return Object.assign({}, item, { display: { label: say("label"), description: say("description"), zone: say("zone") } });
+    return Object.assign({}, item, { display: Object.assign({ label: say("label"), description: say("description"), zone: say("zone") }, around) });
   };
   // And a pick list choice, displayLabel: its label in the language the call asked for. The label
   // stays the English it was saved in, which is what the screen that edits the choice reads.
@@ -591,17 +645,49 @@ function createStubs() {
     "Lobby": "Vest\u00edbulo", "Restroom": "Ba\u00f1o", "Dock": "Muelle", "Vacation": "Vacaciones", "Sick": "Enfermedad",
     "Standard": "Est\u00e1ndar", "Urgent": "Urgente", "Training": "Capacitaci\u00f3n", "Compliance": "Cumplimiento", "Other": "Otro",
     "Atrium": "Atrio", "Loading Bay": "Zona de carga", "North Wing": "Ala norte", "Floor 3": "Piso 3",
+    "Subcontractor": "Subcontratista", "Direct": "Directo",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
   }));
   const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, { values: withChoiceWords(c.values, lang) }));
 
+  // A site's checklist the way Step 124's API holds it. Every item has a shift, how often it comes
+  // due, the block of the shift it sits in, and whether today's checklist shows it. The clock's today
+  // is Tuesday, March 17.
+  // hand: the first site has 6 items. 2 are on tonight's Night checklist: the lobby refinish and the
+  // lobby trash. The other 4 are what a read of today's Night items leaves out: the lobby glass on
+  // the Day shift, the grout weekly on Thursday, the hallway set to Monday, Wednesday and Friday, and
+  // the window tracks, seasonal from June to August.
+  const CHECKLIST = {
+    [S[0].id]: [
+      { id: "ck-1", label: "Empty lobby trash", zone: "Lobby", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true },
+      { id: "ck-2", label: "Wipe lobby glass", zone: "Lobby", shift: "Day", block: "Start of shift", period: "daily", days: null, shownToday: true },
+      { id: "ck-3", label: "Scrub restroom grout", zone: "Restroom", shift: "Night", block: "End of shift", period: "weekly", days: ["thu"], shownToday: false },
+      { id: "ck-4", label: "Buff the upper hallway", zone: "Lobby", shift: "Night", block: "End of shift", period: "daily", days: ["mon", "wed", "fri"], shownToday: false },
+      { id: "ck-5", label: "Clean window tracks", zone: "Atrium", shift: "Night", block: "End of shift", period: "seasonal", days: null, season: { from: "06-01", to: "08-31" }, shownToday: false },
+    ],
+  };
   const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
     id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
     building_name: t.building_name, floor_number: t.floor_number, assigned_to_name: t.assigned_to_name,
-    media_required: false, description: "",
-  }));
+    media_required: false, description: "", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true,
+  })).concat((CHECKLIST[siteId] || []).map((c) => Object.assign({ priority: "standard", cims_category: "SD",
+    building_name: null, floor_number: null, assigned_to_name: null, media_required: false, description: "" }, c)))
+    .map((c) => Object.assign(c, { dueToday: c.shownToday, doneThisPeriod: false, checkedToday: false }));
+  // Who has a shift open at which site, by the person signed in. A case opens one; nothing else does.
+  let openSessions = {};
+  // GET /api/sites/:id/tasks the way Step 124 answers it. shift names a shift; shift= left empty reads
+  // the whole site; not named, the caller's open session at the site decides. day=today answers the
+  // items today's checklist shows and day=all every item, each with shownToday; not named, a manager
+  // with no open session at the site and no shift gets every item, and everybody else gets today's.
+  function checklistRead(siteId, day, shift) {
+    const open = openSessions[signedInAs] && openSessions[signedInAs].siteId === siteId ? openSessions[signedInAs] : null;
+    const shiftName = shift === null ? (open ? open.shift : "") : shift;
+    const manager = person().role === "admin" || person().role === "supervisor";
+    const everyDay = day === "all" || (day === null && manager && !open && shift === null);
+    return siteTasks(siteId).filter((it) => (!shiftName || it.shift === shiftName) && (everyDay || it.shownToday));
+  }
 
   // Timeline entries, shaped to what both timelines read: createdAt, actionType, actorName,
   // description, entityType, entityId. getTlCategory calls actionType.includes, so actionType is
@@ -645,11 +731,11 @@ function createStubs() {
         address_line: s0.address, city: s0.city, state: s0.state, zip_code: s0.zip,
         client_name: "Fairhaven Property Group", prime_contractor: "None",
         client_contact_name: "R. Villanueva", client_contact_email: "contact@fairhavenpg.example.invalid", client_contact_phone: "2155559200",
-        contract_type: "Fixed monthly", contract_value_monthly: 18400, billing_frequency: "Monthly",
+        contract_type: "subcontractor", contract_value_monthly: 18400, billing_frequency: "monthly",
         contract_start_date: seed.shift(-400), contract_end_date: seed.shift(330),
         site_notes: "Nightly cleaning of occupied floors and daily restroom service.",
       },
-      staff: staffHere.map((st) => ({ id: st.id, name: st.name, role: st.role, status: st.status })),
+      staff: staffHere.map((st) => ({ id: st.id, name: st.name, first_name: st.first_name, last_name: st.last_name, role: st.role, status: st.status })),
       zones: ["Lobby", "Restroom", "Corridor", "Dock"],
       floorPlans: [{ id: "fp-1", label: "North Wing, floor 3", file_url: "", uploaded_at: seed.shift(-120) + "T12:00:00Z" }],
       taskCount: ASSIGNED_TASKS.filter((t0) => t0.site_id === s0.id).length,
@@ -658,9 +744,10 @@ function createStubs() {
       marketplaceSummary: { total_pickups: 2, worked: 1, pending: 1 },
       upcomingShifts: (state.schedule || SCHEDULE).filter((sh) => sh.site_id === s0.id).map((sh) => ({
         id: sh.id, scheduled_date: sh.scheduled_date, start_time: sh.start_time, end_time: sh.end_time,
-        user_name: sh.user_name, status: sh.status,
+        user_name: sh.user_name, first_name: String(sh.user_name || "").split(" ")[0], last_name: String(sh.user_name || "").split(" ").slice(1).join(" "),
+        status: sh.status,
       })),
-      supplies: SUPPLIES.slice(0, 2).map((sp0) => ({ id: "ss-" + sp0.id, supply_id: sp0.id, name: sp0.name, par_level: 12, unit: sp0.unit, current_stock: sp0.current_stock })),
+      supplies: SUPPLIES.slice(0, 2).map((sp0) => ({ id: "ss-" + sp0.id, supply_id: sp0.id, name: sp0.name, par_level: 12, category: sp0.category, unit: sp0.unit, current_stock: sp0.current_stock, low_threshold: sp0.low_threshold, is_green_certified: sp0.is_green_certified })),
     };
   };
   // hand: Harbor Point Center holds 4 of the 12 staff rows (every third row from the first), one
@@ -849,7 +936,7 @@ function createStubs() {
     if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) {
       if (method !== "GET") return ok({ message: "Task saved" });
       const sid = path.split("/")[3];
-      return ok(siteTasks(sid).map((tk) => withDisplay(tk, lang)));
+      return ok(checklistRead(sid, q("day"), q("shift")).map((tk) => withDisplay(tk, lang)));
     }
     if (path.startsWith("/api/sites/timeline/") || /^\/api\/sites\/[^/]+\/timeline/.test(path)) {
       const rows = timelineRows("Tomasz Wisniewski");
@@ -1100,17 +1187,13 @@ function createStubs() {
       return ok(uid ? HR_TRAINING.filter((d) => d.user_id === uid) : HR_TRAINING);
     }
     if (path === "/api/hr/employees-summary") {
-      return ok(state.staff.map((s) => ({
-        user_id: s.id, name: s.name, role: s.role, status: s.status,
-        document_count: 3, training_count: 2, onboarding_pct: 80,
-        earliest_expiry: s.status === "active" ? seed.shift(25) : null,
-      })));
+      const want = q("status") || "active";
+      return ok({ employees: state.staff.filter((s) => want === "all" || s.status === want).map(hrCard) });
     }
     if (path === "/api/hr/compliance") return ok(HR_COMPLIANCE);
     if (path.startsWith("/api/hr/employee-folder/")) {
       const uid = idAfter("/api/hr/employee-folder/");
-      const u = state.staff.find((s) => s.id === uid) || state.staff[0];
-      return ok({ user: u, documents: HR_DOCUMENTS.slice(0, 3), training: HR_TRAINING.slice(0, 2), onboarding: HR_ONBOARDING, submissions: JOTFORM_SUBMISSIONS.slice(0, 1) });
+      return ok(hrFolder(state.staff.find((s) => s.id === uid) || state.staff[0]));
     }
     if (path.startsWith("/api/hr/onboarding")) {
       if (method !== "GET") return ok({ message: "Onboarding updated" });
@@ -1367,6 +1450,7 @@ function createStubs() {
     record.language = (headers && headers["accept-language"]) || null;
     // What the call was sent with, so a case can hold a route to the headers it has always sent.
     record.headers = headers || {};
+    if (method === "GET" && /^\/api\/sites\/[^/]+\/tasks$/.test(path)) checklistReads.push({ path, query: u.search, as: signedInAs });
     language.calls += 1;
     if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
 
@@ -1395,11 +1479,14 @@ function createStubs() {
     handle,
     calls,
     language: () => language,
+    checklistReads: () => checklistReads,
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },
     // The next answer Help is given, whichever of its two routes the page asks.
     setAgentStream: (s) => { agentStream = s || null; },
+    // A shift open at a site for the person signed in as persona, or none with null.
+    setOpenSession: (persona, session) => { if (session) openSessions[persona] = session; else delete openSessions[persona]; },
     setExposeDisposition: (v) => { exposeDisposition = v !== false; },
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
@@ -1418,11 +1505,12 @@ function createStubs() {
       state.filedForms = { signed: {}, supervisor: {} };
       delays = []; trim = null; exposeDisposition = true;
       agentStream = null; agentTalk = {}; agentPending = {};
+      openSessions = {};
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
       SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
-      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS,
+      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS, CHECKLIST,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
       HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
       INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,
