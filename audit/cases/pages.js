@@ -183,12 +183,13 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     // sidebar collapsed to one icon per group, so it is expanded first and the labels read there.
     await d.expandSidebar();
     const nav = (await d.visibleNavItems()).join(" | ");
-    // The manage permissions capability opens Settings, so the person holding it is expected to
-    // have that one item and none of the other three.
+    // The manage permissions capability opens Settings, and a person the forms API lets list filed
+    // reports opens Forms, so each is expected to have the item they open and none of the others.
     const opensSettings = seed.PEOPLE[persona].singleCapability === "manage_permissions";
+    const opensForms = seed.PEOPLE[persona].readsFiledForms === true;
     // The nav is read in whichever language the pass is in, since a label is a word like any other.
     const adminNav = ADMIN_ONLY_NAV.map((l) => d.say(l));
-    const allowed = isAdmin ? adminNav : opensSettings ? [d.say("Settings")] : [];
+    const allowed = isAdmin ? adminNav : [].concat(opensSettings ? [d.say("Settings")] : [], opensForms ? [d.say("Forms")] : []);
     // The nav labels are read with the panel open. The app collapses it below 1100 on its own, so it
     // is put back before anything is measured, or the page is measured in a state nobody is in.
     if (width === "narrow") await d.collapseSidebar();

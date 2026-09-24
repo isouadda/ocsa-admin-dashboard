@@ -17,6 +17,8 @@ function createStubs() {
   // Every call the run makes, counted, and the ones that did not ask for the language their screen is
   // drawn in. Nothing resets this.
   const language = { calls: 0, misses: [] };
+  // Every read of a site's checklist the run makes, with its query, which no reset clears either.
+  const checklistReads = [];
   let refusals = [];
   // A path held open on purpose, so a window that shows a loading state can be caught in it.
   let delays = [];
@@ -575,12 +577,21 @@ function createStubs() {
   const TASK_WORDS_ES = {
     "at-1": { label: "Decapar y encerar el vest\u00edbulo", description: "Decapar, sellar y encerar el piso del vest\u00edbulo.", zone: "Vest\u00edbulo" },
     "at-2": { label: "Reabastecer los ba\u00f1os de la cl\u00ednica", description: "", zone: "Ba\u00f1o" },
+    "ck-1": { label: "Vaciar la basura del vest\u00edbulo", description: "", zone: "Vest\u00edbulo" },
+    "ck-2": { label: "Limpiar los vidrios del vest\u00edbulo", description: "", zone: "Vest\u00edbulo" },
+    "ck-3": { label: "Tallar las juntas del ba\u00f1o", description: "", zone: "Ba\u00f1o" },
+    "ck-4": { label: "Pulir el pasillo de arriba", description: "", zone: "Vest\u00edbulo" },
+    "ck-5": { label: "Limpiar los rieles de las ventanas", description: "", zone: "Atrio" },
   };
+  // The shift and the block of a checklist row, in the language the call asked for.
+  const SHIFT_WORDS_ES = { "Night": "Noche", "Day": "D\u00eda", "Start of shift": "Inicio del turno", "End of shift": "Fin del turno" };
   const withDisplay = (item, lang) => {
     const es = TASK_WORDS_ES[item.id];
-    if (!es) return item;
+    const sayShift = (v) => (lang === "es" && SHIFT_WORDS_ES[v] ? SHIFT_WORDS_ES[v] : v);
+    const around = item.shift ? { shift: sayShift(item.shift), block: sayShift(item.block) } : {};
+    if (!es) return item.shift ? Object.assign({}, item, { display: around }) : item;
     const say = (field) => (lang === "es" && item[field] ? es[field] : item[field]);
-    return Object.assign({}, item, { display: { label: say("label"), description: say("description"), zone: say("zone") } });
+    return Object.assign({}, item, { display: Object.assign({ label: say("label"), description: say("description"), zone: say("zone") }, around) });
   };
   // And a pick list choice, displayLabel: its label in the language the call asked for. The label
   // stays the English it was saved in, which is what the screen that edits the choice reads.
@@ -597,11 +608,42 @@ function createStubs() {
   }));
   const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, { values: withChoiceWords(c.values, lang) }));
 
+  // A site's checklist the way Step 124's API holds it. Every item has a shift, how often it comes
+  // due, the block of the shift it sits in, and whether today's checklist shows it. The clock's today
+  // is Tuesday, March 17.
+  // hand: the first site has 6 items. 2 are on tonight's Night checklist: the lobby refinish and the
+  // lobby trash. The other 4 are what a read of today's Night items leaves out: the lobby glass on
+  // the Day shift, the grout weekly on Thursday, the hallway set to Monday, Wednesday and Friday, and
+  // the window tracks, seasonal from June to August.
+  const CHECKLIST = {
+    [S[0].id]: [
+      { id: "ck-1", label: "Empty lobby trash", zone: "Lobby", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true },
+      { id: "ck-2", label: "Wipe lobby glass", zone: "Lobby", shift: "Day", block: "Start of shift", period: "daily", days: null, shownToday: true },
+      { id: "ck-3", label: "Scrub restroom grout", zone: "Restroom", shift: "Night", block: "End of shift", period: "weekly", days: ["thu"], shownToday: false },
+      { id: "ck-4", label: "Buff the upper hallway", zone: "Lobby", shift: "Night", block: "End of shift", period: "daily", days: ["mon", "wed", "fri"], shownToday: false },
+      { id: "ck-5", label: "Clean window tracks", zone: "Atrium", shift: "Night", block: "End of shift", period: "seasonal", days: null, season: { from: "06-01", to: "08-31" }, shownToday: false },
+    ],
+  };
   const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
     id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
     building_name: t.building_name, floor_number: t.floor_number, assigned_to_name: t.assigned_to_name,
-    media_required: false, description: "",
-  }));
+    media_required: false, description: "", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true,
+  })).concat((CHECKLIST[siteId] || []).map((c) => Object.assign({ priority: "standard", cims_category: "SD",
+    building_name: null, floor_number: null, assigned_to_name: null, media_required: false, description: "" }, c)))
+    .map((c) => Object.assign(c, { dueToday: c.shownToday, doneThisPeriod: false, checkedToday: false }));
+  // Who has a shift open at which site, by the person signed in. A case opens one; nothing else does.
+  let openSessions = {};
+  // GET /api/sites/:id/tasks the way Step 124 answers it. shift names a shift; shift= left empty reads
+  // the whole site; not named, the caller's open session at the site decides. day=today answers the
+  // items today's checklist shows and day=all every item, each with shownToday; not named, a manager
+  // with no open session at the site and no shift gets every item, and everybody else gets today's.
+  function checklistRead(siteId, day, shift) {
+    const open = openSessions[signedInAs] && openSessions[signedInAs].siteId === siteId ? openSessions[signedInAs] : null;
+    const shiftName = shift === null ? (open ? open.shift : "") : shift;
+    const manager = person().role === "admin" || person().role === "supervisor";
+    const everyDay = day === "all" || (day === null && manager && !open && shift === null);
+    return siteTasks(siteId).filter((it) => (!shiftName || it.shift === shiftName) && (everyDay || it.shownToday));
+  }
 
   // Timeline entries, shaped to what both timelines read: createdAt, actionType, actorName,
   // description, entityType, entityId. getTlCategory calls actionType.includes, so actionType is
@@ -849,7 +891,7 @@ function createStubs() {
     if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) {
       if (method !== "GET") return ok({ message: "Task saved" });
       const sid = path.split("/")[3];
-      return ok(siteTasks(sid).map((tk) => withDisplay(tk, lang)));
+      return ok(checklistRead(sid, q("day"), q("shift")).map((tk) => withDisplay(tk, lang)));
     }
     if (path.startsWith("/api/sites/timeline/") || /^\/api\/sites\/[^/]+\/timeline/.test(path)) {
       const rows = timelineRows("Tomasz Wisniewski");
@@ -1367,6 +1409,7 @@ function createStubs() {
     record.language = (headers && headers["accept-language"]) || null;
     // What the call was sent with, so a case can hold a route to the headers it has always sent.
     record.headers = headers || {};
+    if (method === "GET" && /^\/api\/sites\/[^/]+\/tasks$/.test(path)) checklistReads.push({ path, query: u.search, as: signedInAs });
     language.calls += 1;
     if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
 
@@ -1395,11 +1438,14 @@ function createStubs() {
     handle,
     calls,
     language: () => language,
+    checklistReads: () => checklistReads,
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },
     // The next answer Help is given, whichever of its two routes the page asks.
     setAgentStream: (s) => { agentStream = s || null; },
+    // A shift open at a site for the person signed in as persona, or none with null.
+    setOpenSession: (persona, session) => { if (session) openSessions[persona] = session; else delete openSessions[persona]; },
     setExposeDisposition: (v) => { exposeDisposition = v !== false; },
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
@@ -1418,11 +1464,12 @@ function createStubs() {
       state.filedForms = { signed: {}, supervisor: {} };
       delays = []; trim = null; exposeDisposition = true;
       agentStream = null; agentTalk = {}; agentPending = {};
+      openSessions = {};
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
       SCHEDULE, PATTERNS, TIME_OFF, NOTIFICATIONS, UNREAD_COUNT, CAPABILITIES, REPORT_DEFS,
-      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS,
+      NOTIFICATION_TYPES, NOTIFICATION_FORMS, AGENT_DRAFTS, AGENT_CONVERSATIONS, CHECKLIST,
       INSPECTION_TEMPLATES, INSPECTION_ITEMS, SCHEDULED_INSPECTIONS, HR_CASES, CASE_QUEUE,
       HR_DOCUMENTS, HR_TRAINING, HR_ONBOARDING, HR_COMPLIANCE, SETTINGS, JOTFORM_FORMS, JOTFORM_SUBMISSIONS, PDF_ACCESS_LOG,
       INCIDENT_REPORTS, NOTIFICATION_RECIPIENTS, CHAT_CHANNELS, CHAT_MESSAGES, DM_INBOX, SHIFT_SESSIONS,

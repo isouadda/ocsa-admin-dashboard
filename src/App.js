@@ -230,6 +230,10 @@ const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supp
 // language the call asked for, and the item's own English wherever it sends none. A screen that edits
 // an item reads the item's own fields, so the English is what it shows and what it saves.
 const shownItem = (it) => { const d = (it && it.display) || {}; return { label: d.label || it.label, description: d.description || it.description, zone: d.zone || it.zone }; };
+// A site's checklist read answers only today's items of the caller's open shift unless it is told
+// otherwise, which a manager testing from the portal has. Every read that feeds an editor or its
+// pickers asks for every item of every shift.
+const EVERY_ITEM = "?day=all&shift=";
 // A sentence with a piece set apart inside it, a name in bold for instance. The table holds the whole
 // sentence with {0} where the piece goes, so the piece lands wherever the language puts it.
 const trWith = (key, piece) => { const [before, after] = tr(key, "\u0000").split("\u0000"); return <>{before}{piece}{after}</>; };
@@ -574,7 +578,7 @@ export default function AdminDashboard() {
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }] },
-    ...(isAdmin ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
+    ...(canOpenPage("forms") ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
@@ -1533,7 +1537,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     try {
       const p = await af("/api/sites/profile/" + siteId);
       setSiteProfile(p);
-      const tasks = await af("/api/sites/" + siteId + "/tasks");
+      const tasks = await af("/api/sites/" + siteId + "/tasks" + EVERY_ITEM);
       setSt(tasks);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -1658,7 +1662,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     try {
       await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } });
       showToast("Task created"); setAddTask(null);
-      const tasks = await af("/api/sites/" + selectedSite + "/tasks"); setSt(tasks);
+      const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -1667,12 +1671,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     try {
       await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } });
       showToast("Task updated"); setEditTask(null);
-      const tasks = await af("/api/sites/" + selectedSite + "/tasks"); setSt(tasks);
+      const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
     } catch (e) { showToast(e.message, "error"); }
   };
 
   const delTask = async (sid, tid) => {
-    try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast("Removed"); const tasks = await af("/api/sites/" + sid + "/tasks"); setSt(tasks); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/sites/" + sid + "/tasks/" + tid, { method: "DELETE" }); showToast("Removed"); const tasks = await af("/api/sites/" + sid + "/tasks" + EVERY_ITEM); setSt(tasks); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast("Site deactivated"); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
@@ -4955,7 +4959,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     if (!siteId || siteLocations[siteId]) return;
     setSiteLocations(prev => ({ ...prev, [siteId]: { loading: true } }));
     try {
-      const tasks = await af("/api/sites/" + siteId + "/tasks");
+      const tasks = await af("/api/sites/" + siteId + "/tasks" + EVERY_ITEM);
       const bSet = new Set(); const fMap = {};
       (tasks.templates || tasks || []).forEach(tk => {
         const b = tk.building_name || tk.buildingName;
@@ -5582,7 +5586,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const loadSiteLocations = async (siteId) => {
     if (siteLocations[siteId]) return;
     try {
-      const tasks = await af("/api/sites/" + siteId + "/tasks");
+      const tasks = await af("/api/sites/" + siteId + "/tasks" + EVERY_ITEM);
       const buildings = [...new Set(tasks.filter(t => t.building_name).map(t => t.building_name))];
       const floors = {};
       buildings.forEach(b => { floors[b] = [...new Set(tasks.filter(t => t.building_name === b && t.floor_number).map(t => t.floor_number))]; });

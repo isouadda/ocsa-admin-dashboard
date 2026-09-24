@@ -75,6 +75,13 @@ route with a 307 to `audit/stream.js`, a small local server that writes each eve
 it, holds an answer part way until the journey has read the page, and destroys the socket for a drop.
 The conversation reads the stored answer back, once it is stored.
 
+**The checklist editor keeps every item.** Since Step 124 a site's checklist read answers only today's
+items of the caller's open shift unless it is told otherwise. The stub answers it the same way, with a
+shift open at a site for whoever a case says. The `checklist` suite opens the Night shift at the first
+site for an admin and for a supervisor and reads Service Details, which has to draw every item, and
+every checklist read any suite makes has to send `day=all&shift=`. The `forms-menu` suite holds the
+sidebar's Forms to the test the Forms page opens by.
+
 ## How to run less of it
 
 ```
@@ -85,7 +92,8 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
-`permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream` and `house-style`.
+`permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
+`forms-menu` and `house-style`.
 
 ## Known failures
 
