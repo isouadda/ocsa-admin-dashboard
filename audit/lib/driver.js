@@ -3,6 +3,7 @@
 // said, what a download held and what a print export wrote.
 "use strict";
 const seed = require("../seed");
+const stream = require("../stream");
 // The words the driver itself waits on. It waits for the sign-in button and the bell, and in a
 // Spanish pass it has to wait for the Spanish ones, so it looks each one up rather than
 // carrying a second copy.
@@ -104,6 +105,13 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // The headers go with the call, and so does the language this pass draws its screens in, so the
     // stub can say whether the call asked for the language the person is reading.
     const answer = stubs.handle({ method: req.method(), url: req.url(), body, headers: req.headers(), lang: tongue });
+    // An answer written as it goes cannot be sent whole, so the browser is sent where it is written,
+    // with the method, the body and Accept-Language it came with. See audit/stream.js.
+    if (answer.stream) {
+      const where = await stream.play(answer.stream.steps, answer.stream.log);
+      await route.fulfill({ status: 307, headers: { "Location": where, "Access-Control-Allow-Origin": "*" }, body: "" });
+      return;
+    }
     if (answer.delayMs) await new Promise((r) => setTimeout(r, answer.delayMs));
     // One route answers a PDF rather than JSON, which the page fetches as a blob.
     if (answer.pdf) {

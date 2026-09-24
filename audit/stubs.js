@@ -5,6 +5,7 @@
 // Values are invented. Shapes follow the real contracts, read off the call sites in src/App.js.
 "use strict";
 const seed = require("./seed");
+const { RESET } = require("./stream");
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const S = seed.SITES;
@@ -446,6 +447,63 @@ function createStubs() {
   const AGENT_DRAFTS = [{ id: "ad-1", formName: "Safety Incident Report", answered: 12, remaining: 0, status: "draft" }];
   // A conversation Help resumes, by its id. None unless a case puts one in.
   const AGENT_CONVERSATIONS = {};
+
+  // Help's answer, the way POST /api/agent/message/stream writes it: meta, the text in pieces, then
+  // done, which is today's response body, or error in its place. A case arms the next answer with
+  // setAgentStream; with nothing armed it is today's canned reply in three pieces.
+  //   pieces            the text as it arrives: strings, stream.RESET, and holds from stream.hold()
+  //   pause             milliseconds before each piece, and before an error
+  //   done              keys the finished answer carries beside reply and conversationId
+  //   error             { error, status }, written in place of done
+  //   drop              the socket is destroyed after the last piece, and the answer is stored anyway
+  //   storedAfterReads  how many reads of the conversation come back before the stored answer is in it
+  // The API stores each question and its answer in the conversation, which is where a page reads an
+  // answer back from after a dropped connection.
+  const AGENT_REPLY = "Here is what the dashboard shows for that.";
+  let agentStream = null;
+  let agentAsked = 0;
+  let agentTalk = {};
+  let agentPending = {};
+  let agentPhotos = 0;
+  function agentAnswer(body) {
+    const s = agentStream || { pieces: ["Here is what ", "the dashboard shows ", "for that."] };
+    agentStream = null;
+    agentAsked += 1;
+    const conversationId = (body && body.conversationId) || "ag-" + agentAsked;
+    const pause = s.pause || 0;
+    const steps = [{ event: "meta", data: { conversationId, requestId: "rq-" + agentAsked } }];
+    let text = "";
+    let total = 0;
+    (s.pieces || []).forEach((p) => {
+      if (p === RESET) { steps.push({ event: "reset", data: {}, pause }); total += pause; text = ""; return; }
+      if (p && typeof p.release === "function") { steps.push({ hold: p }); return; }
+      steps.push({ event: "delta", data: { text: String(p) }, pause });
+      total += pause;
+      text += String(p);
+    });
+    const done = Object.assign({ reply: text, conversationId }, s.done || {});
+    if (s.error) { steps.push({ event: "error", data: s.error, pause }); total += pause; }
+    else if (s.drop) steps.push({ drop: true });
+    else steps.push({ event: "done", data: done });
+    if (!s.error) {
+      const answer = { role: "assistant", text: done.reply };
+      ["citedDocs", "degraded", "noProcedure"].forEach((k) => { if (done[k] !== undefined) answer[k] = done[k]; });
+      agentTalk[conversationId] = (agentTalk[conversationId] || []).concat([{ role: "user", text: (body && body.text) || "" }]);
+      if (s.storedAfterReads) agentPending[conversationId] = { message: answer, reads: s.storedAfterReads };
+      else agentTalk[conversationId].push(answer);
+    }
+    const log = s.log || { wrote: [] };
+    const events = steps.filter((x) => x.event).map((x) => ({ event: x.event, data: x.data }));
+    return { steps, events, done, error: s.error || null, total, log };
+  }
+  function agentConversation(id) {
+    const pending = agentPending[id];
+    if (pending) {
+      if (pending.reads > 0) pending.reads -= 1;
+      else { agentTalk[id] = (agentTalk[id] || []).concat([pending.message]); delete agentPending[id]; }
+    }
+    return (AGENT_CONVERSATIONS[id] || []).concat(agentTalk[id] || []);
+  }
 
   const NOTIFICATION_TYPES = [
     { type: "time_off", label: "Time off requests", keyed: false, allowOutsideEmail: true },
@@ -1242,10 +1300,24 @@ function createStubs() {
       if (method !== "GET") return ok({ message: "Sent" });
       return ok(CHAT_MESSAGES);
     }
-    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: AGENT_CONVERSATIONS[decodeURIComponent(path.slice("/api/agent/conversations/".length))] || [] });
-    if (path === "/api/agent/message") return ok({ reply: "Here is what the dashboard shows for that.", conversationId: "ag-1" });
+    if (path.startsWith("/api/agent/conversations/")) return ok({ messages: agentConversation(decodeURIComponent(path.slice("/api/agent/conversations/".length))) });
+    // The streaming route is written by audit/stream.js, which the harness sends the browser to.
+    if (path === "/api/agent/message/stream" && method === "POST") {
+      const a = agentAnswer(body);
+      return { status: 200, json: a.events, stream: { steps: a.steps, log: a.log } };
+    }
+    // The route that answers whole. With an answer armed it answers that answer, whole, once the
+    // stream would have finished writing it, which is what the API does.
+    if (path === "/api/agent/message") {
+      if (!agentStream) return ok({ reply: AGENT_REPLY, conversationId: "ag-1" });
+      const a = agentAnswer(body);
+      if (a.error) return { status: a.error.status || 500, json: { error: a.error.error }, delayMs: a.total };
+      return { status: 200, json: a.done, delayMs: a.total };
+    }
     if (path === "/api/agent/drafts" && method === "GET") return ok(AGENT_DRAFTS);
     if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });
+    // Help keeps only the path of a photo it uploads, so that bucket answers with one.
+    if (path === "/api/uploads" && q("bucket") === "agent-photos") { agentPhotos += 1; return ok({ path: "agent-photos/audit-photo-" + agentPhotos + ".jpg" }); }
     if (path === "/api/uploads" || path.startsWith("/api/uploads?")) return ok({ url: "", key: "audit-upload" });
 
     return null;
@@ -1293,6 +1365,8 @@ function createStubs() {
     // drawn in; one that says nothing, or another language, is also kept apart, where a reset
     // between cases cannot clear it, and the run fails on it at the end.
     record.language = (headers && headers["accept-language"]) || null;
+    // What the call was sent with, so a case can hold a route to the headers it has always sent.
+    record.headers = headers || {};
     language.calls += 1;
     if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
 
@@ -1304,7 +1378,7 @@ function createStubs() {
 
     const answer = route(method, path, u.searchParams, body, record.language);
     if (answer) {
-      answer.delayMs = delayFor(path);
+      answer.delayMs = Math.max(answer.delayMs || 0, delayFor(path));
       if (trim && method === "GET" && path.indexOf(trim.path) >= 0) answer.json = cut(answer.json, trim.keep, trim.keepIds);
       // What the API said, kept beside the call. A Spanish screen may draw any of it: a person's
       // name, a site, a note somebody typed. The check exempts exactly this and nothing else.
@@ -1324,6 +1398,8 @@ function createStubs() {
     setRefusal: (r) => { refusals = [].concat(r); },
     clearRefusals: () => { refusals = []; },
     setDelay: (path, ms) => { delays.push({ path, ms }); },
+    // The next answer Help is given, whichever of its two routes the page asks.
+    setAgentStream: (s) => { agentStream = s || null; },
     setExposeDisposition: (v) => { exposeDisposition = v !== false; },
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
@@ -1341,6 +1417,7 @@ function createStubs() {
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
       delays = []; trim = null; exposeDisposition = true;
+      agentStream = null; agentTalk = {}; agentPending = {};
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

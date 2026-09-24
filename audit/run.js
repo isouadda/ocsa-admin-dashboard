@@ -43,6 +43,9 @@ const SUITES = [
   // Help fits the window at both widths, two heights, every text size, both themes and both
   // languages. The suite makes its own passes, since each one resizes the window as it goes.
   { name: "help-fit", mod: "./cases/help-fit", widths: [] },
+  // Help's answer as it is written, read part way through, in both languages.
+  { name: "help-stream", mod: "./cases/help-stream", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

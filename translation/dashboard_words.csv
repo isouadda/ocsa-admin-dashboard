@@ -453,6 +453,7 @@ Task reassigned,Tarea reasignada,"Assigned Tasks, reassigning a task"
 Tell me what happened and I will tell you what to do.,Cuénteme qué pasó y le digo qué hacer.,"Help, before anything is written"
 Text size,Tamaño del texto,The shell
 That one is for admins. Ask an admin to take a look.,Ese es para administradores. Pídale a un administrador que lo revise.,The shell
+The connection dropped. Your answer is saved.,Se perdió la conexión. La respuesta quedó guardada.,"Help, when the connection drops while an answer is arriving"
 The person reads your note in the app. Their notice shows only the dates.,La persona lee su nota en la aplicación. Su aviso muestra solo las fechas.,"Schedule, Time off, the hint under the note box"
 The schedule fills 8 weeks ahead and keeps extending until the pattern is ended.,El horario se llena con 8 semanas de anticipación y sigue extendiéndose hasta que el patrón termine.,Schedule
 The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.,El turno programado se cancela y se publica como turno abierto para que el personal elegible lo tome.,Schedule
@@ -475,7 +476,7 @@ Time off request,Solicitud de tiempo libre,"Schedule, a time off request"
 Today,Hoy,"The shell, the date range"
 Total,Total,Shift Pickup
 Total Claimed,Total tomados,Shift Pickup
-Try again,Intentar de nuevo,"The bell; Schedule, Patterns; Schedule, Time off; Help, a photo that did not upload"
+Try again,Intentar de nuevo,"The bell; Schedule, Patterns; Schedule, Time off; Help, a photo that did not upload; Help, reading an answer back after the connection dropped"
 Try clearing filters.,Pruebe a quitar los filtros.,"Assigned Tasks, when the list is empty and a filter is set"
 Tue,Mar,Schedule; Shift Pickup
 Type,Tipo,"Schedule, Time off; Schedule, a time off request"

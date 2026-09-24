@@ -61,10 +61,19 @@ that edits one shows the English and sends the English.
 
 **Help fits the window.** The `help-fit` suite reads the Help page at 1024 and 1280 wide and 660 and
 900 high, at every text size, in both themes and both languages: with the one unfinished report the
-suite serves, with five, with a report resumed that holds thirty messages, and with both. The page is
-never taller than the window, the send box ends inside it, the thirty messages scroll inside the
-conversation, the reports list stops at three rows and scrolls inside itself, and an empty
-conversation's line sits in the middle of its area.
+suite serves, with five, with a report resumed that holds thirty messages, with both, and with five
+while an answer arrives and once it is finished. The page is never taller than the window, the send
+box ends inside it, the thirty messages scroll inside the conversation, the reports list stops at three
+rows and scrolls inside itself, an empty conversation's line sits in the middle of its area, and the
+newest words of an answer that is arriving are inside the conversation, with no mark in them.
+
+**Help's answer appears as it is written.** The `help-stream` suite asks Help questions in both
+languages and has the answer written the way `POST /api/agent/message/stream` writes it: meta, the
+text in pieces that cut a word or a bold phrase in two, a reset, done, an error in its place, or a
+connection that drops part way. `route.fulfill` sends a body whole, so the stub answers the streaming
+route with a 307 to `audit/stream.js`, a small local server that writes each event with a pause before
+it, holds an answer part way until the journey has read the page, and destroys the socket for a drop.
+The conversation reads the stored answer back, once it is stored.
 
 ## How to run less of it
 
@@ -76,7 +85,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
-`permissions`, `notices`, `report-actions`, `language`, `help-fit` and `house-style`.
+`permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream` and `house-style`.
 
 ## Known failures
 
@@ -117,6 +126,7 @@ UTC shows the wrong hour. A session that started at `22:05Z` has to read `6:05 P
 | `run.js` | the one process: build, serve, drive, print the table, exit non-zero on any failure |
 | `seed.js` | the seeded world, every value invented, every report total worked out by hand |
 | `stubs.js` | every API call answered, and nowhere else |
+| `stream.js` | Help's streaming route, written for the browser a piece at a time |
 | `inventory.js` | the declared spine: pages, views, windows, tables, reports, exports, decisions, refusals |
 | `discover.js` | reads the app's own lists out of `src/App.js` so coverage is proven |
 | `known.json` | failures the app has today, each printing on every run |
