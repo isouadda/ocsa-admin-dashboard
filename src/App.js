@@ -4217,35 +4217,35 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const filtered = filter === "all" ? vendors : vendors.filter(v => v.approval_status === filter);
 
   const submitAdd = async () => {
-    if (!addForm.name) { showToast("Vendor name required", "error"); return; }
-    try { await af("/api/vendors", { method: "POST", body: addForm }); showToast("Vendor added"); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!addForm.name) { showToast(tr("Vendor name required"), "error"); return; }
+    try { await af("/api/vendors", { method: "POST", body: addForm }); showToast(tr("Vendor added")); setAddForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const submitEdit = async () => {
-    try { await af("/api/vendors/" + editForm.id, { method: "PATCH", body: editForm }); showToast("Vendor updated"); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/vendors/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Vendor updated")); setEditForm(null); load(); if (detail) loadDetail(editForm.id); } catch (e) { showToast(e.message, "error"); }
   };
 
   const deactivate = async id => {
-    try { await af("/api/vendors/" + id, { method: "DELETE" }); showToast("Vendor removed"); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/vendors/" + id, { method: "DELETE" }); showToast(tr("Vendor removed")); setDetail(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   const submitEval = async () => {
-    if (!addEval.rating) { showToast("Rating required", "error"); return; }
-    try { await af("/api/vendors/" + addEval.vendorId + "/evaluate", { method: "POST", body: { rating: parseInt(addEval.rating), notes: addEval.notes } }); showToast("Evaluation saved"); setAddEval(null); loadDetail(addEval.vendorId); } catch (e) { showToast(e.message, "error"); }
+    if (!addEval.rating) { showToast(tr("Rating required"), "error"); return; }
+    try { await af("/api/vendors/" + addEval.vendorId + "/evaluate", { method: "POST", body: { rating: parseInt(addEval.rating), notes: addEval.notes } }); showToast(tr("Evaluation saved")); setAddEval(null); loadDetail(addEval.vendorId); } catch (e) { showToast(e.message, "error"); }
   };
 
   const submitLinkSupply = async () => {
-    if (!linkSupply.supplyId) { showToast("Select a supply", "error"); return; }
-    try { await af("/api/vendors/" + linkSupply.vendorId + "/link-supply", { method: "POST", body: { supplyId: linkSupply.supplyId, isPreferred: linkSupply.isPreferred, unitCost: linkSupply.unitCost || null, leadTimeDays: linkSupply.leadTime || null, notes: linkSupply.notes } }); showToast("Supply linked"); setLinkSupply(null); loadDetail(linkSupply.vendorId); } catch (e) { showToast(e.message, "error"); }
+    if (!linkSupply.supplyId) { showToast(tr("Select a supply"), "error"); return; }
+    try { await af("/api/vendors/" + linkSupply.vendorId + "/link-supply", { method: "POST", body: { supplyId: linkSupply.supplyId, isPreferred: linkSupply.isPreferred, unitCost: linkSupply.unitCost || null, leadTimeDays: linkSupply.leadTime || null, notes: linkSupply.notes } }); showToast(tr("Supply linked")); setLinkSupply(null); loadDetail(linkSupply.vendorId); } catch (e) { showToast(e.message, "error"); }
   };
 
   const unlinkSupply = async (vendorId, supplyId) => {
-    try { await af("/api/vendors/" + vendorId + "/supply/" + supplyId, { method: "DELETE" }); showToast("Supply unlinked"); loadDetail(vendorId); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/vendors/" + vendorId + "/supply/" + supplyId, { method: "DELETE" }); showToast(tr("Supply unlinked")); loadDetail(vendorId); } catch (e) { showToast(e.message, "error"); }
   };
 
   const exportAVL = () => {
     const approved = vendors.filter(v => v.approval_status === "approved");
-    if (approved.length === 0) { showToast("No approved vendors to export", "error"); return; }
+    if (approved.length === 0) { showToast(tr("No approved vendors to export"), "error"); return; }
     dlCSV("OCSA_Approved_Vendor_List_" + new Date().toISOString().slice(0, 10) + ".csv",
       ["Vendor Name", "Contact Name", "Phone", "Email", "Address", "Products / Services", "Certification Status", "Contract Terms", "Last Review Date", "Approval Status"],
       approved.map(v => [v.name, v.contact_name || "", v.contact_phone || "", v.contact_email || "",
@@ -4253,51 +4253,53 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         v.products_services || "", v.certification_status || "", v.contract_terms || "",
         v.last_review_date ? fd(v.last_review_date) : "", v.approval_status])
     );
-    showToast("Approved Vendor List exported");
+    showToast(tr("Approved Vendor List exported"));
   };
 
   const inactiveColor = t.dark ? "#8899AA" : "#556677";
   const statusColor = { approved: GR, pending: OR, probation: BL, inactive: inactiveColor };
+  // A vendor's approval status is a code, drawn through the table with English keys equal to the codes.
+  const statusWord = { approved: tr("approved|vendor"), pending: tr("pending"), probation: tr("probation|vendor"), inactive: tr("inactive|vendor") };
   const emptyForm = { name: "", contactName: "", contactPhone: "", contactEmail: "", website: "", addressLine1: "", city: "", state: "", zipCode: "", productsServices: "", certificationStatus: "", contractTerms: "", approvalStatus: "pending", lastReviewDate: "" };
 
   const renderFormFields = (form, setForm) => (<>
-    <div style={{ marginBottom: 12 }}><Lbl>Vendor Name *</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Spartan Chemical Company" /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Vendor Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. {0}", "Spartan Chemical Company")} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-      <div><Lbl>Contact Name</Lbl><Inp t={t} value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></div>
-      <div><Lbl>Contact Phone</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder="2155550000" /></div>
+      <div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></div>
+      <div><Lbl>{tr("Contact Phone")}</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder="2155550000" /></div>
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-      <div><Lbl>Contact Email</Lbl><Inp t={t} value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} type="email" /></div>
-      <div><Lbl>Website</Lbl><Inp t={t} value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="https://..." /></div>
+      <div><Lbl>{tr("Contact Email")}</Lbl><Inp t={t} value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} type="email" /></div>
+      <div><Lbl>{tr("Website")}</Lbl><Inp t={t} value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="https://..." /></div>
     </div>
-    <div style={{ marginBottom: 12 }}><Lbl>Address</Lbl><Inp t={t} value={form.addressLine1} onChange={e => setForm({ ...form, addressLine1: e.target.value })} placeholder="Street address" /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Address")}</Lbl><Inp t={t} value={form.addressLine1} onChange={e => setForm({ ...form, addressLine1: e.target.value })} placeholder={tr("Street address")} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-      <div><Lbl>City</Lbl><Inp t={t} value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /></div>
-      <div><Lbl>State</Lbl><Inp t={t} value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} /></div>
-      <div><Lbl>ZIP</Lbl><Inp t={t} value={form.zipCode} onChange={e => setForm({ ...form, zipCode: e.target.value })} /></div>
+      <div><Lbl>{tr("City")}</Lbl><Inp t={t} value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} /></div>
+      <div><Lbl>{tr("State")}</Lbl><Inp t={t} value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} /></div>
+      <div><Lbl>{tr("ZIP")}</Lbl><Inp t={t} value={form.zipCode} onChange={e => setForm({ ...form, zipCode: e.target.value })} /></div>
     </div>
-    <div style={{ marginBottom: 12 }}><Lbl>Products / Services</Lbl><TArea t={t} value={form.productsServices} onChange={e => setForm({ ...form, productsServices: e.target.value })} rows={2} placeholder="Describe what this vendor supplies..." /></div>
-    <div style={{ marginBottom: 12 }}><Lbl>Certification Status</Lbl><Inp t={t} value={form.certificationStatus} onChange={e => setForm({ ...form, certificationStatus: e.target.value })} placeholder="e.g. Green Seal Partner, EPA Safer Choice" /></div>
-    <div style={{ marginBottom: 12 }}><Lbl>Contract Terms</Lbl><TArea t={t} value={form.contractTerms} onChange={e => setForm({ ...form, contractTerms: e.target.value })} rows={2} placeholder="Payment terms, minimum order, pricing structure..." /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Products / Services")}</Lbl><TArea t={t} value={form.productsServices} onChange={e => setForm({ ...form, productsServices: e.target.value })} rows={2} placeholder={tr("Describe what this vendor supplies...")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Status")}</Lbl><Inp t={t} value={form.certificationStatus} onChange={e => setForm({ ...form, certificationStatus: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal Partner, EPA Safer Choice")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Contract Terms")}</Lbl><TArea t={t} value={form.contractTerms} onChange={e => setForm({ ...form, contractTerms: e.target.value })} rows={2} placeholder={tr("Payment terms, minimum order, pricing structure...")} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}>
-      <div><Lbl>Approval Status</Lbl><Sel t={t} value={form.approvalStatus} onChange={e => setForm({ ...form, approvalStatus: e.target.value })} options={[{ v: "pending", l: "Pending Review" }, { v: "approved", l: "Approved" }, { v: "probation", l: "On Probation" }, { v: "inactive", l: "Inactive" }]} /></div>
-      <div><Lbl>Last Review Date</Lbl><Inp t={t} type="date" value={form.lastReviewDate} onChange={e => setForm({ ...form, lastReviewDate: e.target.value })} /></div>
+      <div><Lbl>{tr("Approval Status")}</Lbl><Sel t={t} value={form.approvalStatus} onChange={e => setForm({ ...form, approvalStatus: e.target.value })} options={[{ v: "pending", l: tr("Pending Review") }, { v: "approved", l: tr("Approved|vendor") }, { v: "probation", l: tr("On Probation") }, { v: "inactive", l: tr("Inactive|vendor") }]} /></div>
+      <div><Lbl>{tr("Last Review Date")}</Lbl><Inp t={t} type="date" value={form.lastReviewDate} onChange={e => setForm({ ...form, lastReviewDate: e.target.value })} /></div>
     </div>
   </>);
 
   return (<div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, marginTop: 8 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Vendor Registry</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Vendor Registry")}</div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> Export AVL</button>
-        {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> Add Vendor</button>}
+        <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export AVL")}</button>
+        {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Vendor")}</button>}
       </div>
     </div>
 
-    <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: "All", count: vendors.length, color: t.goldText }, { id: "approved", label: "Approved", count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: "Pending", count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: "Probation", count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: "Inactive", count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
+    <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|vendors"), count: vendors.length, color: t.goldText }, { id: "approved", label: tr("Approved|vendors"), count: vendors.filter(v => v.approval_status === "approved").length, color: GR }, { id: "pending", label: tr("Pending|vendors"), count: vendors.filter(v => v.approval_status === "pending").length, color: OR }, { id: "probation", label: tr("Probation|vendors"), count: vendors.filter(v => v.approval_status === "probation").length, color: BL }, { id: "inactive", label: tr("Inactive|vendors"), count: vendors.filter(v => v.approval_status === "inactive").length, color: inactiveColor }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
-      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search vendor, contact, phone, email, services" style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>Show</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
+      <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search vendor, contact, phone, email, services")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
 
     {(() => {
@@ -4310,61 +4312,61 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: "Vendor", render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Reviewed {fd(v.last_review_date)}</div>}</div></div> },
-        { header: "Contact", tdStyle: { maxWidth: 220 }, render: v => <div style={{ minWidth: 0 }}>{v.contact_name && <div style={{ fontSize: 12, color: t.textSec, fontWeight: 500 }}>{v.contact_name}</div>}{v.contact_phone && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1 }}>{v.contact_phone}</div>}{v.contact_email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.contact_email}</div>}{!v.contact_name && !v.contact_phone && !v.contact_email && <span style={{ color: t.textMut }}>-</span>}</div> },
-        { header: "Status", render: v => <Bdg l={v.approval_status} c={statusColor[v.approval_status] || t.textMut} /> },
-        { header: "Rating", tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: t.goldText, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>-</span> },
-        { header: "Supplies", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => v.linked_supply_count > 0 ? v.linked_supply_count + " linked" : "-" },
-        { header: "Actions", align: "right", render: v => <button title="View vendor" onClick={e => { e.stopPropagation(); loadDetail(v.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
+        { header: tr("Vendor"), render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Reviewed {0}", fd(v.last_review_date))}</div>}</div></div> },
+        { header: tr("Contact"), tdStyle: { maxWidth: 220 }, render: v => <div style={{ minWidth: 0 }}>{v.contact_name && <div style={{ fontSize: 12, color: t.textSec, fontWeight: 500 }}>{v.contact_name}</div>}{v.contact_phone && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1 }}>{v.contact_phone}</div>}{v.contact_email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.contact_email}</div>}{!v.contact_name && !v.contact_phone && !v.contact_email && <span style={{ color: t.textMut }}>-</span>}</div> },
+        { header: tr("Status"), render: v => <Bdg l={statusWord[v.approval_status] || v.approval_status} c={statusColor[v.approval_status] || t.textMut} /> },
+        { header: tr("Rating"), tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: t.goldText, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>-</span> },
+        { header: tr("Supplies"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => v.linked_supply_count > 0 ? trn("{0} linked|count", v.linked_supply_count) : "-" },
+        { header: tr("Actions"), align: "right", render: v => <button title={tr("View vendor")} onClick={e => { e.stopPropagation(); loadDetail(v.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
-      return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? "No vendors yet. Use Add Vendor to start." : "No vendors match these filters."} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
+      return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? tr("No vendors yet. Use Add Vendor to start.") : tr("No vendors match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Add Vendor</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Vendor")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(addForm, setAddForm)}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAdd}>Add Vendor</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Vendor")}</Btn></div>
       </div>
     </Mdl>}
 
     {detail && <Mdl t={t} onClose={() => setDetail(null)}>
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
+          <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={statusWord[detail.vendor.approval_status] || detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
           <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
-          {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>Contact<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
-          {detail.vendor.contact_phone && <div style={{ fontSize: 11, color: t.textMut }}>Phone<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_phone}</div></div>}
-          {detail.vendor.contact_email && <div style={{ fontSize: 11, color: t.textMut }}>Email<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_email}</div></div>}
-          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>Website<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontSize: 11 }}>View Site</a></div></div>}
-          {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>Address<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
+          {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Contact")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
+          {detail.vendor.contact_phone && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_phone}</div></div>}
+          {detail.vendor.contact_email && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_email}</div></div>}
+          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
+          {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>{tr("Address")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
         </div>
-        {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Products and Services</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
-        {detail.vendor.certification_status && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Certifications</div><div style={{ fontSize: 12, color: t.textSec }}>{detail.vendor.certification_status}</div></div>}
-        {detail.vendor.contract_terms && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>Contract Terms</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.contract_terms}</div></div>}
+        {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Products and Services")}</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
+        {detail.vendor.certification_status && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Certifications")}</div><div style={{ fontSize: 12, color: t.textSec }}>{detail.vendor.certification_status}</div></div>}
+        {detail.vendor.contract_terms && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Contract Terms")}</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.contract_terms}</div></div>}
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Linked Supplies</div>
-            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Link Supply</button>}
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Linked Supplies")}</div>
+            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Supply")}</button>}
           </div>
-          {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No supplies linked yet</div>}
+          {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No supplies linked yet")}</div>}
           {detail.linkedSupplies?.map((ls, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? "$" + parseFloat(ls.unit_cost).toFixed(2) + "/unit" : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + ls.lead_time_days + "d lead" : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>Preferred</span> : null}</div></div>
-              {isAdmin && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Unlink</button>}
+              <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? tr("${0}/unit", parseFloat(ls.unit_cost).toFixed(2)) : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + tr("{0}d lead", ls.lead_time_days) : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>{tr("Preferred")}</span> : null}</div></div>
+              {isAdmin && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
         </div>
 
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Evaluations</div>
-            <button onClick={() => setAddEval({ vendorId: detail.vendor.id, rating: 0, notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> Add</button>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Evaluations")}</div>
+            <button onClick={() => setAddEval({ vendorId: detail.vendor.id, rating: 0, notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Add")}</button>
           </div>
-          {(!detail.evaluations || detail.evaluations.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>No evaluations on file</div>}
+          {(!detail.evaluations || detail.evaluations.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No evaluations on file")}</div>}
           {detail.evaluations?.map((ev, i) => (
             <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -4372,52 +4374,52 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
                 <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
               </div>
               {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
-              {ev.evaluator_name && <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>By {ev.evaluator_name}</div>}
+              {ev.evaluator_name && <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tr("By {0}", ev.evaluator_name)}</div>}
             </div>
           ))}
         </div>
 
         {isAdmin && <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.vendor.id, name: detail.vendor.name, contactName: detail.vendor.contact_name || "", contactPhone: detail.vendor.contact_phone || "", contactEmail: detail.vendor.contact_email || "", website: detail.vendor.website || "", addressLine1: detail.vendor.address_line1 || "", city: detail.vendor.city || "", state: detail.vendor.state || "", zipCode: detail.vendor.zip_code || "", productsServices: detail.vendor.products_services || "", certificationStatus: detail.vendor.certification_status || "", contractTerms: detail.vendor.contract_terms || "", approvalStatus: detail.vendor.approval_status, lastReviewDate: detail.vendor.last_review_date ? detail.vendor.last_review_date.slice(0, 10) : "" })}>Edit</Btn>
-          <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm("Remove this vendor?")) deactivate(detail.vendor.id); }}>Remove</Btn>
+          <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.vendor.id, name: detail.vendor.name, contactName: detail.vendor.contact_name || "", contactPhone: detail.vendor.contact_phone || "", contactEmail: detail.vendor.contact_email || "", website: detail.vendor.website || "", addressLine1: detail.vendor.address_line1 || "", city: detail.vendor.city || "", state: detail.vendor.state || "", zipCode: detail.vendor.zip_code || "", productsServices: detail.vendor.products_services || "", certificationStatus: detail.vendor.certification_status || "", contractTerms: detail.vendor.contract_terms || "", approvalStatus: detail.vendor.approval_status, lastReviewDate: detail.vendor.last_review_date ? detail.vendor.last_review_date.slice(0, 10) : "" })}>{tr("Edit")}</Btn>
+          <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this vendor?"))) deactivate(detail.vendor.id); }}>{tr("Remove")}</Btn>
         </div>}
       </div>
     </Mdl>}
 
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Edit Vendor</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Vendor")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(editForm, setEditForm)}
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEdit}>Save Changes</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save Changes")}</Btn></div>
       </div>
     </Mdl>}
 
     {addEval && <Mdl t={t} onClose={() => setAddEval(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Add Evaluation</div>
-        <div style={{ marginBottom: 14 }}><Lbl>Rating *</Lbl>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Add Evaluation")}</div>
+        <div style={{ marginBottom: 14 }}><Lbl>{tr("Rating *")}</Lbl>
           <div style={{ display: "flex", gap: 8 }}>
             {[1,2,3,4,5].map(r => (
               <button key={r} onClick={() => setAddEval({ ...addEval, rating: r })} style={{ width: 38, height: 38, borderRadius: 8, border: "1px solid " + (addEval.rating >= r ? GO : t.border), background: addEval.rating >= r ? t.goldBg : "transparent", color: addEval.rating >= r ? t.goldText : t.textMut, fontSize: 20, cursor: "pointer" }}>{"\u2605"}</button>
             ))}
           </div>
         </div>
-        <div style={{ marginBottom: 16 }}><Lbl>Notes</Lbl><TArea t={t} value={addEval.notes} onChange={e => setAddEval({ ...addEval, notes: e.target.value })} rows={3} placeholder="Performance notes, delivery quality, responsiveness..." /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddEval(null)}>Cancel</Btn><Btn t={t} onClick={submitEval}>Save Evaluation</Btn></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} value={addEval.notes} onChange={e => setAddEval({ ...addEval, notes: e.target.value })} rows={3} placeholder={tr("Performance notes, delivery quality, responsiveness...")} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddEval(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEval}>{tr("Save Evaluation")}</Btn></div>
       </div>
     </Mdl>}
 
     {linkSupply && <Mdl t={t} onClose={() => setLinkSupply(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>Link Supply to Vendor</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Supply *</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: "Select a supply..." }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Link Supply to Vendor")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Supply *")}</Lbl><Sel t={t} value={linkSupply.supplyId} onChange={e => setLinkSupply({ ...linkSupply, supplyId: e.target.value })} options={[{ v: "", l: tr("Select a supply...") }, ...supplies.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Unit Cost</Lbl><Inp t={t} type="number" value={linkSupply.unitCost} onChange={e => setLinkSupply({ ...linkSupply, unitCost: e.target.value })} placeholder="$0.00" /></div>
-          <div><Lbl>Lead Time (days)</Lbl><Inp t={t} type="number" value={linkSupply.leadTime} onChange={e => setLinkSupply({ ...linkSupply, leadTime: e.target.value })} /></div>
+          <div><Lbl>{tr("Unit Cost")}</Lbl><Inp t={t} type="number" value={linkSupply.unitCost} onChange={e => setLinkSupply({ ...linkSupply, unitCost: e.target.value })} placeholder="$0.00" /></div>
+          <div><Lbl>{tr("Lead Time (days)")}</Lbl><Inp t={t} type="number" value={linkSupply.leadTime} onChange={e => setLinkSupply({ ...linkSupply, leadTime: e.target.value })} /></div>
         </div>
-        <div style={{ marginBottom: 12 }}><Lbl>Notes</Lbl><Inp t={t} value={linkSupply.notes} onChange={e => setLinkSupply({ ...linkSupply, notes: e.target.value })} placeholder="Min order, availability notes..." /></div>
-        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={linkSupply.isPreferred} onChange={e => setLinkSupply({ ...linkSupply, isPreferred: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Mark as preferred vendor for this supply</span></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSupply(null)}>Cancel</Btn><Btn t={t} onClick={submitLinkSupply}>Link Supply</Btn></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={linkSupply.notes} onChange={e => setLinkSupply({ ...linkSupply, notes: e.target.value })} placeholder={tr("Min order, availability notes...")} /></div>
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={linkSupply.isPreferred} onChange={e => setLinkSupply({ ...linkSupply, isPreferred: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Mark as preferred vendor for this supply")}</span></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSupply(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitLinkSupply}>{tr("Link Supply")}</Btn></div>
       </div>
     </Mdl>}
   </div>);

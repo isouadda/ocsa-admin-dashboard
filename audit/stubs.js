@@ -143,8 +143,8 @@ function createStubs() {
 
   // The list and the approved-vendor export both read approval_status.
   const VENDORS = [
-    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
-    { id: "v-2", name: "Brightwater Equipment", status: "approved", approval_status: "approved", address_line1: "3 Dockside Lane", zip_code: "19061", products_services: "Autoscrubbers and parts", certification_status: "None", contract_terms: "Net 15", last_review_date: seed.shift(-90), category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
+    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), linked_supply_count: 2, category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
+    { id: "v-2", name: "Brightwater Equipment", status: "approved", approval_status: "approved", address_line1: "3 Dockside Lane", zip_code: "19061", products_services: "Autoscrubbers and parts", certification_status: "None", contract_terms: "Net 15", last_review_date: seed.shift(-90), linked_supply_count: 1, category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
     { id: "v-3", name: "Kestrel Paper Co", status: "pending", approval_status: "pending", address_line1: "88 Foundry Street", zip_code: "19045", products_services: "Paper and liners", certification_status: "None", contract_terms: "Prepaid", last_review_date: null, category: "consumable", contact_name: "S. Nakamura", contact_email: "hello@kestrelpaper.example.invalid", contact_phone: "2155559003", insurance_expiry: seed.shift(-14), w9_on_file: false, avg_rating: null, evaluation_count: 0, city: "Fairhaven", state: "PA" },
   ];
   // hand: 3 vendors, 2 approved. The approved-vendor export writes 2 rows plus a header.
@@ -934,10 +934,18 @@ function createStubs() {
     if (path === "/api/vendors" && method === "POST") return created({ message: "Vendor added" });
     if (/^\/api\/vendors\/[^/]+\/evaluations/.test(path)) return ok({ message: "Evaluation saved" });
     if (/^\/api\/vendors\/[^/]+\/supplies/.test(path)) return ok({ message: "Supply linked" });
+    if (/^\/api\/vendors\/[^/]+\/evaluate$/.test(path)) return ok({ message: "Evaluation saved" });
+    if (/^\/api\/vendors\/[^/]+\/link-supply$/.test(path)) return ok({ message: "Supply linked" });
+    if (/^\/api\/vendors\/[^/]+\/supply\/[^/]+$/.test(path) && method === "DELETE") return ok({ message: "Supply unlinked" });
+    // A vendor's window reads linkedSupplies, and an evaluation's date and evaluator by these names.
     if (/^\/api\/vendors\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];
       const v = VENDORS.find((x) => x.id === id) || VENDORS[0];
-      return ok({ vendor: v, evaluations: [{ id: "ev-1", rating: 4, notes: "On time, correct paperwork.", evaluated_on: seed.shift(-30), evaluated_by_name: "Dana Whitlock" }], supplies: SUPPLIES.slice(0, 2) });
+      const linked = SUPPLIES.slice(0, 2);
+      return ok({ vendor: v,
+        evaluations: [{ id: "ev-1", rating: 4, notes: "On time, correct paperwork.", evaluated_on: seed.shift(-30), evaluated_by_name: "Dana Whitlock", evaluation_date: seed.shift(-30), evaluator_name: "Dana Whitlock" }],
+        supplies: linked,
+        linkedSupplies: linked.map((x, i) => ({ supply_id: x.id, supply_name: x.name, unit_cost: x.cost_per_unit, lead_time_days: i === 0 ? 5 : 12, is_preferred: i === 0 })) });
     }
     if (/^\/api\/vendors\/[^/]+$/.test(path)) return ok({ message: "Vendor updated" });
     if (path === "/api/services" && method === "GET") return ok(SERVICES);
