@@ -101,6 +101,17 @@ The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `ex
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles` and `house-style`.
 
+## How much is left in English
+
+```
+node audit/count.js
+```
+
+It counts, page by page, the strings the finder in `audit/lib/strings.js` finds that do not go through
+`tr` or `trn`, in the component the render switch draws for the page and in everything that component
+reaches, beside the part `audit/spanish-todo.json` gives the page. A page the file no longer lists is
+done, and a count there is English left on a page taken as finished.
+
 ## Known failures
 
 `audit/known.json` holds the failures the app has today that the audit build does not fix, because
