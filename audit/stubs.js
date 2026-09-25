@@ -38,8 +38,20 @@ function createStubs() {
     });
     return out;
   }
+  // Staff Management's list reads four fields beside the seed's own: the employee id, the employment
+  // type, the hourly rate and the sites a person works, in the API's names for them. Every other page
+  // reads the seed's fields and passes these by.
+  // hand: employment types in the order of the seed, every fifth person with none; a rate from the
+  // fifth person on; each person at the one site the seed gives them.
+  const EMPLOYMENT = ["full_time", "full_time", "part_time", "supplemental", null];
+  const staffRows = () => clone(seed.STAFF).map((p, i) => Object.assign(p, {
+    employeeId: p.employee_id,
+    employmentType: EMPLOYMENT[i % EMPLOYMENT.length],
+    hourlyRate: i >= 4 ? (17 + i) + ".50" : null,
+    sites: [{ siteId: p.site_id, siteName: p.site_name }],
+  }));
   const state = {
-    staff: clone(seed.STAFF),
+    staff: staffRows(),
     sites: clone(seed.SITES),
     issues: clone(seed.ISSUES),
     supplies: null,
@@ -118,6 +130,31 @@ function createStubs() {
       { id: "lv-27", value: "paperwork", label: "Paperwork", is_active: true, sort_order: 1 },
       { id: "lv-28", value: "training", label: "Training", is_active: true, sort_order: 2 },
       { id: "lv-29", value: "equipment", label: "Equipment", is_active: true, sort_order: 3 },
+    ] },
+    // What Staff Management draws a site assignment's role and shift and a certification's type as:
+    // the choice's word in the language the call asked for. The codes are the ones a person's profile
+    // below holds, and the ones the windows that assign a site and add a certification send.
+    { id: "lk-12", slug: "site_roles", name: "Site roles", values: [
+      { id: "lv-33", value: "Lead", label: "Lead", is_active: true, sort_order: 1 },
+      { id: "lv-34", value: "Porter", label: "Porter", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-13", slug: "shift_names", name: "Shift names", values: [
+      { id: "lv-35", value: "Night", label: "Night", is_active: true, sort_order: 1 },
+      { id: "lv-36", value: "Day", label: "Day", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-14", slug: "certification_types", name: "Certification types", values: [
+      { id: "lv-37", value: "certification", label: "Certification", is_active: true, sort_order: 1 },
+      { id: "lv-38", value: "license", label: "License", is_active: true, sort_order: 2 },
+    ] },
+    // The roles a person can hold. Each value is the code the seed's people hold and Staff Management
+    // saves; each label is the English the app's own role table has for it.
+    { id: "lk-15", slug: "staff_roles", name: "Staff roles", values: [
+      { id: "lv-39", value: "admin", label: "Admin", is_active: true, sort_order: 1 },
+      { id: "lv-40", value: "supervisor", label: "Supervisor", is_active: true, sort_order: 2 },
+      { id: "lv-41", value: "custodial_lead", label: "Custodial Lead", is_active: true, sort_order: 3 },
+      { id: "lv-42", value: "custodial_laborer", label: "Custodial Laborer", is_active: true, sort_order: 4 },
+      { id: "lv-43", value: "day_porter", label: "Day Porter", is_active: true, sort_order: 5 },
+      { id: "lv-44", value: "contractor", label: "Contractor", is_active: true, sort_order: 6 },
     ] },
   ];
 
@@ -236,12 +273,15 @@ function createStubs() {
     { id: "si-2", site_id: S[2].id, site_name: S[2].name, template_id: "tp-2", template_name: "Dock area check", scheduled_date: seed.shift(6), status: "scheduled", assigned_to: "u-cap-1", assigned_to_name: "Priya Raghunathan" },
   ];
 
-  // Shaped to the Cases page: clock, ageHours, subject, assigned, createdAt. The response clock is
-  // 72 hours from filing, so ageHours drives what the Response column says.
+  // Shaped to the Cases page: clock, ageHours, subject, assignedTo, reportedBy, escalatedTo, createdAt,
+  // updatedAt, firstResponseAt, resolvedAt, the summary and the resolution notes. The response clock is
+  // 72 hours from filing, so ageHours drives what the Response column says. What a person typed, a
+  // summary and a resolution note, is drawn exactly as it arrives, so the first summary and the third
+  // case's notes carry a bar, which the word table would cut at if the text went through it.
   const HR_CASES = [
-    { id: "hc-1", reference: "CASE-0007", status: "open", clock: "overdue", ageHours: 86, createdAt: seed.shift(-4) + "T09:00:00Z", subject: { id: "u-staff-5", name: "Tomasz Wisniewski" }, assigned: null, summary: "A concern was raised about overnight cover.", subjectNamed: true },
-    { id: "hc-2", reference: "CASE-0006", status: "in_review", clock: "due_soon", ageHours: 60, createdAt: seed.shift(-3) + "T21:00:00Z", subject: null, assigned: { id: "u-admin-1", name: "Dana Whitlock" }, summary: "Dock lighting reported dim.", subjectNamed: false },
-    { id: "hc-3", reference: "CASE-0005", status: "resolved", clock: "responded", ageHours: 300, createdAt: seed.shift(-14) + "T09:00:00Z", subject: { id: "u-staff-7", name: "Elena Barbosa" }, assigned: { id: "u-super-1", name: "Oyelaran Adebayo" }, summary: "Pay question, answered the same week.", subjectNamed: true },
+    { id: "hc-1", reference: "CASE-0007", status: "open", clock: "overdue", ageHours: 86, createdAt: seed.shift(-4) + "T09:00:00Z", updatedAt: seed.shift(-4) + "T09:00:00Z", subject: { id: "u-staff-5", name: "Tomasz Wisniewski" }, assignedTo: null, reportedBy: { id: "u-staff-6", name: seed.STAFF[5].name }, escalatedTo: null, firstResponseAt: null, resolvedAt: null, resolutionNotes: null, summary: "A concern was raised about overnight cover | raised again after the first week.", subjectNamed: true },
+    { id: "hc-2", reference: "CASE-0006", status: "in_review", clock: "due_soon", ageHours: 60, createdAt: seed.shift(-3) + "T21:00:00Z", updatedAt: seed.shift(-2) + "T10:00:00Z", subject: null, assignedTo: { id: "u-admin-1", name: "Dana Whitlock" }, reportedBy: null, escalatedTo: null, firstResponseAt: null, resolvedAt: null, resolutionNotes: null, summary: "Dock lighting reported dim.", subjectNamed: false },
+    { id: "hc-3", reference: "CASE-0005", status: "resolved", clock: "responded", ageHours: 300, createdAt: seed.shift(-14) + "T09:00:00Z", updatedAt: seed.shift(-9) + "T16:00:00Z", subject: { id: "u-staff-7", name: "Elena Barbosa" }, assignedTo: { id: "u-super-1", name: "Oyelaran Adebayo" }, reportedBy: { id: "u-staff-8", name: seed.STAFF[7].name }, escalatedTo: { id: "u-super-1", name: "Oyelaran Adebayo" }, firstResponseAt: seed.shift(-13) + "T11:00:00Z", resolvedAt: seed.shift(-9) + "T16:00:00Z", resolutionNotes: "Answered in person the same week | the pay stub was corrected.", summary: "Pay question, answered the same week.", subjectNamed: true },
   ];
   // hand: 3 cases. 2 need a response (1 overdue, 1 due soon), 1 already answered.
   // hand: the badge adds unassigned 1 + dueSoon 0 + overdue 1 = 2.
@@ -668,6 +708,9 @@ function createStubs() {
     "Subcontractor": "Subcontratista", "Direct": "Directo",
     "Safety": "Seguridad", "Equipment": "Equipo", "Paperwork": "Documentaci\u00f3n",
     "Quality System": "Sistema de calidad", "Human Resources": "Recursos humanos", "Management Commitment": "Compromiso de la direcci\u00f3n",
+    "Lead": "L\u00edder", "Porter": "Conserje", "Night": "Noche", "Day": "D\u00eda", "Certification": "Certificaci\u00f3n", "License": "Licencia",
+    "Admin": "Administrador", "Supervisor": "Supervisor", "Custodial Lead": "L\u00edder de limpieza", "Custodial Laborer": "Auxiliar de limpieza",
+    "Day Porter": "Conserje de d\u00eda", "Contractor": "Contratista",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -732,11 +775,13 @@ function createStubs() {
         emergencyContactName: "T. Almeida", emergencyContactPhone: "2155559100",
       }),
       assignments: [
-        { id: "as-1", site_id: S[0].id, site_name: S[0].name, is_active: true, assigned_at: seed.shift(-200), role_at_site: "Lead" },
+        { id: "as-1", site_id: S[0].id, site_name: S[0].name, is_active: true, assigned_at: seed.shift(-200), role_at_site: "Lead", shift_name: "Night", shift_start: "22:00", shift_end: "06:30" },
         { id: "as-2", site_id: S[1].id, site_name: S[1].name, is_active: false, assigned_at: seed.shift(-400), role_at_site: "Porter" },
       ],
+      // Shaped to what the profile and its printed report read: cert_name, cert_type, issuing_body,
+      // issued_date and expiry_date. The type is a code of the certification_types list above.
       certifications: [
-        { id: "cert-1", name: "Bloodborne pathogen awareness", issued_on: seed.shift(-300), expires_on: seed.shift(60), issuer: "In-house" },
+        { id: "cert-1", cert_name: "Bloodborne pathogen awareness", cert_type: "certification", issuing_body: "In-house", issued_date: seed.shift(-300), expiry_date: seed.shift(60) },
       ],
       stats: { shiftsLast30: 14, tasksCompleted: 96, issuesReported: 3 },
     };
@@ -858,6 +903,10 @@ function createStubs() {
     if (/^\/api\/users\/[^/]+\/approve$/.test(path)) return ok({ message: "Approved" });
     if (/^\/api\/users\/[^/]+\/pin$/.test(path)) return ok({ message: "PIN reset" });
     if (/^\/api\/users\/[^/]+\/assignments/.test(path)) return ok({ message: "Assignment saved" });
+    // The routes Staff Management calls to reset a PIN and to assign and unassign a site.
+    if (/^\/api\/users\/[^/]+\/reset-pin$/.test(path)) return ok({ message: "PIN reset" });
+    if (/^\/api\/users\/[^/]+\/assign-site$/.test(path)) return ok({ message: "Assignment saved" });
+    if (/^\/api\/users\/[^/]+\/unassign-site\/[^/]+$/.test(path)) return ok({ message: "Assignment removed" });
     if (/^\/api\/users\/[^/]+\/certifications/.test(path)) return ok({ message: "Certification saved" });
     if (/^\/api\/users\/[^/]+\/permissions$/.test(path)) {
       const id = path.split("/")[3];
@@ -878,7 +927,8 @@ function createStubs() {
     if (path === "/api/users" && method === "POST") {
       const row = Object.assign({ id: "u-new-1", status: "pending", name: ((body && body.firstName) || "New") + " " + ((body && body.lastName) || "Person") }, body || {});
       state.staff.push(row);
-      return created({ message: "Staff added", user: row });
+      // The page tells the admin the new person's first PIN, from tempPin.
+      return created({ message: "Staff added", user: row, tempPin: "5307" });
     }
 
     // --- issues -----------------------------------------------------------
@@ -1244,13 +1294,20 @@ function createStubs() {
       return ok({ cases: rows });
     }
     if (path === "/api/hr-cases" && method === "POST") return created({ message: "Case opened" });
-    if (path === "/api/contacts/case-subjects") return ok([
-      { value: "workplace_concern", label: "Workplace concern" },
-      { value: "safety", label: "Safety" },
-      { value: "pay", label: "Pay" },
-    ]);
+    // Who a case can be escalated to, shaped to what the window reads: subjects, each with an id, a
+    // name and a title. The first case's own subject is among them, and the window never offers it.
+    if (path === "/api/contacts/case-subjects") return ok({ subjects: [
+      { id: "u-super-1", name: "Oyelaran Adebayo", title: "Director of Operations" },
+      { id: "u-staff-5", name: "Tomasz Wisniewski", title: null },
+    ] });
     if (/^\/api\/hr-cases\/[^/]+\/access-log$/.test(path)) {
-      return ok({ entries: [{ id: "ca-1", at: seed.shift(-1) + "T10:00:00Z", who: "Dana Whitlock", what: "Opened the case" }] });
+      // Shaped to what the window's log reads: a name, a role and what was done, by its code. The
+      // filing email is the system's own, with no name.
+      return ok({ entries: [
+        { id: "ca-1", at: seed.shift(-1) + "T10:00:00Z", name: "Dana Whitlock", role: "admin", action: "hr_case_read" },
+        { id: "ca-2", at: seed.shift(-1) + "T10:05:00Z", name: "Dana Whitlock", role: "admin", action: "hr_case_access_log_read" },
+        { id: "ca-3", at: seed.shift(-4) + "T09:01:00Z", name: null, role: null, action: "hr_case_filed_mail" },
+      ] });
     }
     if (/^\/api\/hr-cases\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];
@@ -1532,7 +1589,7 @@ function createStubs() {
     reset: () => {
       calls.length = 0;
       refusals = [];
-      state.staff = clone(seed.STAFF);
+      state.staff = staffRows();
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;

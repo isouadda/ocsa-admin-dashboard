@@ -26,6 +26,12 @@ async function openSite(d) {
   await d.clickRow(0);
   await d.settle(400);
 }
+// The first person's profile on Staff Management, which carries a timeline and a profile report.
+async function openPerson(d) {
+  await d.goto("staff");
+  await d.clickRow(0);
+  await d.settle(400);
+}
 const tab = async (d, word) => { await d.clickText(d.say(word), { exact: true }); await d.settle(400); };
 // A saved report, run from the library by the name it was saved under, and its PDF export pressed.
 async function exportReport(d, name) {
@@ -51,6 +57,22 @@ const PRINTS = [
       await d.settle(400);
       return d.clickText(d.say("Print"), { exact: true, inModal: true });
     } },
+  // Staff Management's three: the record behind the first entry of a person's timeline, the timeline,
+  // and the profile report. The report is printed from the Timeline tab, so the timeline it carries
+  // is printed with it.
+  { id: "staff/record", what: "a record from a person's timeline",
+    open: async (d, stubs) => {
+      await openPerson(d); await tab(d, "Timeline");
+      const served = stubs.calls.filter((c) => /^\/api\/users\/timeline\//.test(c.path) && c.json && Array.isArray(c.json.entries)).pop();
+      const first = served && served.json.entries[0];
+      if (!first || !(await d.clickText(first.description, { exact: true }))) return false;
+      await d.settle(400);
+      return d.clickText(d.say("Print"), { exact: true, inModal: true });
+    } },
+  { id: "staff/timeline", what: "a person's timeline",
+    open: async (d) => { await openPerson(d); await tab(d, "Timeline"); return d.clickText(d.say("Print"), { exact: true }); } },
+  { id: "staff/profile-report", what: "a person's profile report",
+    open: async (d) => { await openPerson(d); await tab(d, "Timeline"); return d.clickText(d.say("Print Report"), { exact: true }); } },
   // Each report's printed page, from the saved report of its source. The issue report is the one
   // saved with the SLA panel on, so every table it can print is on the page.
   { id: "reports/issue-timing", what: "the issue report",
