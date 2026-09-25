@@ -10,6 +10,7 @@ const { findNonAscii } = require("../lib/ascii");
 const { compare, slotCheck } = require("../lib/words");
 const { APP } = require("../lib/strings");
 const { count } = require("../count");
+const TODO = require("path").resolve(__dirname, "..", "spanish-todo.json");
 
 function run({ app, results, inventory }) {
   const sites = app.bannedAcronym;
@@ -72,6 +73,17 @@ function run({ app, results, inventory }) {
   const left = pages.filter((p) => p.part === "done" && p.places > 0);
   results.check("house-style", inventory.DONE_PAGES_READ_NO_ENGLISH.id, left.length === 0,
     left.map((p) => p.id + " has " + p.places + " places the finder reads as English, in " + p.owners.join(", ")).join("; "));
+
+  // A page still in English names each printed page the finder counts English on, so the part that
+  // takes the page takes its prints with it, and a print that turns Spanish comes off the list.
+  const todo = JSON.parse(fs.readFileSync(TODO, "utf8")).pages;
+  const off = Object.keys(todo).map((id) => {
+    const named = (todo[id].prints || []).slice().sort();
+    const counted = prints.filter((r) => r.pages.indexOf(id) >= 0 && r.places > 0).map((r) => r.id).sort();
+    return named.join("|") === counted.join("|") ? null
+      : id + " names " + (named.join(", ") || "no print") + " where the finder counts English on " + (counted.join(", ") || "no print");
+  }).filter(Boolean);
+  results.check("house-style", inventory.TODO_NAMES_PRINTS.id, off.length === 0, off.join("; "));
 }
 
 module.exports = { run };

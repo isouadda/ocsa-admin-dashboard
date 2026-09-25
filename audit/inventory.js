@@ -341,6 +341,9 @@ const FINDER_PRINTS = { id: "house-style/the-finder-reads-every-printed-page" };
 // A page audit/spanish-todo.json no longer lists has no English the finder can find, a printed page
 // included.
 const DONE_PAGES_READ_NO_ENGLISH = { id: "house-style/a-page-taken-as-done-reads-no-english" };
+// A page still listed in audit/spanish-todo.json names the printed pages the finder counts English on,
+// so the part that takes the page takes its prints with it.
+const TODO_NAMES_PRINTS = { id: "house-style/the-to-do-list-names-every-print-left" };
 // Every call to the API says the language the screen is drawn in, so what the API answers with comes
 // back in that language.
 const LANGUAGE_HEADER = { id: "language/every-call-says-the-language" };
@@ -497,4 +500,4 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/what-is-still-needed-shrinks", name: "The still-needed line drops a question once it is answered" },
 ];
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, LANGUAGE_HEADER, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES };
+module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES };

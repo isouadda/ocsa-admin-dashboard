@@ -140,7 +140,9 @@ the text between the tags of every string is a place, the way a line a toast say
 names each print it finds after the parts, by the component and function that build it, the line it
 starts on and the page that prints it. `house-style` holds the finder to a plain count of the pages
 `src/App.js` opens, and fails the run when a page taken as done has any English the finder can find,
-a printed page included.
+a printed page included. A page still listed in `audit/spanish-todo.json` names the printed pages the
+finder counts English on, and `house-style` fails the run when the list and the count part, so the
+part that takes a page takes its prints with it.
 
 ## Known failures
 
