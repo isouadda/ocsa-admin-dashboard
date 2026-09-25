@@ -885,6 +885,29 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
   useEffect(() => { load(); }, []);
   const roleLabels = lkMap("staff_roles");
+  // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
+  // displayLabel the API sends in that language, a role the list does not hold reads the table's
+  // word for it, and a status and an employment type read the table's word. Each stays the code it
+  // is on the wire, in every form and in every comparison.
+  const roleShown = lkMap("staff_roles", true);
+  const siteRoleShown = lkMap("site_roles", true);
+  const shiftShown = lkMap("shift_names", true);
+  const certTypeShown = lkMap("certification_types", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
+  const stateOf = (s) => (s === "terminated" ? tr("terminated|person") : personStateOf(s));
+  const employmentOf = (v) => (ET[v] ? tr(ET[v]) : v);
+  // What the timeline, its record window and the printed pages name an action, a kind of record and
+  // a field with. Each is the API's own name: one with a word here is drawn as that word, and any
+  // other as the name with its underscores as spaces, which is what the page has always drawn.
+  const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
+  const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field") };
+  const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
+  const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
+  const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
+  const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
+  const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast("Approved"); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast("Name, phone, and email required", "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast("Added. Temp PIN: " + d.tempPin); setAddForm(null); load(); loadStaff(); } catch (e) { if (/employee id/i.test(e.message || "")) { setEmpIdError(e.message); } else { showToast(e.message, "error"); } } };
@@ -983,7 +1006,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const u = profile.user;
     const e = tlDetail.entry;
     const r = tlDetail.record;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("Record Detail") + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -992,14 +1015,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()), u.profilePhotoUrl || null);
+    html += printHeader(tr("Record Detail: {0}", actionOf(e.actionType)), u.firstName + ' ' + u.lastName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()), u.profilePhotoUrl || null);
     html += '<div class="content">';
-    html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + tr("Activity Description") + '</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || tr("N/A")) + '</div></div>';
     if (r) {
-      html += '<div class="section"><div class="section-title">Record Details</div><div class="grid">';
+      html += '<div class="section"><div class="section-title">' + tr("Record Details") + '</div><div class="grid">';
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
-          const label = k.replace(/_/g, " ");
+          const label = fieldOf(k);
           let val = String(v);
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
@@ -1014,20 +1037,21 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       html += '</div></div>';
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
+      html += '<div class="section"><div class="section-title">' + tr("Photos ({0})", tlDetail.photos.length) + '</div>';
       tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || new Date(p.created_at || "").toLocaleString(localeTag()) || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">Related Items (' + tlDetail.relatedItems.length + ')</div><table><tr>';
+      html += '<div class="section"><div class="section-title">' + tr("Related Items ({0})", tlDetail.relatedItems.length) + '</div><table><tr>';
       const first = tlDetail.relatedItems[0];
       const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
-      cols.slice(0, 6).forEach(c => { html += '<th>' + c.replace(/_/g, " ") + '</th>'; });
+      cols.slice(0, 6).forEach(c => { html += '<th>' + fieldOf(c) + '</th>'; });
       html += '</tr>';
       tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">' + clientConfig.company.footerLine + '</div></div></body></html>';
+    // The company's footer line, with its confidential label in the language the page is printed in.
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr(clientConfig.company.confidentialLabel) + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1036,17 +1060,17 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const printTimeline = () => {
     if (timeline.length === 0) { showToast("No data to print", "error"); return; }
     const u = profile.user;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + u.firstName + ' ' + u.lastName + ' - Activity Timeline</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(u.firstName + ' ' + u.lastName + ' - Activity Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + (tlStartDate ? " | From: " + tlStartDate : "") + (tlEndDate ? " | To: " + tlEndDate : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()), u.profilePhotoUrl || null);
-    html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
-    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div></div></body></html>';
+    html += printHeader(tr("{0} - Activity Timeline", u.firstName + ' ' + u.lastName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + (tlStartDate ? " | " + tr("From: {0}", tlStartDate) : "") + (tlEndDate ? " | " + tr("To: {0}", tlEndDate) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
+    html += '<div class="content"><table><tr><th>' + tr("Date") + '</th><th>' + tr("Time") + '</th><th>' + tr("Category") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + entityOf(e.entityType) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
+    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1055,7 +1079,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const printProfileReport = () => {
     const u = profile.user;
     const fullName = u.firstName + " " + u.lastName;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + fullName + ' - Employee Report</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Employee Report", fullName) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:24px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:18px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -1064,39 +1088,39 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += printHeader(fullName, 'Employee Report | Generated ' + new Date().toLocaleDateString(localeTag()), u.profilePhotoUrl || null);
+    html += printHeader(fullName, tr("Employee Report") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())), u.profilePhotoUrl || null);
     html += '<div class="content">';
     // Profile info section
-    html += '<div class="section"><div class="section-title">Employee Information</div><div class="grid">';
-    html += '<div class="field"><div class="label">Role</div><div class="value">' + (u.role || "N/A") + '</div></div>';
-    html += '<div class="field"><div class="label">Employment Type</div><div class="value">' + (u.employmentType ? (ET[u.employmentType] || u.employmentType) : "N/A") + '</div></div>';
-    html += '<div class="field"><div class="label">Status</div><div class="value">' + (u.status || "N/A") + '</div></div>';
-    html += '<div class="field"><div class="label">Hire Date</div><div class="value">' + (u.hireDate ? fmtDate(u.hireDate) : "N/A") + '</div></div>';
-    html += '<div class="field"><div class="label">Phone</div><div class="value">' + (u.phone || "N/A") + '</div></div>';
-    html += '<div class="field"><div class="label">Email</div><div class="value">' + (u.email || "N/A") + '</div></div>';
-    html += '<div class="field"><div class="label">Hourly Rate</div><div class="value">' + (u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : "N/A") + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + tr("Employee Information") + '</div><div class="grid">';
+    html += '<div class="field"><div class="label">' + tr("Role") + '</div><div class="value">' + (u.role ? roleOf(u.role) : tr("N/A")) + '</div></div>';
+    html += '<div class="field"><div class="label">' + tr("Employment Type") + '</div><div class="value">' + (u.employmentType ? employmentOf(u.employmentType) : tr("N/A")) + '</div></div>';
+    html += '<div class="field"><div class="label">' + tr("Status") + '</div><div class="value">' + (u.status ? stateOf(u.status) : tr("N/A")) + '</div></div>';
+    html += '<div class="field"><div class="label">' + tr("Hire Date") + '</div><div class="value">' + (u.hireDate ? fmtDate(u.hireDate) : tr("N/A")) + '</div></div>';
+    html += '<div class="field"><div class="label">' + tr("Phone") + '</div><div class="value">' + (u.phone || tr("N/A")) + '</div></div>';
+    html += '<div class="field"><div class="label">' + tr("Email") + '</div><div class="value">' + (u.email || tr("N/A")) + '</div></div>';
+    html += '<div class="field"><div class="label">' + tr("Hourly Rate") + '</div><div class="value">' + (u.hourlyRate ? "$" + parseFloat(u.hourlyRate).toFixed(2) : tr("N/A")) + '</div></div>';
     html += '</div></div>';
     // Assignments
     const activeAssign = (profile.assignments || []).filter(a => a.is_active);
     if (activeAssign.length > 0) {
-      html += '<div class="section"><div class="section-title">Site Assignments (' + activeAssign.length + ')</div><table><tr><th>Site</th><th>Role</th><th>Shift</th><th>Hours</th></tr>';
-      activeAssign.forEach(a => { html += '<tr><td>' + (a.site_name || "") + '</td><td>' + (a.role_at_site || "") + '</td><td>' + (a.shift_name || "") + '</td><td>' + (a.shift_start ? a.shift_start + " - " + a.shift_end : "") + '</td></tr>'; });
+      html += '<div class="section"><div class="section-title">' + tr("Site Assignments ({0})", activeAssign.length) + '</div><table><tr><th>' + tr("Site") + '</th><th>' + tr("Role") + '</th><th>' + tr("Shift") + '</th><th>' + tr("Hours") + '</th></tr>';
+      activeAssign.forEach(a => { html += '<tr><td>' + (a.site_name || "") + '</td><td>' + (a.role_at_site ? (siteRoleShown[a.role_at_site] || a.role_at_site) : "") + '</td><td>' + (a.shift_name ? (shiftShown[a.shift_name] || a.shift_name) : "") + '</td><td>' + (a.shift_start ? a.shift_start + " - " + a.shift_end : "") + '</td></tr>'; });
       html += '</table></div>';
     }
     // Certifications
     const certs = profile.certifications || [];
     if (certs.length > 0) {
-      html += '<div class="section"><div class="section-title">Certifications (' + certs.length + ')</div><table><tr><th>Name</th><th>Type</th><th>Issuer</th><th>Expiry</th></tr>';
-      certs.forEach(c => { html += '<tr><td>' + (c.cert_name || "") + '</td><td>' + (c.cert_type || "") + '</td><td>' + (c.issuing_body || "") + '</td><td>' + (c.expiry_date ? fmtDate(c.expiry_date) : "N/A") + '</td></tr>'; });
+      html += '<div class="section"><div class="section-title">' + tr("Certifications ({0})", certs.length) + '</div><table><tr><th>' + tr("Name") + '</th><th>' + tr("Type") + '</th><th>' + tr("Issuer") + '</th><th>' + tr("Expiry") + '</th></tr>';
+      certs.forEach(c => { html += '<tr><td>' + (c.cert_name || "") + '</td><td>' + (c.cert_type ? (certTypeShown[c.cert_type] || c.cert_type) : "") + '</td><td>' + (c.issuing_body || "") + '</td><td>' + (c.expiry_date ? fmtDate(c.expiry_date) : tr("N/A")) + '</td></tr>'; });
       html += '</table></div>';
     }
     // Timeline (if loaded)
     if (timeline.length > 0) {
-      html += '<div class="section"><div class="section-title">Activity Timeline (' + timeline.length + ' of ' + tlTotal + ' entries' + (tlCategory !== "all" ? " | Filter: " + tlCategory : "") + ')</div><table><tr><th>Date</th><th>Action</th><th>Description</th><th>By</th></tr>';
-      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
+      html += '<div class="section"><div class="section-title">' + trn("Activity Timeline ({1} of {0} entry{2})|count", tlTotal, timeline.length, tlCategory !== "all" ? " | " + tr("Filter: {0}", tlCatWord(tlCategory)) : "") + '</div><table><tr><th>' + tr("Date") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
+      timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Employee Record</div>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Employee Record") + '</div>';
     html += '</div></body></html>';
     const w = window.open("", "_blank");
     w.document.write(html); w.document.close();
@@ -1147,7 +1171,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     return <Ini name={name} sz={sz} color={user.status === "pending" ? OR : GO} />;
   };
 
-  const ptabs = [{ id: "info", l: "Profile" }, { id: "hr", l: "HR Files" }, { id: "assign", l: "Assignments" }, { id: "certs", l: "Certifications" }, { id: "timeline", l: "Timeline" }];
+  const ptabs = [{ id: "info", l: tr("Profile") }, { id: "hr", l: tr("HR Files") }, { id: "assign", l: tr("Assignments") }, { id: "certs", l: tr("Certifications") }, { id: "timeline", l: tr("Timeline") }];
   // Shared branded print header builder (Session 18)
   const printHeader = (title, subtitle, photoUrl) => {
     let h = '<div class="header"><div style="display:flex;align-items:center;gap:16px">';
@@ -1156,7 +1180,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     h += '<img src="' + OCSA_LOGO_URL + '" style="height:40px" /></div>';
     return h;
   };
-  const fmtDate = d => { if (!d) return "Not set"; const dt = typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0]; const [y, m, dy] = dt.split("-"); const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; return months[parseInt(m) - 1] + " " + parseInt(dy) + ", " + y; };
+  // A day the API wrote, drawn with the language's own short month. The year, month and day are read
+  // as they are written, so no time zone moves the day.
+  const fmtDate = d => { if (!d) return tr("Not set"); const dt = typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0]; const [y, m, dy] = dt.split("-"); return new Date(parseInt(y), parseInt(m) - 1, parseInt(dy)).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }); };
 
   // ============================================================
   // PROFILE VIEW
@@ -1183,7 +1209,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         subtitle={(roleLabels[u.role] || RL[u.role] || u.role) + (u.employmentType ? " (" + (ET[u.employmentType] || u.employmentType) + ")" : "")}
         badges={<Bdg l={u.status} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />}
         actions={<>
-          <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>Print Report</Btn>
+          <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>Reset PIN</Btn>
           {u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>Deactivate</Btn>}
           {u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>Reactivate</Btn>}
@@ -1328,12 +1354,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>Activity Timeline ({tlTotal} total)</div>
             <div style={{ display: "flex", gap: 6 }}>
               <button onClick={exportTimelineCsv} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Export CSV</button>
-              <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
+              <button onClick={printTimeline} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
             </div>
           </div>
           {/* Category filter chips */}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-            {[{ id: "all", l: "All" }, { id: "clock", l: "Clock" }, { id: "tasks", l: "Tasks" }, { id: "inspections", l: "Inspections" }, { id: "issues", l: "Issues" }, { id: "schedule", l: "Schedule" }, { id: "marketplace", l: "Marketplace" }, { id: "documents", l: "Documents" }, { id: "training", l: "Training" }, { id: "profile", l: "Profile" }, { id: "timesheets", l: "Timesheets" }, { id: "supplies", l: "Supplies" }].map(c => <button key={c.id} onClick={() => setTlCategory(c.id)} style={{ padding: "4px 10px", borderRadius: 12, fontSize: 10, fontWeight: tlCategory === c.id ? 700 : 500, background: tlCategory === c.id ? GO + "20" : "transparent", color: tlCategory === c.id ? t.goldText : t.textMut, border: tlCategory === c.id ? "1px solid " + GO : "1px solid " + t.border, cursor: "pointer" }}>{c.l}</button>)}
+            {tlCats.map(c => <button key={c.id} onClick={() => setTlCategory(c.id)} style={{ padding: "4px 10px", borderRadius: 12, fontSize: 10, fontWeight: tlCategory === c.id ? 700 : 500, background: tlCategory === c.id ? GO + "20" : "transparent", color: tlCategory === c.id ? t.goldText : t.textMut, border: tlCategory === c.id ? "1px solid " + GO : "1px solid " + t.border, cursor: "pointer" }}>{c.l}</button>)}
           </div>
           {/* Date range filters */}
           <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
@@ -1374,7 +1400,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Record Detail</div>
           <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Print</button>
+            <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
             <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>

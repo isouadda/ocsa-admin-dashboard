@@ -10,12 +10,8 @@
     },
     "staff": {
       "part": "part six",
-      "why": "Staff Management, its profile, its windows and its three printed pages",
-      "prints": [
-        "StaffPage printTimelineDetail",
-        "StaffPage printTimeline",
-        "StaffPage printProfileReport"
-      ]
+      "why": "Staff Management, its profile and its windows",
+      "prints": []
     },
     "cases": {
       "part": "part six",

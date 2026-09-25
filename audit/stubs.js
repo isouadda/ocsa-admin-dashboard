@@ -119,6 +119,21 @@ function createStubs() {
       { id: "lv-28", value: "training", label: "Training", is_active: true, sort_order: 2 },
       { id: "lv-29", value: "equipment", label: "Equipment", is_active: true, sort_order: 3 },
     ] },
+    // What Staff Management draws a site assignment's role and shift and a certification's type as:
+    // the choice's word in the language the call asked for. The codes are the ones a person's profile
+    // below holds, and the ones the windows that assign a site and add a certification send.
+    { id: "lk-12", slug: "site_roles", name: "Site roles", values: [
+      { id: "lv-33", value: "Lead", label: "Lead", is_active: true, sort_order: 1 },
+      { id: "lv-34", value: "Porter", label: "Porter", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-13", slug: "shift_names", name: "Shift names", values: [
+      { id: "lv-35", value: "Night", label: "Night", is_active: true, sort_order: 1 },
+      { id: "lv-36", value: "Day", label: "Day", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-14", slug: "certification_types", name: "Certification types", values: [
+      { id: "lv-37", value: "certification", label: "Certification", is_active: true, sort_order: 1 },
+      { id: "lv-38", value: "license", label: "License", is_active: true, sort_order: 2 },
+    ] },
   ];
 
   const SUPPLIES = [
@@ -668,6 +683,7 @@ function createStubs() {
     "Subcontractor": "Subcontratista", "Direct": "Directo",
     "Safety": "Seguridad", "Equipment": "Equipo", "Paperwork": "Documentaci\u00f3n",
     "Quality System": "Sistema de calidad", "Human Resources": "Recursos humanos", "Management Commitment": "Compromiso de la direcci\u00f3n",
+    "Lead": "L\u00edder", "Porter": "Conserje", "Night": "Noche", "Day": "D\u00eda", "Certification": "Certificaci\u00f3n", "License": "Licencia",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -732,11 +748,13 @@ function createStubs() {
         emergencyContactName: "T. Almeida", emergencyContactPhone: "2155559100",
       }),
       assignments: [
-        { id: "as-1", site_id: S[0].id, site_name: S[0].name, is_active: true, assigned_at: seed.shift(-200), role_at_site: "Lead" },
+        { id: "as-1", site_id: S[0].id, site_name: S[0].name, is_active: true, assigned_at: seed.shift(-200), role_at_site: "Lead", shift_name: "Night", shift_start: "22:00", shift_end: "06:30" },
         { id: "as-2", site_id: S[1].id, site_name: S[1].name, is_active: false, assigned_at: seed.shift(-400), role_at_site: "Porter" },
       ],
+      // Shaped to what the profile and its printed report read: cert_name, cert_type, issuing_body,
+      // issued_date and expiry_date. The type is a code of the certification_types list above.
       certifications: [
-        { id: "cert-1", name: "Bloodborne pathogen awareness", issued_on: seed.shift(-300), expires_on: seed.shift(60), issuer: "In-house" },
+        { id: "cert-1", cert_name: "Bloodborne pathogen awareness", cert_type: "certification", issuing_body: "In-house", issued_date: seed.shift(-300), expiry_date: seed.shift(60) },
       ],
       stats: { shiftsLast30: 14, tasksCompleted: 96, issuesReported: 3 },
     };
