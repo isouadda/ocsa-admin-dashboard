@@ -783,7 +783,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
-        {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
+        {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -3122,14 +3122,17 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
 // ===== REPORTING ENGINE: shared helpers, reusable widgets, builder =====
 const num = (v, f) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : f; };
 const fmtDurMin = (m) => {
-  if (m === null || m === undefined) return "n/a";
+  if (m === null || m === undefined) return tr("n/a");
   if (m < 60) return Math.round(m) + "m";
   if (m < 1440) { const h = Math.floor(m / 60); const mm = Math.round(m % 60); return mm ? (h + "h " + mm + "m") : (h + "h"); }
   const d = Math.floor(m / 1440); const h = Math.floor((m % 1440) / 60); return h ? (d + "d " + h + "h") : (d + "d");
 };
-const fmtPctVal = (p) => (p === null || p === undefined) ? "n/a" : (p + "%");
+const fmtPctVal = (p) => (p === null || p === undefined) ? tr("n/a") : (p + "%");
 const hrsFromMin = (m) => m === null || m === undefined ? null : Math.round(m / 60 * 10) / 10;
 const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(localeTag(), { month: "short", day: "numeric" }); } catch (e) { return s; } };
+// A trend's bucket is a code the report saves and sends. Where a screen or a print names it, it is
+// drawn as its word, whose English is the code.
+const bucketWord = (b) => tr((b || "week") + "|bucket");
 const resolvePreset = (key) => (PRESETS[key] ? PRESETS[key]() : PRESETS.last30());
 
 const REPORT_PRESETS = [
@@ -3349,7 +3352,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     if (sevFilter) q += "&severity=" + sevFilter;
     af("/api/report-engine/issue-timing" + q)
       .then(d => { setTiming(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, sevFilter, bucket]);
@@ -3362,15 +3365,21 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
 
   const slaColor = (v) => (v === null || v === undefined) ? t.textMut : (v >= 90 ? GR : (v >= 75 ? OR : RD));
   const tiles = sm ? [
-    { label: "Median resolution", value: fmtDurMin(sm.resolution_median_minutes), color: t.text },
-    { label: "Median first response", value: fmtDurMin(sm.first_response_median_minutes), color: t.text },
-    { label: "Resolution SLA", value: fmtPctVal(sm.sla_resolution_compliance_pct), color: slaColor(sm.sla_resolution_compliance_pct) },
-    { label: "Response SLA", value: fmtPctVal(sm.sla_response_compliance_pct), color: slaColor(sm.sla_response_compliance_pct) },
-    { label: "Open now", value: String(sm.open_count), sub: sm.aging_count + " aging", color: sm.open_count > 0 ? OR : GR },
+    { label: tr("Median resolution"), value: fmtDurMin(sm.resolution_median_minutes), color: t.text },
+    { label: tr("Median first response"), value: fmtDurMin(sm.first_response_median_minutes), color: t.text },
+    { label: tr("Resolution SLA"), value: fmtPctVal(sm.sla_resolution_compliance_pct), color: slaColor(sm.sla_resolution_compliance_pct) },
+    { label: tr("Response SLA"), value: fmtPctVal(sm.sla_response_compliance_pct), color: slaColor(sm.sla_response_compliance_pct) },
+    { label: tr("Open now"), value: String(sm.open_count), sub: trn("{0} aging|count", sm.aging_count), color: sm.open_count > 0 ? OR : GR },
   ] : [];
+  // A severity the filter holds is a code, drawn as its word on the screen and the print.
+  const sevWord = { high: tr("High"), medium: tr("Medium"), low: tr("Low") };
+  // The targets the report ran with, response then resolution, one sentence on the screen and the print.
+  const targetsSaid = tgt ? tr("Targets, response then resolution. High {0} and {1}. Medium {2} and {3}. Low {4} and {5}. Aging means open past its resolution target.",
+    fmtDurMin(tgt.high.first_response_minutes), fmtDurMin(tgt.high.resolution_minutes), fmtDurMin(tgt.medium.first_response_minutes),
+    fmtDurMin(tgt.medium.resolution_minutes), fmtDurMin(tgt.low.first_response_minutes), fmtDurMin(tgt.low.resolution_minutes)) : "";
 
   const exportPdf = () => {
-    if (!sm) { showToast("No data to export", "error"); return; }
+    if (!sm) { showToast(tr("No data to export"), "error"); return; }
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -3380,33 +3389,34 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const addr = useBrand && settings && settings.address ? settings.address : "";
     const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
-    const sevLabel = sevFilter ? (sevFilter.charAt(0).toUpperCase() + sevFilter.slice(1)) : "All severities";
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
+    const sevLabel = sevFilter ? (sevWord[sevFilter] || (sevFilter.charAt(0).toUpperCase() + sevFilter.slice(1))) : tr("All severities");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
     const summaryCards =
-      card(fmtDurMin(sm.resolution_median_minutes), "Median resolution") +
-      card(fmtDurMin(sm.first_response_median_minutes), "Median first response") +
-      card(fmtPctVal(sm.sla_resolution_compliance_pct), "Resolution SLA") +
-      card(fmtPctVal(sm.sla_response_compliance_pct), "Response SLA") +
-      card(String(sm.open_count), "Open now") +
-      card(String(sm.aging_count), "Aging");
+      card(fmtDurMin(sm.resolution_median_minutes), tr("Median resolution")) +
+      card(fmtDurMin(sm.first_response_median_minutes), tr("Median first response")) +
+      card(fmtPctVal(sm.sla_resolution_compliance_pct), tr("Resolution SLA")) +
+      card(fmtPctVal(sm.sla_response_compliance_pct), tr("Response SLA")) +
+      card(String(sm.open_count), tr("Open now")) +
+      card(String(sm.aging_count), tr("Aging|issue count"));
     const trendRows = out.trend ? ((timing && timing.trend ? timing.trend : []).map(b =>
       '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + b.reported_count + '</td><td>' + b.resolved_count + '</td><td>' + fmtDurMin(b.resolution_median_minutes) + '</td><td>' + fmtDurMin(b.first_response_median_minutes) + '</td></tr>'
     ).join("")) : "";
-    const trendTable = trendRows ? ('<h2>Trend by ' + esc((timing && timing.bucket) ? timing.bucket : "week") + '</h2><table><thead><tr><th>Period</th><th>Reported</th><th>Resolved</th><th>Median resolution</th><th>Median first response</th></tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
+    const trendTable = trendRows ? ('<h2>' + esc(tr("Trend by {0}", bucketWord(timing && timing.bucket))) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Reported|issue count"), tr("Resolved|issue count"), tr("Median resolution"), tr("Median first response")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
     const tableRows = out.by_site ? ((timing && timing.by_site ? timing.by_site : []).map(s =>
       '<tr><td>' + esc(s.site_name) + '</td><td>' + s.reported_count + '</td><td>' + s.resolved_count + '</td><td>' + s.open_count + '</td><td>' + s.aging_count + '</td><td>' + fmtDurMin(s.resolution_median_minutes) + '</td><td>' + fmtDurMin(s.first_response_median_minutes) + '</td><td>' + fmtPctVal(s.sla_resolution_compliance_pct) + '</td><td>' + fmtPctVal(s.sla_response_compliance_pct) + '</td></tr>'
     ).join("")) : "";
-    const siteTable = tableRows ? ('<h2>By site</h2><table><thead><tr><th>Site</th><th>Reported</th><th>Resolved</th><th>Open</th><th>Aging</th><th>Median resolution</th><th>Median first response</th><th>Resolution SLA</th><th>Response SLA</th></tr></thead><tbody>' + tableRows + '</tbody></table>') : "";
+    const siteTable = tableRows ? ('<h2>' + esc(tr("By site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Reported|issue count"), tr("Resolved|issue count"), tr("Open|issue count"), tr("Aging|issue count"), tr("Median resolution"), tr("Median first response"), tr("Resolution SLA"), tr("Response SLA")) + '</tr></thead><tbody>' + tableRows + '</tbody></table>') : "";
     const sv = sm.open_by_severity;
-    const sevTable = out.severity ? ('<h2>Open by severity</h2><table><thead><tr><th>High</th><th>Medium</th><th>Low</th></tr></thead><tbody><tr><td>' + sv.high + '</td><td>' + sv.medium + '</td><td>' + sv.low + '</td></tr></tbody></table>') : "";
+    const sevTable = out.severity ? ('<h2>' + esc(tr("Open by severity")) + '</h2><table><thead><tr>' + heads(sevWord.high, sevWord.medium, sevWord.low) + '</tr></thead><tbody><tr><td>' + sv.high + '</td><td>' + sv.medium + '</td><td>' + sv.low + '</td></tr></tbody></table>') : "";
     const slaPct = (v) => (v === null || v === undefined) ? '-' : (v + '%');
     const slaRows = out.sla ? ((timing && timing.trend ? timing.trend : []).map(b =>
       '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(slaPct(b.sla_resolution_compliance_pct)) + '</td><td>' + esc(slaPct(b.sla_response_compliance_pct)) + '</td><td>' + (b.resolution_breach_count || 0) + '</td><td>' + (b.response_breach_count || 0) + '</td></tr>'
     ).join("")) : "";
-    const slaTable = slaRows ? ('<h2>SLA compliance by period</h2><table><thead><tr><th>Period</th><th>Resolution SLA</th><th>Response SLA</th><th>Resolution breaches</th><th>Response breaches</th></tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
-    const targetsLine = tgt ? ('<p class="meta">Targets, response then resolution. High ' + fmtDurMin(tgt.high.first_response_minutes) + ' and ' + fmtDurMin(tgt.high.resolution_minutes) + '. Medium ' + fmtDurMin(tgt.medium.first_response_minutes) + ' and ' + fmtDurMin(tgt.medium.resolution_minutes) + '. Low ' + fmtDurMin(tgt.low.first_response_minutes) + ' and ' + fmtDurMin(tgt.low.resolution_minutes) + '. Aging means open past its resolution target.</p>') : "";
-    const einLine = showEin ? ('<div>EIN ' + esc(settings.ein) + '</div>') : "";
+    const slaTable = slaRows ? ('<h2>' + esc(tr("SLA compliance by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Resolution SLA"), tr("Response SLA"), tr("Resolution breaches"), tr("Response breaches")) + '</tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
+    const targetsLine = tgt ? ('<p class="meta">' + esc(targetsSaid) + '</p>') : "";
+    const einLine = showEin ? ('<div>' + esc(tr("EIN {0}", settings.ein)) + '</div>') : "";
     const style = '<style>'
       + 'body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:#222}'
       + '.brand{display:flex;align-items:center;gap:14px;border-bottom:3px solid ' + gold + ';padding-bottom:10px}'
@@ -3426,17 +3436,17 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + '.footer{margin-top:28px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888;text-align:center}'
       + '@media print{body{margin:16px}}'
       + '</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Issue Response and Resolution</title>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Issue Response and Resolution")) + '</title>'
       + style + '</head><body>'
       + '<div class="brand">' + (logo ? ('<img src="' + esc(logo) + '" />') : '') + '<div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Issue Response and Resolution</h1>'
-      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
+      + '<h1>' + esc(tr("Issue Response and Resolution")) + '</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
       + targetsLine + trendTable + siteTable + sevTable + slaTable
       + '<div class="footer">' + esc(cName) + (addr ? (' &middot; ' + esc(addr)) : "") + einLine + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
-    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3444,33 +3454,31 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   return (<div>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title="Issue Response and Resolution" sub="Response time, resolution time, and service level compliance" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Issue Response and Resolution")} sub={tr("Response time, resolution time, and service level compliance")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
-            <option value="">All sites</option>
+            <option value="">{tr("All sites")}</option>
             {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select value={sevFilter} onChange={e => setSevFilter(e.target.value)} style={selSt}>
-            <option value="">All severities</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <option value="">{tr("All severities")}</option>
+            <option value="high">{sevWord.high}</option>
+            <option value="medium">{sevWord.medium}</option>
+            <option value="low">{sevWord.low}</option>
           </select>
           <select value={bucket} onChange={e => setBucket(e.target.value)} style={selSt}>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
+            <option value="day">{tr("Daily")}</option>
+            <option value="week">{tr("Weekly")}</option>
+            <option value="month">{tr("Monthly")}</option>
           </select>
         </div>
-        {loading && !timing ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>Loading...</div> :
-          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No issue activity in this range yet.</div> :
+        {loading && !timing ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("Loading...")}</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No issue activity in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
               {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} sub={s.sub} color={s.color} />)}
             </div>
-            {tgt ? <div style={{ fontSize: 10.5, color: t.textMut, marginTop: 6 }}>
-              Targets, response then resolution. High {fmtDurMin(tgt.high.first_response_minutes)} and {fmtDurMin(tgt.high.resolution_minutes)}. Medium {fmtDurMin(tgt.medium.first_response_minutes)} and {fmtDurMin(tgt.medium.resolution_minutes)}. Low {fmtDurMin(tgt.low.first_response_minutes)} and {fmtDurMin(tgt.low.resolution_minutes)}. Aging means open past its resolution target.
-            </div> : null}
+            {tgt ? <div style={{ fontSize: 10.5, color: t.textMut, marginTop: 6 }}>{targetsSaid}</div> : null}
           </div>}
       </ChartCard>
     </div>
@@ -3530,7 +3538,7 @@ const SupplyGreenShareWidget = ({ data, t }) => {
   );
 };
 
-function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
+function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap }) {
   const cfg = readSupplyConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -3547,7 +3555,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
     if (catFilter) q += "&category=" + catFilter;
     af("/api/report-engine/supply-usage" + q)
       .then(d => { setData(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, catFilter, bucket]);
@@ -3557,16 +3565,21 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
   const out = cfg.output;
   const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
   const money = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // A supply's category and unit are pick list codes, drawn as the choice's shown word. The filter's
+  // categories are the report's own words for its codes.
+  const supplyCatOf = choiceWordOf(lkMap, "supply_categories");
+  const supplyUnitOf = choiceWordOf(lkMap, "supply_units");
+  const filterCatWord = { chemical: tr("Chemical"), supply: tr("Supply"), equipment: tr("Equipment"), ppe: tr("PPE") };
 
   const tiles = sm ? [
-    { label: "Estimated cost", value: money(sm.total_estimated_cost), color: t.text },
-    { label: "Usage events", value: String(sm.usage_events), color: t.text },
-    { label: "Supplies used", value: String(sm.supplies_used), color: t.text },
-    { label: "Sites", value: String(sm.sites_active), color: t.text },
+    { label: tr("Estimated cost"), value: money(sm.total_estimated_cost), color: t.text },
+    { label: tr("Usage events"), value: String(sm.usage_events), color: t.text },
+    { label: tr("Supplies used"), value: String(sm.supplies_used), color: t.text },
+    { label: tr("Sites"), value: String(sm.sites_active), color: t.text },
   ] : [];
 
   const exportPdf = () => {
-    if (!sm) { showToast("No data to export", "error"); return; }
+    if (!sm) { showToast(tr("No data to export"), "error"); return; }
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -3576,29 +3589,30 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
     const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const m = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
-    const catLabel = catFilter ? (catFilter.charAt(0).toUpperCase() + catFilter.slice(1)) : "All categories";
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
+    const catLabel = catFilter ? (filterCatWord[catFilter] || (catFilter.charAt(0).toUpperCase() + catFilter.slice(1))) : tr("All categories");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
-    const summaryCards = card(m(sm.total_estimated_cost), "Estimated cost") + card(String(sm.usage_events), "Usage events") + card(String(sm.supplies_used), "Supplies used") + card(String(sm.sites_active), "Sites");
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
+    const summaryCards = card(m(sm.total_estimated_cost), tr("Estimated cost")) + card(String(sm.usage_events), tr("Usage events")) + card(String(sm.supplies_used), tr("Supplies used")) + card(String(sm.sites_active), tr("Sites"));
     const trendRows = out.trend ? ((data && data.trend ? data.trend : []).filter(b => b.usage_events > 0).map(b => '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(m(b.estimated_cost)) + '</td><td>' + esc(String(b.quantity)) + '</td><td>' + esc(String(b.usage_events)) + '</td></tr>').join("")) : "";
-    const trendTable = trendRows ? ('<h2>Estimated cost by period</h2><table><thead><tr><th>Period</th><th>Estimated cost</th><th>Quantity</th><th>Events</th></tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
+    const trendTable = trendRows ? ('<h2>' + esc(tr("Estimated cost by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Estimated cost"), tr("Quantity"), tr("Events")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
     const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
-    const siteTable = siteRows ? ('<h2>Cost by site</h2><table><thead><tr><th>Site</th><th>Estimated cost</th><th>Events</th></tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
-    const supRows = out.top_supplies ? ((data && data.by_supply ? data.by_supply : []).slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(s.category) + '</td><td>' + esc(s.is_green_certified ? "Yes" : "No") + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.quantity) + " " + (s.unit || "")) + '</td></tr>').join("")) : "";
-    const supTable = supRows ? ('<h2>Top supplies by cost</h2><table><thead><tr><th>Supply</th><th>Category</th><th>Green</th><th>Estimated cost</th><th>Quantity</th></tr></thead><tbody>' + supRows + '</tbody></table>') : "";
-    const greenLine = out.green_share && data && data.green_split ? ('<p class="meta">Green-certified share of estimated cost: ' + esc(m(data.green_split.green_cost)) + ' of ' + esc(m(sm.total_estimated_cost)) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
+    const siteTable = siteRows ? ('<h2>' + esc(tr("Cost by site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Estimated cost"), tr("Events")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const supRows = out.top_supplies ? ((data && data.by_supply ? data.by_supply : []).slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(supplyCatOf(s.category)) + '</td><td>' + esc(s.is_green_certified ? tr("Yes") : tr("No")) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.quantity) + " " + (s.unit ? supplyUnitOf(s.unit) : "")) + '</td></tr>').join("")) : "";
+    const supTable = supRows ? ('<h2>' + esc(tr("Top supplies by cost")) + '</h2><table><thead><tr>' + heads(tr("Supply"), tr("Category"), tr("Green"), tr("Estimated cost"), tr("Quantity")) + '</tr></thead><tbody>' + supRows + '</tbody></table>') : "";
+    const greenLine = out.green_share && data && data.green_split ? ('<p class="meta">' + esc(tr("Green-certified share of estimated cost: {0} of {1}", m(data.green_split.green_cost), m(sm.total_estimated_cost))) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Supply Usage and Cost</title>' + style + '</head><body>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Supply Usage and Cost")) + '</title>' + style + '</head><body>'
       + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Supply Usage and Cost</h1>'
-      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(catLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
-      + '<p class="meta">Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.</p>'
+      + '<h1>' + esc(tr("Supply Usage and Cost")) + '</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(catLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
+      + '<p class="meta">' + esc(tr("Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.")) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
       + greenLine + trendTable + siteTable + supTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
-    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3606,32 +3620,32 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
   return (<div>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title="Supply Usage and Cost" sub="Estimated cost from logged usage at current prices" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Supply Usage and Cost")} sub={tr("Estimated cost from logged usage at current prices")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
-            <option value="">All sites</option>
+            <option value="">{tr("All sites")}</option>
             {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={selSt}>
-            <option value="">All categories</option>
-            <option value="chemical">Chemical</option>
-            <option value="supply">Supply</option>
-            <option value="equipment">Equipment</option>
-            <option value="ppe">PPE</option>
+            <option value="">{tr("All categories")}</option>
+            <option value="chemical">{filterCatWord.chemical}</option>
+            <option value="supply">{filterCatWord.supply}</option>
+            <option value="equipment">{filterCatWord.equipment}</option>
+            <option value="ppe">{filterCatWord.ppe}</option>
           </select>
           <select value={bucket} onChange={e => setBucket(e.target.value)} style={selSt}>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
+            <option value="day">{tr("Daily")}</option>
+            <option value="week">{tr("Weekly")}</option>
+            <option value="month">{tr("Monthly")}</option>
           </select>
         </div>
-        {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>Loading...</div> :
-          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No supply usage in this range yet.</div> :
+        {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No supply usage in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
               {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} sub={s.sub} color={s.color} />)}
             </div>
-            <div style={{ fontSize: 11, color: t.textMut }}>Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.</div>
+            <div style={{ fontSize: 11, color: t.textMut }}>{tr("Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.")}</div>
           </div>}
       </ChartCard>
     </div>
@@ -3688,7 +3702,7 @@ const InspectionLowestItemsWidget = ({ rows, t }) => {
   );
 };
 
-function InspectionReport({ af, t, sites, settings, config, showToast }) {
+function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) {
   const cfg = readInspectionConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -3708,7 +3722,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
       af("/api/inspections/analytics/lowest-items" + sq + "&limit=10"),
     ]).then(([sc, bs, lw]) => {
       setScores(sc); setBySite(bs); setLowest(lw); setLoading(false);
-    }).catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+    }).catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter]);
@@ -3721,14 +3735,18 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
   const avgPct = totMax > 0 ? Math.round(1000 * totScore / totMax) / 10 : null;
   const siteCount = (bySite || []).length;
   const hasActivity = inspRows.length > 0;
+  // An item's label and zone are the display the API sent. A zone without one is the zones lookup's
+  // shown word, then the table's word for a zone the Inspections page offers, then the zone as typed.
+  const zoneChoice = choiceWordOf(lkMap, "zones");
+  const zoneWord = (it) => { const z = it.zone; if (!z) return z; if (it.display && it.display.zone) return it.display.zone; const w = zoneChoice(z); return w !== z ? w : tr(z + "|zone"); };
   const tiles = [
-    { label: "Avg score", value: avgPct === null ? "-" : (avgPct + "%"), color: t.text },
-    { label: "Inspections", value: String(inspRows.length), color: t.text },
-    { label: "Sites", value: String(siteCount), color: t.text },
+    { label: tr("Avg score"), value: avgPct === null ? "-" : (avgPct + "%"), color: t.text },
+    { label: tr("Inspections"), value: String(inspRows.length), color: t.text },
+    { label: tr("Sites"), value: String(siteCount), color: t.text },
   ];
 
   const exportPdf = () => {
-    if (!hasActivity) { showToast("No data to export", "error"); return; }
+    if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -3738,26 +3756,27 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
     const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const pct = (v) => (v == null ? "-" : (v + "%"));
-    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
-    const summaryCards = card(pct(avgPct), "Avg score") + card(String(inspRows.length), "Inspections") + card(String(siteCount), "Sites");
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
+    const summaryCards = card(pct(avgPct), tr("Avg score")) + card(String(inspRows.length), tr("Inspections")) + card(String(siteCount), tr("Sites"));
     const siteRows = out.by_site ? ((bySite || []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(String(s.inspection_count)) + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(pct(s.latest_score_pct)) + '</td></tr>').join("")) : "";
-    const siteTable = siteRows ? ('<h2>Average score by site</h2><table><thead><tr><th>Site</th><th>Inspections</th><th>Avg score</th><th>Latest</th></tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
-    const lowRows = out.lowest_items ? ((lowest || []).slice(0, 20).map(s => '<tr><td>' + esc(s.label) + '</td><td>' + esc(s.zone || "") + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(String(s.occurrences)) + '</td></tr>').join("")) : "";
-    const lowTable = lowRows ? ('<h2>Lowest-scoring items</h2><table><thead><tr><th>Item</th><th>Zone</th><th>Avg score</th><th>Times checked</th></tr></thead><tbody>' + lowRows + '</tbody></table>') : "";
+    const siteTable = siteRows ? ('<h2>' + esc(tr("Average score by site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Inspections"), tr("Avg score"), tr("Latest")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const lowRows = out.lowest_items ? ((lowest || []).slice(0, 20).map(s => '<tr><td>' + esc(shownItem(s).label) + '</td><td>' + esc(zoneWord(s) || "") + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(String(s.occurrences)) + '</td></tr>').join("")) : "";
+    const lowTable = lowRows ? ('<h2>' + esc(tr("Lowest-scoring items")) + '</h2><table><thead><tr>' + heads(tr("Item"), tr("Zone"), tr("Avg score"), tr("Times checked")) + '</tr></thead><tbody>' + lowRows + '</tbody></table>') : "";
     const inspListRows = out.trend ? ((scores || []).slice(0, 50).map(r => '<tr><td>' + esc((r.scheduled_date || r.completed_at || "").slice(0, 10)) + '</td><td>' + esc(r.site_name) + '</td><td>' + esc(pct(r.score_pct)) + '</td></tr>').join("")) : "";
-    const inspListTable = inspListRows ? ('<h2>Inspections in period</h2><table><thead><tr><th>Date</th><th>Site</th><th>Score</th></tr></thead><tbody>' + inspListRows + '</tbody></table>') : "";
+    const inspListTable = inspListRows ? ('<h2>' + esc(tr("Inspections in period")) + '</h2><table><thead><tr>' + heads(tr("Date"), tr("Site"), tr("Score")) + '</tr></thead><tbody>' + inspListRows + '</tbody></table>') : "";
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inspection Scores and Quality</title>' + style + '</head><body>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Inspection Scores and Quality")) + '</title>' + style + '</head><body>'
       + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Inspection Scores and Quality</h1>'
-      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
+      + '<h1>' + esc(tr("Inspection Scores and Quality")) + '</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
       + siteTable + lowTable + inspListTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
-    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3765,15 +3784,15 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
   return (<div>
     <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title="Inspection Scores and Quality" sub="Inspection results over the selected period" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Inspection Scores and Quality")} sub={tr("Inspection results over the selected period")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
-            <option value="">All sites</option>
+            <option value="">{tr("All sites")}</option>
             {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>Loading...</div> :
-          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No completed inspections in this range yet.</div> :
+        {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No completed inspections in this range yet.")}</div> :
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
             {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} color={s.color} />)}
           </div>}
@@ -3970,7 +3989,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   );
 }
 
-function ReportsPage({ af, showToast, isAdmin, t, sites }) {
+function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
   const [active, setActive] = useState(null);
@@ -4022,9 +4041,9 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
       {isIssueSource(active.source) ?
         <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
        isSupplySource(active.source) ?
-        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
        isInspectionSource(active.source) ?
-        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("This report's data source arrives with the report templates workstream. It will run here once that ships.")}</div></Crd>}
     </div>);
   }

@@ -445,20 +445,22 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     },
 
     // The Run button on a named report card in the library.
+    // A saved report's Run button, found by the report's name as it was typed and the button's word in
+    // the language the screen is drawn in.
     async clickRunFor(reportName) {
-      const clicked = await page.evaluate((name) => {
+      const clicked = await page.evaluate(({ name, run }) => {
         const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
         const cards = Array.from(box.querySelectorAll("div")).filter((el) => {
           const txt = (el.innerText || "").trim();
-          return txt.toLowerCase().indexOf(name.toLowerCase()) === 0 && txt.indexOf("Run") >= 0 && txt.length < 400;
+          return txt.toLowerCase().indexOf(name.toLowerCase()) === 0 && txt.indexOf(run) >= 0 && txt.length < 400;
         });
         const card = cards[cards.length - 1];
         if (!card) return false;
-        const b = Array.from(card.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === "Run");
+        const b = Array.from(card.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === run);
         if (!b) return false;
         b.click();
         return true;
-      }, reportName);
+      }, { name: reportName, run: this.say("Run") });
       await this.settle(450);
       return clicked;
     },

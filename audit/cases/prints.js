@@ -27,6 +27,13 @@ async function openSite(d) {
   await d.settle(400);
 }
 const tab = async (d, word) => { await d.clickText(d.say(word), { exact: true }); await d.settle(400); };
+// A saved report, run from the library by the name it was saved under, and its PDF export pressed.
+async function exportReport(d, name) {
+  await d.goto("reports");
+  if (!(await d.clickRunFor(name))) return false;
+  await d.settle(600);
+  return d.clickText(d.say("Export PDF"), { exact: true });
+}
 
 // Each print by what it is, and the steps that put it in a window.
 const PRINTS = [
@@ -44,6 +51,14 @@ const PRINTS = [
       await d.settle(400);
       return d.clickText(d.say("Print"), { exact: true, inModal: true });
     } },
+  // Each report's printed page, from the saved report of its source. The issue report is the one
+  // saved with the SLA panel on, so every table it can print is on the page.
+  { id: "reports/issue-timing", what: "the issue report",
+    open: (d) => exportReport(d, "Issue response and resolution") },
+  { id: "reports/supply-usage", what: "the supply report",
+    open: (d) => exportReport(d, "Supply usage and cost") },
+  { id: "reports/inspection-quality", what: "the inspection report",
+    open: (d) => exportReport(d, "Inspection scores and quality") },
 ];
 
 async function run({ d, results, lang, stubs }) {
