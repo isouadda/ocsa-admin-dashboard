@@ -10356,7 +10356,9 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
-  const statusLabel = { open: "Open", in_review: "In review", escalated: "Escalated", resolved: "Resolved", closed: "Closed" };
+  // A case's status and what the log says a person did, as words. Each stays the code it is on the
+  // wire; what a person typed into a case, and every name, is drawn exactly as it arrives.
+  const statusLabel = { open: tr("Open|case"), in_review: tr("In review|case"), escalated: tr("Escalated|case"), resolved: tr("Resolved|case"), closed: tr("Closed|case") };
   const statusColor = { open: OR, in_review: BL, escalated: RD, resolved: GR, closed: t.textMut };
   const [cases, setCases] = useState([]);
   const [statusFilter, setStatusFilter] = useState("needs_response");
@@ -10369,7 +10371,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   const [handTo, setHandTo] = useState("");
   const [holdBusy, setHoldBusy] = useState(false);
   const [holdError, setHoldError] = useState("");
-  const actionLabel = { hr_case_read: "Read the case", hr_case_list: "Saw it in the list", hr_case_updated: "Updated the case", hr_case_access_log_read: "Read this log", hr_case_escalation_mail: "Escalation email", hr_case_created: "Raised the case", hr_case_filed_mail: "Filing email to the team", hr_case_assignment_mail: "Assignment email", hr_case_due_soon_mail: "48 hour reminder to the team", hr_case_overdue_mail: "72 hour reminder to the team" };
+  const actionLabel = { hr_case_read: tr("Read the case"), hr_case_list: tr("Saw it in the list"), hr_case_updated: tr("Updated the case"), hr_case_access_log_read: tr("Read this log"), hr_case_escalation_mail: tr("Escalation email"), hr_case_created: tr("Raised the case"), hr_case_filed_mail: tr("Filing email to the team"), hr_case_assignment_mail: tr("Assignment email"), hr_case_due_soon_mail: tr("48 hour reminder to the team"), hr_case_overdue_mail: tr("72 hour reminder to the team") };
 
   const load = async (status) => {
     setLoading(true);
@@ -10384,7 +10386,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   // The route answers 404 for a recused case on purpose, and this page never says which it was.
   const openCase = async (c) => {
     let d;
-    try { d = await af("/api/hr-cases/" + c.id); } catch (e) { showToast("This case is not available.", "error"); return; }
+    try { d = await af("/api/hr-cases/" + c.id); } catch (e) { showToast(tr("This case is not available."), "error"); return; }
     setDetail(d); setAccessLog([]); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo(""); setHoldError("");
     loadAccessLog(d.id);
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
@@ -10399,12 +10401,12 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
     if (form.escalatedTo) body.escalated_to = form.escalatedTo;
     const notes = (form.resolutionNotes || "").trim();
     if (notes !== (detail.resolutionNotes || "")) body.resolution_notes = notes || null;
-    if (Object.keys(body).length === 0) { showToast("Nothing to update", "error"); return; }
+    if (Object.keys(body).length === 0) { showToast(tr("Nothing to update"), "error"); return; }
     setSaving(true);
     try {
       const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body });
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" });
-      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
+      showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
   };
@@ -10416,8 +10418,8 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
     try {
       const d = await af("/api/hr-cases/" + detail.id, { method: "PATCH", body: { assigned_to: assignedTo } });
       setDetail(d); setForm({ status: d.status, escalatedTo: "", resolutionNotes: d.resolutionNotes || "" }); setHandTo("");
-      showToast("Case updated"); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
-    } catch (e) { setHoldError(e.message || "Request failed"); }
+      showToast(tr("Case updated")); load(statusFilter); loadAccessLog(d.id); if (onSaved) onSaved();
+    } catch (e) { setHoldError(e.message || tr("Request failed")); }
     setHoldBusy(false);
   };
   const myId = user && user.id != null ? String(user.id) : "";
@@ -10432,11 +10434,11 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   const ageHoursOf = c => { const a = Number(c.ageHours); return Number.isFinite(a) ? a : Math.max(0, (Date.now() - new Date(c.createdAt).getTime()) / 3600000); };
   const clockInfo = c => {
     const h = ageHoursOf(c);
-    if (c.clock === "on_time") return { label: "On time", detail: Math.max(0, Math.round(72 - h)) + "h left", color: t.text };
-    if (c.clock === "due_soon") return { label: "Due soon", detail: Math.max(0, Math.round(72 - h)) + "h left", color: t.goldText };
-    if (c.clock === "overdue") return { label: "Overdue", detail: Math.max(0, Math.round(h - 72)) + "h past", color: RD };
-    if (c.clock === "responded") return { label: "Responded", detail: "", color: t.textMut };
-    if (c.clock === "closed_without_response") return { label: "Closed, no response", detail: "", color: t.textMut };
+    if (c.clock === "on_time") return { label: tr("On time|case"), detail: trn("{0}h left|count", Math.max(0, Math.round(72 - h))), color: t.text };
+    if (c.clock === "due_soon") return { label: tr("Due soon|case"), detail: trn("{0}h left|count", Math.max(0, Math.round(72 - h))), color: t.goldText };
+    if (c.clock === "overdue") return { label: tr("Overdue|case"), detail: tr("{0}h past", Math.max(0, Math.round(h - 72))), color: RD };
+    if (c.clock === "responded") return { label: tr("Responded|case"), detail: "", color: t.textMut };
+    if (c.clock === "closed_without_response") return { label: tr("Closed, no response"), detail: "", color: t.textMut };
     return { label: "", detail: "", color: t.textMut };
   };
   const needsResponse = c => c.clock === "on_time" || c.clock === "due_soon" || c.clock === "overdue";
@@ -10451,58 +10453,58 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   });
 
   const columns = [
-    { header: "Response", tdStyle: { whiteSpace: "nowrap" }, render: c => { const k = clockInfo(c); return <span style={{ color: k.color, fontWeight: 600 }}>{k.label}{k.detail ? <span style={{ fontWeight: 400 }}> {k.detail}</span> : null}</span>; } },
-    { header: "Age", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: c => ageText(c) },
-    { header: "Status", render: c => <Bdg l={statusLabel[c.status] || c.status} c={statusColor[c.status] || t.textMut} /> },
-    { header: "Received", tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: c => ff(c.createdAt) },
-    { header: "Subject named", tdStyle: { color: t.textSec }, render: c => c.subject ? "Yes" : "No" },
-    { header: "Held by", tdStyle: { color: t.textSec }, render: c => (c.assignedTo && c.assignedTo.name) ? c.assignedTo.name : <span style={{ color: t.goldText, fontWeight: 600 }}>Unheld</span> },
+    { header: tr("Response"), tdStyle: { whiteSpace: "nowrap" }, render: c => { const k = clockInfo(c); return <span style={{ color: k.color, fontWeight: 600 }}>{k.label}{k.detail ? <span style={{ fontWeight: 400 }}> {k.detail}</span> : null}</span>; } },
+    { header: tr("Age"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: c => ageText(c) },
+    { header: tr("Status"), render: c => <Bdg l={statusLabel[c.status] || c.status} c={statusColor[c.status] || t.textMut} /> },
+    { header: tr("Received"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: c => ff(c.createdAt) },
+    { header: tr("Subject named"), tdStyle: { color: t.textSec }, render: c => c.subject ? tr("Yes") : tr("No") },
+    { header: tr("Held by"), tdStyle: { color: t.textSec }, render: c => (c.assignedTo && c.assignedTo.name) ? c.assignedTo.name : <span style={{ color: t.goldText, fontWeight: 600 }}>{tr("Unheld")}</span> },
   ];
 
   return (<div>
-    <SecT t={t}>Cases</SecT>
-    <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: "Needs response" }, { id: "", label: "All" }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading cases...</div>}
-    {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty="No cases." />}
+    <SecT t={t}>{tr("Cases")}</SecT>
+    <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
+    {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
 
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-        <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>Case</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>Received {ff(detail.createdAt)}</span></div></div>
+        <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
         <button onClick={closeCase} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
       </div>
       {(() => { const k = clockInfo(detail); return (
       <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>Held by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.assignedTo && detail.assignedTo.name) || "Nobody yet"}</div></div>
-        <div style={{ fontSize: 12, color: t.textSec, marginTop: 8 }}>{detail.firstResponseAt ? <span>Responded {ff(detail.firstResponseAt)}</span> : <span><span style={{ color: k.color, fontWeight: 600 }}>{k.label}{k.detail ? " " + k.detail : ""}</span> The team promised a response within 72 hours of filing.</span>}</div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Held by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.assignedTo && detail.assignedTo.name) || tr("Nobody yet")}</div></div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 8 }}>{detail.firstResponseAt ? <span>{tr("Responded {0}", ff(detail.firstResponseAt))}</span> : <span><span style={{ color: k.color, fontWeight: 600 }}>{k.label}{k.detail ? " " + k.detail : ""}</span> {tr("The team promised a response within 72 hours of filing.")}</span>}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
-          {!iHold && <Btn t={t} onClick={() => holdSave(user.id)} disabled={holdBusy || !myId}>Take this case</Btn>}
-          {iHold && <Btn t={t} v="ghost" onClick={() => holdSave(null)} disabled={holdBusy}>Release</Btn>}
-          {iHold && <span style={{ fontSize: 11, color: t.textMut }}>The case goes back to the team.</span>}
+          {!iHold && <Btn t={t} onClick={() => holdSave(user.id)} disabled={holdBusy || !myId}>{tr("Take this case")}</Btn>}
+          {iHold && <Btn t={t} v="ghost" onClick={() => holdSave(null)} disabled={holdBusy}>{tr("Release")}</Btn>}
+          {iHold && <span style={{ fontSize: 11, color: t.textMut }}>{tr("The case goes back to the team.")}</span>}
         </div>
-        <div style={{ marginTop: 12 }}><Lbl>Hand to</Lbl>
+        <div style={{ marginTop: 12 }}><Lbl>{tr("Hand to")}</Lbl>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <Sel t={t} aria-label="Hand to" value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: "Choose a person" }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
-            <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>Hand over</Btn>
+            <Sel t={t} aria-label={tr("Hand to")} value={handTo} onChange={e => setHandTo(e.target.value)} options={[{ v: "", l: tr("Choose a person") }, ...handOptions.map(p => ({ v: String(p.id), l: (p.firstName || "") + " " + (p.lastName || "") }))]} />
+            <Btn t={t} onClick={() => handChosen && holdSave(handChosen.id)} disabled={holdBusy || !handChosen} style={{ whiteSpace: "nowrap" }}>{tr("Hand over")}</Btn>
           </div>
-          <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>They will get an email. The email carries no case text.</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("They will get an email. The email carries no case text.")}</div>
         </div>
         {holdError && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{holdError}</div>}
       </div>); })()}
-      <div style={{ marginBottom: 14 }}><Lbl>Summary</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
+      <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>Reported by<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Subject named<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.subject && detail.subject.name) || "No"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Escalated to<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.escalatedTo && detail.escalatedTo.name) || "-"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Last updated<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.updatedAt ? ff(detail.updatedAt) : "-"}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>Resolved<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Subject named")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.subject && detail.subject.name) || tr("No")}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Escalated to")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.escalatedTo && detail.escalatedTo.name) || "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Last updated")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.updatedAt ? ff(detail.updatedAt) : "-"}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved|case")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.resolvedAt ? ff(detail.resolvedAt) : "-"}</div></div>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Status</Lbl><Sel t={t} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Escalate to</Lbl><Sel t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: "Do not escalate" }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>Escalating sends that person an email. The email carries no case text.</div></div>
-      <div style={{ marginBottom: 14 }}><Lbl>Resolution notes</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>
-      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>Close</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Btn></div>
-      <div><Lbl>Access log</Lbl>
-        {accessLog.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No entries yet.</div>}
-        {accessLog.map(e => (<div key={e.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 12 }}><span style={{ color: t.text }}>{e.name || "OCSA"}{e.role ? <span style={{ color: t.textMut }}> ({e.role})</span> : null}<span style={{ color: t.textSec }}> {actionLabel[e.action] || e.action}</span></span><span style={{ color: t.textMut, whiteSpace: "nowrap" }}>{ff(e.at)}</span></div>))}
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} options={CASE_STATUSES.map(v => ({ v, l: statusLabel[v] }))} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Escalate to")}</Lbl><Sel t={t} value={form.escalatedTo} onChange={e => setForm({ ...form, escalatedTo: e.target.value })} options={[{ v: "", l: tr("Do not escalate") }, ...escalateOptions.map(p => ({ v: p.id, l: p.name + (p.title ? ", " + p.title : "") }))]} /><div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Escalating sends that person an email. The email carries no case text.")}</div></div>
+      <div style={{ marginBottom: 14 }}><Lbl>{tr("Resolution notes")}</Lbl><TArea t={t} rows={4} value={form.resolutionNotes} onChange={e => setForm({ ...form, resolutionNotes: e.target.value })} /></div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginBottom: 18 }}><Btn t={t} v="ghost" onClick={closeCase}>{tr("Close")}</Btn><Btn t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : tr("Save changes")}</Btn></div>
+      <div><Lbl>{tr("Access log")}</Lbl>
+        {accessLog.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No entries yet.")}</div>}
+        {accessLog.map(e => (<div key={e.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 12 }}><span style={{ color: t.text }}>{e.name || clientConfig.company.brandTag}{e.role ? <span style={{ color: t.textMut }}> ({roleWord(e.role)})</span> : null}<span style={{ color: t.textSec }}> {actionLabel[e.action] || e.action}</span></span><span style={{ color: t.textMut, whiteSpace: "nowrap" }}>{ff(e.at)}</span></div>))}
       </div>
     </div></Mdl>}
   </div>);

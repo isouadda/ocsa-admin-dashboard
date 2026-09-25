@@ -181,11 +181,11 @@ const WINDOWS = [
   { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9835] },
   { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9872] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10468] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10470] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10966] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [10988] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11019] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [10968] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [10990] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11021] },
 ];
 
 // ---------------------------------------------------------------------------

@@ -273,12 +273,15 @@ function createStubs() {
     { id: "si-2", site_id: S[2].id, site_name: S[2].name, template_id: "tp-2", template_name: "Dock area check", scheduled_date: seed.shift(6), status: "scheduled", assigned_to: "u-cap-1", assigned_to_name: "Priya Raghunathan" },
   ];
 
-  // Shaped to the Cases page: clock, ageHours, subject, assigned, createdAt. The response clock is
-  // 72 hours from filing, so ageHours drives what the Response column says.
+  // Shaped to the Cases page: clock, ageHours, subject, assignedTo, reportedBy, escalatedTo, createdAt,
+  // updatedAt, firstResponseAt, resolvedAt, the summary and the resolution notes. The response clock is
+  // 72 hours from filing, so ageHours drives what the Response column says. What a person typed, a
+  // summary and a resolution note, is drawn exactly as it arrives, so the first summary and the third
+  // case's notes carry a bar, which the word table would cut at if the text went through it.
   const HR_CASES = [
-    { id: "hc-1", reference: "CASE-0007", status: "open", clock: "overdue", ageHours: 86, createdAt: seed.shift(-4) + "T09:00:00Z", subject: { id: "u-staff-5", name: "Tomasz Wisniewski" }, assigned: null, summary: "A concern was raised about overnight cover.", subjectNamed: true },
-    { id: "hc-2", reference: "CASE-0006", status: "in_review", clock: "due_soon", ageHours: 60, createdAt: seed.shift(-3) + "T21:00:00Z", subject: null, assigned: { id: "u-admin-1", name: "Dana Whitlock" }, summary: "Dock lighting reported dim.", subjectNamed: false },
-    { id: "hc-3", reference: "CASE-0005", status: "resolved", clock: "responded", ageHours: 300, createdAt: seed.shift(-14) + "T09:00:00Z", subject: { id: "u-staff-7", name: "Elena Barbosa" }, assigned: { id: "u-super-1", name: "Oyelaran Adebayo" }, summary: "Pay question, answered the same week.", subjectNamed: true },
+    { id: "hc-1", reference: "CASE-0007", status: "open", clock: "overdue", ageHours: 86, createdAt: seed.shift(-4) + "T09:00:00Z", updatedAt: seed.shift(-4) + "T09:00:00Z", subject: { id: "u-staff-5", name: "Tomasz Wisniewski" }, assignedTo: null, reportedBy: { id: "u-staff-6", name: seed.STAFF[5].name }, escalatedTo: null, firstResponseAt: null, resolvedAt: null, resolutionNotes: null, summary: "A concern was raised about overnight cover | raised again after the first week.", subjectNamed: true },
+    { id: "hc-2", reference: "CASE-0006", status: "in_review", clock: "due_soon", ageHours: 60, createdAt: seed.shift(-3) + "T21:00:00Z", updatedAt: seed.shift(-2) + "T10:00:00Z", subject: null, assignedTo: { id: "u-admin-1", name: "Dana Whitlock" }, reportedBy: null, escalatedTo: null, firstResponseAt: null, resolvedAt: null, resolutionNotes: null, summary: "Dock lighting reported dim.", subjectNamed: false },
+    { id: "hc-3", reference: "CASE-0005", status: "resolved", clock: "responded", ageHours: 300, createdAt: seed.shift(-14) + "T09:00:00Z", updatedAt: seed.shift(-9) + "T16:00:00Z", subject: { id: "u-staff-7", name: "Elena Barbosa" }, assignedTo: { id: "u-super-1", name: "Oyelaran Adebayo" }, reportedBy: { id: "u-staff-8", name: seed.STAFF[7].name }, escalatedTo: { id: "u-super-1", name: "Oyelaran Adebayo" }, firstResponseAt: seed.shift(-13) + "T11:00:00Z", resolvedAt: seed.shift(-9) + "T16:00:00Z", resolutionNotes: "Answered in person the same week | the pay stub was corrected.", summary: "Pay question, answered the same week.", subjectNamed: true },
   ];
   // hand: 3 cases. 2 need a response (1 overdue, 1 due soon), 1 already answered.
   // hand: the badge adds unassigned 1 + dueSoon 0 + overdue 1 = 2.
@@ -1291,13 +1294,20 @@ function createStubs() {
       return ok({ cases: rows });
     }
     if (path === "/api/hr-cases" && method === "POST") return created({ message: "Case opened" });
-    if (path === "/api/contacts/case-subjects") return ok([
-      { value: "workplace_concern", label: "Workplace concern" },
-      { value: "safety", label: "Safety" },
-      { value: "pay", label: "Pay" },
-    ]);
+    // Who a case can be escalated to, shaped to what the window reads: subjects, each with an id, a
+    // name and a title. The first case's own subject is among them, and the window never offers it.
+    if (path === "/api/contacts/case-subjects") return ok({ subjects: [
+      { id: "u-super-1", name: "Oyelaran Adebayo", title: "Director of Operations" },
+      { id: "u-staff-5", name: "Tomasz Wisniewski", title: null },
+    ] });
     if (/^\/api\/hr-cases\/[^/]+\/access-log$/.test(path)) {
-      return ok({ entries: [{ id: "ca-1", at: seed.shift(-1) + "T10:00:00Z", who: "Dana Whitlock", what: "Opened the case" }] });
+      // Shaped to what the window's log reads: a name, a role and what was done, by its code. The
+      // filing email is the system's own, with no name.
+      return ok({ entries: [
+        { id: "ca-1", at: seed.shift(-1) + "T10:00:00Z", name: "Dana Whitlock", role: "admin", action: "hr_case_read" },
+        { id: "ca-2", at: seed.shift(-1) + "T10:05:00Z", name: "Dana Whitlock", role: "admin", action: "hr_case_access_log_read" },
+        { id: "ca-3", at: seed.shift(-4) + "T09:01:00Z", name: null, role: null, action: "hr_case_filed_mail" },
+      ] });
     }
     if (/^\/api\/hr-cases\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];

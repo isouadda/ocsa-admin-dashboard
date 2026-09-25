@@ -8,11 +8,6 @@
         "PermissionsMatrixPanel printMatrix"
       ]
     },
-    "cases": {
-      "part": "part six",
-      "why": "Speak Up cases",
-      "prints": []
-    },
     "forms": {
       "part": "part seven",
       "why": "Forms, the filed reports and the report window",

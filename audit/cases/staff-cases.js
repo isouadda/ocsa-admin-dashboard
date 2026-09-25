@@ -1,4 +1,5 @@
-// Staff Management in the language the screen is drawn in, and what it saves.
+// Staff Management and Cases in the language the screen is drawn in, what Staff Management saves, and
+// what a person typed into a case.
 //
 // Staff Management draws a role, a status and an employment type as a word: a role as the
 // displayLabel of the pick list the API serves for it, or the word the table has for it when the list
@@ -13,6 +14,12 @@
 // the site, a shift and a certification type from their lists, and holds each body to the one written
 // out here by hand. The bodies are the same in both languages, since every list sends the code of the
 // choice whatever word it shows.
+//
+// Cases draws a case's status, the response clock, a role and what the log says a person did as the
+// table's words, and everything a person typed into a case, a summary, resolution notes and every
+// name, exactly as it arrived. A pass reads every row of the list and every case's window. The first
+// case's summary and the third's notes carry a bar, where the word table would cut the text if it
+// went through it, so text that went through the table reads short in either language.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -32,6 +39,21 @@ function lineTable(name) {
 
 // The table's key for each status a person can have.
 const STATE = { active: "active|person", inactive: "inactive|person", pending: "pending", terminated: "terminated|person" };
+
+// A table Cases keeps as code: key, then the English the table is given for it, read out of
+// src/App.js so the two cannot drift.
+function pageTable(name) {
+  const line = fs.readFileSync(APP, "utf8").split("\n").find((l) => l.indexOf("const " + name + " = {") >= 0) || "";
+  const out = {};
+  const re = /(\w+): tr\("([^"]+)"\)/g;
+  let m;
+  while ((m = re.exec(line))) out[m[1]] = m[2];
+  return out;
+}
+// The response clock's words, by the code the API sends, written out here.
+const CLOCK = { on_time: "On time|case", due_soon: "Due soon|case", overdue: "Overdue|case", responded: "Responded|case", closed_without_response: "Closed, no response" };
+// What the log draws for an entry the system wrote: the company's tag, from the client config.
+const BRAND = (fs.readFileSync(path.resolve(__dirname, "..", "..", "src", "clientConfig.js"), "utf8").match(/brandTag:\s*'([^']+)'/) || [])[1] || "";
 
 // Chooses a value in the select under a label, in the open window or on the page. Playwright's own
 // selectOption is used, since React reverts a value set by hand on its next render.
@@ -68,6 +90,10 @@ function sameBody(call, want) {
 async function run({ d, results, seed, stubs, lang }) {
   const RL = lineTable("RL");
   const ET = lineTable("ET");
+  const CASE_STATE = {};
+  const statusWords = pageTable("statusLabel");
+  Object.keys(statusWords).forEach((k) => { CASE_STATE[k] = statusWords[k]; });
+  const ACTION = pageTable("actionLabel");
   const p0 = seed.STAFF[0];
   stubs.reset();
   await d.signOutHard();
@@ -247,6 +273,100 @@ async function run({ d, results, seed, stubs, lang }) {
   stubs.reset();
   results.note("Staff Management in " + lang + ": " + rows.length + " people read for their status, role and employment type, the first profile's banner, and "
     + saves.length + " saves held to their bodies");
+
+  // ---- Cases: the words a status, the response clock, a role and the log's actions are drawn as,
+  // and what a person typed, drawn exactly as it arrives.
+  stubs.reset();
+  await d.goto("cases");
+  await d.clickText(d.say("All|cases"), { exact: true });
+  await d.settle(500);
+  const casesCall = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/hr-cases" && c.json && Array.isArray(c.json.cases)).pop();
+  // The list's order: overdue, due soon and on time first, each oldest first, then the rest, the open
+  // ones first.
+  const RANK = { overdue: 0, due_soon: 1, on_time: 2 };
+  const OPEN = ["open", "in_review", "escalated"];
+  const cases = (casesCall ? casesCall.json.cases : []).slice().sort((a, b) => {
+    const ar = RANK[a.clock] === undefined ? 3 : RANK[a.clock], br = RANK[b.clock] === undefined ? 3 : RANK[b.clock];
+    if (ar !== br) return ar - br;
+    const ao = OPEN.indexOf(a.status) >= 0 ? 0 : 1, bo = OPEN.indexOf(b.status) >= 0 ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    return new Date(a.createdAt) - new Date(b.createdAt);
+  });
+  const caseRows = await d.page.evaluate(() => Array.from(document.querySelectorAll("table tbody tr"))
+    .map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => String(td.textContent || "").replace(/\s+/g, " ").trim()))
+    .filter((cells) => cells.length >= 6));
+  const listWrong = [];
+  cases.forEach((c, i) => {
+    const cells = caseRows[i] || [];
+    const status = d.say(CASE_STATE[c.status] || c.status);
+    const clock = CLOCK[c.clock] ? d.say(CLOCK[c.clock]) : "";
+    const held = c.assignedTo && c.assignedTo.name ? c.assignedTo.name : d.say("Unheld");
+    if (cells[2] !== status) listWrong.push("a status drawn as " + JSON.stringify(cells[2]) + " where the word is " + JSON.stringify(status));
+    if (String(cells[0] || "").indexOf(clock) !== 0) listWrong.push("a response drawn as " + JSON.stringify(cells[0]) + " where it starts with " + JSON.stringify(clock));
+    if (cells[5] !== held) listWrong.push("the holder drawn as " + JSON.stringify(cells[5]) + " where it is " + JSON.stringify(held));
+  });
+  results.check("page", "page/cases/codes-are-words/list/" + lang, caseRows.length > 0 && caseRows.length === cases.length && listWrong.length === 0,
+    caseRows.length === 0 ? "the list drew no rows" : caseRows.length !== cases.length ? "the list drew " + caseRows.length + " rows for " + cases.length + " cases"
+      : listWrong.slice(0, 3).join("; "));
+
+  // Each case's window: its summary, its resolution notes and every name exactly as they arrived, and
+  // its log's roles and actions as words.
+  const typedWrong = [];
+  const logWrong = [];
+  let logRows = 0;
+  for (let i = 0; i < cases.length; i += 1) {
+    await d.goto("cases");
+    await d.clickText(d.say("All|cases"), { exact: true });
+    await d.settle(400);
+    await d.clickRow(i);
+    await d.settle(700);
+    const c = cases[i];
+    const detailCall = stubs.calls.filter((x) => x.method === "GET" && x.path === "/api/hr-cases/" + c.id && x.json).pop();
+    const served = detailCall ? detailCall.json : c;
+    const logCall = stubs.calls.filter((x) => x.method === "GET" && x.path === "/api/hr-cases/" + c.id + "/access-log" && x.json).pop();
+    const drawn = await d.page.evaluate(([summaryWord, notesWord, fieldWords]) => {
+      const box = Array.from(document.querySelectorAll("div[style*='z-index: 500']")).pop();
+      if (!box) return null;
+      const labels = Array.from(box.querySelectorAll("label"));
+      const byLabel = (w) => labels.find((l) => l.textContent.trim() === w);
+      const sumLabel = byLabel(summaryWord);
+      const notes = byLabel(notesWord) && byLabel(notesWord).parentElement.querySelector("textarea");
+      // A field is its label's own words with the value in the div under them.
+      const fields = {};
+      fieldWords.forEach((w) => {
+        const el = Array.from(box.querySelectorAll("div")).find((x) => x.firstChild && x.firstChild.nodeType === 3 && x.firstChild.textContent.trim() === w && x.querySelector("div"));
+        fields[w] = el ? el.querySelector("div").textContent : null;
+      });
+      const log = Array.from(box.querySelectorAll("div")).filter((x) => /justify-content: space-between/.test(x.getAttribute("style") || "") && /border-bottom/.test(x.getAttribute("style") || ""))
+        .map((x) => (x.querySelector("span") ? x.querySelector("span").textContent : ""));
+      return { summary: sumLabel && sumLabel.nextElementSibling ? sumLabel.nextElementSibling.textContent : null, notes: notes ? notes.value : null, fields, log };
+    }, [d.say("Summary"), d.say("Resolution notes"), [d.say("Held by"), d.say("Reported by"), d.say("Subject named"), d.say("Escalated to")]]);
+    if (!drawn) { typedWrong.push("case " + (i + 1) + " did not open"); await d.closeModal().catch(() => {}); continue; }
+    const want = {};
+    want[d.say("Held by")] = served.assignedTo && served.assignedTo.name ? served.assignedTo.name : d.say("Nobody yet");
+    want[d.say("Reported by")] = served.reportedBy && served.reportedBy.name ? served.reportedBy.name : "-";
+    want[d.say("Subject named")] = served.subject && served.subject.name ? served.subject.name : d.say("No");
+    want[d.say("Escalated to")] = served.escalatedTo && served.escalatedTo.name ? served.escalatedTo.name : "-";
+    if (drawn.summary !== served.summary) typedWrong.push("case " + (i + 1) + "'s summary is drawn as " + JSON.stringify(drawn.summary) + " where it was typed as " + JSON.stringify(served.summary));
+    if (drawn.notes !== (served.resolutionNotes || "")) typedWrong.push("case " + (i + 1) + "'s resolution notes read " + JSON.stringify(drawn.notes) + " where they were typed as " + JSON.stringify(served.resolutionNotes || ""));
+    Object.keys(want).forEach((w) => {
+      if (drawn.fields[w] !== want[w]) typedWrong.push("case " + (i + 1) + "'s " + w + " reads " + JSON.stringify(drawn.fields[w]) + " where it is " + JSON.stringify(want[w]));
+    });
+    const entries = logCall && Array.isArray(logCall.json.entries) ? logCall.json.entries : [];
+    entries.forEach((e, k) => {
+      logRows += 1;
+      const line = (e.name || BRAND) + (e.role ? " (" + (RL[e.role] ? d.say(RL[e.role]) : e.role) + ")" : "") + " " + (ACTION[e.action] ? d.say(ACTION[e.action]) : e.action);
+      if (drawn.log[k] !== line) logWrong.push("case " + (i + 1) + "'s log reads " + JSON.stringify(drawn.log[k]) + " where it is " + JSON.stringify(line));
+    });
+    await d.closeModal().catch(() => {});
+  }
+  results.check("page", "page/cases/as-typed/" + lang, cases.length > 0 && typedWrong.length === 0,
+    cases.length === 0 ? "no case was served" : typedWrong.slice(0, 3).join("; "));
+  results.check("page", "page/cases/codes-are-words/log/" + lang, logRows > 0 && logWrong.length === 0,
+    logRows === 0 ? "no case's log drew a row" : logWrong.slice(0, 3).join("; "));
+  stubs.reset();
+  results.note("Cases in " + lang + ": " + caseRows.length + " rows read for their status, response and holder, and "
+    + cases.length + " windows for what was typed and " + logRows + " log rows for their words");
 }
 
 module.exports = { run };
