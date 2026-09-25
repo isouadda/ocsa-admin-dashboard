@@ -1,8 +1,8 @@
 // English left on a Spanish screen.
 //
-// On a Spanish pass every piece of text a person reads has to be one of four things: a Spanish value
-// from the word table, a value the API served, a number or a date or a time, or the company's own
-// name, which nobody translates. Anything else is a string somebody forgot, and it is named here by
+// On a Spanish pass every piece of text a person reads has to be one of five things: a Spanish value
+// from the word table, a value the API served, a number or a date or a time, the company's own name,
+// which nobody translates, or a language's own name. Anything else is a string somebody forgot, and it is named here by
 // the page, the person and the words themselves.
 //
 // A line is checked by taking the allowed pieces out of it, longest first, along with the numbers
@@ -13,6 +13,7 @@ const path = require("path");
 const { spanishValues } = require("./words");
 
 const CLIENT = path.resolve(__dirname, "..", "..", "src", "clientConfig.js");
+const WORDS_JS = path.resolve(__dirname, "..", "..", "src", "words.js");
 
 // The company's own words: its name, its short name, its tag and where it is.
 function clientNames() {
@@ -25,6 +26,22 @@ function clientNames() {
     const v = (m[1] || m[2]).trim();
     if (/[A-Za-z]/.test(v) && !/^#/.test(v)) out.add(v);
   }
+  return out;
+}
+
+// Each language's name as the language writes it, from the list the language control and Staff
+// Management's language choice draw. A person looks for their own language, so each is named in its
+// own tongue whatever the screen is drawn in, and nobody translates one.
+function languageNames() {
+  const out = new Set();
+  if (!fs.existsSync(WORDS_JS)) return out;
+  const text = fs.readFileSync(WORDS_JS, "utf8");
+  const at = text.indexOf("export const LANGUAGES");
+  if (at < 0) return out;
+  const block = text.slice(at, text.indexOf("];", at));
+  const re = /label:\s*"((?:[^"\\]|\\.)*)"/g;
+  let m;
+  while ((m = re.exec(block))) out.add(JSON.parse('"' + m[1] + '"'));
   return out;
 }
 
@@ -124,6 +141,7 @@ function englishLeftOn(texts, calls) {
     });
   });
   clientNames().forEach((v) => allowed.add(v));
+  languageNames().forEach((v) => allowed.add(v));
   localeDateWords("es-US").forEach((v) => allowed.add(v));
   const served = servedValues(calls);
   served.forEach((v) => allowed.add(v));
@@ -169,4 +187,4 @@ function englishLeftOn(texts, calls) {
   return bad;
 }
 
-module.exports = { englishLeftOn, servedValues, clientNames, residue, localeDateWords };
+module.exports = { englishLeftOn, servedValues, clientNames, languageNames, residue, localeDateWords };

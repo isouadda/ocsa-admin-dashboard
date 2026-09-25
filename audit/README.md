@@ -91,6 +91,14 @@ carries the `training_types` and `onboarding_categories` lookups with Spanish, a
 holds the Training table's Type column and the Onboarding checklist's headings to the word each
 lookup the page was served gives the code.
 
+**A role on Staff Management is a word, and a save sends what it always sent.** The `staff-cases`
+suite reads the Status, Role and Employment columns of every person on the list's first page and the
+first person's banner, in English and in Spanish at 1024, and holds each to the word the table, or
+the pick list the page was served, has for it; the role's own code is never an answer. It then adds
+a person, edits one from the list, edits a profile, assigns a site, adds a certification,
+deactivates a person and resets a PIN, choosing every value it can from its list, and holds each
+body the page sends to one written out by hand, the same in both languages.
+
 **A question is in the language of the screen.** The `questions` suite presses each button on
 Schedule and Shift Pickup that asks before it changes something, reads the browser's question box
 and answers No, and holds the question to the table's words in English and in Spanish. It reads the
@@ -122,7 +130,8 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu`, `hr-roles`, `questions`, `zone-chips`, `prints`, `report-screens` and `house-style`.
+`forms-menu`, `hr-roles`, `staff-cases`, `questions`, `zone-chips`, `prints`, `report-screens` and
+`house-style`.
 
 ## How much is left in English
 

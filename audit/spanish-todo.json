@@ -8,11 +8,6 @@
         "PermissionsMatrixPanel printMatrix"
       ]
     },
-    "staff": {
-      "part": "part six",
-      "why": "Staff Management, its profile and its windows",
-      "prints": []
-    },
     "cases": {
       "part": "part six",
       "why": "Speak Up cases",

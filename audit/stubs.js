@@ -38,8 +38,20 @@ function createStubs() {
     });
     return out;
   }
+  // Staff Management's list reads four fields beside the seed's own: the employee id, the employment
+  // type, the hourly rate and the sites a person works, in the API's names for them. Every other page
+  // reads the seed's fields and passes these by.
+  // hand: employment types in the order of the seed, every fifth person with none; a rate from the
+  // fifth person on; each person at the one site the seed gives them.
+  const EMPLOYMENT = ["full_time", "full_time", "part_time", "supplemental", null];
+  const staffRows = () => clone(seed.STAFF).map((p, i) => Object.assign(p, {
+    employeeId: p.employee_id,
+    employmentType: EMPLOYMENT[i % EMPLOYMENT.length],
+    hourlyRate: i >= 4 ? (17 + i) + ".50" : null,
+    sites: [{ siteId: p.site_id, siteName: p.site_name }],
+  }));
   const state = {
-    staff: clone(seed.STAFF),
+    staff: staffRows(),
     sites: clone(seed.SITES),
     issues: clone(seed.ISSUES),
     supplies: null,
@@ -133,6 +145,16 @@ function createStubs() {
     { id: "lk-14", slug: "certification_types", name: "Certification types", values: [
       { id: "lv-37", value: "certification", label: "Certification", is_active: true, sort_order: 1 },
       { id: "lv-38", value: "license", label: "License", is_active: true, sort_order: 2 },
+    ] },
+    // The roles a person can hold. Each value is the code the seed's people hold and Staff Management
+    // saves; each label is the English the app's own role table has for it.
+    { id: "lk-15", slug: "staff_roles", name: "Staff roles", values: [
+      { id: "lv-39", value: "admin", label: "Admin", is_active: true, sort_order: 1 },
+      { id: "lv-40", value: "supervisor", label: "Supervisor", is_active: true, sort_order: 2 },
+      { id: "lv-41", value: "custodial_lead", label: "Custodial Lead", is_active: true, sort_order: 3 },
+      { id: "lv-42", value: "custodial_laborer", label: "Custodial Laborer", is_active: true, sort_order: 4 },
+      { id: "lv-43", value: "day_porter", label: "Day Porter", is_active: true, sort_order: 5 },
+      { id: "lv-44", value: "contractor", label: "Contractor", is_active: true, sort_order: 6 },
     ] },
   ];
 
@@ -684,6 +706,8 @@ function createStubs() {
     "Safety": "Seguridad", "Equipment": "Equipo", "Paperwork": "Documentaci\u00f3n",
     "Quality System": "Sistema de calidad", "Human Resources": "Recursos humanos", "Management Commitment": "Compromiso de la direcci\u00f3n",
     "Lead": "L\u00edder", "Porter": "Conserje", "Night": "Noche", "Day": "D\u00eda", "Certification": "Certificaci\u00f3n", "License": "Licencia",
+    "Admin": "Administrador", "Supervisor": "Supervisor", "Custodial Lead": "L\u00edder de limpieza", "Custodial Laborer": "Auxiliar de limpieza",
+    "Day Porter": "Conserje de d\u00eda", "Contractor": "Contratista",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -876,6 +900,10 @@ function createStubs() {
     if (/^\/api\/users\/[^/]+\/approve$/.test(path)) return ok({ message: "Approved" });
     if (/^\/api\/users\/[^/]+\/pin$/.test(path)) return ok({ message: "PIN reset" });
     if (/^\/api\/users\/[^/]+\/assignments/.test(path)) return ok({ message: "Assignment saved" });
+    // The routes Staff Management calls to reset a PIN and to assign and unassign a site.
+    if (/^\/api\/users\/[^/]+\/reset-pin$/.test(path)) return ok({ message: "PIN reset" });
+    if (/^\/api\/users\/[^/]+\/assign-site$/.test(path)) return ok({ message: "Assignment saved" });
+    if (/^\/api\/users\/[^/]+\/unassign-site\/[^/]+$/.test(path)) return ok({ message: "Assignment removed" });
     if (/^\/api\/users\/[^/]+\/certifications/.test(path)) return ok({ message: "Certification saved" });
     if (/^\/api\/users\/[^/]+\/permissions$/.test(path)) {
       const id = path.split("/")[3];
@@ -896,7 +924,8 @@ function createStubs() {
     if (path === "/api/users" && method === "POST") {
       const row = Object.assign({ id: "u-new-1", status: "pending", name: ((body && body.firstName) || "New") + " " + ((body && body.lastName) || "Person") }, body || {});
       state.staff.push(row);
-      return created({ message: "Staff added", user: row });
+      // The page tells the admin the new person's first PIN, from tempPin.
+      return created({ message: "Staff added", user: row, tempPin: "5307" });
     }
 
     // --- issues -----------------------------------------------------------
@@ -1550,7 +1579,7 @@ function createStubs() {
     reset: () => {
       calls.length = 0;
       refusals = [];
-      state.staff = clone(seed.STAFF);
+      state.staff = staffRows();
       state.sites = clone(seed.SITES);
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
