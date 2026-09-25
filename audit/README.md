@@ -104,6 +104,13 @@ string of HTML, writes into a new window and prints. The `prints` suite opens ea
 as done the way a person does, reads the text between the tags of what the window was given, and in
 Spanish holds it to the same English check the screens get.
 
+**A chart is in the language of the screen.** The page reader leaves SVG out, and a chart's axis
+labels, legend and donut words are SVG. The `report-screens` suite runs each saved report as an admin
+and as a supervisor, reads its screen, then reads every chart's SVG text and legend and points at each
+bar and trend to read the tooltip a person sees. In Spanish all of it is held to the English check. It
+also saves a new report, an edited one and a copy in each language, and holds each body the editor
+sends to one written out by hand: the report editor saves the codes and the English it always has.
+
 ## How to run less of it
 
 ```
@@ -115,7 +122,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu`, `hr-roles`, `questions`, `zone-chips`, `prints` and `house-style`.
+`forms-menu`, `hr-roles`, `questions`, `zone-chips`, `prints`, `report-screens` and `house-style`.
 
 ## How much is left in English
 

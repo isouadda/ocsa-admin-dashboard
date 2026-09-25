@@ -3141,6 +3141,8 @@ const REPORT_PRESETS = [
   { key: "last90", label: "Last 90 Days" },
   { key: "thisMonth", label: "This Month" },
 ];
+// A preset's name is a shown word, drawn through the table. Its key is what a report saves.
+const reportPresets = () => REPORT_PRESETS.map(p => ({ key: p.key, label: tr(p.label) }));
 
 const ISSUE_SOURCE_KEY = "issues_timing";
 const ISSUE_SOURCE_ALIASES = ["issues_timing", "issues"];
@@ -3150,7 +3152,8 @@ const REPORT_SOURCES = [
   { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
   { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
 ];
-const sourceLabel = (key) => { if (isIssueSource(key)) return "Issue Response and Resolution"; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.label : key; };
+// A source's name is a shown word, drawn through the table. Its key is what a report saves.
+const sourceLabel = (key) => { if (isIssueSource(key)) return tr("Issue Response and Resolution"); const s = REPORT_SOURCES.find(x => x.key === key); return s ? tr(s.label) : key; };
 const sourceAvailable = (key) => { if (isIssueSource(key)) return true; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.available : false; };
 const prettyCat = (c) => String(c || "Other").replace(/_/g, " ");
 // A category heading on the Reports page: the words the dashboard and the report templates use are
@@ -3261,14 +3264,14 @@ const IssueTrendWidget = ({ timing, t }) => {
   const trend = (timing && timing.trend) ? timing.trend : [];
   const cats = trend.map(b => fmtBucketDate(b.bucket_start));
   const series = [
-    { name: "Resolution (h, median)", data: trend.map(b => hrsFromMin(b.resolution_median_minutes)) },
-    { name: "First response (h, median)", data: trend.map(b => hrsFromMin(b.first_response_median_minutes)) },
+    { name: tr("Resolution (h, median)"), data: trend.map(b => hrsFromMin(b.resolution_median_minutes)) },
+    { name: tr("First response (h, median)"), data: trend.map(b => hrsFromMin(b.first_response_median_minutes)) },
   ];
   const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
   return (
-    <ChartCard t={t} title="Resolution and response trend" sub={"Median hours per " + ((timing && timing.bucket) ? timing.bucket : "week")}>
+    <ChartCard t={t} title={tr("Resolution and response trend")} sub={tr("Median hours per {0}", bucketWord(timing && timing.bucket))}>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO, BL]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>Not enough resolved data to chart a trend yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart a trend yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3277,8 +3280,8 @@ const IssueBySiteWidget = ({ timing, t }) => {
   const rows = ((timing && timing.by_site) ? timing.by_site : []).filter(s => s.resolution_median_minutes !== null);
   if (rows.length < 2) return null;
   return (
-    <ChartCard t={t} title="Median resolution by site" sub="Hours, lower is better">
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => hrsFromMin(s.resolution_median_minutes))} t={t} valueSuffix="h" name="Median resolution (h)" />
+    <ChartCard t={t} title={tr("Median resolution by site")} sub={tr("Hours, lower is better")}>
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => hrsFromMin(s.resolution_median_minutes))} t={t} valueSuffix="h" name={tr("Median resolution (h)")} />
     </ChartCard>
   );
 };
@@ -3288,8 +3291,8 @@ const IssueSeverityWidget = ({ timing, t }) => {
   const vals = sm ? [sm.open_by_severity.high, sm.open_by_severity.medium, sm.open_by_severity.low] : [0, 0, 0];
   if (!vals.some(v => v > 0)) return null;
   return (
-    <ChartCard t={t} title="Open issues by severity" sub="Currently open">
-      <DonutChartW labels={["High", "Medium", "Low"]} values={vals} t={t} colors={[RD, OR, GO]} />
+    <ChartCard t={t} title={tr("Open issues by severity")} sub={tr("Currently open")}>
+      <DonutChartW labels={[tr("High"), tr("Medium"), tr("Low")]} values={vals} t={t} colors={[RD, OR, GO]} />
     </ChartCard>
   );
 };
@@ -3299,19 +3302,19 @@ const SlaComplianceTrendWidget = ({ timing, t }) => {
   const cats = trend.map(b => fmtBucketDate(b.bucket_start));
   const pct = (v) => (v === null || v === undefined) ? null : v;
   const series = [
-    { name: "Resolution SLA %", data: trend.map(b => pct(b.sla_resolution_compliance_pct)) },
-    { name: "Response SLA %", data: trend.map(b => pct(b.sla_response_compliance_pct)) },
+    { name: tr("Resolution SLA %"), data: trend.map(b => pct(b.sla_resolution_compliance_pct)) },
+    { name: tr("Response SLA %"), data: trend.map(b => pct(b.sla_response_compliance_pct)) },
   ];
   const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
   const totalBreaches = trend.reduce((a, b) => a + (b.resolution_breach_count || 0) + (b.response_breach_count || 0), 0);
   return (
-    <ChartCard t={t} title="SLA compliance trend" sub={"Resolution and response compliance percent per " + ((timing && timing.bucket) ? timing.bucket : "week")}>
+    <ChartCard t={t} title={tr("SLA compliance trend")} sub={tr("Resolution and response compliance percent per {0}", bucketWord(timing && timing.bucket))}>
       <div style={{ marginBottom: 10 }}>
         <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
-        <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>SLA breaches in range</span>
+        <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>{trn("SLA breaches in range|count", totalBreaches)}</span>
       </div>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>Not enough resolved data to chart compliance yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart compliance yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3320,8 +3323,8 @@ const SlaBySiteWidget = ({ timing, t }) => {
   const rows = ((timing && timing.by_site) ? timing.by_site : []).filter(s => s.sla_resolution_compliance_pct !== null && s.sla_resolution_compliance_pct !== undefined);
   if (rows.length < 2) return null;
   return (
-    <ChartCard t={t} title="Resolution SLA by site" sub="Compliance percent, higher is better">
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name="Resolution SLA %" />
+    <ChartCard t={t} title={tr("Resolution SLA by site")} sub={tr("Compliance percent, higher is better")}>
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name={tr("Resolution SLA %")} />
     </ChartCard>
   );
 };
@@ -3452,7 +3455,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   };
 
   return (<div>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
       <ChartCard t={t} title={tr("Issue Response and Resolution")} sub={tr("Response time, resolution time, and service level compliance")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -3497,12 +3500,12 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
 const SupplyCostTrendWidget = ({ data, t }) => {
   const trend = (data && data.trend) ? data.trend : [];
   const cats = trend.map(b => fmtBucketDate(b.bucket_start));
-  const series = [{ name: "Estimated cost", data: trend.map(b => b.estimated_cost) }];
+  const series = [{ name: tr("Estimated cost"), data: trend.map(b => b.estimated_cost) }];
   const hasData = trend.some(b => b.estimated_cost > 0);
   return (
-    <ChartCard t={t} title="Estimated cost trend" sub={"Estimated supply cost per " + ((data && data.bucket) ? data.bucket : "week")}>
+    <ChartCard t={t} title={tr("Estimated cost trend")} sub={tr("Estimated supply cost per {0}", bucketWord(data && data.bucket))}>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>No supply usage in this range yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No supply usage in this range yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3511,8 +3514,8 @@ const SupplyCostBySiteWidget = ({ data, t }) => {
   const rows = ((data && data.by_site) ? data.by_site : []).filter(s => s.estimated_cost > 0);
   if (rows.length < 1) return null;
   return (
-    <ChartCard t={t} title="Estimated cost by site" sub="Higher means more spend">
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.estimated_cost)} t={t} name="Estimated cost (USD)" />
+    <ChartCard t={t} title={tr("Estimated cost by site")} sub={tr("Higher means more spend")}>
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.estimated_cost)} t={t} name={tr("Estimated cost (USD)")} />
     </ChartCard>
   );
 };
@@ -3521,8 +3524,8 @@ const SupplyTopSuppliesWidget = ({ data, t }) => {
   const rows = ((data && data.by_supply) ? data.by_supply : []).filter(s => s.estimated_cost > 0).slice(0, 10);
   if (rows.length < 1) return null;
   return (
-    <ChartCard t={t} title="Top supplies by cost" sub="Estimated cost, top 10">
-      <BarChartW categories={rows.map(s => s.supply_name)} values={rows.map(s => s.estimated_cost)} t={t} horizontal={true} name="Estimated cost (USD)" />
+    <ChartCard t={t} title={tr("Top supplies by cost")} sub={tr("Estimated cost, top 10")}>
+      <BarChartW categories={rows.map(s => s.supply_name)} values={rows.map(s => s.estimated_cost)} t={t} horizontal={true} name={tr("Estimated cost (USD)")} />
     </ChartCard>
   );
 };
@@ -3532,8 +3535,8 @@ const SupplyGreenShareWidget = ({ data, t }) => {
   const vals = gs ? [gs.green_cost, gs.non_green_cost] : [0, 0];
   if (!vals.some(v => v > 0)) return null;
   return (
-    <ChartCard t={t} title="Green-certified share of cost" sub="Estimated cost split">
-      <DonutChartW labels={["Green certified", "Other"]} values={vals} t={t} colors={[GR, OR]} />
+    <ChartCard t={t} title={tr("Green-certified share of cost")} sub={tr("Estimated cost split")}>
+      <DonutChartW labels={[tr("Green certified"), tr("Other|items")]} values={vals} t={t} colors={[GR, OR]} />
     </ChartCard>
   );
 };
@@ -3618,7 +3621,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
   };
 
   return (<div>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
       <ChartCard t={t} title={tr("Supply Usage and Cost")} sub={tr("Estimated cost from logged usage at current prices")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -3672,12 +3675,12 @@ const InspectionScoreTrendWidget = ({ rows, t }) => {
   const keys = Object.keys(byDate).sort();
   const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const cats = keys.map(fmt);
-  const series = [{ name: "Avg score %", data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
+  const series = [{ name: tr("Avg score %"), data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
   const hasData = series[0].data.some(v => v !== null);
   return (
-    <ChartCard t={t} title="Inspection score trend" sub="Average score percent over time">
+    <ChartCard t={t} title={tr("Inspection score trend")} sub={tr("Average score percent over time")}>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>No completed inspections in this range yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No completed inspections in this range yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3686,8 +3689,8 @@ const InspectionBySiteWidget = ({ rows, t }) => {
   const data = (rows || []).filter(s => s.avg_score_pct !== null && s.avg_score_pct !== undefined);
   if (data.length < 1) return null;
   return (
-    <ChartCard t={t} title="Average score by site" sub="Inspection score percent">
-      <BarChartW categories={data.map(s => s.site_name)} values={data.map(s => Number(s.avg_score_pct))} t={t} valueSuffix="%" name="Avg score %" />
+    <ChartCard t={t} title={tr("Average score by site")} sub={tr("Inspection score percent")}>
+      <BarChartW categories={data.map(s => s.site_name)} values={data.map(s => Number(s.avg_score_pct))} t={t} valueSuffix="%" name={tr("Avg score %")} />
     </ChartCard>
   );
 };
@@ -3696,8 +3699,8 @@ const InspectionLowestItemsWidget = ({ rows, t }) => {
   const data = (rows || []).filter(s => s.avg_score_pct !== null && s.avg_score_pct !== undefined).slice(0, 10);
   if (data.length < 1) return null;
   return (
-    <ChartCard t={t} title="Lowest-scoring items" sub="Average score percent, lowest first">
-      <BarChartW categories={data.map(s => s.label)} values={data.map(s => Number(s.avg_score_pct))} t={t} horizontal={true} valueSuffix="%" name="Avg score %" />
+    <ChartCard t={t} title={tr("Lowest-scoring items")} sub={tr("Average score percent, lowest first")}>
+      <BarChartW categories={data.map(s => shownItem(s).label)} values={data.map(s => Number(s.avg_score_pct))} t={t} horizontal={true} valueSuffix="%" name={tr("Avg score %")} />
     </ChartCard>
   );
 };
@@ -3782,7 +3785,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
   };
 
   return (<div>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
       <ChartCard t={t} title={tr("Inspection Scores and Quality")} sub={tr("Inspection results over the selected period")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -3921,7 +3924,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("Service Delivery")} /></div>
         <div><Lbl>{tr("Source")}</Lbl>
           <select value={source} onChange={e => setSource(e.target.value)} style={selStyle}>
-            {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{s.label}{s.available ? "" : " " + tr("(arriving with templates)")}</option>)}
+            {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{tr(s.label)}{s.available ? "" : " " + tr("(arriving with templates)")}</option>)}
           </select>
         </div>
       </div>
@@ -3929,7 +3932,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Issue report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={[{ v: "last30", l: tr("Last 30 Days") }, { v: "last60", l: tr("Last 60 Days") }, { v: "last90", l: tr("Last 90 Days") }, { v: "thisMonth", l: tr("This Month") }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
             <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
             <div><Lbl>{tr("Default severity")}</Lbl><Sel t={t} value={severity} onChange={e => setSeverity(e.target.value)} options={[{ v: "", l: tr("All severities") }, { v: "high", l: tr("High") }, { v: "medium", l: tr("Medium") }, { v: "low", l: tr("Low") }]} /></div>
           </div>
@@ -3949,7 +3952,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Supply report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={[{ v: "last30", l: tr("Last 30 Days") }, { v: "last60", l: tr("Last 60 Days") }, { v: "last90", l: tr("Last 90 Days") }, { v: "thisMonth", l: tr("This Month") }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
             <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
             <div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: tr("All categories") }, { v: "chemical", l: tr("Chemical") }, { v: "supply", l: tr("Supply") }, { v: "equipment", l: tr("Equipment") }, { v: "ppe", l: tr("PPE") }]} /></div>
           </div>
@@ -3965,7 +3968,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Inspection report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={[{ v: "last30", l: tr("Last 30 Days") }, { v: "last60", l: tr("Last 60 Days") }, { v: "last90", l: tr("Last 90 Days") }, { v: "thisMonth", l: tr("This Month") }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
             <div><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
           </div>
           <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
@@ -4091,7 +4094,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
 
     <div style={{ marginTop: 18 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Quick snapshots")}</div>
-      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
       <Crd t={t} style={{ marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Task Completion")}</div>
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>

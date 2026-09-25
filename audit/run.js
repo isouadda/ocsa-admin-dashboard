@@ -62,6 +62,10 @@ const SUITES = [
   // languages.
   { name: "prints", mod: "./cases/prints", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Each report's screen and charts, as each person Reports opens for, and what the report editor
+  // saves, in English and in Spanish at 1024.
+  { name: "report-screens", mod: "./cases/report-screens", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
