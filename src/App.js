@@ -1563,6 +1563,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // The kind of record a timeline entry points at, which the printed timeline shows as its category.
+  const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage") };
+  const entityOf = (k) => k ? (entityWord[k] || k.replace(/_/g, " ")) : "";
   const staffList = allStaff;
   const load = () => loadSites();
 
@@ -1647,8 +1650,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
   const printSiteChat = () => {
     if (siteChat.length === 0) { showToast(tr("No messages to print"), "error"); return; }
-    const siteName = siteProfile?.site?.name || "Site";
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Chat History</title><style>';
+    const siteName = siteProfile?.site?.name || tr("Site");
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Chat History", siteName) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -1658,12 +1661,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += '.msg .sender{font-weight:700;font-size:12px;color:' + NAVY + '}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
+    html += sitePrintHeader(tr("{0} - Chat History", siteName), trn("{0} message|count", siteChatTotal) + ' | ' + tr("Channel: {0}", siteChatChannel?.name || tr("Site")) + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
     html += '<div class="content">';
     const sorted = [...siteChat].reverse();
     sorted.forEach(m => {
       const dt = new Date(m.sentAt);
-      const name = m.senderName || "Unknown";
+      const name = m.senderName || tr("Unknown");
       const initials = name.split(" ").map(w => w[0] || "").join("").toUpperCase();
       html += '<div class="msg">';
       if (m.profilePhotoUrl) {
@@ -1674,7 +1677,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</span>';
       html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
     });
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Communication Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Communication Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1805,18 +1808,19 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // Print timeline
   const printSiteTimeline = () => {
     if (timeline.length === 0) { showToast(tr("No data to print"), "error"); return; }
-    const siteName = siteProfile.site.name || "Site";
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Site Timeline</title><style>';
+    const siteName = siteProfile.site.name || tr("Site");
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Site Timeline", siteName) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
-    html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
-    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Site Record</div></div></body></html>';
+    const tlCatLabel = (tlCats.find(c => c.k === tlCat) || {}).l || tlCat;
+    html += sitePrintHeader(tr("{0} - Site Timeline", siteName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
+    html += '<div class="content"><table><tr><th>' + tr("Date") + '</th><th>' + tr("Time") + '</th><th>' + tr("Category") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + entityOf(e.entityType) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
+    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Site Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1824,10 +1828,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // Print timeline detail
   const printSiteTimelineDetail = () => {
     if (!tlDetail) return;
-    const siteName = siteProfile.site.name || "Site";
+    const siteName = siteProfile.site.name || tr("Site");
     const e = tlDetail.entry;
     const r = tlDetail.record;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("Record Detail") + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -1836,14 +1840,14 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
+    html += sitePrintHeader(tr("Record Detail: {0}", actionOf(e.actionType)), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
     html += '<div class="content">';
-    html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + tr("Activity Description") + '</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || tr("N/A")) + '</div></div>';
     if (r) {
-      html += '<div class="section"><div class="section-title">Record Details</div><div class="grid">';
+      html += '<div class="section"><div class="section-title">' + tr("Record Details") + '</div><div class="grid">';
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
-          const label = k.replace(/_/g, " ");
+          const label = fieldOf(k);
           let val = String(v);
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
@@ -1858,20 +1862,20 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       html += '</div></div>';
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
+      html += '<div class="section"><div class="section-title">' + tr("Photos ({0})", tlDetail.photos.length) + '</div>';
       tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">Related Items (' + tlDetail.relatedItems.length + ')</div><table><tr>';
+      html += '<div class="section"><div class="section-title">' + tr("Related Items ({0})", tlDetail.relatedItems.length) + '</div><table><tr>';
       const first = tlDetail.relatedItems[0];
       const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
-      cols.slice(0, 6).forEach(c => { html += '<th>' + c.replace(/_/g, " ") + '</th>'; });
+      cols.slice(0, 6).forEach(c => { html += '<th>' + fieldOf(c) + '</th>'; });
       html += '</tr>';
       tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Site Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Site Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };

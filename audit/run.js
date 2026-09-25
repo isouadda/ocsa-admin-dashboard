@@ -58,6 +58,10 @@ const SUITES = [
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "zone-chips", mod: "./cases/zone-chips", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Every printed page on a page taken as done, opened the way a person opens it and read in both
+  // languages.
+  { name: "prints", mod: "./cases/prints", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
