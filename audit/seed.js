@@ -162,25 +162,32 @@ const ISSUE_TIMING_HAND = {
 // ---------------------------------------------------------------------------
 const SUPPLY_USAGE = {
   bucket: "week",
-  summary: { total_estimated_cost: 4812.50, usage_events: 37, supplies_used: 9, sites_active: 3 },
+  // The share of cost that is green certified, which the printed report writes beside green_split.
+  // hand: 1925.00 / 4812.50 = 0.4, so 40 percent.
+  summary: { total_estimated_cost: 4812.50, usage_events: 37, supplies_used: 9, sites_active: 3, green_cost_pct: 40 },
+  // Each bucket carries the quantity used in it, which the printed report writes in its own column.
   trend: [
-    { bucket_start: shift(-28), estimated_cost: 1610.00, usage_events: 13 },
-    { bucket_start: shift(-21), estimated_cost: 1702.50, usage_events: 14 },
-    { bucket_start: shift(-14), estimated_cost: 1500.00, usage_events: 10 },
+    { bucket_start: shift(-28), estimated_cost: 1610.00, usage_events: 13, quantity: 121 },
+    { bucket_start: shift(-21), estimated_cost: 1702.50, usage_events: 14, quantity: 130 },
+    { bucket_start: shift(-14), estimated_cost: 1500.00, usage_events: 10, quantity: 93 },
   ],
   // hand: 1610.00 + 1702.50 + 1500.00 = 4812.50, which is summary.total_estimated_cost.
   // hand: 13 + 14 + 10 = 37, which is summary.usage_events.
+  // hand: 121 + 130 + 93 = 344, the quantities in by_supply added up: 44 + 60 + 90 + 35 + 20 + 48 + 25
+  //     + 18 + 4 = 344.
   by_site: [
     { site_id: SITES[0].id, site_name: SITES[0].name, estimated_cost: 2140.00, usage_events: 16 },
     { site_id: SITES[1].id, site_name: SITES[1].name, estimated_cost: 1587.50, usage_events: 13 },
     { site_id: SITES[2].id, site_name: SITES[2].name, estimated_cost: 1085.00, usage_events: 8 },
   ],
   // hand: 2140.00 + 1587.50 + 1085.00 = 4812.50. 16 + 13 + 8 = 37.
+  // Each supply says whether it is green certified, which the printed report writes as Yes or No. The
+  // two that are match the stub's inventory.
   by_supply: [
-    { supply_id: "sp-1", supply_name: "Neutral floor cleaner", category: "chemical", estimated_cost: 1210.00, quantity: 44, unit: "gallon" },
+    { supply_id: "sp-1", supply_name: "Neutral floor cleaner", category: "chemical", estimated_cost: 1210.00, quantity: 44, unit: "gallon", is_green_certified: true },
     { supply_id: "sp-2", supply_name: "Microfiber cloth pack", category: "tool", estimated_cost: 880.50, quantity: 60, unit: "pack" },
     { supply_id: "sp-3", supply_name: "Can liner 40x46", category: "consumable", estimated_cost: 742.00, quantity: 90, unit: "case" },
-    { supply_id: "sp-4", supply_name: "Hand soap refill", category: "consumable", estimated_cost: 610.00, quantity: 35, unit: "each" },
+    { supply_id: "sp-4", supply_name: "Hand soap refill", category: "consumable", estimated_cost: 610.00, quantity: 35, unit: "each", is_green_certified: true },
     { supply_id: "sp-5", supply_name: "Glass cleaner concentrate", category: "chemical", estimated_cost: 455.00, quantity: 20, unit: "gallon" },
     { supply_id: "sp-6", supply_name: "Restroom paper towel", category: "consumable", estimated_cost: 380.00, quantity: 48, unit: "case" },
     { supply_id: "sp-7", supply_name: "Mop head 24oz", category: "tool", estimated_cost: 245.00, quantity: 25, unit: "each" },

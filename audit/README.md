@@ -99,6 +99,18 @@ zone chips on the first site's General Info: a zone a task at the site carries d
 display, one no task carries draws the zones lookup's shown label, and one neither carries is drawn
 as it was typed. It takes the words from what the stub answered the page, in the language asked for.
 
+**A printed page is in the language of the screen.** A print is a page the dashboard builds as a
+string of HTML, writes into a new window and prints. The `prints` suite opens each one on a page taken
+as done the way a person does, reads the text between the tags of what the window was given, and in
+Spanish holds it to the same English check the screens get.
+
+**A chart is in the language of the screen.** The page reader leaves SVG out, and a chart's axis
+labels, legend and donut words are SVG. The `report-screens` suite runs each saved report as an admin
+and as a supervisor, reads its screen, then reads every chart's SVG text and legend and points at each
+bar and trend to read the tooltip a person sees. In Spanish all of it is held to the English check. It
+also saves a new report, an edited one and a copy in each language, and holds each body the editor
+sends to one written out by hand: the report editor saves the codes and the English it always has.
+
 ## How to run less of it
 
 ```
@@ -110,7 +122,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu`, `hr-roles`, `questions`, `zone-chips` and `house-style`.
+`forms-menu`, `hr-roles`, `questions`, `zone-chips`, `prints`, `report-screens` and `house-style`.
 
 ## How much is left in English
 
@@ -122,6 +134,15 @@ It counts, page by page, the strings the finder in `audit/lib/strings.js` finds 
 `tr` or `trn`, in the component the render switch draws for the page and in everything that component
 reaches, beside the part `audit/spanish-todo.json` gives the page. A page the file no longer lists is
 done, and a count there is English left on a page taken as finished.
+
+The finder reads printed pages too: in a function that builds a page as HTML and opens it in a window,
+the text between the tags of every string is a place, the way a line a toast says is one. The count
+names each print it finds after the parts, by the component and function that build it, the line it
+starts on and the page that prints it. `house-style` holds the finder to a plain count of the pages
+`src/App.js` opens, and fails the run when a page taken as done has any English the finder can find,
+a printed page included. A page still listed in `audit/spanish-todo.json` names the printed pages the
+finder counts English on, and `house-style` fails the run when the list and the count part, so the
+part that takes a page takes its prints with it.
 
 ## Known failures
 

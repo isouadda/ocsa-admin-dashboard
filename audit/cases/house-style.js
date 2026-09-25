@@ -5,8 +5,12 @@
 // and in an export column header, so a new one is caught the run after it is written. The acronym
 // itself is never printed here; each place is named by file and line.
 "use strict";
+const fs = require("fs");
 const { findNonAscii } = require("../lib/ascii");
 const { compare, slotCheck } = require("../lib/words");
+const { APP } = require("../lib/strings");
+const { count } = require("../count");
+const TODO = require("path").resolve(__dirname, "..", "spanish-todo.json");
 
 function run({ app, results, inventory }) {
   const sites = app.bannedAcronym;
@@ -55,6 +59,31 @@ function run({ app, results, inventory }) {
     results.note("the Spanish for " + JSON.stringify(w.key) + " carries {" + (w.got || "none")
       + "} where its English carries {" + (w.want || "none") + "}");
   });
+
+  // The finder reads a printed page's words, so every page the app opens in a window is counted with
+  // the component that builds it. What it finds is held to a plain count of the pages the source
+  // opens: a finder that stops reading them finds fewer than there are.
+  const { pages, prints } = count();
+  const opened = (fs.readFileSync(APP, "utf8").match(/<!DOCTYPE html/gi) || []).length;
+  results.check("house-style", inventory.FINDER_PRINTS.id, prints.length === opened && opened > 0,
+    "the finder names " + prints.length + " printed pages where src/App.js opens " + opened);
+  results.note("the finder reads " + prints.length + " printed pages: " + prints.map((r) => r.id + " (" + (r.pages.join(", ") || "no page") + ", " + r.places + " left)").join("; "));
+
+  // A page taken as done has no English left anywhere the finder looks, a printed page included.
+  const left = pages.filter((p) => p.part === "done" && p.places > 0);
+  results.check("house-style", inventory.DONE_PAGES_READ_NO_ENGLISH.id, left.length === 0,
+    left.map((p) => p.id + " has " + p.places + " places the finder reads as English, in " + p.owners.join(", ")).join("; "));
+
+  // A page still in English names each printed page the finder counts English on, so the part that
+  // takes the page takes its prints with it, and a print that turns Spanish comes off the list.
+  const todo = JSON.parse(fs.readFileSync(TODO, "utf8")).pages;
+  const off = Object.keys(todo).map((id) => {
+    const named = (todo[id].prints || []).slice().sort();
+    const counted = prints.filter((r) => r.pages.indexOf(id) >= 0 && r.places > 0).map((r) => r.id).sort();
+    return named.join("|") === counted.join("|") ? null
+      : id + " names " + (named.join(", ") || "no print") + " where the finder counts English on " + (counted.join(", ") || "no print");
+  }).filter(Boolean);
+  results.check("house-style", inventory.TODO_NAMES_PRINTS.id, off.length === 0, off.join("; "));
 }
 
 module.exports = { run };

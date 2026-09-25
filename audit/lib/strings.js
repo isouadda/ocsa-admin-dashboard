@@ -2,8 +2,9 @@
 //
 // A screen's words live in three shapes: text between JSX tags, a string inside a JSX expression,
 // and a string handed to an attribute a person reads, such as a placeholder or an accessible name.
-// A fourth is the line a toast or a confirm box says. This walks the tree for all four, names the
-// component each one sits in, and says whether it already goes through tr().
+// A fourth is the line a toast or a confirm box says. A fifth is a printed page: HTML written into a
+// new window as a string, whose words are the text between its tags. This walks the tree for all
+// five, names the component each one sits in, and says whether it already goes through tr().
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -158,20 +159,70 @@ const inStyle = (parents) => parents.some((p) => p.type === "JSXAttribute" && p.
   || parents.some((p) => p.type === "JSXElement" && p.openingElement && p.openingElement.name
     && p.openingElement.name.name === "style");
 
-function findStrings() {
+// A printed page: a function that builds an HTML page as a string, writes it into a new window and
+// prints it. Every string in that function is a piece of the page, and its words are the text
+// between the tags, which none of the shapes above can see.
+const OPENS_A_PAGE = /<!DOCTYPE html|<html[\s>]/i;
+// A piece of the page's stylesheet, written into its <style> block a rule or a declaration at a time.
+const STYLE_SHAPED = (s) => /[{}]/.test(s) || /^[\s;]*[a-z-]+\s*:/.test(s);
+// The words in one piece of a printed page. A <style> block is dropped whole, and so are the ends of
+// one the concatenation carries across pieces; a tag the concatenation cut in two is dropped at
+// either end; an entity is the mark it stands for. What is left between the tags is the text.
+function printWords(raw, whole) {
+  let s = String(raw)
+    .replace(/<style[\s\S]*?<\/style>/gi, "\u0000")
+    .replace(/<style[^>]*>[\s\S]*$/i, "\u0000")
+    .replace(/^[\s\S]*?<\/style>/i, "\u0000");
+  if (!whole && STYLE_SHAPED(s.replace(/\u0000/g, ""))) return [];
+  if (!whole) s = s.replace(/<[^>]*$/, "\u0000").replace(/^[^<]*>/, "\u0000");
+  return s.replace(/<[^>]*>/g, "\u0000").replace(/&[a-zA-Z]+;|&#\d+;/g, " ")
+    .split("\u0000").map((x) => x.replace(/\s+/g, " ").trim()).filter(Boolean);
+}
+// Each function that opens a page, by the name it is bound to and the line it starts on.
+function printFunctions(ast) {
+  const prints = new Map();
+  walk(ast.program, (n, parents) => {
+    const text = n.type === "StringLiteral" ? n.value : n.type === "TemplateElement" ? n.value.cooked : null;
+    if (text == null || !OPENS_A_PAGE.test(text)) return;
+    let at = -1;
+    for (let i = parents.length - 1; i >= 0; i -= 1) { if (IS_FN(parents[i])) { at = i; break; } }
+    if (at < 0 || prints.has(parents[at])) return;
+    const fn = parents[at];
+    const holder = parents[at - 1];
+    const name = fn.id ? fn.id.name : holder && holder.type === "VariableDeclarator" && holder.id && holder.id.name ? holder.id.name : "(unnamed)";
+    prints.set(fn, { name: name, line: fn.loc.start.line });
+  }, []);
+  return prints;
+}
+const printOf = (parents, prints) => {
+  for (let i = parents.length - 1; i >= 0; i -= 1) { if (prints.has(parents[i])) return prints.get(parents[i]); }
+  return null;
+};
+
+function parseApp() {
   const code = fs.readFileSync(APP, "utf8");
-  const ast = parser.parse(code, {
+  return parser.parse(code, {
     sourceType: "module",
     plugins: ["jsx", "optionalChaining", "nullishCoalescingOperator", "classProperties", "objectRestSpread"],
   });
+}
+
+function findStrings() {
+  const code = fs.readFileSync(APP, "utf8");
+  const ast = parseApp();
   const owner = ownerMap(ast, code);
   const shapes = translatedShapes(ast);
+  const prints = printFunctions(ast);
   const found = [];
-  const add = (text, line, parents, how, node) => {
-    const drawn = how === "text" || how.indexOf("attribute ") === 0;
+  const add = (text, line, parents, how, node, print) => {
+    // Text between a printed page's tags is drawn, so a lone lowercase word there is a word. A plain
+    // value in a print function that is not joined into the page, such as a toast's kind, is not.
+    const drawn = how === "text" || how.indexOf("attribute ") === 0 || how === "print";
     if (drawn ? NOT_A_DRAWN_WORD(text) : NOT_A_WORD(text)) return;
     const done = inTr(parents) || (node ? handedToTr(node, parents, shapes) : false);
-    found.push({ text: String(text), line: line, owner: owner(line), how: how, translated: done });
+    const row = { text: String(text), line: line, owner: owner(line), how: how, translated: done };
+    if (print) row.print = print;
+    found.push(row);
   };
 
   walk(ast.program, (node, parents) => {
@@ -188,13 +239,15 @@ function findStrings() {
       const p = parents[parents.length - 1];
       const said = p && p.type === "CallExpression" && says(p.callee);
       const attr = p && p.type === "JSXAttribute" && p.name && READ_ATTRS.has(String(p.name.name));
-      if (!inJsx && !said && !attr) return;
       let pattern = "";
       node.quasis.forEach((q, i) => {
         pattern += q.value.cooked;
         if (i < node.expressions.length) pattern += "{" + i + "}";
       });
-      add(pattern, node.loc.start.line, parents, "built", node);
+      if (inJsx || said || attr) { add(pattern, node.loc.start.line, parents, "built", node); return; }
+      // A printed page written as one template: each run of text between its tags.
+      const print = printOf(parents, prints);
+      if (print) printWords(pattern, true).forEach((w) => add(w, node.loc.start.line, parents, "print", node, print));
       return;
     }
     if (node.type === "StringLiteral") {
@@ -248,11 +301,29 @@ function findStrings() {
       }
       if (gp && gp.type === "CallExpression" && says(gp.callee)) {
         add(node.value, node.loc.start.line, parents, "said", node);
+        return;
+      }
+      // A piece of a printed page. Joined into the page with +, it is text between tags; standing on
+      // its own, a fallback or a label handed to a helper, it is a word only when it reads as one.
+      const print = printOf(parents, prints);
+      if (print) {
+        const joined = p && ((p.type === "BinaryExpression" && p.operator === "+") || (p.type === "AssignmentExpression" && p.operator === "+="));
+        printWords(node.value, false).forEach((w) => add(w, node.loc.start.line, parents, joined ? "print" : "print value", node, print));
       }
       return;
     }
   }, []);
   return found;
+}
+
+// Every printed page in the app: the function that builds it, the line it starts on and the
+// component it sits in.
+function findPrints() {
+  const code = fs.readFileSync(APP, "utf8");
+  const ast = parseApp();
+  const owner = ownerMap(ast, code);
+  return Array.from(printFunctions(ast).values()).map((p) => Object.assign({ owner: owner(p.line) }, p))
+    .sort((a, b) => a.line - b.line);
 }
 
 // What is left in English inside a set of components.
@@ -261,4 +332,4 @@ function untranslatedIn(owners) {
   return findStrings().filter((s) => want.has(s.owner) && !s.translated);
 }
 
-module.exports = { findStrings, untranslatedIn, APP };
+module.exports = { findStrings, findPrints, untranslatedIn, APP };

@@ -1,25 +1,31 @@
 {
-  "note": "Every page the dashboard still draws in English, with the part that takes it. On a Spanish pass the check runs on every page; a page listed here is expected to be English and does not fail the run, and a page that is not listed has to be Spanish through and through. A page listed here that starts passing DOES fail the run, so a part is never finished without its entries coming off. A part takes its pages off as it translates them.",
+  "note": "Every page the dashboard still draws in English, with the part that takes it and the printed pages the finder counts English on. On a Spanish pass the check runs on every page; a page listed here is expected to be English and does not fail the run, and a page that is not listed has to be Spanish through and through. A page listed here that starts passing DOES fail the run, so a part is never finished without its entries coming off. A part takes its pages off as it translates them, prints included, and house-style fails the run when the prints a page names are not the ones the finder counts English on it.",
   "pages": {
-    "reports": {
-      "part": "part five",
-      "why": "The reporting engine and its four report screens"
-    },
     "settings": {
       "part": "part six",
-      "why": "Settings and its five panels"
+      "why": "Settings, its five panels and the permissions matrix's printed page",
+      "prints": [
+        "PermissionsMatrixPanel printMatrix"
+      ]
     },
     "staff": {
       "part": "part six",
-      "why": "Staff Management, its profile and its windows"
+      "why": "Staff Management, its profile, its windows and its three printed pages",
+      "prints": [
+        "StaffPage printTimelineDetail",
+        "StaffPage printTimeline",
+        "StaffPage printProfileReport"
+      ]
     },
     "cases": {
       "part": "part six",
-      "why": "Speak Up cases"
+      "why": "Speak Up cases",
+      "prints": []
     },
     "forms": {
       "part": "part seven",
-      "why": "Forms, the filed reports and the report window"
+      "why": "Forms, the filed reports and the report window",
+      "prints": []
     }
   }
 }

@@ -783,7 +783,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
-        {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
+        {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -1563,6 +1563,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // The kind of record a timeline entry points at, which the printed timeline shows as its category.
+  const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage") };
+  const entityOf = (k) => k ? (entityWord[k] || k.replace(/_/g, " ")) : "";
   const staffList = allStaff;
   const load = () => loadSites();
 
@@ -1647,8 +1650,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
   const printSiteChat = () => {
     if (siteChat.length === 0) { showToast(tr("No messages to print"), "error"); return; }
-    const siteName = siteProfile?.site?.name || "Site";
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Chat History</title><style>';
+    const siteName = siteProfile?.site?.name || tr("Site");
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Chat History", siteName) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -1658,12 +1661,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += '.msg .sender{font-weight:700;font-size:12px;color:' + NAVY + '}.msg .time{font-size:9px;color:#888;margin-left:8px}.msg .text{font-size:12px;margin-top:4px;line-height:1.6}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Chat History', siteChatTotal + ' messages | Channel: ' + (siteChatChannel?.name || "Site") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
+    html += sitePrintHeader(tr("{0} - Chat History", siteName), trn("{0} message|count", siteChatTotal) + ' | ' + tr("Channel: {0}", siteChatChannel?.name || tr("Site")) + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
     html += '<div class="content">';
     const sorted = [...siteChat].reverse();
     sorted.forEach(m => {
       const dt = new Date(m.sentAt);
-      const name = m.senderName || "Unknown";
+      const name = m.senderName || tr("Unknown");
       const initials = name.split(" ").map(w => w[0] || "").join("").toUpperCase();
       html += '<div class="msg">';
       if (m.profilePhotoUrl) {
@@ -1674,7 +1677,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       html += '<div><span class="sender">' + name + '</span><span class="time">' + dt.toLocaleDateString(localeTag()) + ' ' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</span>';
       html += '<div class="text">' + (m.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;") + '</div></div></div>';
     });
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Communication Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Communication Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1805,18 +1808,19 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // Print timeline
   const printSiteTimeline = () => {
     if (timeline.length === 0) { showToast(tr("No data to print"), "error"); return; }
-    const siteName = siteProfile.site.name || "Site";
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + siteName + ' - Site Timeline</title><style>';
+    const siteName = siteProfile.site.name || tr("Site");
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("{0} - Site Timeline", siteName) + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:11px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
     html += '.content{padding:20px 32px}table{width:100%;border-collapse:collapse}th{text-align:left;background:#f5f5f5;padding:5px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}';
     html += '.footer{text-align:center;font-size:9px;color:#999;margin-top:16px;padding-top:8px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader(siteName + ' - Site Timeline', timeline.length + ' of ' + tlTotal + ' entries' + (tlCat !== "all" ? " | Filter: " + tlCat : "") + (tlDateRange.start ? " | From: " + tlDateRange.start : "") + (tlDateRange.end ? " | To: " + tlDateRange.end : "") + ' | Generated ' + new Date().toLocaleDateString(localeTag()));
-    html += '<div class="content"><table><tr><th>Date</th><th>Time</th><th>Category</th><th>Action</th><th>Description</th><th>By</th></tr>';
-    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + e.entityType.replace(/_/g, " ") + '</td><td>' + e.actionType.replace(/_/g, " ") + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || "System") + '</td></tr>'; });
-    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Site Record</div></div></body></html>';
+    const tlCatLabel = (tlCats.find(c => c.k === tlCat) || {}).l || tlCat;
+    html += sitePrintHeader(tr("{0} - Site Timeline", siteName), trn("{1} of {0} entry|count", tlTotal, timeline.length) + (tlCat !== "all" ? " | " + tr("Filter: {0}", tlCatLabel) : "") + (tlDateRange.start ? " | " + tr("From: {0}", tlDateRange.start) : "") + (tlDateRange.end ? " | " + tr("To: {0}", tlDateRange.end) : "") + ' | ' + tr("Generated {0}", new Date().toLocaleDateString(localeTag())));
+    html += '<div class="content"><table><tr><th>' + tr("Date") + '</th><th>' + tr("Time") + '</th><th>' + tr("Category") + '</th><th>' + tr("Action") + '</th><th>' + tr("Description") + '</th><th>' + tr("By") + '</th></tr>';
+    timeline.forEach(e => { const dt = new Date(e.createdAt); html += '<tr><td style="white-space:nowrap">' + dt.toLocaleDateString(localeTag()) + '</td><td>' + dt.toLocaleTimeString(localeTag(), { hour: "2-digit", minute: "2-digit" }) + '</td><td>' + entityOf(e.entityType) + '</td><td>' + actionOf(e.actionType) + '</td><td>' + (e.description || "") + '</td><td>' + (e.actorName || tr("System")) + '</td></tr>'; });
+    html += '</table><div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Site Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -1824,10 +1828,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // Print timeline detail
   const printSiteTimelineDetail = () => {
     if (!tlDetail) return;
-    const siteName = siteProfile.site.name || "Site";
+    const siteName = siteProfile.site.name || tr("Site");
     const e = tlDetail.entry;
     const r = tlDetail.record;
-    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Record Detail</title><style>';
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + tr("Record Detail") + '</title><style>';
     html += 'body{font-family:-apple-system,Helvetica,Arial,sans-serif;margin:0;padding:0;color:#1a1a1a;font-size:12px}';
     html += '.header{background:' + NAVY + ';color:#F8F7F4;padding:20px 32px;display:flex;align-items:center;justify-content:space-between}';
     html += '.header h1{margin:0;font-size:16px;color:' + GOLD + '}.header .sub{font-size:10px;color:#8899AA;margin-top:4px}';
@@ -1836,14 +1840,14 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     html += 'table{width:100%;border-collapse:collapse;font-size:11px}th{text-align:left;background:#f5f5f5;padding:6px 8px;font-size:9px;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd}td{padding:5px 8px;border-bottom:1px solid #eee}';
     html += '.photo{max-width:300px;max-height:200px;border-radius:6px;margin:4px}.footer{text-align:center;font-size:9px;color:#999;margin-top:20px;padding-top:10px;border-top:1px solid #e0e0e0}';
     html += '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body>';
-    html += sitePrintHeader('Record Detail: ' + e.actionType.replace(/_/g, " "), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
+    html += sitePrintHeader(tr("Record Detail: {0}", actionOf(e.actionType)), siteName + ' | ' + new Date(e.createdAt).toLocaleString(localeTag()));
     html += '<div class="content">';
-    html += '<div class="section"><div class="section-title">Activity Description</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || "N/A") + '</div></div>';
+    html += '<div class="section"><div class="section-title">' + tr("Activity Description") + '</div><div style="font-size:13px;margin-bottom:8px">' + (e.description || tr("N/A")) + '</div></div>';
     if (r) {
-      html += '<div class="section"><div class="section-title">Record Details</div><div class="grid">';
+      html += '<div class="section"><div class="section-title">' + tr("Record Details") + '</div><div class="grid">';
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
-          const label = k.replace(/_/g, " ");
+          const label = fieldOf(k);
           let val = String(v);
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
@@ -1858,20 +1862,20 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       html += '</div></div>';
     }
     if (tlDetail.photos && tlDetail.photos.length > 0) {
-      html += '<div class="section"><div class="section-title">Photos (' + tlDetail.photos.length + ')</div>';
+      html += '<div class="section"><div class="section-title">' + tr("Photos ({0})", tlDetail.photos.length) + '</div>';
       tlDetail.photos.forEach(p => { html += '<div style="display:inline-block;margin:4px"><img class="photo" src="' + (p.photo_url || p.file_url || "") + '" /><div style="font-size:9px;color:#888;margin-top:2px">' + (p.caption || p.notes || "") + '</div></div>'; });
       html += '</div>';
     }
     if (tlDetail.relatedItems && tlDetail.relatedItems.length > 0) {
-      html += '<div class="section"><div class="section-title">Related Items (' + tlDetail.relatedItems.length + ')</div><table><tr>';
+      html += '<div class="section"><div class="section-title">' + tr("Related Items ({0})", tlDetail.relatedItems.length) + '</div><table><tr>';
       const first = tlDetail.relatedItems[0];
       const cols = Object.keys(first).filter(k => k !== "id" && k !== "items" && !k.endsWith("_id"));
-      cols.slice(0, 6).forEach(c => { html += '<th>' + c.replace(/_/g, " ") + '</th>'; });
+      cols.slice(0, 6).forEach(c => { html += '<th>' + fieldOf(c) + '</th>'; });
       html += '</tr>';
       tlDetail.relatedItems.forEach(item => { html += '<tr>'; cols.slice(0, 6).forEach(c => { const v = item[c]; html += '<td>' + (v !== null && v !== undefined ? String(v).substring(0, 100) : "") + '</td>'; }); html += '</tr>'; });
       html += '</table></div>';
     }
-    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | Confidential Site Record</div></div></body></html>';
+    html += '<div class="footer">' + clientConfig.company.name + ' | ' + clientConfig.company.location + ' | ' + tr("Confidential Site Record") + '</div></div></body></html>';
     const w = window.open("", "_blank"); w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
@@ -3118,14 +3122,17 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
 // ===== REPORTING ENGINE: shared helpers, reusable widgets, builder =====
 const num = (v, f) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : f; };
 const fmtDurMin = (m) => {
-  if (m === null || m === undefined) return "n/a";
+  if (m === null || m === undefined) return tr("n/a");
   if (m < 60) return Math.round(m) + "m";
   if (m < 1440) { const h = Math.floor(m / 60); const mm = Math.round(m % 60); return mm ? (h + "h " + mm + "m") : (h + "h"); }
   const d = Math.floor(m / 1440); const h = Math.floor((m % 1440) / 60); return h ? (d + "d " + h + "h") : (d + "d");
 };
-const fmtPctVal = (p) => (p === null || p === undefined) ? "n/a" : (p + "%");
+const fmtPctVal = (p) => (p === null || p === undefined) ? tr("n/a") : (p + "%");
 const hrsFromMin = (m) => m === null || m === undefined ? null : Math.round(m / 60 * 10) / 10;
 const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(localeTag(), { month: "short", day: "numeric" }); } catch (e) { return s; } };
+// A trend's bucket is a code the report saves and sends. Where a screen or a print names it, it is
+// drawn as its word, whose English is the code.
+const bucketWord = (b) => tr((b || "week") + "|bucket");
 const resolvePreset = (key) => (PRESETS[key] ? PRESETS[key]() : PRESETS.last30());
 
 const REPORT_PRESETS = [
@@ -3134,6 +3141,8 @@ const REPORT_PRESETS = [
   { key: "last90", label: "Last 90 Days" },
   { key: "thisMonth", label: "This Month" },
 ];
+// A preset's name is a shown word, drawn through the table. Its key is what a report saves.
+const reportPresets = () => REPORT_PRESETS.map(p => ({ key: p.key, label: tr(p.label) }));
 
 const ISSUE_SOURCE_KEY = "issues_timing";
 const ISSUE_SOURCE_ALIASES = ["issues_timing", "issues"];
@@ -3143,9 +3152,14 @@ const REPORT_SOURCES = [
   { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
   { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
 ];
-const sourceLabel = (key) => { if (isIssueSource(key)) return "Issue Response and Resolution"; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.label : key; };
+// A source's name is a shown word, drawn through the table. Its key is what a report saves.
+const sourceLabel = (key) => { if (isIssueSource(key)) return tr("Issue Response and Resolution"); const s = REPORT_SOURCES.find(x => x.key === key); return s ? tr(s.label) : key; };
 const sourceAvailable = (key) => { if (isIssueSource(key)) return true; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.available : false; };
 const prettyCat = (c) => String(c || "Other").replace(/_/g, " ");
+// A category heading on the Reports page: the words the dashboard and the report templates use are
+// drawn from the table, and any other category is drawn as it was typed. The English is the heading
+// as it has always read.
+const reportCategoryWord = (c) => { const p = prettyCat(c); const k = p.toLowerCase(); const w = tr(k + "|report category"); return w === k ? p : w; };
 
 const defaultIssueConfig = () => ({
   date_range: { preset: "last30" },
@@ -3250,14 +3264,14 @@ const IssueTrendWidget = ({ timing, t }) => {
   const trend = (timing && timing.trend) ? timing.trend : [];
   const cats = trend.map(b => fmtBucketDate(b.bucket_start));
   const series = [
-    { name: "Resolution (h, median)", data: trend.map(b => hrsFromMin(b.resolution_median_minutes)) },
-    { name: "First response (h, median)", data: trend.map(b => hrsFromMin(b.first_response_median_minutes)) },
+    { name: tr("Resolution (h, median)"), data: trend.map(b => hrsFromMin(b.resolution_median_minutes)) },
+    { name: tr("First response (h, median)"), data: trend.map(b => hrsFromMin(b.first_response_median_minutes)) },
   ];
   const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
   return (
-    <ChartCard t={t} title="Resolution and response trend" sub={"Median hours per " + ((timing && timing.bucket) ? timing.bucket : "week")}>
+    <ChartCard t={t} title={tr("Resolution and response trend")} sub={tr("Median hours per {0}", bucketWord(timing && timing.bucket))}>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO, BL]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>Not enough resolved data to chart a trend yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart a trend yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3266,8 +3280,8 @@ const IssueBySiteWidget = ({ timing, t }) => {
   const rows = ((timing && timing.by_site) ? timing.by_site : []).filter(s => s.resolution_median_minutes !== null);
   if (rows.length < 2) return null;
   return (
-    <ChartCard t={t} title="Median resolution by site" sub="Hours, lower is better">
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => hrsFromMin(s.resolution_median_minutes))} t={t} valueSuffix="h" name="Median resolution (h)" />
+    <ChartCard t={t} title={tr("Median resolution by site")} sub={tr("Hours, lower is better")}>
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => hrsFromMin(s.resolution_median_minutes))} t={t} valueSuffix="h" name={tr("Median resolution (h)")} />
     </ChartCard>
   );
 };
@@ -3277,8 +3291,8 @@ const IssueSeverityWidget = ({ timing, t }) => {
   const vals = sm ? [sm.open_by_severity.high, sm.open_by_severity.medium, sm.open_by_severity.low] : [0, 0, 0];
   if (!vals.some(v => v > 0)) return null;
   return (
-    <ChartCard t={t} title="Open issues by severity" sub="Currently open">
-      <DonutChartW labels={["High", "Medium", "Low"]} values={vals} t={t} colors={[RD, OR, GO]} />
+    <ChartCard t={t} title={tr("Open issues by severity")} sub={tr("Currently open")}>
+      <DonutChartW labels={[tr("High"), tr("Medium"), tr("Low")]} values={vals} t={t} colors={[RD, OR, GO]} />
     </ChartCard>
   );
 };
@@ -3288,19 +3302,19 @@ const SlaComplianceTrendWidget = ({ timing, t }) => {
   const cats = trend.map(b => fmtBucketDate(b.bucket_start));
   const pct = (v) => (v === null || v === undefined) ? null : v;
   const series = [
-    { name: "Resolution SLA %", data: trend.map(b => pct(b.sla_resolution_compliance_pct)) },
-    { name: "Response SLA %", data: trend.map(b => pct(b.sla_response_compliance_pct)) },
+    { name: tr("Resolution SLA %"), data: trend.map(b => pct(b.sla_resolution_compliance_pct)) },
+    { name: tr("Response SLA %"), data: trend.map(b => pct(b.sla_response_compliance_pct)) },
   ];
   const hasData = series.some(s => s.data.some(v => v !== null && v !== undefined));
   const totalBreaches = trend.reduce((a, b) => a + (b.resolution_breach_count || 0) + (b.response_breach_count || 0), 0);
   return (
-    <ChartCard t={t} title="SLA compliance trend" sub={"Resolution and response compliance percent per " + ((timing && timing.bucket) ? timing.bucket : "week")}>
+    <ChartCard t={t} title={tr("SLA compliance trend")} sub={tr("Resolution and response compliance percent per {0}", bucketWord(timing && timing.bucket))}>
       <div style={{ marginBottom: 10 }}>
         <span style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: totalBreaches > 0 ? RD : GR }}>{totalBreaches}</span>
-        <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>SLA breaches in range</span>
+        <span style={{ fontSize: 11, color: t.textMut, marginLeft: 6 }}>{trn("SLA breaches in range|count", totalBreaches)}</span>
       </div>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GR, BL]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>Not enough resolved data to chart compliance yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("Not enough resolved data to chart compliance yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3309,8 +3323,8 @@ const SlaBySiteWidget = ({ timing, t }) => {
   const rows = ((timing && timing.by_site) ? timing.by_site : []).filter(s => s.sla_resolution_compliance_pct !== null && s.sla_resolution_compliance_pct !== undefined);
   if (rows.length < 2) return null;
   return (
-    <ChartCard t={t} title="Resolution SLA by site" sub="Compliance percent, higher is better">
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name="Resolution SLA %" />
+    <ChartCard t={t} title={tr("Resolution SLA by site")} sub={tr("Compliance percent, higher is better")}>
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.sla_resolution_compliance_pct)} t={t} valueSuffix="%" name={tr("Resolution SLA %")} />
     </ChartCard>
   );
 };
@@ -3341,7 +3355,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     if (sevFilter) q += "&severity=" + sevFilter;
     af("/api/report-engine/issue-timing" + q)
       .then(d => { setTiming(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, sevFilter, bucket]);
@@ -3354,15 +3368,21 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
 
   const slaColor = (v) => (v === null || v === undefined) ? t.textMut : (v >= 90 ? GR : (v >= 75 ? OR : RD));
   const tiles = sm ? [
-    { label: "Median resolution", value: fmtDurMin(sm.resolution_median_minutes), color: t.text },
-    { label: "Median first response", value: fmtDurMin(sm.first_response_median_minutes), color: t.text },
-    { label: "Resolution SLA", value: fmtPctVal(sm.sla_resolution_compliance_pct), color: slaColor(sm.sla_resolution_compliance_pct) },
-    { label: "Response SLA", value: fmtPctVal(sm.sla_response_compliance_pct), color: slaColor(sm.sla_response_compliance_pct) },
-    { label: "Open now", value: String(sm.open_count), sub: sm.aging_count + " aging", color: sm.open_count > 0 ? OR : GR },
+    { label: tr("Median resolution"), value: fmtDurMin(sm.resolution_median_minutes), color: t.text },
+    { label: tr("Median first response"), value: fmtDurMin(sm.first_response_median_minutes), color: t.text },
+    { label: tr("Resolution SLA"), value: fmtPctVal(sm.sla_resolution_compliance_pct), color: slaColor(sm.sla_resolution_compliance_pct) },
+    { label: tr("Response SLA"), value: fmtPctVal(sm.sla_response_compliance_pct), color: slaColor(sm.sla_response_compliance_pct) },
+    { label: tr("Open now"), value: String(sm.open_count), sub: trn("{0} aging|count", sm.aging_count), color: sm.open_count > 0 ? OR : GR },
   ] : [];
+  // A severity the filter holds is a code, drawn as its word on the screen and the print.
+  const sevWord = { high: tr("High"), medium: tr("Medium"), low: tr("Low") };
+  // The targets the report ran with, response then resolution, one sentence on the screen and the print.
+  const targetsSaid = tgt ? tr("Targets, response then resolution. High {0} and {1}. Medium {2} and {3}. Low {4} and {5}. Aging means open past its resolution target.",
+    fmtDurMin(tgt.high.first_response_minutes), fmtDurMin(tgt.high.resolution_minutes), fmtDurMin(tgt.medium.first_response_minutes),
+    fmtDurMin(tgt.medium.resolution_minutes), fmtDurMin(tgt.low.first_response_minutes), fmtDurMin(tgt.low.resolution_minutes)) : "";
 
   const exportPdf = () => {
-    if (!sm) { showToast("No data to export", "error"); return; }
+    if (!sm) { showToast(tr("No data to export"), "error"); return; }
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -3372,33 +3392,34 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const addr = useBrand && settings && settings.address ? settings.address : "";
     const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
-    const sevLabel = sevFilter ? (sevFilter.charAt(0).toUpperCase() + sevFilter.slice(1)) : "All severities";
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
+    const sevLabel = sevFilter ? (sevWord[sevFilter] || (sevFilter.charAt(0).toUpperCase() + sevFilter.slice(1))) : tr("All severities");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
     const summaryCards =
-      card(fmtDurMin(sm.resolution_median_minutes), "Median resolution") +
-      card(fmtDurMin(sm.first_response_median_minutes), "Median first response") +
-      card(fmtPctVal(sm.sla_resolution_compliance_pct), "Resolution SLA") +
-      card(fmtPctVal(sm.sla_response_compliance_pct), "Response SLA") +
-      card(String(sm.open_count), "Open now") +
-      card(String(sm.aging_count), "Aging");
+      card(fmtDurMin(sm.resolution_median_minutes), tr("Median resolution")) +
+      card(fmtDurMin(sm.first_response_median_minutes), tr("Median first response")) +
+      card(fmtPctVal(sm.sla_resolution_compliance_pct), tr("Resolution SLA")) +
+      card(fmtPctVal(sm.sla_response_compliance_pct), tr("Response SLA")) +
+      card(String(sm.open_count), tr("Open now")) +
+      card(String(sm.aging_count), tr("Aging|issue count"));
     const trendRows = out.trend ? ((timing && timing.trend ? timing.trend : []).map(b =>
       '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + b.reported_count + '</td><td>' + b.resolved_count + '</td><td>' + fmtDurMin(b.resolution_median_minutes) + '</td><td>' + fmtDurMin(b.first_response_median_minutes) + '</td></tr>'
     ).join("")) : "";
-    const trendTable = trendRows ? ('<h2>Trend by ' + esc((timing && timing.bucket) ? timing.bucket : "week") + '</h2><table><thead><tr><th>Period</th><th>Reported</th><th>Resolved</th><th>Median resolution</th><th>Median first response</th></tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
+    const trendTable = trendRows ? ('<h2>' + esc(tr("Trend by {0}", bucketWord(timing && timing.bucket))) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Reported|issue count"), tr("Resolved|issue count"), tr("Median resolution"), tr("Median first response")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
     const tableRows = out.by_site ? ((timing && timing.by_site ? timing.by_site : []).map(s =>
       '<tr><td>' + esc(s.site_name) + '</td><td>' + s.reported_count + '</td><td>' + s.resolved_count + '</td><td>' + s.open_count + '</td><td>' + s.aging_count + '</td><td>' + fmtDurMin(s.resolution_median_minutes) + '</td><td>' + fmtDurMin(s.first_response_median_minutes) + '</td><td>' + fmtPctVal(s.sla_resolution_compliance_pct) + '</td><td>' + fmtPctVal(s.sla_response_compliance_pct) + '</td></tr>'
     ).join("")) : "";
-    const siteTable = tableRows ? ('<h2>By site</h2><table><thead><tr><th>Site</th><th>Reported</th><th>Resolved</th><th>Open</th><th>Aging</th><th>Median resolution</th><th>Median first response</th><th>Resolution SLA</th><th>Response SLA</th></tr></thead><tbody>' + tableRows + '</tbody></table>') : "";
+    const siteTable = tableRows ? ('<h2>' + esc(tr("By site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Reported|issue count"), tr("Resolved|issue count"), tr("Open|issue count"), tr("Aging|issue count"), tr("Median resolution"), tr("Median first response"), tr("Resolution SLA"), tr("Response SLA")) + '</tr></thead><tbody>' + tableRows + '</tbody></table>') : "";
     const sv = sm.open_by_severity;
-    const sevTable = out.severity ? ('<h2>Open by severity</h2><table><thead><tr><th>High</th><th>Medium</th><th>Low</th></tr></thead><tbody><tr><td>' + sv.high + '</td><td>' + sv.medium + '</td><td>' + sv.low + '</td></tr></tbody></table>') : "";
+    const sevTable = out.severity ? ('<h2>' + esc(tr("Open by severity")) + '</h2><table><thead><tr>' + heads(sevWord.high, sevWord.medium, sevWord.low) + '</tr></thead><tbody><tr><td>' + sv.high + '</td><td>' + sv.medium + '</td><td>' + sv.low + '</td></tr></tbody></table>') : "";
     const slaPct = (v) => (v === null || v === undefined) ? '-' : (v + '%');
     const slaRows = out.sla ? ((timing && timing.trend ? timing.trend : []).map(b =>
       '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(slaPct(b.sla_resolution_compliance_pct)) + '</td><td>' + esc(slaPct(b.sla_response_compliance_pct)) + '</td><td>' + (b.resolution_breach_count || 0) + '</td><td>' + (b.response_breach_count || 0) + '</td></tr>'
     ).join("")) : "";
-    const slaTable = slaRows ? ('<h2>SLA compliance by period</h2><table><thead><tr><th>Period</th><th>Resolution SLA</th><th>Response SLA</th><th>Resolution breaches</th><th>Response breaches</th></tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
-    const targetsLine = tgt ? ('<p class="meta">Targets, response then resolution. High ' + fmtDurMin(tgt.high.first_response_minutes) + ' and ' + fmtDurMin(tgt.high.resolution_minutes) + '. Medium ' + fmtDurMin(tgt.medium.first_response_minutes) + ' and ' + fmtDurMin(tgt.medium.resolution_minutes) + '. Low ' + fmtDurMin(tgt.low.first_response_minutes) + ' and ' + fmtDurMin(tgt.low.resolution_minutes) + '. Aging means open past its resolution target.</p>') : "";
-    const einLine = showEin ? ('<div>EIN ' + esc(settings.ein) + '</div>') : "";
+    const slaTable = slaRows ? ('<h2>' + esc(tr("SLA compliance by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Resolution SLA"), tr("Response SLA"), tr("Resolution breaches"), tr("Response breaches")) + '</tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
+    const targetsLine = tgt ? ('<p class="meta">' + esc(targetsSaid) + '</p>') : "";
+    const einLine = showEin ? ('<div>' + esc(tr("EIN {0}", settings.ein)) + '</div>') : "";
     const style = '<style>'
       + 'body{font-family:"Segoe UI",Arial,sans-serif;margin:30px;color:#222}'
       + '.brand{display:flex;align-items:center;gap:14px;border-bottom:3px solid ' + gold + ';padding-bottom:10px}'
@@ -3418,51 +3439,49 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
       + '.footer{margin-top:28px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888;text-align:center}'
       + '@media print{body{margin:16px}}'
       + '</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Issue Response and Resolution</title>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Issue Response and Resolution")) + '</title>'
       + style + '</head><body>'
       + '<div class="brand">' + (logo ? ('<img src="' + esc(logo) + '" />') : '') + '<div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Issue Response and Resolution</h1>'
-      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
+      + '<h1>' + esc(tr("Issue Response and Resolution")) + '</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(sevLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
       + targetsLine + trendTable + siteTable + sevTable + slaTable
       + '<div class="footer">' + esc(cName) + (addr ? (' &middot; ' + esc(addr)) : "") + einLine + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
-    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
   return (<div>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title="Issue Response and Resolution" sub="Response time, resolution time, and service level compliance" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Issue Response and Resolution")} sub={tr("Response time, resolution time, and service level compliance")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
-            <option value="">All sites</option>
+            <option value="">{tr("All sites")}</option>
             {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select value={sevFilter} onChange={e => setSevFilter(e.target.value)} style={selSt}>
-            <option value="">All severities</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
+            <option value="">{tr("All severities")}</option>
+            <option value="high">{sevWord.high}</option>
+            <option value="medium">{sevWord.medium}</option>
+            <option value="low">{sevWord.low}</option>
           </select>
           <select value={bucket} onChange={e => setBucket(e.target.value)} style={selSt}>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
+            <option value="day">{tr("Daily")}</option>
+            <option value="week">{tr("Weekly")}</option>
+            <option value="month">{tr("Monthly")}</option>
           </select>
         </div>
-        {loading && !timing ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>Loading...</div> :
-          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No issue activity in this range yet.</div> :
+        {loading && !timing ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("Loading...")}</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No issue activity in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
               {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} sub={s.sub} color={s.color} />)}
             </div>
-            {tgt ? <div style={{ fontSize: 10.5, color: t.textMut, marginTop: 6 }}>
-              Targets, response then resolution. High {fmtDurMin(tgt.high.first_response_minutes)} and {fmtDurMin(tgt.high.resolution_minutes)}. Medium {fmtDurMin(tgt.medium.first_response_minutes)} and {fmtDurMin(tgt.medium.resolution_minutes)}. Low {fmtDurMin(tgt.low.first_response_minutes)} and {fmtDurMin(tgt.low.resolution_minutes)}. Aging means open past its resolution target.
-            </div> : null}
+            {tgt ? <div style={{ fontSize: 10.5, color: t.textMut, marginTop: 6 }}>{targetsSaid}</div> : null}
           </div>}
       </ChartCard>
     </div>
@@ -3481,12 +3500,12 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
 const SupplyCostTrendWidget = ({ data, t }) => {
   const trend = (data && data.trend) ? data.trend : [];
   const cats = trend.map(b => fmtBucketDate(b.bucket_start));
-  const series = [{ name: "Estimated cost", data: trend.map(b => b.estimated_cost) }];
+  const series = [{ name: tr("Estimated cost"), data: trend.map(b => b.estimated_cost) }];
   const hasData = trend.some(b => b.estimated_cost > 0);
   return (
-    <ChartCard t={t} title="Estimated cost trend" sub={"Estimated supply cost per " + ((data && data.bucket) ? data.bucket : "week")}>
+    <ChartCard t={t} title={tr("Estimated cost trend")} sub={tr("Estimated supply cost per {0}", bucketWord(data && data.bucket))}>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>No supply usage in this range yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No supply usage in this range yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3495,8 +3514,8 @@ const SupplyCostBySiteWidget = ({ data, t }) => {
   const rows = ((data && data.by_site) ? data.by_site : []).filter(s => s.estimated_cost > 0);
   if (rows.length < 1) return null;
   return (
-    <ChartCard t={t} title="Estimated cost by site" sub="Higher means more spend">
-      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.estimated_cost)} t={t} name="Estimated cost (USD)" />
+    <ChartCard t={t} title={tr("Estimated cost by site")} sub={tr("Higher means more spend")}>
+      <BarChartW categories={rows.map(s => s.site_name)} values={rows.map(s => s.estimated_cost)} t={t} name={tr("Estimated cost (USD)")} />
     </ChartCard>
   );
 };
@@ -3505,8 +3524,8 @@ const SupplyTopSuppliesWidget = ({ data, t }) => {
   const rows = ((data && data.by_supply) ? data.by_supply : []).filter(s => s.estimated_cost > 0).slice(0, 10);
   if (rows.length < 1) return null;
   return (
-    <ChartCard t={t} title="Top supplies by cost" sub="Estimated cost, top 10">
-      <BarChartW categories={rows.map(s => s.supply_name)} values={rows.map(s => s.estimated_cost)} t={t} horizontal={true} name="Estimated cost (USD)" />
+    <ChartCard t={t} title={tr("Top supplies by cost")} sub={tr("Estimated cost, top 10")}>
+      <BarChartW categories={rows.map(s => s.supply_name)} values={rows.map(s => s.estimated_cost)} t={t} horizontal={true} name={tr("Estimated cost (USD)")} />
     </ChartCard>
   );
 };
@@ -3516,13 +3535,13 @@ const SupplyGreenShareWidget = ({ data, t }) => {
   const vals = gs ? [gs.green_cost, gs.non_green_cost] : [0, 0];
   if (!vals.some(v => v > 0)) return null;
   return (
-    <ChartCard t={t} title="Green-certified share of cost" sub="Estimated cost split">
-      <DonutChartW labels={["Green certified", "Other"]} values={vals} t={t} colors={[GR, OR]} />
+    <ChartCard t={t} title={tr("Green-certified share of cost")} sub={tr("Estimated cost split")}>
+      <DonutChartW labels={[tr("Green certified"), tr("Other|items")]} values={vals} t={t} colors={[GR, OR]} />
     </ChartCard>
   );
 };
 
-function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
+function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap }) {
   const cfg = readSupplyConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -3539,7 +3558,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
     if (catFilter) q += "&category=" + catFilter;
     af("/api/report-engine/supply-usage" + q)
       .then(d => { setData(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, catFilter, bucket]);
@@ -3549,16 +3568,21 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
   const out = cfg.output;
   const selSt = { padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
   const money = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // A supply's category and unit are pick list codes, drawn as the choice's shown word. The filter's
+  // categories are the report's own words for its codes.
+  const supplyCatOf = choiceWordOf(lkMap, "supply_categories");
+  const supplyUnitOf = choiceWordOf(lkMap, "supply_units");
+  const filterCatWord = { chemical: tr("Chemical"), supply: tr("Supply"), equipment: tr("Equipment"), ppe: tr("PPE") };
 
   const tiles = sm ? [
-    { label: "Estimated cost", value: money(sm.total_estimated_cost), color: t.text },
-    { label: "Usage events", value: String(sm.usage_events), color: t.text },
-    { label: "Supplies used", value: String(sm.supplies_used), color: t.text },
-    { label: "Sites", value: String(sm.sites_active), color: t.text },
+    { label: tr("Estimated cost"), value: money(sm.total_estimated_cost), color: t.text },
+    { label: tr("Usage events"), value: String(sm.usage_events), color: t.text },
+    { label: tr("Supplies used"), value: String(sm.supplies_used), color: t.text },
+    { label: tr("Sites"), value: String(sm.sites_active), color: t.text },
   ] : [];
 
   const exportPdf = () => {
-    if (!sm) { showToast("No data to export", "error"); return; }
+    if (!sm) { showToast(tr("No data to export"), "error"); return; }
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -3568,62 +3592,63 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast }) {
     const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const m = (v) => "$" + Number(v || 0).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
-    const catLabel = catFilter ? (catFilter.charAt(0).toUpperCase() + catFilter.slice(1)) : "All categories";
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
+    const catLabel = catFilter ? (filterCatWord[catFilter] || (catFilter.charAt(0).toUpperCase() + catFilter.slice(1))) : tr("All categories");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
-    const summaryCards = card(m(sm.total_estimated_cost), "Estimated cost") + card(String(sm.usage_events), "Usage events") + card(String(sm.supplies_used), "Supplies used") + card(String(sm.sites_active), "Sites");
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
+    const summaryCards = card(m(sm.total_estimated_cost), tr("Estimated cost")) + card(String(sm.usage_events), tr("Usage events")) + card(String(sm.supplies_used), tr("Supplies used")) + card(String(sm.sites_active), tr("Sites"));
     const trendRows = out.trend ? ((data && data.trend ? data.trend : []).filter(b => b.usage_events > 0).map(b => '<tr><td>' + esc(fmtBucketDate(b.bucket_start)) + '</td><td>' + esc(m(b.estimated_cost)) + '</td><td>' + esc(String(b.quantity)) + '</td><td>' + esc(String(b.usage_events)) + '</td></tr>').join("")) : "";
-    const trendTable = trendRows ? ('<h2>Estimated cost by period</h2><table><thead><tr><th>Period</th><th>Estimated cost</th><th>Quantity</th><th>Events</th></tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
+    const trendTable = trendRows ? ('<h2>' + esc(tr("Estimated cost by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Estimated cost"), tr("Quantity"), tr("Events")) + '</tr></thead><tbody>' + trendRows + '</tbody></table>') : "";
     const siteRows = out.by_site ? ((data && data.by_site ? data.by_site : []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.usage_events)) + '</td></tr>').join("")) : "";
-    const siteTable = siteRows ? ('<h2>Cost by site</h2><table><thead><tr><th>Site</th><th>Estimated cost</th><th>Events</th></tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
-    const supRows = out.top_supplies ? ((data && data.by_supply ? data.by_supply : []).slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(s.category) + '</td><td>' + esc(s.is_green_certified ? "Yes" : "No") + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.quantity) + " " + (s.unit || "")) + '</td></tr>').join("")) : "";
-    const supTable = supRows ? ('<h2>Top supplies by cost</h2><table><thead><tr><th>Supply</th><th>Category</th><th>Green</th><th>Estimated cost</th><th>Quantity</th></tr></thead><tbody>' + supRows + '</tbody></table>') : "";
-    const greenLine = out.green_share && data && data.green_split ? ('<p class="meta">Green-certified share of estimated cost: ' + esc(m(data.green_split.green_cost)) + ' of ' + esc(m(sm.total_estimated_cost)) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
+    const siteTable = siteRows ? ('<h2>' + esc(tr("Cost by site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Estimated cost"), tr("Events")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const supRows = out.top_supplies ? ((data && data.by_supply ? data.by_supply : []).slice(0, 20).map(s => '<tr><td>' + esc(s.supply_name) + '</td><td>' + esc(supplyCatOf(s.category)) + '</td><td>' + esc(s.is_green_certified ? tr("Yes") : tr("No")) + '</td><td>' + esc(m(s.estimated_cost)) + '</td><td>' + esc(String(s.quantity) + " " + (s.unit ? supplyUnitOf(s.unit) : "")) + '</td></tr>').join("")) : "";
+    const supTable = supRows ? ('<h2>' + esc(tr("Top supplies by cost")) + '</h2><table><thead><tr>' + heads(tr("Supply"), tr("Category"), tr("Green"), tr("Estimated cost"), tr("Quantity")) + '</tr></thead><tbody>' + supRows + '</tbody></table>') : "";
+    const greenLine = out.green_share && data && data.green_split ? ('<p class="meta">' + esc(tr("Green-certified share of estimated cost: {0} of {1}", m(data.green_split.green_cost), m(sm.total_estimated_cost))) + (sm.green_cost_pct != null ? ' (' + esc(String(sm.green_cost_pct)) + '%)' : '') + '</p>') : "";
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Supply Usage and Cost</title>' + style + '</head><body>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Supply Usage and Cost")) + '</title>' + style + '</head><body>'
       + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Supply Usage and Cost</h1>'
-      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(catLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
-      + '<p class="meta">Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.</p>'
+      + '<h1>' + esc(tr("Supply Usage and Cost")) + '</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(catLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
+      + '<p class="meta">' + esc(tr("Cost is estimated using each supply current cost per unit. Supplies without a price contribute zero cost.")) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
       + greenLine + trendTable + siteTable + supTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
-    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
   return (<div>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title="Supply Usage and Cost" sub="Estimated cost from logged usage at current prices" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Supply Usage and Cost")} sub={tr("Estimated cost from logged usage at current prices")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
-            <option value="">All sites</option>
+            <option value="">{tr("All sites")}</option>
             {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={selSt}>
-            <option value="">All categories</option>
-            <option value="chemical">Chemical</option>
-            <option value="supply">Supply</option>
-            <option value="equipment">Equipment</option>
-            <option value="ppe">PPE</option>
+            <option value="">{tr("All categories")}</option>
+            <option value="chemical">{filterCatWord.chemical}</option>
+            <option value="supply">{filterCatWord.supply}</option>
+            <option value="equipment">{filterCatWord.equipment}</option>
+            <option value="ppe">{filterCatWord.ppe}</option>
           </select>
           <select value={bucket} onChange={e => setBucket(e.target.value)} style={selSt}>
-            <option value="day">Daily</option>
-            <option value="week">Weekly</option>
-            <option value="month">Monthly</option>
+            <option value="day">{tr("Daily")}</option>
+            <option value="week">{tr("Weekly")}</option>
+            <option value="month">{tr("Monthly")}</option>
           </select>
         </div>
-        {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>Loading...</div> :
-          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No supply usage in this range yet.</div> :
+        {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No supply usage in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
               {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} sub={s.sub} color={s.color} />)}
             </div>
-            <div style={{ fontSize: 11, color: t.textMut }}>Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.</div>
+            <div style={{ fontSize: 11, color: t.textMut }}>{tr("Cost is estimated using its current cost per unit. Supplies without a price contribute zero cost.")}</div>
           </div>}
       </ChartCard>
     </div>
@@ -3650,12 +3675,12 @@ const InspectionScoreTrendWidget = ({ rows, t }) => {
   const keys = Object.keys(byDate).sort();
   const fmt = (dt) => new Date(dt + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
   const cats = keys.map(fmt);
-  const series = [{ name: "Avg score %", data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
+  const series = [{ name: tr("Avg score %"), data: keys.map(k => byDate[k].max > 0 ? Math.round(1000 * byDate[k].sum / byDate[k].max) / 10 : null) }];
   const hasData = series[0].data.some(v => v !== null);
   return (
-    <ChartCard t={t} title="Inspection score trend" sub="Average score percent over time">
+    <ChartCard t={t} title={tr("Inspection score trend")} sub={tr("Average score percent over time")}>
       {cats.length && hasData ? <LineChartW categories={cats} series={series} t={t} colors={[GO]} /> :
-        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>No completed inspections in this range yet.</div>}
+        <div style={{ fontSize: 12, color: t.textMut, padding: "12px 2px" }}>{tr("No completed inspections in this range yet.")}</div>}
     </ChartCard>
   );
 };
@@ -3664,8 +3689,8 @@ const InspectionBySiteWidget = ({ rows, t }) => {
   const data = (rows || []).filter(s => s.avg_score_pct !== null && s.avg_score_pct !== undefined);
   if (data.length < 1) return null;
   return (
-    <ChartCard t={t} title="Average score by site" sub="Inspection score percent">
-      <BarChartW categories={data.map(s => s.site_name)} values={data.map(s => Number(s.avg_score_pct))} t={t} valueSuffix="%" name="Avg score %" />
+    <ChartCard t={t} title={tr("Average score by site")} sub={tr("Inspection score percent")}>
+      <BarChartW categories={data.map(s => s.site_name)} values={data.map(s => Number(s.avg_score_pct))} t={t} valueSuffix="%" name={tr("Avg score %")} />
     </ChartCard>
   );
 };
@@ -3674,13 +3699,13 @@ const InspectionLowestItemsWidget = ({ rows, t }) => {
   const data = (rows || []).filter(s => s.avg_score_pct !== null && s.avg_score_pct !== undefined).slice(0, 10);
   if (data.length < 1) return null;
   return (
-    <ChartCard t={t} title="Lowest-scoring items" sub="Average score percent, lowest first">
-      <BarChartW categories={data.map(s => s.label)} values={data.map(s => Number(s.avg_score_pct))} t={t} horizontal={true} valueSuffix="%" name="Avg score %" />
+    <ChartCard t={t} title={tr("Lowest-scoring items")} sub={tr("Average score percent, lowest first")}>
+      <BarChartW categories={data.map(s => shownItem(s).label)} values={data.map(s => Number(s.avg_score_pct))} t={t} horizontal={true} valueSuffix="%" name={tr("Avg score %")} />
     </ChartCard>
   );
 };
 
-function InspectionReport({ af, t, sites, settings, config, showToast }) {
+function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) {
   const cfg = readInspectionConfig(config);
   const [dateRange, setDateRange] = useState(() => resolvePreset(cfg.date_range.preset));
   const [siteFilter, setSiteFilter] = useState(cfg.filters.site_id || "");
@@ -3700,7 +3725,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
       af("/api/inspections/analytics/lowest-items" + sq + "&limit=10"),
     ]).then(([sc, bs, lw]) => {
       setScores(sc); setBySite(bs); setLowest(lw); setLoading(false);
-    }).catch(e => { setLoading(false); showToast("Could not load report: " + e.message, "error"); });
+    }).catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter]);
@@ -3713,14 +3738,18 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
   const avgPct = totMax > 0 ? Math.round(1000 * totScore / totMax) / 10 : null;
   const siteCount = (bySite || []).length;
   const hasActivity = inspRows.length > 0;
+  // An item's label and zone are the display the API sent. A zone without one is the zones lookup's
+  // shown word, then the table's word for a zone the Inspections page offers, then the zone as typed.
+  const zoneChoice = choiceWordOf(lkMap, "zones");
+  const zoneWord = (it) => { const z = it.zone; if (!z) return z; if (it.display && it.display.zone) return it.display.zone; const w = zoneChoice(z); return w !== z ? w : tr(z + "|zone"); };
   const tiles = [
-    { label: "Avg score", value: avgPct === null ? "-" : (avgPct + "%"), color: t.text },
-    { label: "Inspections", value: String(inspRows.length), color: t.text },
-    { label: "Sites", value: String(siteCount), color: t.text },
+    { label: tr("Avg score"), value: avgPct === null ? "-" : (avgPct + "%"), color: t.text },
+    { label: tr("Inspections"), value: String(inspRows.length), color: t.text },
+    { label: tr("Sites"), value: String(siteCount), color: t.text },
   ];
 
   const exportPdf = () => {
-    if (!hasActivity) { showToast("No data to export", "error"); return; }
+    if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
     const useBrand = cfg.branding.use_company_settings;
     const navy = (useBrand && settings && settings.primary_color) || NAVY;
     const gold = (useBrand && settings && settings.secondary_color) || GOLD;
@@ -3730,42 +3759,43 @@ function InspectionReport({ af, t, sites, settings, config, showToast }) {
     const gen = new Date().toLocaleString(localeTag());
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const pct = (v) => (v == null ? "-" : (v + "%"));
-    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || "Selected site") : "All sites";
+    const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
     const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
-    const summaryCards = card(pct(avgPct), "Avg score") + card(String(inspRows.length), "Inspections") + card(String(siteCount), "Sites");
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
+    const summaryCards = card(pct(avgPct), tr("Avg score")) + card(String(inspRows.length), tr("Inspections")) + card(String(siteCount), tr("Sites"));
     const siteRows = out.by_site ? ((bySite || []).map(s => '<tr><td>' + esc(s.site_name) + '</td><td>' + esc(String(s.inspection_count)) + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(pct(s.latest_score_pct)) + '</td></tr>').join("")) : "";
-    const siteTable = siteRows ? ('<h2>Average score by site</h2><table><thead><tr><th>Site</th><th>Inspections</th><th>Avg score</th><th>Latest</th></tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
-    const lowRows = out.lowest_items ? ((lowest || []).slice(0, 20).map(s => '<tr><td>' + esc(s.label) + '</td><td>' + esc(s.zone || "") + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(String(s.occurrences)) + '</td></tr>').join("")) : "";
-    const lowTable = lowRows ? ('<h2>Lowest-scoring items</h2><table><thead><tr><th>Item</th><th>Zone</th><th>Avg score</th><th>Times checked</th></tr></thead><tbody>' + lowRows + '</tbody></table>') : "";
+    const siteTable = siteRows ? ('<h2>' + esc(tr("Average score by site")) + '</h2><table><thead><tr>' + heads(tr("Site"), tr("Inspections"), tr("Avg score"), tr("Latest")) + '</tr></thead><tbody>' + siteRows + '</tbody></table>') : "";
+    const lowRows = out.lowest_items ? ((lowest || []).slice(0, 20).map(s => '<tr><td>' + esc(shownItem(s).label) + '</td><td>' + esc(zoneWord(s) || "") + '</td><td>' + esc(pct(s.avg_score_pct)) + '</td><td>' + esc(String(s.occurrences)) + '</td></tr>').join("")) : "";
+    const lowTable = lowRows ? ('<h2>' + esc(tr("Lowest-scoring items")) + '</h2><table><thead><tr>' + heads(tr("Item"), tr("Zone"), tr("Avg score"), tr("Times checked")) + '</tr></thead><tbody>' + lowRows + '</tbody></table>') : "";
     const inspListRows = out.trend ? ((scores || []).slice(0, 50).map(r => '<tr><td>' + esc((r.scheduled_date || r.completed_at || "").slice(0, 10)) + '</td><td>' + esc(r.site_name) + '</td><td>' + esc(pct(r.score_pct)) + '</td></tr>').join("")) : "";
-    const inspListTable = inspListRows ? ('<h2>Inspections in period</h2><table><thead><tr><th>Date</th><th>Site</th><th>Score</th></tr></thead><tbody>' + inspListRows + '</tbody></table>') : "";
+    const inspListTable = inspListRows ? ('<h2>' + esc(tr("Inspections in period")) + '</h2><table><thead><tr>' + heads(tr("Date"), tr("Site"), tr("Score")) + '</tr></thead><tbody>' + inspListRows + '</tbody></table>') : "";
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inspection Scores and Quality</title>' + style + '</head><body>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Inspection Scores and Quality")) + '</title>' + style + '</head><body>'
       + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Inspection Scores and Quality</h1>'
-      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(dateRange.start) + ' to ' + esc(dateRange.end) + ' &middot; generated ' + esc(gen) + '</p>'
+      + '<h1>' + esc(tr("Inspection Scores and Quality")) + '</h1>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(tr("{0} to {1}", dateRange.start, dateRange.end)) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
       + '<div class="grid">' + summaryCards + '</div>'
       + siteTable + lowTable + inspListTable
       + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
-    if (!w) { showToast("Allow pop-ups to export the PDF", "error"); return; }
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
     w.document.write(html); w.document.close();
     setTimeout(() => { w.print(); }, 500);
   };
 
   return (<div>
-    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
     <div style={{ marginBottom: 16 }}>
-      <ChartCard t={t} title="Inspection Scores and Quality" sub="Inspection results over the selected period" action={hasActivity ? "Export PDF" : null} onAction={exportPdf}>
+      <ChartCard t={t} title={tr("Inspection Scores and Quality")} sub={tr("Inspection results over the selected period")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
           <select value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
-            <option value="">All sites</option>
+            <option value="">{tr("All sites")}</option>
             {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>Loading...</div> :
-          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>No completed inspections in this range yet.</div> :
+        {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No completed inspections in this range yet.")}</div> :
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
             {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} color={s.color} />)}
           </div>}
@@ -3856,13 +3886,13 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   };
 
   const save = async () => {
-    if (!name.trim()) { showToast("A report name is required", "error"); return; }
+    if (!name.trim()) { showToast(tr("A report name is required"), "error"); return; }
     setSaving(true);
     const body = { name: name.trim(), description: description.trim(), category: category.trim() || "Custom", source, config: buildConfig(), is_template: true };
     try {
       if (isEdit) await af("/api/report-engine/definitions/" + initial.id, { method: "PUT", body });
       else await af("/api/report-engine/definitions", { method: "POST", body });
-      showToast(isEdit ? "Report updated" : "Report created");
+      showToast(isEdit ? tr("Report updated") : tr("Report created"));
       onSaved();
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
@@ -3871,8 +3901,8 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const slaRow = (lbl, frVal, frSet, resVal, resSet) => (
     <div style={{ display: "grid", gridTemplateColumns: "0.7fr 1fr 1fr", gap: 10, alignItems: "end", marginBottom: 8 }}>
       <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, paddingBottom: 10 }}>{lbl}</div>
-      <div><Lbl>First response (h)</Lbl><Inp t={t} type="number" min="0" step="0.25" value={frVal} onChange={e => frSet(e.target.value)} /></div>
-      <div><Lbl>Resolution (h)</Lbl><Inp t={t} type="number" min="0" step="0.25" value={resVal} onChange={e => resSet(e.target.value)} /></div>
+      <div><Lbl>{tr("First response (h)")}</Lbl><Inp t={t} type="number" min="0" step="0.25" value={frVal} onChange={e => frSet(e.target.value)} /></div>
+      <div><Lbl>{tr("Resolution (h)")}</Lbl><Inp t={t} type="number" min="0" step="0.25" value={resVal} onChange={e => resSet(e.target.value)} /></div>
     </div>
   );
   const chk = (label, val, set) => (
@@ -3885,84 +3915,84 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   return (
     <Crd t={t}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isEdit ? "Edit report" : "New report"}</div>
-        <Btn v="ghost" t={t} onClick={onCancel}>Cancel</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isEdit ? tr("Edit report") : tr("New report")}</div>
+        <Btn v="ghost" t={t} onClick={onCancel}>{tr("Cancel")}</Btn>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. High severity weekly" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><TArea t={t} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this report covers" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder={tr("e.g. High severity weekly")} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder={tr("What this report covers")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><Lbl>Category</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder="Service Delivery" /></div>
-        <div><Lbl>Source</Lbl>
+        <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("Service Delivery")} /></div>
+        <div><Lbl>{tr("Source")}</Lbl>
           <select value={source} onChange={e => setSource(e.target.value)} style={selStyle}>
-            {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{s.label}{s.available ? "" : " (arriving with templates)"}</option>)}
+            {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{tr(s.label)}{s.available ? "" : " " + tr("(arriving with templates)")}</option>)}
           </select>
         </div>
       </div>
       {isIssueSource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Issue report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Issue report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>Default range</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
-            <div><Lbl>Trend bucket</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
-            <div><Lbl>Default severity</Lbl><Sel t={t} value={severity} onChange={e => setSeverity(e.target.value)} options={[{ v: "", l: "All severities" }, { v: "high", l: "High" }, { v: "medium", l: "Medium" }, { v: "low", l: "Low" }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
+            <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
+            <div><Lbl>{tr("Default severity")}</Lbl><Sel t={t} value={severity} onChange={e => setSeverity(e.target.value)} options={[{ v: "", l: tr("All severities") }, { v: "high", l: tr("High") }, { v: "medium", l: tr("Medium") }, { v: "low", l: tr("Low") }]} /></div>
           </div>
-          <div style={{ marginBottom: 12 }}><Lbl>Default site</Lbl><Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "10px 0 8px" }}>Service level targets (hours)</div>
-          {slaRow("High", hiFr, setHiFr, hiRes, setHiRes)}
-          {slaRow("Medium", medFr, setMedFr, medRes, setMedRes)}
-          {slaRow("Low", lowFr, setLowFr, lowRes, setLowRes)}
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
-          {chk("Resolution and response trend", outTrend, setOutTrend)}
-          {chk("Per-site breakdown", outBySite, setOutBySite)}
-          {chk("Open issues by severity", outSeverity, setOutSeverity)}
-          {chk("SLA compliance and breaches", outSla, setOutSla)}
+          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "10px 0 8px" }}>{tr("Service level targets (hours)")}</div>
+          {slaRow(tr("High"), hiFr, setHiFr, hiRes, setHiRes)}
+          {slaRow(tr("Medium"), medFr, setMedFr, medRes, setMedRes)}
+          {slaRow(tr("Low"), lowFr, setLowFr, lowRes, setLowRes)}
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
+          {chk(tr("Resolution and response trend"), outTrend, setOutTrend)}
+          {chk(tr("Per-site breakdown"), outBySite, setOutBySite)}
+          {chk(tr("Open issues by severity"), outSeverity, setOutSeverity)}
+          {chk(tr("SLA compliance and breaches"), outSla, setOutSla)}
         </div> :
         isSupplySource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Supply report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Supply report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>Default range</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
-            <div><Lbl>Trend bucket</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
-            <div><Lbl>Category</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: "All categories" }, { v: "chemical", l: "Chemical" }, { v: "supply", l: "Supply" }, { v: "equipment", l: "Equipment" }, { v: "ppe", l: "PPE" }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
+            <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
+            <div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: tr("All categories") }, { v: "chemical", l: tr("Chemical") }, { v: "supply", l: tr("Supply") }, { v: "equipment", l: tr("Equipment") }, { v: "ppe", l: tr("PPE") }]} /></div>
           </div>
-          <div style={{ marginBottom: 12 }}><Lbl>Default site</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
-          {chk("Cost trend", supOutTrend, setSupOutTrend)}
-          {chk("Cost by site", supOutBySite, setSupOutBySite)}
-          {chk("Top supplies by cost", supOutTop, setSupOutTop)}
-          {chk("Green-certified share", supOutGreen, setSupOutGreen)}
+          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
+          {chk(tr("Cost trend"), supOutTrend, setSupOutTrend)}
+          {chk(tr("Cost by site"), supOutBySite, setSupOutBySite)}
+          {chk(tr("Top supplies by cost"), supOutTop, setSupOutTop)}
+          {chk(tr("Green-certified share"), supOutGreen, setSupOutGreen)}
         </div> :
         isInspectionSource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Inspection report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Inspection report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>Default range</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
-            <div><Lbl>Default site</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={reportPresets().map(p => ({ v: p.key, l: p.label }))} /></div>
+            <div><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
           </div>
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
-          {chk("Score trend", insOutTrend, setInsOutTrend)}
-          {chk("Average score by site", insOutBySite, setInsOutBySite)}
-          {chk("Lowest-scoring items", insOutLowest, setInsOutLowest)}
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
+          {chk(tr("Score trend"), insOutTrend, setInsOutTrend)}
+          {chk(tr("Average score by site"), insOutBySite, setInsOutBySite)}
+          {chk(tr("Lowest-scoring items"), insOutLowest, setInsOutLowest)}
         </div> :
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14, fontSize: 13, color: t.textMut }}>
-          This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.
+          {tr("This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.")}
         </div>}
       <div style={{ borderTop: "1px solid " + t.border, marginTop: 14, paddingTop: 14 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Output and export</div>
-        {chk("Use company branding on export", brand, setBrand)}
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Output and export")}</div>
+        {chk(tr("Use company branding on export"), brand, setBrand)}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-        <Btn v="ghost" t={t} onClick={onCancel}>Cancel</Btn>
-        <Btn v="primary" t={t} onClick={save} disabled={saving}>{saving ? "Saving..." : (isEdit ? "Save changes" : "Create report")}</Btn>
+        <Btn v="ghost" t={t} onClick={onCancel}>{tr("Cancel")}</Btn>
+        <Btn v="primary" t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : (isEdit ? tr("Save changes") : tr("Create report"))}</Btn>
       </div>
     </Crd>
   );
 }
 
-function ReportsPage({ af, showToast, isAdmin, t, sites }) {
+function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
   const [active, setActive] = useState(null);
@@ -3973,7 +4003,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   const [issS, setIssS] = useState(null);
   const [exp, setExp] = useState(false);
 
-  const loadDefs = () => af("/api/report-engine/definitions").then(setDefs).catch(e => { setDefs([]); showToast("Could not load reports: " + e.message, "error"); });
+  const loadDefs = () => af("/api/report-engine/definitions").then(setDefs).catch(e => { setDefs([]); showToast(tr("Could not load reports: {0}", e.message), "error"); });
   const loadSnapshots = (range) => {
     const r = range || dateRange;
     const q = "?start_date=" + r.start + "&end_date=" + r.end;
@@ -3985,16 +4015,16 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   useEffect(() => { af("/api/settings").then(setSettings).catch(() => {}); }, []);
   useEffect(() => { loadSnapshots(); }, [dateRange]);
 
-  const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
-  const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
+  const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
+  const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
 
   const runReport = (d) => { setActive(d); setView("run"); };
   const newReport = () => { setEditing(null); setView("edit"); };
   const editReport = (d) => { setEditing(d); setView("edit"); };
   const duplicateReport = (d) => { setEditing({ name: (d.name || "Report") + " (copy)", description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
   const deleteReport = async (d) => {
-    if (!window.confirm("Delete \"" + d.name + "\"? This cannot be undone.")) return;
-    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast("Report deleted"); loadDefs(); }
+    if (!window.confirm(tr("Delete \"{0}\"? This cannot be undone.", d.name))) return;
+    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deleted")); loadDefs(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -4005,7 +4035,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   if (view === "run" && active) {
     return (<div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-        <Btn v="ghost" t={t} onClick={() => { setView("library"); setActive(null); }}>Back to reports</Btn>
+        <Btn v="ghost" t={t} onClick={() => { setView("library"); setActive(null); }}>{tr("Back to reports")}</Btn>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{active.name}</div>
           {active.description ? <div style={{ fontSize: 11, color: t.textMut }}>{active.description}</div> : null}
@@ -4014,10 +4044,10 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
       {isIssueSource(active.source) ?
         <IssueTimingReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
        isSupplySource(active.source) ?
-        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
+        <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
        isInspectionSource(active.source) ?
-        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
-        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>This report's data source arrives with the report templates workstream. It will run here once that ships.</div></Crd>}
+        <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} lkMap={lkMap} /> :
+        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("This report's data source arrives with the report templates workstream. It will run here once that ships.")}</div></Crd>}
     </div>);
   }
 
@@ -4030,31 +4060,31 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   }
 
   return (<div>
-    <SecT t={t} action="New report" onAction={newReport}>Reports</SecT>
+    <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
     {defs === null ?
-      <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>Loading reports...</div></Crd> :
+      <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defs.length === 0 ?
-        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>No saved reports yet. Use New report to create one.</div></Crd> :
+        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No saved reports yet. Use New report to create one.")}</div></Crd> :
         groupNames.map(cat => (
           <div key={cat} style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{prettyCat(cat)}</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{reportCategoryWord(cat)}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {groups[cat].map(d => (
                 <Crd key={d.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{d.name}</span>
-                      <Bdg l={d.is_system ? "Template" : "Custom"} c={d.is_system ? BL : GO} />
-                      {!sourceAvailable(d.source) ? <Bdg l="Coming soon" c={OR} /> : null}
+                      <Bdg l={d.is_system ? tr("Template") : tr("Custom")} c={d.is_system ? BL : GO} />
+                      {!sourceAvailable(d.source) ? <Bdg l={tr("Coming soon")} c={OR} /> : null}
                     </div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{sourceLabel(d.source)}</div>
                     {d.description ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{d.description}</div> : null}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: "auto" }}>
-                    <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>Run</Btn>
-                    <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>Duplicate</Btn>
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>Edit</Btn> : null}
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>Delete</Btn> : null}
+                    <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Run")}</Btn>
+                    <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Duplicate")}</Btn>
+                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Edit")}</Btn> : null}
+                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Delete")}</Btn> : null}
                   </div>
                 </Crd>
               ))}
@@ -4063,31 +4093,31 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         ))}
 
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Quick snapshots</div>
-      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Quick snapshots")}</div>
+      <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
       <Crd t={t} style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Task Completion</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Task Completion")}</div>
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
-            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{s.completedTasks} done</span>
+            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>
           </div>
         </div>) : null}
-        {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div> : null}
+        {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No data yet.")}</div> : null}
       </Crd>
       <Crd t={t} style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Issues Summary</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Issues Summary")}</div>
         {issS && issS.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>Resolved</div></div>
-        </div> : <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Total")}</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Open|issue count")}</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Resolved|issue count")}</div></div>
+        </div> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("No data yet.")}</div>}
       </Crd>
       <Crd t={t}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 4, color: t.text }}>Export data (CSV)</div>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for audits and clients.</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 4, color: t.text }}>{tr("Export data (CSV)")}</div>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>{tr("Download CSV files for audits and clients.")}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[{ l: "Issues Report", a: expIss }, { l: "Chemical Usage", a: expChem }].map(r => (
+          {[{ l: tr("Issues Report"), a: expIss }, { l: tr("Chemical Usage"), a: expChem }].map(r => (
             <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}>
               <DlI sz={14} c="currentColor" />{r.l}
             </button>

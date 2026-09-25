@@ -11,11 +11,15 @@
 //
 // The part is the one audit/spanish-todo.json gives the page. A page the file no longer lists is
 // done, and anything counted on it is English on a page taken as finished.
+//
+// A printed page is counted with the component that builds it, and named on its own in the table
+// that follows the parts: the function that builds it, the line it starts on, the page that prints
+// it and the English left in it.
 "use strict";
 const fs = require("fs");
 const path = require("path");
 const parser = require("@babel/parser");
-const { findStrings, APP } = require("./lib/strings");
+const { findStrings, findPrints, APP } = require("./lib/strings");
 const { discover } = require("./discover");
 const TODO = require("./spanish-todo.json");
 
@@ -93,11 +97,19 @@ function count() {
     return Object.assign({ id: part, component: null, part: "", pages: pages.filter((p) => p.part === part).map((p) => p.id) }, tally(components));
   });
   const whole = { id: "whole file", component: null, part: "", places: left.length, strings: new Set(left.map((s) => s.text)).size, owners: [] };
-  return { pages, parts, whole };
+  // Every printed page, with the pages whose components reach the one that builds it.
+  const prints = findPrints().map((pr) => {
+    const on = pages.filter((p) => p.component && reach(p.component).has(pr.owner)).map((p) => p.id);
+    const mine = left.filter((s) => s.print && s.print.line === pr.line);
+    const listed = on.length ? TODO.pages[on[0]] : null;
+    return { id: pr.owner + " " + pr.name, name: pr.name, owner: pr.owner, line: pr.line, pages: on,
+      part: on.length ? (listed ? listed.part : "done") : "", places: mine.length, strings: new Set(mine.map((s) => s.text)).size };
+  });
+  return { pages, parts, whole, prints };
 }
 
 if (require.main === module) {
-  const { pages, parts, whole } = count();
+  const { pages, parts, whole, prints } = count();
   const line = (r, tail) => process.stdout.write(r.id.padEnd(14) + r.part.padEnd(12) + String(r.places).padStart(7)
     + String(r.strings).padStart(9) + (tail ? "  " + tail : "") + "\n");
   process.stdout.write("page".padEnd(14) + "part".padEnd(12) + "places".padStart(7) + "strings".padStart(9) + "  where\n");
@@ -105,6 +117,9 @@ if (require.main === module) {
   process.stdout.write("\n");
   parts.forEach((r) => line(r, r.pages.join(", ")));
   line(whole, "");
+  process.stdout.write("\n" + "print".padEnd(46) + "page".padEnd(14) + "part".padEnd(12) + "places".padStart(7) + "strings".padStart(9) + "\n");
+  prints.forEach((r) => process.stdout.write((r.id + " " + r.line).padEnd(46) + (r.pages.join(", ") || "(no page)").padEnd(14)
+    + r.part.padEnd(12) + String(r.places).padStart(7) + String(r.strings).padStart(9) + "\n"));
 }
 
 module.exports = { count };
