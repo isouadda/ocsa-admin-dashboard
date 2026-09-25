@@ -11,6 +11,8 @@
 // draws those; a screen that edits one shows the English and saves the English, since the English is
 // what the dashboard edits and the API translates it on save.
 "use strict";
+const fs = require("fs");
+const path = require("path");
 const { readTable } = require("../lib/words");
 
 // The fixtures run() reads, in the stub's own words. at-1 carries a display; at-3 carries none.
@@ -146,6 +148,91 @@ async function run({ d, results, inventory, stubs }) {
   results.check("language", ids["a-count-of-one-reads-in-the-one-form"], count === 1 && board.indexOf(want) >= 0,
     count !== 1 ? "the seed carries " + count + " no-shows, so the one form is not on screen to be read"
       : "the line under Callouts should read " + JSON.stringify(want) + "; it reads " + JSON.stringify(drawn));
+
+  // An Inventory choice: Add Supply's pickers read each choice's shown label and send its code, and
+  // Edit Supply opens on the supply's own codes and saves them back. The shown labels are the ones
+  // the stub served the page in this language.
+  const served = (re) => { const c = stubs.calls.filter((x) => re.test(x.path) && x.json).pop(); return c ? c.json : null; };
+  let invOk = false;
+  let invWhy = "Add Supply did not open";
+  await d.goto("supplies");
+  const shownOf = (slug) => {
+    const cat = (served(/^\/api\/lookups\/all$/) || []).find((c) => c.slug === slug);
+    const m = {};
+    ((cat && cat.values) || []).forEach((v) => { m[v.value] = v.displayLabel || v.label; });
+    return m;
+  };
+  const catWords = shownOf("supply_categories");
+  const unitWords = shownOf("supply_units");
+  const first = stubs.fixtures.SUPPLIES[0];
+  // The first supply's card, whose second line is its category, its unit and its stock.
+  const cardLine = await d.page.evaluate((name) => {
+    const nameEl = Array.from(document.querySelectorAll("span")).find((x) => x.textContent.trim() === name);
+    const card = nameEl && nameEl.closest("div[style*='flex: 1']");
+    return card && card.children[1] ? card.children[1].textContent.trim() : "";
+  }, first.name);
+  const cardParts = cardLine.split(" | ");
+  results.check("language", ids["a-supply-card-draws-its-choices-as-words"],
+    cardParts[0] === catWords[first.category] && cardParts[1] === unitWords[first.unit] && catWords[first.category] !== first.category,
+    !cardLine ? "the first supply's card was not found"
+      : "the card reads " + JSON.stringify(cardLine) + " where the lookups say " + JSON.stringify(catWords[first.category] + " | " + unitWords[first.unit]));
+  if (await d.clickText(d.say("Add Supply"), { exact: true }).catch(() => false)) {
+    const offered = await d.modal().locator("select option").evaluateAll((els) => els.map((o) => ({ v: o.value, l: (o.textContent || "").trim() })));
+    const pick = offered.find((o) => o.v === "consumable");
+    await d.fillByLabel(d.say("Name *"), "Pasta de pulir");
+    const picked = pick ? await d.pickOption(pick.l, { inModal: true }).catch(() => false) : false;
+    const mark = d.mark();
+    await d.clickText(d.say("Add Supply"), { inModal: true, exact: true });
+    const sent = d.callsSince(mark).filter((c) => c.method === "POST" && c.path === "/api/supplies").pop();
+    await d.closeModal().catch(() => {});
+    const readsWord = !!pick && pick.l === catWords.consumable && catWords.consumable !== "consumable";
+    const sendsCode = !!sent && sent.body && sent.body.category === "consumable" && Object.prototype.hasOwnProperty.call(unitWords, sent.body.unit);
+    invWhy = !readsWord ? "the category picker offers " + JSON.stringify(offered.map((o) => o.v + "=" + o.l).slice(0, 8)) + " where the lookup says " + JSON.stringify(catWords.consumable) + " for consumable"
+      : !picked ? "the category " + JSON.stringify(pick.l) + " could not be picked"
+        : !sent ? "Add Supply sent nothing"
+          : !sendsCode ? "Add Supply sent category " + JSON.stringify(sent.body && sent.body.category) + " and unit " + JSON.stringify(sent.body && sent.body.unit) + " where the codes are consumable and a unit code" : "";
+    if (readsWord && picked && sendsCode) {
+      // Edit Supply on the first supply, whose card is the first one on the list.
+      invWhy = "Edit Supply did not open";
+      const card = d.page.getByText(first.name, { exact: true }).first();
+      if (await card.count()) {
+        await card.click({ timeout: 5000 }).catch(() => {});
+        await d.settle(300);
+        const held = await d.modal().locator("select").evaluateAll((els) => els.map((e) => ({ v: e.value, l: e.options[e.selectedIndex] ? (e.options[e.selectedIndex].textContent || "").trim() : "" })));
+        const mark2 = d.mark();
+        await d.clickText(d.say("Save"), { inModal: true, exact: true });
+        const saved = d.callsSince(mark2).filter((c) => c.method === "PATCH" && c.path === "/api/supplies/" + first.id).pop();
+        const holdsCodes = held.length >= 2 && held[0].v === first.category && held[1].v === first.unit
+          && held[0].l === catWords[first.category] && held[1].l === unitWords[first.unit];
+        const savesCodes = !!saved && saved.body && saved.body.category === first.category && saved.body.unit === first.unit;
+        invOk = holdsCodes && savesCodes;
+        invWhy = !holdsCodes ? "Edit Supply holds " + JSON.stringify(held) + " where the codes are " + JSON.stringify([first.category, first.unit]) + " shown as " + JSON.stringify([catWords[first.category], unitWords[first.unit]])
+          : !saved ? "Edit Supply sent nothing"
+            : "Edit Supply sent category " + JSON.stringify(saved.body && saved.body.category) + " and unit " + JSON.stringify(saved.body && saved.body.unit) + " where the codes are " + JSON.stringify([first.category, first.unit]);
+        await d.closeModal().catch(() => {});
+      }
+    }
+  }
+  results.check("language", ids["an-inventory-choice-reads-its-label-and-sends-its-code"], invOk, invWhy);
+
+  // A service's category on the catalog's cards is the table's word for its label, read by the label
+  // table Sites reads it by. The API serves the English label too, as a lookup's label, so the
+  // English check alone would let it through.
+  const appText = fs.readFileSync(path.resolve(__dirname, "..", "..", "src", "App.js"), "utf8");
+  const labelLine = appText.split("\n").find((l) => l.indexOf("const CIMS_LABELS = {") === 0) || "";
+  const labels = {};
+  const lre = /(\w+): "([^"]+)"/g;
+  let lm;
+  while ((lm = lre.exec(labelLine))) labels[lm[1]] = lm[2];
+  await d.goto("services");
+  const badges = await d.page.evaluate(() => Array.from(document.querySelectorAll("span[style*='text-transform: uppercase']"))
+    .filter((x) => x.offsetParent !== null).map((x) => x.textContent.trim()));
+  const wantWords = stubs.fixtures.SERVICES.map((x) => d.say(labels[x.cims_category] || x.cims_category));
+  const missingWords = wantWords.filter((w) => badges.indexOf(w) < 0);
+  const english = stubs.fixtures.SERVICES.map((x) => labels[x.cims_category]).filter((w) => w && d.say(w) !== w && badges.indexOf(w) >= 0);
+  results.check("language", ids["a-service-category-reads-the-table"], wantWords.length > 0 && missingWords.length === 0 && english.length === 0,
+    english.length ? "the catalog draws " + JSON.stringify(english) + " where the table says " + JSON.stringify(english.map((w) => d.say(w)))
+      : "the catalog's cards draw " + JSON.stringify(badges) + " where the table says " + JSON.stringify(wantWords));
 }
 
 function runLate({ stubs, results, inventory }) {

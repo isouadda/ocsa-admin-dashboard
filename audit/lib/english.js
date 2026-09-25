@@ -133,6 +133,11 @@ function englishLeftOn(texts, calls) {
     const initials = String(v).split(/\s+/).map((w) => w[0]).filter(Boolean).join("");
     if (initials.length >= 2 && /^[A-Z]+$/.test(initials)) allowed.add(initials);
   });
+  // A vendor's avatar draws the first two letters of its name in capitals, the same data again.
+  served.forEach((v) => {
+    const name = String(v).trim();
+    if (name.length > 2 && /^[A-Z][a-z]/.test(name)) allowed.add(name.slice(0, 2).toUpperCase());
+  });
   // A single letter or a bare number is not a word anybody translates.
   const all = Array.from(allowed).filter((v) => v.length >= 2);
   const shapes = all.filter((v) => /\{\d+\}/.test(v)).map(patternRe);
@@ -142,6 +147,8 @@ function englishLeftOn(texts, calls) {
   (texts || []).forEach((raw) => {
     const line = String(raw).replace(/\s+/g, " ").trim();
     if (!line || !/[A-Za-z]/.test(line)) return;
+    // A web address, or the start of one a field shows as its example, is the same in every language.
+    if (/^https?:\/\/\S*$/.test(line)) return;
     if (seen.has(line)) return;
     seen.add(line);
     if (runs.has(line)) return;

@@ -64,6 +64,9 @@ function createStubs() {
       { id: "lv-1", value: "SD", label: "Service Delivery", is_active: true, sort_order: 1, color: "#24A4F4" },
       { id: "lv-2", value: "HSE", label: "Health, Safety and Environment", is_active: true, sort_order: 2, color: "#F39C12" },
       { id: "lv-3", value: "GB", label: "Green Buildings", is_active: true, sort_order: 3, color: "#2ECC71" },
+      { id: "lv-30", value: "QS", label: "Quality System", is_active: true, sort_order: 4, color: "#C9A84C" },
+      { id: "lv-31", value: "HR", label: "Human Resources", is_active: true, sort_order: 5, color: "#9B59B6" },
+      { id: "lv-32", value: "MC", label: "Management Commitment", is_active: true, sort_order: 6, color: "#2C3E50" },
     ] },
     { id: "lk-2", slug: "supply_categories", name: "Supply categories", values: [
       { id: "lv-4", value: "chemical", label: "Chemical", is_active: true, sort_order: 1 },
@@ -104,6 +107,18 @@ function createStubs() {
       { id: "lv-23", value: "subcontractor", label: "Subcontractor", is_active: true, sort_order: 1 },
       { id: "lv-24", value: "direct", label: "Direct", is_active: true, sort_order: 2 },
     ] },
+    // What HR Records draws a training record's type and an onboarding step's category as: the
+    // choice's word in the language the call asked for. The codes are the ones the training records
+    // and the onboarding steps below hold.
+    { id: "lk-10", slug: "training_types", name: "Training types", values: [
+      { id: "lv-25", value: "safety", label: "Safety", is_active: true, sort_order: 1 },
+      { id: "lv-26", value: "equipment", label: "Equipment", is_active: true, sort_order: 2 },
+    ] },
+    { id: "lk-11", slug: "onboarding_categories", name: "Onboarding categories", values: [
+      { id: "lv-27", value: "paperwork", label: "Paperwork", is_active: true, sort_order: 1 },
+      { id: "lv-28", value: "training", label: "Training", is_active: true, sort_order: 2 },
+      { id: "lv-29", value: "equipment", label: "Equipment", is_active: true, sort_order: 3 },
+    ] },
   ];
 
   const SUPPLIES = [
@@ -115,23 +130,28 @@ function createStubs() {
   ];
   // hand: 5 supplies, 2 of them chemicals, so the chemical export writes 2 rows plus a header.
 
+  // Shaped to Inventory's Requests tab: a request's type, urgency, created_at and description,
+  // beside the fields the rows have always carried.
   const SUPPLY_REQUESTS = [
-    { id: "sr-1", supply_name: "Can liner 40x46", supply_id: "sp-3", quantity: 6, unit: "case", status: "pending", requested_by_name: "Tomasz Wisniewski", site_name: S[0].name, notes: "Dock run is short.", requested_at: seed.shift(-1) + "T13:00:00Z", admin_notes: null },
-    { id: "sr-2", supply_name: "Hand soap refill", supply_id: "sp-4", quantity: 4, unit: "each", status: "pending", requested_by_name: "Ngozi Okonkwo", site_name: S[1].name, notes: "", requested_at: seed.shift(-2) + "T09:30:00Z", admin_notes: null },
-    { id: "sr-3", supply_name: "Mop head 24oz", supply_id: "sp-7", quantity: 10, unit: "each", status: "fulfilled", requested_by_name: "Elena Barbosa", site_name: S[2].name, notes: "", requested_at: seed.shift(-11) + "T15:45:00Z", admin_notes: "Delivered." },
+    { id: "sr-1", supply_name: "Can liner 40x46", supply_id: "sp-3", quantity: 6, unit: "case", status: "pending", requested_by_name: "Tomasz Wisniewski", site_name: S[0].name, notes: "Dock run is short.", requested_at: seed.shift(-1) + "T13:00:00Z", admin_notes: null,
+      request_type: "refill", urgency: "urgent", created_at: seed.shift(-1) + "T13:00:00Z", description: "Dock run is short." },
+    { id: "sr-2", supply_name: "Hand soap refill", supply_id: "sp-4", quantity: 4, unit: "each", status: "pending", requested_by_name: "Ngozi Okonkwo", site_name: S[1].name, notes: "", requested_at: seed.shift(-2) + "T09:30:00Z", admin_notes: null,
+      request_type: "damage_report", urgency: "high", created_at: seed.shift(-2) + "T09:30:00Z", description: "" },
+    { id: "sr-3", supply_name: "Mop head 24oz", supply_id: "sp-7", quantity: 10, unit: "each", status: "fulfilled", requested_by_name: "Elena Barbosa", site_name: S[2].name, notes: "", requested_at: seed.shift(-11) + "T15:45:00Z", admin_notes: "Delivered.",
+      request_type: "new_gear", urgency: "normal", created_at: seed.shift(-11) + "T15:45:00Z", description: "" },
   ];
 
   // The list and the approved-vendor export both read approval_status.
   const VENDORS = [
-    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
-    { id: "v-2", name: "Brightwater Equipment", status: "approved", approval_status: "approved", address_line1: "3 Dockside Lane", zip_code: "19061", products_services: "Autoscrubbers and parts", certification_status: "None", contract_terms: "Net 15", last_review_date: seed.shift(-90), category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
+    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), linked_supply_count: 2, category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
+    { id: "v-2", name: "Brightwater Equipment", status: "approved", approval_status: "approved", address_line1: "3 Dockside Lane", zip_code: "19061", products_services: "Autoscrubbers and parts", certification_status: "None", contract_terms: "Net 15", last_review_date: seed.shift(-90), linked_supply_count: 1, category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
     { id: "v-3", name: "Kestrel Paper Co", status: "pending", approval_status: "pending", address_line1: "88 Foundry Street", zip_code: "19045", products_services: "Paper and liners", certification_status: "None", contract_terms: "Prepaid", last_review_date: null, category: "consumable", contact_name: "S. Nakamura", contact_email: "hello@kestrelpaper.example.invalid", contact_phone: "2155559003", insurance_expiry: seed.shift(-14), w9_on_file: false, avg_rating: null, evaluation_count: 0, city: "Fairhaven", state: "PA" },
   ];
   // hand: 3 vendors, 2 approved. The approved-vendor export writes 2 rows plus a header.
 
   const SERVICES = [
-    { id: "sv-1", name: "Daily janitorial", slug: "daily-janitorial", description: "Nightly cleaning of occupied floors.", rate_structure: "Per square foot, monthly", required_certifications: "Bloodborne pathogen awareness", cims_category: "SD", linked_sites: 3, is_active: true },
-    { id: "sv-2", name: "Floor restoration", slug: "floor-restoration", description: "Strip, seal and finish hard floors.", rate_structure: "Per project", required_certifications: "Machine operation", cims_category: "GB", linked_sites: 2, is_active: true },
+    { id: "sv-1", name: "Daily janitorial", slug: "daily-janitorial", description: "Nightly cleaning of occupied floors.", rate_structure: "Per square foot, monthly", required_certifications: "Bloodborne pathogen awareness", cims_category: "SD", linked_sites: 3, linked_site_count: 3, is_active: true },
+    { id: "sv-2", name: "Floor restoration", slug: "floor-restoration", description: "Strip, seal and finish hard floors.", rate_structure: "Per project", required_certifications: "Machine operation", cims_category: "GB", linked_sites: 2, linked_site_count: 2, is_active: true },
   ];
 
   const PICKUPS = [
@@ -646,6 +666,8 @@ function createStubs() {
     "Standard": "Est\u00e1ndar", "Urgent": "Urgente", "Training": "Capacitaci\u00f3n", "Compliance": "Cumplimiento", "Other": "Otro",
     "Atrium": "Atrio", "Loading Bay": "Zona de carga", "North Wing": "Ala norte", "Floor 3": "Piso 3",
     "Subcontractor": "Subcontratista", "Direct": "Directo",
+    "Safety": "Seguridad", "Equipment": "Equipo", "Paperwork": "Documentaci\u00f3n",
+    "Quality System": "Sistema de calidad", "Human Resources": "Recursos humanos", "Management Commitment": "Compromiso de la direcci\u00f3n",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -912,19 +934,32 @@ function createStubs() {
     if (path === "/api/vendors" && method === "POST") return created({ message: "Vendor added" });
     if (/^\/api\/vendors\/[^/]+\/evaluations/.test(path)) return ok({ message: "Evaluation saved" });
     if (/^\/api\/vendors\/[^/]+\/supplies/.test(path)) return ok({ message: "Supply linked" });
+    if (/^\/api\/vendors\/[^/]+\/evaluate$/.test(path)) return ok({ message: "Evaluation saved" });
+    if (/^\/api\/vendors\/[^/]+\/link-supply$/.test(path)) return ok({ message: "Supply linked" });
+    if (/^\/api\/vendors\/[^/]+\/supply\/[^/]+$/.test(path) && method === "DELETE") return ok({ message: "Supply unlinked" });
+    // A vendor's window reads linkedSupplies, and an evaluation's date and evaluator by these names.
     if (/^\/api\/vendors\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];
       const v = VENDORS.find((x) => x.id === id) || VENDORS[0];
-      return ok({ vendor: v, evaluations: [{ id: "ev-1", rating: 4, notes: "On time, correct paperwork.", evaluated_on: seed.shift(-30), evaluated_by_name: "Dana Whitlock" }], supplies: SUPPLIES.slice(0, 2) });
+      const linked = SUPPLIES.slice(0, 2);
+      return ok({ vendor: v,
+        evaluations: [{ id: "ev-1", rating: 4, notes: "On time, correct paperwork.", evaluated_on: seed.shift(-30), evaluated_by_name: "Dana Whitlock", evaluation_date: seed.shift(-30), evaluator_name: "Dana Whitlock" }],
+        supplies: linked,
+        linkedSupplies: linked.map((x, i) => ({ supply_id: x.id, supply_name: x.name, unit_cost: x.cost_per_unit, lead_time_days: i === 0 ? 5 : 12, is_preferred: i === 0 })) });
     }
     if (/^\/api\/vendors\/[^/]+$/.test(path)) return ok({ message: "Vendor updated" });
     if (path === "/api/services" && method === "GET") return ok(SERVICES);
     if (path === "/api/services" && method === "POST") return created({ message: "Service added" });
     if (/^\/api\/services\/[^/]+\/sites/.test(path)) return ok({ message: "Site linked" });
+    if (/^\/api\/services\/[^/]+\/link-site$/.test(path)) return ok({ message: "Site linked" });
+    if (/^\/api\/services\/[^/]+\/site\/[^/]+$/.test(path) && method === "DELETE") return ok({ message: "Site unlinked" });
+    // The catalog's window reads the service and the sites it runs at as linkedSites.
     if (/^\/api\/services\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[3];
       const sv = SERVICES.find((x) => x.id === id) || SERVICES[0];
-      return ok({ service: sv, sites: state.sites.slice(0, 2), supplies: SUPPLIES.slice(0, 2) });
+      const here = state.sites.slice(0, 2);
+      return ok({ service: sv, sites: here, supplies: SUPPLIES.slice(0, 2),
+        linkedSites: here.map((x, i) => ({ site_id: x.id, site_name: x.name, city: x.city, state: x.state, notes: i === 0 ? "Nightly, occupied floors first." : "" })) });
     }
     if (/^\/api\/services\/[^/]+$/.test(path)) return ok({ message: "Service updated" });
 
@@ -1090,7 +1125,8 @@ function createStubs() {
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[4];
       const tp = INSPECTION_TEMPLATES.find((x) => x.id === id) || INSPECTION_TEMPLATES[0];
-      return ok({ template: tp, items: INSPECTION_ITEMS });
+      // The template's panel reads its name and id beside its items, at the top level.
+      return ok(Object.assign({}, tp, { template: tp, items: INSPECTION_ITEMS }));
     }
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path)) return ok({ message: "Template updated" });
     if (path === "/api/inspections/scheduled" && method === "GET") {
@@ -1130,10 +1166,11 @@ function createStubs() {
     if (path.startsWith("/api/inspections/analytics/site-comparison")) return ok(seed.INSPECTION_SITE_COMPARISON);
     if (path.startsWith("/api/inspections/analytics/lowest-items")) return ok(seed.INSPECTION_LOWEST_ITEMS);
     if (path.startsWith("/api/inspections/analytics/category-breakdown")) {
+      // Shaped to the Reports tab, which reads the items scored and the points beside the average.
       return ok([
-        { cims_category: "SD", avg_score_pct: 88, item_count: 6 },
-        { cims_category: "HSE", avg_score_pct: 71, item_count: 3 },
-        { cims_category: "GB", avg_score_pct: 94, item_count: 1 },
+        { cims_category: "SD", avg_score_pct: 88, item_count: 6, total_items: 6, total_score: 53, total_max: 60 },
+        { cims_category: "HSE", avg_score_pct: 70, item_count: 3, total_items: 3, total_score: 21, total_max: 30 },
+        { cims_category: "GB", avg_score_pct: 90, item_count: 1, total_items: 1, total_score: 9, total_max: 10 },
       ]);
     }
     if (path.startsWith("/api/inspections/analytics/export")) {
