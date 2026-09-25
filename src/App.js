@@ -3150,6 +3150,10 @@ const REPORT_SOURCES = [
 const sourceLabel = (key) => { if (isIssueSource(key)) return "Issue Response and Resolution"; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.label : key; };
 const sourceAvailable = (key) => { if (isIssueSource(key)) return true; const s = REPORT_SOURCES.find(x => x.key === key); return s ? s.available : false; };
 const prettyCat = (c) => String(c || "Other").replace(/_/g, " ");
+// A category heading on the Reports page: the words the dashboard and the report templates use are
+// drawn from the table, and any other category is drawn as it was typed. The English is the heading
+// as it has always read.
+const reportCategoryWord = (c) => { const p = prettyCat(c); const k = p.toLowerCase(); const w = tr(k + "|report category"); return w === k ? p : w; };
 
 const defaultIssueConfig = () => ({
   date_range: { preset: "last30" },
@@ -3860,13 +3864,13 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   };
 
   const save = async () => {
-    if (!name.trim()) { showToast("A report name is required", "error"); return; }
+    if (!name.trim()) { showToast(tr("A report name is required"), "error"); return; }
     setSaving(true);
     const body = { name: name.trim(), description: description.trim(), category: category.trim() || "Custom", source, config: buildConfig(), is_template: true };
     try {
       if (isEdit) await af("/api/report-engine/definitions/" + initial.id, { method: "PUT", body });
       else await af("/api/report-engine/definitions", { method: "POST", body });
-      showToast(isEdit ? "Report updated" : "Report created");
+      showToast(isEdit ? tr("Report updated") : tr("Report created"));
       onSaved();
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
@@ -3875,8 +3879,8 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const slaRow = (lbl, frVal, frSet, resVal, resSet) => (
     <div style={{ display: "grid", gridTemplateColumns: "0.7fr 1fr 1fr", gap: 10, alignItems: "end", marginBottom: 8 }}>
       <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, paddingBottom: 10 }}>{lbl}</div>
-      <div><Lbl>First response (h)</Lbl><Inp t={t} type="number" min="0" step="0.25" value={frVal} onChange={e => frSet(e.target.value)} /></div>
-      <div><Lbl>Resolution (h)</Lbl><Inp t={t} type="number" min="0" step="0.25" value={resVal} onChange={e => resSet(e.target.value)} /></div>
+      <div><Lbl>{tr("First response (h)")}</Lbl><Inp t={t} type="number" min="0" step="0.25" value={frVal} onChange={e => frSet(e.target.value)} /></div>
+      <div><Lbl>{tr("Resolution (h)")}</Lbl><Inp t={t} type="number" min="0" step="0.25" value={resVal} onChange={e => resSet(e.target.value)} /></div>
     </div>
   );
   const chk = (label, val, set) => (
@@ -3889,78 +3893,78 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   return (
     <Crd t={t}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isEdit ? "Edit report" : "New report"}</div>
-        <Btn v="ghost" t={t} onClick={onCancel}>Cancel</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isEdit ? tr("Edit report") : tr("New report")}</div>
+        <Btn v="ghost" t={t} onClick={onCancel}>{tr("Cancel")}</Btn>
       </div>
-      <div style={{ marginBottom: 12 }}><Lbl>Name</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. High severity weekly" /></div>
-      <div style={{ marginBottom: 12 }}><Lbl>Description</Lbl><TArea t={t} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder="What this report covers" /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder={tr("e.g. High severity weekly")} /></div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder={tr("What this report covers")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><Lbl>Category</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder="Service Delivery" /></div>
-        <div><Lbl>Source</Lbl>
+        <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("Service Delivery")} /></div>
+        <div><Lbl>{tr("Source")}</Lbl>
           <select value={source} onChange={e => setSource(e.target.value)} style={selStyle}>
-            {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{s.label}{s.available ? "" : " (arriving with templates)"}</option>)}
+            {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{s.label}{s.available ? "" : " " + tr("(arriving with templates)")}</option>)}
           </select>
         </div>
       </div>
       {isIssueSource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Issue report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Issue report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>Default range</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
-            <div><Lbl>Trend bucket</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
-            <div><Lbl>Default severity</Lbl><Sel t={t} value={severity} onChange={e => setSeverity(e.target.value)} options={[{ v: "", l: "All severities" }, { v: "high", l: "High" }, { v: "medium", l: "Medium" }, { v: "low", l: "Low" }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={preset} onChange={e => setPreset(e.target.value)} options={[{ v: "last30", l: tr("Last 30 Days") }, { v: "last60", l: tr("Last 60 Days") }, { v: "last90", l: tr("Last 90 Days") }, { v: "thisMonth", l: tr("This Month") }]} /></div>
+            <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={bucket} onChange={e => setBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
+            <div><Lbl>{tr("Default severity")}</Lbl><Sel t={t} value={severity} onChange={e => setSeverity(e.target.value)} options={[{ v: "", l: tr("All severities") }, { v: "high", l: tr("High") }, { v: "medium", l: tr("Medium") }, { v: "low", l: tr("Low") }]} /></div>
           </div>
-          <div style={{ marginBottom: 12 }}><Lbl>Default site</Lbl><Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "10px 0 8px" }}>Service level targets (hours)</div>
-          {slaRow("High", hiFr, setHiFr, hiRes, setHiRes)}
-          {slaRow("Medium", medFr, setMedFr, medRes, setMedRes)}
-          {slaRow("Low", lowFr, setLowFr, lowRes, setLowRes)}
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
-          {chk("Resolution and response trend", outTrend, setOutTrend)}
-          {chk("Per-site breakdown", outBySite, setOutBySite)}
-          {chk("Open issues by severity", outSeverity, setOutSeverity)}
-          {chk("SLA compliance and breaches", outSla, setOutSla)}
+          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "10px 0 8px" }}>{tr("Service level targets (hours)")}</div>
+          {slaRow(tr("High"), hiFr, setHiFr, hiRes, setHiRes)}
+          {slaRow(tr("Medium"), medFr, setMedFr, medRes, setMedRes)}
+          {slaRow(tr("Low"), lowFr, setLowFr, lowRes, setLowRes)}
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
+          {chk(tr("Resolution and response trend"), outTrend, setOutTrend)}
+          {chk(tr("Per-site breakdown"), outBySite, setOutBySite)}
+          {chk(tr("Open issues by severity"), outSeverity, setOutSeverity)}
+          {chk(tr("SLA compliance and breaches"), outSla, setOutSla)}
         </div> :
         isSupplySource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Supply report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Supply report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>Default range</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
-            <div><Lbl>Trend bucket</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: "Daily" }, { v: "week", l: "Weekly" }, { v: "month", l: "Monthly" }]} /></div>
-            <div><Lbl>Category</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: "All categories" }, { v: "chemical", l: "Chemical" }, { v: "supply", l: "Supply" }, { v: "equipment", l: "Equipment" }, { v: "ppe", l: "PPE" }]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={supPreset} onChange={e => setSupPreset(e.target.value)} options={[{ v: "last30", l: tr("Last 30 Days") }, { v: "last60", l: tr("Last 60 Days") }, { v: "last90", l: tr("Last 90 Days") }, { v: "thisMonth", l: tr("This Month") }]} /></div>
+            <div><Lbl>{tr("Trend bucket")}</Lbl><Sel t={t} value={supBucket} onChange={e => setSupBucket(e.target.value)} options={[{ v: "day", l: tr("Daily") }, { v: "week", l: tr("Weekly") }, { v: "month", l: tr("Monthly") }]} /></div>
+            <div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={supCategory} onChange={e => setSupCategory(e.target.value)} options={[{ v: "", l: tr("All categories") }, { v: "chemical", l: tr("Chemical") }, { v: "supply", l: tr("Supply") }, { v: "equipment", l: tr("Equipment") }, { v: "ppe", l: tr("PPE") }]} /></div>
           </div>
-          <div style={{ marginBottom: 12 }}><Lbl>Default site</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
-          {chk("Cost trend", supOutTrend, setSupOutTrend)}
-          {chk("Cost by site", supOutBySite, setSupOutBySite)}
-          {chk("Top supplies by cost", supOutTop, setSupOutTop)}
-          {chk("Green-certified share", supOutGreen, setSupOutGreen)}
+          <div style={{ marginBottom: 12 }}><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={supSiteId} onChange={e => setSupSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
+          {chk(tr("Cost trend"), supOutTrend, setSupOutTrend)}
+          {chk(tr("Cost by site"), supOutBySite, setSupOutBySite)}
+          {chk(tr("Top supplies by cost"), supOutTop, setSupOutTop)}
+          {chk(tr("Green-certified share"), supOutGreen, setSupOutGreen)}
         </div> :
         isInspectionSource(source) ?
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Inspection report settings</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Inspection report settings")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div><Lbl>Default range</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={[{ v: "last30", l: "Last 30 Days" }, { v: "last60", l: "Last 60 Days" }, { v: "last90", l: "Last 90 Days" }, { v: "thisMonth", l: "This Month" }]} /></div>
-            <div><Lbl>Default site</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
+            <div><Lbl>{tr("Default range")}</Lbl><Sel t={t} value={insPreset} onChange={e => setInsPreset(e.target.value)} options={[{ v: "last30", l: tr("Last 30 Days") }, { v: "last60", l: tr("Last 60 Days") }, { v: "last90", l: tr("Last 90 Days") }, { v: "thisMonth", l: tr("This Month") }]} /></div>
+            <div><Lbl>{tr("Default site")}</Lbl><Sel t={t} value={insSiteId} onChange={e => setInsSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...(sites || []).map(s => ({ v: s.id, l: s.name }))]} /></div>
           </div>
-          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>Show on report</div>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>Applies to both the on-screen view and the PDF export.</div>
-          {chk("Score trend", insOutTrend, setInsOutTrend)}
-          {chk("Average score by site", insOutBySite, setInsOutBySite)}
-          {chk("Lowest-scoring items", insOutLowest, setInsOutLowest)}
+          <div style={{ fontSize: 12, color: t.textSec, fontWeight: 600, margin: "12px 0 4px" }}>{tr("Show on report")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr("Applies to both the on-screen view and the PDF export.")}</div>
+          {chk(tr("Score trend"), insOutTrend, setInsOutTrend)}
+          {chk(tr("Average score by site"), insOutBySite, setInsOutBySite)}
+          {chk(tr("Lowest-scoring items"), insOutLowest, setInsOutLowest)}
         </div> :
         <div style={{ borderTop: "1px solid " + t.border, marginTop: 6, paddingTop: 14, fontSize: 13, color: t.textMut }}>
-          This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.
+          {tr("This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.")}
         </div>}
       <div style={{ borderTop: "1px solid " + t.border, marginTop: 14, paddingTop: 14 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>Output and export</div>
-        {chk("Use company branding on export", brand, setBrand)}
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Output and export")}</div>
+        {chk(tr("Use company branding on export"), brand, setBrand)}
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-        <Btn v="ghost" t={t} onClick={onCancel}>Cancel</Btn>
-        <Btn v="primary" t={t} onClick={save} disabled={saving}>{saving ? "Saving..." : (isEdit ? "Save changes" : "Create report")}</Btn>
+        <Btn v="ghost" t={t} onClick={onCancel}>{tr("Cancel")}</Btn>
+        <Btn v="primary" t={t} onClick={save} disabled={saving}>{saving ? tr("Saving...") : (isEdit ? tr("Save changes") : tr("Create report"))}</Btn>
       </div>
     </Crd>
   );
@@ -3977,7 +3981,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   const [issS, setIssS] = useState(null);
   const [exp, setExp] = useState(false);
 
-  const loadDefs = () => af("/api/report-engine/definitions").then(setDefs).catch(e => { setDefs([]); showToast("Could not load reports: " + e.message, "error"); });
+  const loadDefs = () => af("/api/report-engine/definitions").then(setDefs).catch(e => { setDefs([]); showToast(tr("Could not load reports: {0}", e.message), "error"); });
   const loadSnapshots = (range) => {
     const r = range || dateRange;
     const q = "?start_date=" + r.start + "&end_date=" + r.end;
@@ -3989,16 +3993,16 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   useEffect(() => { af("/api/settings").then(setSettings).catch(() => {}); }, []);
   useEffect(() => { loadSnapshots(); }, [dateRange]);
 
-  const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
-  const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast("Downloaded"); } catch (e) { showToast(e.message, "error"); } setExp(false); };
+  const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
+  const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
 
   const runReport = (d) => { setActive(d); setView("run"); };
   const newReport = () => { setEditing(null); setView("edit"); };
   const editReport = (d) => { setEditing(d); setView("edit"); };
   const duplicateReport = (d) => { setEditing({ name: (d.name || "Report") + " (copy)", description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
   const deleteReport = async (d) => {
-    if (!window.confirm("Delete \"" + d.name + "\"? This cannot be undone.")) return;
-    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast("Report deleted"); loadDefs(); }
+    if (!window.confirm(tr("Delete \"{0}\"? This cannot be undone.", d.name))) return;
+    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deleted")); loadDefs(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -4009,7 +4013,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   if (view === "run" && active) {
     return (<div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
-        <Btn v="ghost" t={t} onClick={() => { setView("library"); setActive(null); }}>Back to reports</Btn>
+        <Btn v="ghost" t={t} onClick={() => { setView("library"); setActive(null); }}>{tr("Back to reports")}</Btn>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{active.name}</div>
           {active.description ? <div style={{ fontSize: 11, color: t.textMut }}>{active.description}</div> : null}
@@ -4021,7 +4025,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         <SupplyUsageReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
        isInspectionSource(active.source) ?
         <InspectionReport key={active.id} af={af} t={t} sites={sites} settings={settings} config={active.config} showToast={showToast} /> :
-        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>This report's data source arrives with the report templates workstream. It will run here once that ships.</div></Crd>}
+        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("This report's data source arrives with the report templates workstream. It will run here once that ships.")}</div></Crd>}
     </div>);
   }
 
@@ -4034,31 +4038,31 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
   }
 
   return (<div>
-    <SecT t={t} action="New report" onAction={newReport}>Reports</SecT>
+    <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
     {defs === null ?
-      <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>Loading reports...</div></Crd> :
+      <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defs.length === 0 ?
-        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>No saved reports yet. Use New report to create one.</div></Crd> :
+        <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No saved reports yet. Use New report to create one.")}</div></Crd> :
         groupNames.map(cat => (
           <div key={cat} style={{ marginBottom: 18 }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{prettyCat(cat)}</div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{reportCategoryWord(cat)}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {groups[cat].map(d => (
                 <Crd key={d.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                   <div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       <span style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{d.name}</span>
-                      <Bdg l={d.is_system ? "Template" : "Custom"} c={d.is_system ? BL : GO} />
-                      {!sourceAvailable(d.source) ? <Bdg l="Coming soon" c={OR} /> : null}
+                      <Bdg l={d.is_system ? tr("Template") : tr("Custom")} c={d.is_system ? BL : GO} />
+                      {!sourceAvailable(d.source) ? <Bdg l={tr("Coming soon")} c={OR} /> : null}
                     </div>
                     <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{sourceLabel(d.source)}</div>
                     {d.description ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{d.description}</div> : null}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: "auto" }}>
-                    <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>Run</Btn>
-                    <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>Duplicate</Btn>
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>Edit</Btn> : null}
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>Delete</Btn> : null}
+                    <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Run")}</Btn>
+                    <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Duplicate")}</Btn>
+                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Edit")}</Btn> : null}
+                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Delete")}</Btn> : null}
                   </div>
                 </Crd>
               ))}
@@ -4067,31 +4071,31 @@ function ReportsPage({ af, showToast, isAdmin, t, sites }) {
         ))}
 
     <div style={{ marginTop: 18 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>Quick snapshots</div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Quick snapshots")}</div>
       <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={REPORT_PRESETS} />
       <Crd t={t} style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Task Completion</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Task Completion")}</div>
         {tasks && tasks.sites ? tasks.sites.map((s, i) => <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.siteName}</span>
-            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{s.completedTasks} done</span>
+            <span style={{ fontSize: 12, color: t.goldText, fontWeight: 600 }}>{trn("{0} done|count", s.completedTasks)}</span>
           </div>
         </div>) : null}
-        {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div> : null}
+        {(!tasks || !tasks.sites || tasks.sites.length === 0) ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No data yet.")}</div> : null}
       </Crd>
       <Crd t={t} style={{ marginBottom: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>Issues Summary</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 12, color: t.text }}>{tr("Issues Summary")}</div>
         {issS && issS.summary ? <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>Total</div></div>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>Open</div></div>
-          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>Resolved</div></div>
-        </div> : <div style={{ fontSize: 12, color: t.textMut }}>No data yet.</div>}
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: t.text }}>{issS.summary.total}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Total")}</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: issS.summary.open_count > 0 ? RD : GR }}>{issS.summary.open_count}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Open|issue count")}</div></div>
+          <div style={{ textAlign: "center" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 24, fontWeight: 600, color: GR }}>{issS.summary.resolved}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Resolved|issue count")}</div></div>
+        </div> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("No data yet.")}</div>}
       </Crd>
       <Crd t={t}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 4, color: t.text }}>Export data (CSV)</div>
-        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>Download CSV files for audits and clients.</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, marginBottom: 4, color: t.text }}>{tr("Export data (CSV)")}</div>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 14 }}>{tr("Download CSV files for audits and clients.")}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {[{ l: "Issues Report", a: expIss }, { l: "Chemical Usage", a: expChem }].map(r => (
+          {[{ l: tr("Issues Report"), a: expIss }, { l: tr("Chemical Usage"), a: expChem }].map(r => (
             <button key={r.l} onClick={r.a} disabled={exp} style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer" }}>
               <DlI sz={14} c="currentColor" />{r.l}
             </button>
