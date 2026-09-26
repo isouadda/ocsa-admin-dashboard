@@ -119,7 +119,15 @@ settings with the time zone and the pay period's first day chosen by the words t
 adds, edits and turns off a list and a value, moves a value and deletes one after the table's
 question, and adds and edits a site's value with its type chosen by its word, and holds each body
 the page sends to one written
-out by hand, the same in both languages.
+out by hand, the same in both languages. The stub sends the API's own capabilities, kinds of report
+and forms, which the API names in English only, and one capability code the dashboard does not
+know. The suite reads every capability and group on Roles and Permissions for one person and every
+kind of report and form on Who gets told, and holds each to the table's word for its code, and the
+unknown code to the name the API sends. It reads each role in the person picker, under the person's
+name and beside each name on Who gets told. It then allows a capability for the person and saves it,
+and on Who gets told adds a person chosen by the name and role word the list shows, adds an outside
+address, turns email on, sends a form's report as a PDF and removes a person after the table's
+question, each held to a body written out by hand.
 
 **A question is in the language of the screen.** The `questions` suite presses each button on
 Schedule and Shift Pickup that asks before it changes something, reads the browser's question box

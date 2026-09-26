@@ -785,7 +785,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -2941,7 +2941,30 @@ const HR_FALLBACK_NOTE = "Told when everyone else on the team is named in a repo
 const FORM_SUB_NOTE = "These people are told about this form as well as anyone under Every form.";
 const FORM_PDF_NOTE = "Every email about this form carries everything the report says, to every person and address on these lists.";
 const BOTH_OFF = "Keep at least one of Email or In app on.";
-function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
+// A kind of report and a form, which GET /api/notification-recipients sends with their English names
+// only, by their codes. The English is the API's, and the table has the words for each in every
+// other language. One the dashboard does not know is drawn as the API names it.
+const NOTICE_TYPE_LABELS = {
+  issue: "A problem is reported",
+  issue_escalated: "A worker cannot resolve an assigned problem",
+  supply_request: "A supply request is made",
+  form: "A form is submitted",
+  shift_drop: "Someone asks to drop a shift",
+  shift_claim: "Someone picks up an open shift",
+  registration: "Someone registers for an account",
+  time_off: "Someone requests time off",
+  hr_case: "A Speak Up report is filed",
+  hr_case_fallback: "Nobody else can read a Speak Up report",
+};
+const FORM_TITLE_LABELS = {
+  "OCSA-FRM-005": "Daily Service Log",
+  "OCSA-FRM-016": "Safety Incident Report",
+  "OCSA-FRM-017": "Biohazard Incident and Exposure Report",
+  "OCSA-FRM-019": "PPE Compliance Log, monthly check",
+};
+const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
+const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (f.title || f.code));
+function WhoGetsToldPanel({ af, showToast, t, allStaff = [], lkMap }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState("");
@@ -2953,37 +2976,41 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   // The choice a form is being moved to, held only while the PATCH is in flight. A refusal drops
   // it, which puts the control back on what the server holds.
   const [deliveryPending, setDeliveryPending] = useState({});
+  // A person's role as a word, the way Staff Management draws one: the staff_roles list's shown
+  // label, or the table's word for a role the list does not hold. The code stays the code.
+  const roleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
 
   const load = useCallback(async () => {
     setLoading(true); setFailed("");
     try { const d = await af("/api/notification-recipients"); setData(d || {}); }
-    catch (e) { setData(null); setFailed(e.message || "Request failed"); }
+    catch (e) { setData(null); setFailed(e.message || tr("Request failed")); }
     setLoading(false);
   }, [af]);
   useEffect(() => { load(); }, [load]);
 
   const slotKey = (type, key) => type + "|" + (key || "");
   const setErr = (slot, msg) => setErrors(p => ({ ...p, [slot]: msg }));
-  const after = (slot) => { setErr(slot, ""); showToast("Saved"); load(); };
+  const after = (slot) => { setErr(slot, ""); showToast(tr("Saved")); load(); };
   const post = async (slot, body) => {
     if (busy) return;
     setBusy(true); setErr(slot, "");
     try { await af("/api/notification-recipients", { method: "POST", body }); setPicks(p => ({ ...p, [slot]: "" })); setEmails(p => ({ ...p, [slot]: "" })); after(slot); }
-    catch (e) { setErr(slot, e.message || "Request failed"); }
+    catch (e) { setErr(slot, e.message || tr("Request failed")); }
     setBusy(false);
   };
   const patch = async (slot, id, body) => {
     if (busy) return;
     setBusy(true); setErr(slot, "");
     try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "PATCH", body }); after(slot); }
-    catch (e) { setErr(slot, e.message || "Request failed"); }
+    catch (e) { setErr(slot, e.message || tr("Request failed")); }
     setBusy(false);
   };
   const remove = async (slot, id) => {
     if (busy) return;
     setBusy(true); setErr(slot, "");
     try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "DELETE" }); setConfirming(null); after(slot); }
-    catch (e) { setErr(slot, e.message || "Request failed"); setConfirming(null); }
+    catch (e) { setErr(slot, e.message || tr("Request failed")); setConfirming(null); }
     setBusy(false);
   };
   const setFormDelivery = async (slot, code, value) => {
@@ -2991,12 +3018,12 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
     setBusy(true); setErr(slot, ""); setDeliveryPending(p => ({ ...p, [code]: value }));
     const done = () => setDeliveryPending(p => { const n = { ...p }; delete n[code]; return n; });
     try { await af("/api/notification-recipients/forms/" + encodeURIComponent(code), { method: "PATCH", body: { delivery: value } }); done(); after(slot); }
-    catch (e) { done(); setErr(slot, e.message || "Request failed"); }
+    catch (e) { done(); setErr(slot, e.message || tr("Request failed")); }
     setBusy(false);
   };
   const toggle = (slot, r, field) => {
     const next = { viaEmail: r.viaEmail, viaInApp: r.viaInApp, [field]: !r[field] };
-    if (!next.viaEmail && !next.viaInApp) { setErr(slot, BOTH_OFF); return; }
+    if (!next.viaEmail && !next.viaInApp) { setErr(slot, tr(BOTH_OFF)); return; }
     patch(slot, r.id, { [field]: !r[field] });
   };
 
@@ -3004,10 +3031,10 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   const staffOptions = (slot, rows) => {
     const taken = new Set(rows.filter(r => r.user).map(r => String(r.user.id)));
     return allStaff.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active") && !taken.has(String(u.id)))
-      .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + u.role + ")" : "") }));
+      .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + roleOf(u.role) + ")" : "") }));
   };
 
-  const deliveryBtn = (slot, form, value, label, ariaName, current) => <button key={value} onClick={() => setFormDelivery(slot, form.code, value)} disabled={busy} aria-label={label + " for " + ariaName} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (current === value ? GO : t.border), background: current === value ? t.goldBg : "transparent", color: current === value ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{label}</button>;
+  const deliveryBtn = (slot, form, value, label, ariaName, current) => <button key={value} onClick={() => setFormDelivery(slot, form.code, value)} disabled={busy} aria-label={tr("{0} for {1}", label, ariaName)} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (current === value ? GO : t.border), background: current === value ? t.goldBg : "transparent", color: current === value ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{label}</button>;
 
   const renderSection = ({ type, key2, title, note, allowEmail, ariaName, form }) => {
     const slot = slotKey(type, key2);
@@ -3021,56 +3048,56 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
       {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
       {form && <div style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {deliveryBtn(slot, form, "app_link", "Link to the app", ariaName, delivery)}
-          {deliveryBtn(slot, form, "pdf", "Attach the filled report as a PDF", ariaName, delivery)}
+          {deliveryBtn(slot, form, "app_link", tr("Link to the app"), ariaName, delivery)}
+          {deliveryBtn(slot, form, "pdf", tr("Attach the filled report as a PDF"), ariaName, delivery)}
         </div>
-        {delivery === "pdf" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{FORM_PDF_NOTE}</div>}
+        {delivery === "pdf" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(FORM_PDF_NOTE)}</div>}
       </div>}
-      {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>Nobody set. Every admin gets a notice in the app.</div>}
+      {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>{tr("Nobody set. Every admin gets a notice in the app.")}</div>}
       {rows.map(r => {
-        const who = r.user ? r.user.name + (r.user.role ? " (" + r.user.role + ")" : "") : r.email;
+        const who = r.user ? r.user.name + (r.user.role ? " (" + roleOf(r.user.role) + ")" : "") : r.email;
         return (<div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
           <div style={{ flex: 1, minWidth: 140, fontSize: 13, color: t.text }}>{who}</div>
           {r.user ? (<>
-            <button onClick={() => toggle(slot, r, "viaEmail")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaEmail ? GO : t.border), background: r.viaEmail ? t.goldBg : "transparent", color: r.viaEmail ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Email</button>
-            <button onClick={() => toggle(slot, r, "viaInApp")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaInApp ? GO : t.border), background: r.viaInApp ? t.goldBg : "transparent", color: r.viaInApp ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>In app</button>
-          </>) : <span style={{ fontSize: 12, color: t.textMut }}>Email only</span>}
-          <button onClick={() => setConfirming({ slot, id: r.id, who })} disabled={busy} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Remove</button>
+            <button onClick={() => toggle(slot, r, "viaEmail")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaEmail ? GO : t.border), background: r.viaEmail ? t.goldBg : "transparent", color: r.viaEmail ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Email")}</button>
+            <button onClick={() => toggle(slot, r, "viaInApp")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaInApp ? GO : t.border), background: r.viaInApp ? t.goldBg : "transparent", color: r.viaInApp ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("In app")}</button>
+          </>) : <span style={{ fontSize: 12, color: t.textMut }}>{tr("Email only")}</span>}
+          <button onClick={() => setConfirming({ slot, id: r.id, who })} disabled={busy} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button>
         </div>);
       })}
       {confirming && confirming.slot === slot && <div style={{ padding: "8px 0", fontSize: 12, color: t.text }}>
-        <div style={{ marginBottom: 6 }}>Stop telling {confirming.who} about this?</div>
+        <div style={{ marginBottom: 6 }}>{tr("Stop telling {0} about this?", confirming.who)}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="danger" aria-label={"Remove " + confirming.who} onClick={() => remove(slot, confirming.id)} disabled={busy} style={{ minHeight: 44 }}>Remove</Btn>
-          <Btn t={t} v="ghost" aria-label={"Cancel removing " + confirming.who} onClick={() => setConfirming(null)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+          <Btn t={t} v="danger" aria-label={tr("Remove {0}", confirming.who)} onClick={() => remove(slot, confirming.id)} disabled={busy} style={{ minHeight: 44 }}>{tr("Remove")}</Btn>
+          <Btn t={t} v="ghost" aria-label={tr("Cancel removing {0}", confirming.who)} onClick={() => setConfirming(null)} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
         </div>
       </div>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={"Add a person to " + ariaName} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: "Add a person" }, ...opts]} /></div>
-        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>Add</Btn>
+        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={tr("Add a person to {0}", ariaName)} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: tr("Add a person") }, ...opts]} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>
       {allowEmail && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-        <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" aria-label={"Add an email address to " + ariaName} placeholder="Add an email address" value={emails[slot] || ""} onChange={e => setEmails(p => ({ ...p, [slot]: e.target.value }))} style={{ minHeight: 44 }} /></div>
-        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), email: (emails[slot] || "").trim() })} disabled={busy || !(emails[slot] || "").trim()} style={{ minHeight: 44 }}>Add</Btn>
+        <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" aria-label={tr("Add an email address to {0}", ariaName)} placeholder={tr("Add an email address")} value={emails[slot] || ""} onChange={e => setEmails(p => ({ ...p, [slot]: e.target.value }))} style={{ minHeight: 44 }} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), email: (emails[slot] || "").trim() })} disabled={busy || !(emails[slot] || "").trim()} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>}
       {err && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{err}</div>}
     </div>);
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
-  if (failed) return <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{failed} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
+  if (failed) return <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{failed} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>;
   const types = (data && Array.isArray(data.types) ? data.types : []);
   const forms = (data && Array.isArray(data.forms) ? data.forms : []);
   return (<div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{RECIPIENTS_INTRO}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr(RECIPIENTS_INTRO)}</div>
     {types.map(ty => (<Crd t={t} key={ty.type} style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{ty.label}</div>
-      {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE}</div>}
-      {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{noticeTypeName(ty)}</div>
+      {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr(HR_CASE_NOTE)}</div>}
+      {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr(HR_CASE_NOTE)} {tr(HR_FALLBACK_NOTE)}</div>}
       {ty.keyed && ty.type === "form" ? (<>
-        {renderSection({ type: ty.type, key2: "", title: "Every form", allowEmail: ty.allowOutsideEmail, ariaName: "Every form" })}
-        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")", form: f }))}
-      </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: ty.label })}
+        {renderSection({ type: ty.type, key2: "", title: tr("Every form"), allowEmail: ty.allowOutsideEmail, ariaName: tr("Every form") })}
+        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: formTitleName(f) + " (" + f.code + ")", note: tr(FORM_SUB_NOTE), allowEmail: ty.allowOutsideEmail, ariaName: formTitleName(f) + " (" + f.code + ")", form: f }))}
+      </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: noticeTypeName(ty) })}
     </Crd>))}
   </div>);
 }
@@ -7258,11 +7285,37 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   );
 }
 
+// The role reference's three columns, by the key each row files its level under. Each is drawn as the
+// table's word for its name.
 const ACCESS_TIERS = [
   { key: "a", label: "Admin" },
   { key: "s", label: "Supervisor" },
   { key: "st", label: "Staff" },
 ];
+
+// A capability's name, by its code. GET /api/users/:id/permissions sends each capability with its
+// English name, which is the name the dashboard knows the code by here, and the table has the words
+// for it in every other language. A code the dashboard does not know is drawn as the API names it.
+const CAPABILITY_LABELS = {
+  manage_permissions: "Manage roles and permissions",
+  manage_settings: "Company settings and branding",
+  manage_lookups: "Dropdown and site lookups",
+  manage_staff: "Staff accounts and approvals",
+  manage_sites: "Site records and floor plans",
+  manage_integrations: "Integrations and forms",
+  manage_tasks: "Tasks and assignments",
+  manage_inspections: "Inspection templates and scheduling",
+  manage_time: "Manual time entry and shift edits",
+  manage_schedule: "Create, edit and delete scheduled shifts",
+  approve_time_off: "Approve and deny time off",
+  manage_supplies: "Supply catalog",
+  manage_vendors: "Vendors and services",
+  view_reports: "Reports, labor, and scheduling",
+  read_incident_reports: "Read filed incident reports",
+  export_payroll: "ADP payroll export",
+  manage_admins: "Change admin accounts (role, status, PIN)",
+};
+const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
 const PERMISSION_GROUPS = [
   { group: "Administration", rows: [
@@ -7350,22 +7403,22 @@ function PermissionsMatrixPanel({ t }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 12.5, color: t.textSec, maxWidth: 620, lineHeight: 1.5 }}>
-          Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.
+          {tr("Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.")}
         </div>
-        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
+        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("Export PDF")}</button>
       </div>
 
       {PERMISSION_GROUPS.map((g, gi) => (
         <Crd key={gi} t={t} style={{ marginBottom: 14, padding: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr(g.group)}</div>
           <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr" }}>
-            <div style={headCell}>Capability</div>
-            {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tier.label}</div>)}
+            <div style={headCell}>{tr("Capability")}</div>
+            {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tr(tier.label)}</div>)}
             {g.rows.flatMap((r, ri) => [
-              <div key={"cap-" + ri} style={capCell}>{r.cap}</div>,
+              <div key={"cap-" + ri} style={capCell}>{tr(r.cap)}</div>,
               ...ACCESS_TIERS.map(tier => (
                 <div key={"c-" + ri + "-" + tier.key} style={{ ...capCell, textAlign: "center" }}>
-                  <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: 11, fontSize: 11, fontWeight: 600, color: cellColor(r[tier.key]), background: cellBg(r[tier.key]) }}>{r[tier.key]}</span>
+                  <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: 11, fontSize: 11, fontWeight: 600, color: cellColor(r[tier.key]), background: cellBg(r[tier.key]) }}>{tr(r[tier.key] + "|access")}</span>
                 </div>
               )),
             ])}
@@ -7374,10 +7427,10 @@ function PermissionsMatrixPanel({ t }) {
       ))}
 
       <Crd t={t} style={{ padding: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 8 }}>Notes</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 8 }}>{tr("Notes")}</div>
         {PERMISSION_NOTES.map((n, i) => (
           <div key={i} style={{ fontSize: 11.5, color: t.textMut, marginBottom: 5, paddingLeft: 12, position: "relative" }}>
-            <span style={{ position: "absolute", left: 0, color: t.goldText }}>-</span>{n}
+            <span style={{ position: "absolute", left: 0, color: t.goldText }}>-</span>{tr(n)}
           </div>
         ))}
       </Crd>
@@ -7385,7 +7438,7 @@ function PermissionsMatrixPanel({ t }) {
   );
 }
 
-function PermissionsEditorPanel({ af, uf, showToast, t }) {
+function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   const [staff, setStaff] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [selId, setSelId] = useState("");
@@ -7393,6 +7446,10 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   const [overrides, setOverrides] = useState({});
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
+  // A person's role as a word, the way Staff Management draws one: the staff_roles list's shown
+  // label, or the table's word for a role the list does not hold. The code stays the code.
+  const roleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
 
   useEffect(() => {
     setLoadingStaff(true);
@@ -7402,7 +7459,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         setStaff(list);
         setLoadingStaff(false);
       })
-      .catch((e) => { setLoadingStaff(false); showToast("Could not load team: " + e.message, "error"); });
+      .catch((e) => { setLoadingStaff(false); showToast(tr("Could not load team: {0}", e.message), "error"); });
   }, []);
 
   const loadDetail = (id) => {
@@ -7414,7 +7471,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         setOverrides(d && d.overrides && typeof d.overrides === "object" ? Object.assign({}, d.overrides) : {});
         setLoadingDetail(false);
       })
-      .catch((e) => { setLoadingDetail(false); showToast("Could not load permissions: " + e.message, "error"); });
+      .catch((e) => { setLoadingDetail(false); showToast(tr("Could not load permissions: {0}", e.message), "error"); });
   };
 
   const onSelect = (id) => { setSelId(id); loadDetail(id); };
@@ -7450,9 +7507,9 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         setDetail((prev) => prev ? Object.assign({}, prev, { overrides: (d && d.overrides) || {}, effective: (d && d.effective) || prev.effective }) : prev);
         setOverrides((d && d.overrides) ? Object.assign({}, d.overrides) : {});
         setSaving(false);
-        showToast("Permissions saved", "success");
+        showToast(tr("Permissions saved"), "success");
       })
-      .catch((e) => { setSaving(false); showToast("Could not save: " + e.message, "error"); });
+      .catch((e) => { setSaving(false); showToast(tr("Could not save: {0}", e.message), "error"); });
   };
 
   const groups = [];
@@ -7465,40 +7522,44 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   const card = { background: t.card, border: "1px solid " + t.borderSolid, borderRadius: 10, padding: 18, marginBottom: 16 };
   const selSt = { padding: "8px 12px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", minWidth: 260 };
   const segBtn = (active, color) => ({ padding: "5px 10px", borderRadius: 6, border: "1px solid " + (active ? color : t.borderSolid), background: active ? color : "transparent", color: active ? "#fff" : t.textMut, fontSize: 11, fontFamily: FONT_BODY, cursor: "pointer", fontWeight: active ? 700 : 500 });
+  // What a capability's row says it is now, a whole sentence for each state it can be in.
+  const currentlyLine = (eff, st) => (st === "locked" ? tr("Currently: Allowed (admins always allowed)")
+    : st === "default" ? (eff ? tr("Currently: Allowed (role default)") : tr("Currently: Blocked (role default)"))
+      : (eff ? tr("Currently: Allowed (override)") : tr("Currently: Blocked (override)")));
   const tag = (txt, color) => (<span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: color, border: "1px solid " + color, borderRadius: 4, padding: "1px 5px", marginLeft: 8 }}>{txt}</span>);
 
   return (
     <div>
       <div style={card}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>Per-person permissions</div>
-        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Per-person permissions")}</div>
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>{tr("Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.")}</div>
         {loadingStaff ? (
-          <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>Loading team...</div>
+          <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Loading team...")}</div>
         ) : (
           <select value={selId} onChange={(e) => onSelect(e.target.value)} style={selSt}>
-            <option value="">Select a team member...</option>
+            <option value="">{tr("Select a team member...")}</option>
             {staff.map((u) => (
-              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || ("User " + u.id)) + (u.role ? "  (" + u.role + ")" : ""))}</option>
+              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || tr("User {0}", u.id)) + (u.role ? "  (" + roleOf(u.role) + ")" : ""))}</option>
             ))}
           </select>
         )}
       </div>
 
       {loadingDetail ? (
-        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>Loading permissions...</div>
+        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("Loading permissions...")}</div>
       ) : detail ? (
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>{detail.name}</div>
-              <div style={{ fontSize: 11, color: t.textMut }}>Role: {role}. Default follows this role until you override it.</div>
+              <div style={{ fontSize: 11, color: t.textMut }}>{tr("Role: {0}. Default follows this role until you override it.", roleOf(role))}</div>
             </div>
-            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? "Saving..." : "Save changes"}</button>
+            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? tr("Saving...") : tr("Save changes")}</button>
           </div>
 
           {groups.map((g) => (
             <div key={g.name} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{g.name}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{tr(g.name)}</div>
               {g.items.map((c) => {
                 const st = stateOf(c);
                 const eff = effOf(c);
@@ -7506,17 +7567,17 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
                 return (
                   <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid " + t.borderSolid, flexWrap: "wrap", gap: 8 }}>
                     <div style={{ flex: "1 1 240px" }}>
-                      <span style={{ fontSize: 13, color: t.text }}>{c.label}</span>
-                      {c.enforced ? tag("Enforced", GR) : tag("Rolling out", OR)}
-                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Currently: {eff ? "Allowed" : "Blocked"}{st === "default" ? " (role default)" : st === "locked" ? " (admins always allowed)" : " (override)"}</div>
+                      <span style={{ fontSize: 13, color: t.text }}>{capabilityName(c)}</span>
+                      {c.enforced ? tag(tr("Enforced"), GR) : tag(tr("Rolling out"), OR)}
+                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{currentlyLine(eff, st)}</div>
                     </div>
                     {locked ? (
-                      <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>Locked on</div>
+                      <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("Locked on")}</div>
                     ) : (
                       <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>Default</button>
-                        <button onClick={() => setAllow(c.key)} style={segBtn(st === "allow", GR)}>Allow</button>
-                        <button onClick={() => setDeny(c.key)} style={segBtn(st === "deny", RD)}>Deny</button>
+                        <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>{tr("Default|permission")}</button>
+                        <button onClick={() => setAllow(c.key)} style={segBtn(st === "allow", GR)}>{tr("Allow")}</button>
+                        <button onClick={() => setDeny(c.key)} style={segBtn(st === "deny", RD)}>{tr("Deny")}</button>
                       </div>
                     )}
                   </div>
@@ -7524,16 +7585,16 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
               })}
             </div>
           ))}
-          <div style={{ fontSize: 10, color: t.textMut, marginTop: 8 }}>Enforced capabilities take effect immediately. Rolling out capabilities are saved against the person now and begin enforcing as each area is wired.</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginTop: 8 }}>{tr("Enforced capabilities take effect immediately. Rolling out capabilities are saved against the person now and begin enforcing as each area is wired.")}</div>
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No team member selected.</div>
+        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No team member selected.")}</div>
       )}
     </div>
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false, lkMap }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
   // Every tab here is an admin tab but one: the manage permissions capability opens Roles and
@@ -7661,11 +7722,11 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           {[{ id: "editor", label: tr("By person") }, { id: "matrix", label: tr("Role reference") }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
         </div>
-        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
+        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} lkMap={lkMap} />}
         {permView === "matrix" && <PermissionsMatrixPanel t={t} />}
       </div>}
 
-      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
+      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "global" && isAdmin && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}

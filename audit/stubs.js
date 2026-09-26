@@ -258,13 +258,28 @@ function createStubs() {
   // hand: 7 notices, 5 unread (n-1, n-2, n-3, n-5, n-7).
   const UNREAD_COUNT = 5;
 
+  // What GET /api/users/:id/permissions sends as capabilities: the API's own list, middleware/
+  // capabilities.js, code for code and name for name, and one code the dashboard does not know, so a
+  // screen can be seen to draw the name the API sends for it.
   const CAPABILITIES = [
-    { key: "manage_permissions", label: "Manage per-person permissions", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
-    { key: "manage_company_settings", label: "Company settings and branding", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
-    { key: "manage_staff", label: "Staff accounts and approvals", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
-    { key: "decide_time_off", label: "Decide time off requests", group: "Time", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
-    { key: "manage_schedule", label: "Schedule and shift pickups", group: "Time", enforced: false, defaults: { admin: true, supervisor: true, staff: false } },
-    { key: "run_reports", label: "Reports and report builder", group: "Reporting", enforced: false, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_permissions", label: "Manage roles and permissions", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_settings", label: "Company settings and branding", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_lookups", label: "Dropdown and site lookups", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_staff", label: "Staff accounts and approvals", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_sites", label: "Site records and floor plans", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_integrations", label: "Integrations and forms", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_tasks", label: "Tasks and assignments", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_inspections", label: "Inspection templates and scheduling", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_time", label: "Manual time entry and shift edits", group: "Operations", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_schedule", label: "Create, edit and delete scheduled shifts", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "approve_time_off", label: "Approve and deny time off", group: "Operations", enforced: true, defaults: { admin: false, supervisor: false, staff: false } },
+    { key: "manage_supplies", label: "Supply catalog", group: "Supplies", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_vendors", label: "Vendors and services", group: "Supplies", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "view_reports", label: "Reports, labor, and scheduling", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "read_incident_reports", label: "Read filed incident reports", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "export_payroll", label: "ADP payroll export", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_admins", label: "Change admin accounts (role, status, PIN)", group: "Administration", enforced: true, defaults: { admin: false, supervisor: false, staff: false } },
+    { key: "audit_unknown_capability", label: "A capability the dashboard has no name for", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
   ];
 
   const REPORT_DEFS = [
@@ -628,17 +643,27 @@ function createStubs() {
     return (AGENT_CONVERSATIONS[id] || []).concat(agentTalk[id] || []);
   }
 
+  // What GET /api/notification-recipients sends as types: the API's own list, helpers/notify.js,
+  // type for type and name for name.
   const NOTIFICATION_TYPES = [
-    { type: "time_off", label: "Time off requests", keyed: false, allowOutsideEmail: true },
-    { type: "issue", label: "Issues", keyed: false, allowOutsideEmail: true },
-    { type: "form", label: "Reports filed from the app", keyed: true, allowOutsideEmail: true },
-    { type: "hr_case", label: "Speak Up", keyed: false, allowOutsideEmail: false },
-    { type: "hr_case_fallback", label: "Speak Up fallback", keyed: false, allowOutsideEmail: false },
+    { type: "issue", label: "A problem is reported", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "issue_escalated", label: "A worker cannot resolve an assigned problem", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "supply_request", label: "A supply request is made", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "form", label: "A form is submitted", keyed: true, allowOutsideEmail: true, emailCarriesDetail: false },
+    { type: "shift_drop", label: "Someone asks to drop a shift", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "shift_claim", label: "Someone picks up an open shift", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "registration", label: "Someone registers for an account", keyed: false, allowOutsideEmail: true, emailCarriesDetail: false },
+    { type: "time_off", label: "Someone requests time off", keyed: false, allowOutsideEmail: true, emailCarriesDetail: false },
+    { type: "hr_case", label: "A Speak Up report is filed", keyed: false, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "hr_case_fallback", label: "Nobody else can read a Speak Up report", keyed: false, allowOutsideEmail: false, emailCarriesDetail: false },
   ];
-  // Both forms start on the link to the app, which is what the API does.
+  // And its forms: every form the API defines, by code, with the English title the route always
+  // sends. Each starts on the link to the app, which is what the API does.
   const NOTIFICATION_FORMS = [
+    { code: "OCSA-FRM-005", title: "Daily Service Log", delivery: "app_link" },
     { code: "OCSA-FRM-016", title: "Safety Incident Report", delivery: "app_link" },
-    { code: "OCSA-FRM-021", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
+    { code: "OCSA-FRM-017", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
+    { code: "OCSA-FRM-019", title: "PPE Compliance Log, monthly check", delivery: "app_link" },
   ];
   const NOTIFICATION_RECIPIENTS = [
     { id: "nr-1", subjectType: "time_off", subjectKey: "", isActive: true, viaEmail: true, viaInApp: true, user: { id: seed.STAFF[0].id, name: seed.STAFF[0].name, role: seed.STAFF[0].role } },

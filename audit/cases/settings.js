@@ -12,8 +12,42 @@
 // changes, and on a screen in another language the words that language draws it with, the
 // displayLabel the API sent, on the line under it. A pass reads every value of the first list.
 //
+// The API sends a capability's name, a kind of report's name and a form's title in English only. The
+// page draws each by its code, as the table's word for the English the dashboard knows the code by,
+// and a code it does not know as the API names it; the stub sends one such capability. A pass reads
+// every capability and group on Roles and Permissions for one person, and every kind of report and
+// form on Who gets told, and holds each to that word. A role, in the person picker, in the line under
+// the person's name, and beside a name on Who gets told, is the staff_roles list's shown label or the
+// table's word for it. Roles and Permissions and Who gets told save the codes they always saved.
+//
 // The company, its lists and every value typed here are invented.
 "use strict";
+const fs = require("fs");
+const path = require("path");
+
+const APP = path.resolve(__dirname, "..", "..", "src", "App.js");
+
+// A table the app keeps by code, one entry to a line, read out of src/App.js so the two cannot drift.
+function codeTable(name) {
+  const text = fs.readFileSync(APP, "utf8");
+  const at = text.indexOf("const " + name + " = {");
+  if (at < 0) return {};
+  const block = text.slice(at, text.indexOf("};", at));
+  const out = {};
+  const re = /^\s*"?([\w-]+)"?: "([^"]+)",?$/gm;
+  let m;
+  while ((m = re.exec(block))) out[m[1]] = m[2];
+  return out;
+}
+// The same for RL, which the app keeps on one line.
+function lineTable(name) {
+  const line = fs.readFileSync(APP, "utf8").split("\n").find((l) => l.indexOf("const " + name + " = {") === 0) || "";
+  const out = {};
+  const re = /(\w+): "([^"]+)"/g;
+  let m;
+  while ((m = re.exec(line))) out[m[1]] = m[2];
+  return out;
+}
 
 // Chooses the option a select under a label shows as word, in the open window or on the page.
 // Playwright's own selectOption is used, since React reverts a value set by hand on its next render.
@@ -34,12 +68,12 @@ async function pickShown(d, label, word) {
   return true;
 }
 
-// Presses the button reading word in the row of a list that holds text, the first such row.
+// Presses the button reading word in the smallest row of the page that holds text on its own.
 async function pressInRow(d, text, word) {
   const hit = await d.page.evaluate(([txt, w]) => {
     const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
     const rows = Array.from(box.querySelectorAll("div")).filter((el) => el.children.length > 1
-      && Array.from(el.querySelectorAll("div")).some((x) => x.children.length === 0 && x.textContent.trim() === txt)
+      && Array.from(el.querySelectorAll("*")).some((x) => x.children.length === 0 && x.textContent.trim() === txt)
       && Array.from(el.querySelectorAll("button")).some((b) => b.textContent.trim() === w));
     if (!rows.length) return false;
     rows.sort((a, b) => a.querySelectorAll("*").length - b.querySelectorAll("*").length);
@@ -222,8 +256,150 @@ async function run({ d, results, seed, stubs, lang }) {
     label: "Atrium", value: "atrium", lookup_type: "zone",
   });
 
+  // ---- Roles and Permissions: a capability, a group and a role are words
+  const CAPS = codeTable("CAPABILITY_LABELS");
+  const TYPES = codeTable("NOTICE_TYPE_LABELS");
+  const FORMS = codeTable("FORM_TITLE_LABELS");
+  const RL = lineTable("RL");
+  const lastJson = (re) => { const c = stubs.calls.filter((x) => x.method === "GET" && re.test(x.path) && x.json).pop(); return c ? c.json : null; };
+  const roleList = () => (((lastJson(/^\/api\/lookups\/all$/) || []).find((x) => x.slug === "staff_roles") || {}).values || []);
+  const roleWordFor = (code) => {
+    const v = roleList().find((x) => x.value === code);
+    return v ? (v.displayLabel || v.label) : (RL[code] ? d.say(RL[code]) : code);
+  };
+  const person = seed.STAFF[4];
+  const openPerson = async () => {
+    await openTab("Roles and Permissions");
+    await d.pickPerson(person.name);
+    await d.settle(500);
+  };
   stubs.reset();
-  results.note("Settings in " + lang + ": " + values.length + " list values read, and " + saves.length + " saves held to their bodies");
+  await openPerson();
+  const detail = lastJson(/^\/api\/users\/[^/]+\/permissions$/);
+  const caps = (detail && detail.capabilities) || [];
+  let lines = await d.readable();
+  const capWrong = [];
+  caps.forEach((c) => {
+    const known = !!CAPS[c.key];
+    const want = known ? d.say(CAPS[c.key]) : c.label;
+    if (lines.indexOf(want) < 0) capWrong.push(c.key + " is not drawn as " + JSON.stringify(want));
+    else if (known && lang !== "en" && want === c.label) capWrong.push(c.key + " has no word in this language, so it reads as the API's " + JSON.stringify(c.label));
+    else if (known && lang !== "en" && lines.indexOf(c.label) >= 0) capWrong.push(c.key + " is also drawn as the API's " + JSON.stringify(c.label));
+  });
+  const groups = Array.from(new Set(caps.map((c) => c.group)));
+  groups.forEach((g) => { if (lines.indexOf(d.say(g)) < 0) capWrong.push("the group " + JSON.stringify(g) + " is not drawn as " + JSON.stringify(d.say(g))); });
+  const unknown = caps.filter((c) => !CAPS[c.key]).length;
+  results.check("page", "page/settings/capabilities-are-words/" + lang, caps.length > 0 && unknown > 0 && capWrong.length === 0,
+    caps.length === 0 ? "Roles and Permissions was served no capability" : unknown === 0 ? "the stub sent no capability the dashboard does not know"
+      : capWrong.length ? capWrong.length + " of " + (caps.length + groups.length) + ": " + capWrong.slice(0, 3).join("; ")
+        : (caps.length - unknown) + " capabilities drawn by their code, " + unknown + " as the API names it, and " + groups.length + " groups");
+
+  // The person picker, and the line under the person's name, name a role as a word.
+  const staffList = (lastJson(/^\/api\/users$/) || []);
+  const people = Array.isArray(staffList) ? staffList : (staffList.users || []);
+  const roleWrong = [];
+  people.filter((u) => u.role).forEach((u) => {
+    const name = ((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim();
+    const want = name + "  (" + roleWordFor(u.role) + ")";
+    if (lines.indexOf(want.replace(/\s+/g, " ")) < 0) roleWrong.push("the picker does not offer " + JSON.stringify(want));
+  });
+  const roleLine = d.say("Role: {0}. Default follows this role until you override it.").replace("{0}", roleWordFor(person.role));
+  if (lines.indexOf(roleLine) < 0) roleWrong.push("the line under the name does not read " + JSON.stringify(roleLine));
+
+  // A capability allowed for this person, and saved.
+  mark = d.mark();
+  const allowed = await pressInRow(d, d.say(CAPS.manage_tasks), d.say("Allow"));
+  if (allowed) await d.clickText(d.say("Save changes"), { exact: true });
+  await d.settle(400);
+  hold("permissions", allowed ? sentSince(d, mark, "PUT", new RegExp("^/api/users/" + person.id + "/permissions$")) : null, {
+    permissions: { manage_tasks: true },
+  });
+
+  // ---- Who gets told: a kind of report, a form and a role are words, and what it saves
+  stubs.reset();
+  await openTab("Who gets told");
+  const told = lastJson(/^\/api\/notification-recipients$/) || {};
+  lines = await d.readable();
+  const typeWrong = [];
+  (told.types || []).forEach((ty) => {
+    const want = TYPES[ty.type] ? d.say(TYPES[ty.type]) : ty.label;
+    if (lines.indexOf(want) < 0) typeWrong.push(ty.type + " is not drawn as " + JSON.stringify(want));
+    else if (lang !== "en" && TYPES[ty.type] && want === ty.label) typeWrong.push(ty.type + " has no word in this language");
+  });
+  (told.forms || []).forEach((f) => {
+    const want = (FORMS[f.code] ? d.say(FORMS[f.code]) : f.title) + " (" + f.code + ")";
+    if (lines.indexOf(want) < 0) typeWrong.push(f.code + " is not drawn as " + JSON.stringify(want));
+    else if (lang !== "en" && FORMS[f.code] && d.say(FORMS[f.code]) === f.title) typeWrong.push(f.code + " has no title in this language");
+  });
+  results.check("page", "page/settings/notice-types-are-words/" + lang,
+    (told.types || []).length > 0 && (told.forms || []).length > 0 && typeWrong.length === 0,
+    !(told.types || []).length ? "Who gets told was served no kind of report" : typeWrong.length
+      ? typeWrong.length + ": " + typeWrong.slice(0, 3).join("; ")
+      : (told.types || []).length + " kinds of report and " + (told.forms || []).length + " forms drawn by their codes");
+
+  (told.recipients || []).filter((r) => r.isActive && r.user && r.user.role).forEach((r) => {
+    const want = r.user.name + " (" + roleWordFor(r.user.role) + ")";
+    if (lines.indexOf(want) < 0) roleWrong.push("Who gets told does not name " + JSON.stringify(want));
+  });
+  results.check("page", "page/settings/roles-are-words/" + lang, roleWrong.length === 0 && people.length > 0,
+    people.length === 0 ? "the person picker was served nobody" : roleWrong.slice(0, 3).join("; "));
+
+  // The first kind of report: a person added, chosen by the name and role word the list shows, then
+  // an outside address, then the second person already told has email turned on, then is removed.
+  const kind = (told.types || [])[0] || { type: "issue", label: "" };
+  const firstName = TYPES[kind.type] ? d.say(TYPES[kind.type]) : kind.label;
+  const newcomer = seed.STAFF[4];
+  mark = d.mark();
+  const picker = d.page.locator('select[aria-label="' + d.say("Add a person to {0}").replace("{0}", firstName) + '"]').first();
+  let chosen = false;
+  if ((await picker.count()) > 0) {
+    try { await picker.selectOption({ label: newcomer.name + " (" + roleWordFor(newcomer.role) + ")" }); chosen = true; } catch (e) { chosen = false; }
+  }
+  if (chosen) {
+    await d.settle(200);
+    await picker.locator("xpath=../following-sibling::button[1]").click().catch(() => {});
+  }
+  await d.settle(500);
+  hold("add-person", chosen ? sentSince(d, mark, "POST", /^\/api\/notification-recipients$/) : null, { subjectType: kind.type, userId: newcomer.id });
+
+  mark = d.mark();
+  const box = d.page.locator('input[aria-label="' + d.say("Add an email address to {0}").replace("{0}", firstName) + '"]').first();
+  const typedEmail = (await box.count()) > 0;
+  if (typedEmail) {
+    await box.fill("audit.notice@example.invalid");
+    await box.locator("xpath=../following-sibling::button[1]").click().catch(() => {});
+  }
+  await d.settle(500);
+  hold("add-address", typedEmail ? sentSince(d, mark, "POST", /^\/api\/notification-recipients$/) : null, { subjectType: kind.type, email: "audit.notice@example.invalid" });
+
+  const held = (told.recipients || []).find((r) => r.isActive && r.user && r.subjectType === kind.type && !r.viaEmail);
+  const heldName = held ? held.user.name + " (" + roleWordFor(held.user.role) + ")" : "";
+  mark = d.mark();
+  const toggled = held ? await pressInRow(d, heldName, d.say("Email")) : false;
+  hold("email-on", toggled ? sentSince(d, mark, "PATCH", /^\/api\/notification-recipients\/[^/]+$/) : null, { viaEmail: true });
+
+  // The first form's email carries the report as a PDF.
+  mark = d.mark();
+  await d.clickText(d.say("Attach the filled report as a PDF"), { exact: true });
+  await d.settle(400);
+  const firstForm = (told.forms || [])[0] || { code: "" };
+  hold("delivery", sentSince(d, mark, "PATCH", new RegExp("^/api/notification-recipients/forms/" + firstForm.code + "$")), { delivery: "pdf" });
+
+  // The person told about the first kind of report, removed after the table's question.
+  mark = d.mark();
+  const removing = held ? await pressInRow(d, heldName, d.say("Remove")) : false;
+  const asking = removing ? (await d.bodyText()).indexOf(d.say("Stop telling {0} about this?").replace("{0}", heldName)) >= 0 : false;
+  if (asking) await d.page.locator('button[aria-label="' + d.say("Remove {0}").replace("{0}", heldName) + '"]').first().click().catch(() => {});
+  await d.settle(500);
+  const removed = held ? sentSince(d, mark, "DELETE", new RegExp("^/api/notification-recipients/" + held.id + "$")) : null;
+  results.check("page", "page/settings/saves/remove-person/" + lang, asking && !!removed,
+    !held ? "nobody was told about the first kind of report" : !asking ? "the page did not ask " + JSON.stringify(d.say("Stop telling {0} about this?").replace("{0}", heldName))
+      : removed ? "" : "no DELETE was sent");
+  saves.push("remove-person");
+
+  stubs.reset();
+  results.note("Settings in " + lang + ": " + values.length + " list values, " + caps.length + " capabilities and " + (told.types || []).length
+    + " kinds of report read, and " + saves.length + " saves held to their bodies");
 }
 
 module.exports = { run };
