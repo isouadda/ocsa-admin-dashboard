@@ -99,7 +99,12 @@ lookup the page was served gives the code. On Shift Pickup it reads the role of 
 shift and the role under each name on the Staff Reliability tab, which the stub answers the way the
 API does, and holds each to the `staff_roles` list's shown label; then it reads both again with a
 role left off the list the page is served, which `setListGap` does, and holds that role to the
-table's word for it.
+table's word for it. It reads every shift's status, reason and service on the same list: the status
+is the table's word for the code, the reason the `shift_origins` list's shown label, and the service
+the `service_categories` list's shown label for what the shift saved, a code from Schedule or a
+label from Shift Pickup. The stub carries both lists since Step 143, with Spanish. It then opens
+Post Open Shift and Schedule Shift and holds their Reason and Service Category lists to the shown
+labels, each sending what it has always sent.
 
 **A role on Staff Management is a word, a save sends what it always sent, and what a person typed
 into a case is drawn as typed.** The `staff-cases`

@@ -5092,8 +5092,22 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
   </div>);
 }
 
+// A shift's service as a word. Schedule saves the service_categories list's code and Shift Pickup its
+// English label, so a saved value is looked up both ways and drawn as the list's shown label. A
+// value the list does not hold is drawn as it was saved.
+const serviceWordOf = (lkMap) => {
+  const byCode = lkMap("service_categories");
+  const shown = lkMap("service_categories", true);
+  const byLabel = {};
+  Object.keys(byCode).forEach((code) => { byLabel[byCode[code]] = shown[code] || byCode[code]; });
+  return (v) => (v == null || v === "" ? v : (shown[v] || byLabel[v] || v));
+};
+
 function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
-  const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories")];
+  // The service list shows each choice's shown label and sends its code, the way it always has, and a
+  // shift's saved service is drawn by its shown word.
+  const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories", undefined, true)];
+  const serviceWord = serviceWordOf(lkMap);
   const [view, setView] = useState("week");
   const [dateRange, setDateRange] = useState(() => PRESETS.thisWeek());
   const [filterSite, setFilterSite] = useState("");
@@ -5380,7 +5394,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " " + tr("F{0}", s.floor_number) : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
-            {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{s.service_category}</div>}
+            {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{serviceWord(s.service_category)}</div>}
             {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>{tr("Repeats")}</div>}
           </div>))}
           {startedHere.map(p => (<div key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
@@ -5554,7 +5568,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
           <div style={{ fontSize: 11, fontWeight: 600, color: OR, marginBottom: 8 }}>{tr("Convert to Open Pickup")}</div>
           <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>{tr("The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-            <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
+            <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins", undefined, true)} /></div>
             <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder={tr("e.g. Marcus called out")} /></div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
@@ -5683,8 +5697,16 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const [patternData, setPatternData] = useState(null);
   const [reliabilityData, setReliabilityData] = useState(null);
   const [analyticsTab, setAnalyticsTab] = useState("overview");
-  const svcOpts = getOpts("service_categories");
-  const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
+  // The service list here saves the choice's English label, where Schedule's saves the code, and that
+  // stays as it is. Each choice shows the list's shown label and sends the English label, and a
+  // shift's saved service is drawn by its shown word whichever of the two it was saved as.
+  const svcLabelByCode = lkMap("service_categories");
+  const svcShownByCode = lkMap("service_categories", true);
+  const svcCodes = getOpts("service_categories").map(o => o.v);
+  const SVCATS = svcCodes.length > 0
+    ? svcCodes.map(c => ({ v: svcLabelByCode[c], l: svcShownByCode[c] || svcLabelByCode[c] }))
+    : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"].map(s => ({ v: s, l: s }));
+  const serviceWord = serviceWordOf(lkMap);
   // A person's role as a word, the way Staff Management and Sites draw one: the staff_roles list's
   // shown label, or the table's word for a role the list does not hold. The code stays the code.
   const roleShown = lkMap("staff_roles", true);
@@ -5695,7 +5717,9 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
   const statusColor = { open: GO, claimed: BL, approved: GR, filled: GR, expired: "#7A8A9A", cancelled: "#7A8A9A", requested: "#F1C40F" };
   const lkOriginColors = lkColorMap("shift_origins");
-  const lkOriginLabels = lkMap("shift_origins");
+  const lkOriginLabels = lkMap("shift_origins", true);
+  // A shift's status as the table's word for it. The code stays the code on the wire.
+  const statusWord = { open: tr("Open|shift"), claimed: tr("Claimed|shift"), approved: tr("Approved|shift"), filled: tr("Filled|shift"), expired: tr("Expired|shift"), cancelled: tr("Cancelled|shift"), requested: tr("Drop Request") };
   const originColor = Object.keys(lkOriginColors).length > 0 ? lkOriginColors : { callout: RD, no_show: RD, extra_coverage: OR, voluntary_drop: BL, new_shift: GO };
   const originLabel = Object.keys(lkOriginLabels).length > 0 ? lkOriginLabels : { callout: tr("Callout"), no_show: tr("No-Show"), extra_coverage: tr("Extra Coverage"), voluntary_drop: tr("Voluntary Drop"), new_shift: tr("New Shift") };
   const urgencyBg = { urgent: t.redSubtle, normal: "transparent" };
@@ -5849,7 +5873,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         <Sel t={t} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
       </div>
       <div style={{ flex: "0 0 160px" }}>
-        <Sel t={t} value={originFilter} onChange={e => setOriginFilter(e.target.value)} options={[{ v: "", l: tr("All Reasons") }, ...getOpts("shift_origins")]} />
+        <Sel t={t} value={originFilter} onChange={e => setOriginFilter(e.target.value)} options={[{ v: "", l: tr("All Reasons") }, ...getOpts("shift_origins", undefined, true)]} />
       </div>
       <div style={{ flex: 1 }} />
       <button onClick={openConvertModal} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid " + RD, background: RD + "12", color: RD, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
@@ -5901,8 +5925,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           const cur = Math.min(pkPage, totalPages);
           const items = searched.slice((cur - 1) * pkPerPage, cur * pkPerPage);
           const columns = [
-            { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
-            { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? tr("Drop Request") : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
+            { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{serviceWord(s.service_category)}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
+            { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={statusWord[s.status] || s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
             { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
             { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
@@ -6220,8 +6244,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-        <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={createForm.service_category} onChange={e => setCreateForm({ ...createForm, service_category: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
-        <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={createForm.origin} onChange={e => setCreateForm({ ...createForm, origin: e.target.value })} options={getOpts("shift_origins")} /></div>
+        <div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={createForm.service_category} onChange={e => setCreateForm({ ...createForm, service_category: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...SVCATS]} /></div>
+        <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={createForm.origin} onChange={e => setCreateForm({ ...createForm, origin: e.target.value })} options={getOpts("shift_origins", undefined, true)} /></div>
         <div><Lbl>{tr("Urgency")}</Lbl><Sel t={t} value={createForm.urgency} onChange={e => setCreateForm({ ...createForm, urgency: e.target.value })} options={[{ v: "normal", l: tr("Normal") }, { v: "urgent", l: tr("Urgent") }]} /></div>
       </div>
 
@@ -6276,7 +6300,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
       {!shiftDetail.editing ? (<>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
           <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{shiftDetail.site_name}</div></div>
-          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: goldToText(t, statusColor[shiftDetail.status] || GO) }}>{shiftDetail.status === "requested" ? tr("Drop Requested") : (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1)}</div></div>
+          <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: goldToText(t, statusColor[shiftDetail.status] || GO) }}>{shiftDetail.status === "requested" ? tr("Drop Requested") : (statusWord[shiftDetail.status] || (shiftDetail.status || "").charAt(0).toUpperCase() + (shiftDetail.status || "").slice(1))}</div></div>
           <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{fmtDt(shiftDetail.scheduled_date)}</div></div>
           <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Time")}</div><div style={{ fontSize: 13, color: t.text }}>{tr("{0} to {1}", fmtTm(shiftDetail.start_time), fmtTm(shiftDetail.end_time))}</div></div>
           <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{originLabel[shiftDetail.origin] || shiftDetail.origin}</div></div>
@@ -6328,7 +6352,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           <div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={shiftDetail.editFloor} onChange={e => setShiftDetail({ ...shiftDetail, editFloor: e.target.value })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>{tr("Service")}</Lbl><Sel t={t} value={shiftDetail.editService} onChange={e => setShiftDetail({ ...shiftDetail, editService: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...SVCATS.map(s => ({ v: s, l: s }))]} /></div>
+          <div><Lbl>{tr("Service")}</Lbl><Sel t={t} value={shiftDetail.editService} onChange={e => setShiftDetail({ ...shiftDetail, editService: e.target.value })} options={[{ v: "", l: tr("Select...") }, ...SVCATS]} /></div>
           <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={shiftDetail.editOrigin} onChange={e => setShiftDetail({ ...shiftDetail, editOrigin: e.target.value })} options={[{ v: "callout", l: tr("Callout") }, { v: "no_show", l: tr("No-Show") }, { v: "extra_coverage", l: tr("Extra Coverage") }, { v: "voluntary_drop", l: tr("Voluntary Drop") }, { v: "new_shift", l: tr("New Shift") }]} /></div>
           <div><Lbl>{tr("Urgency")}</Lbl><Sel t={t} value={shiftDetail.editUrgency} onChange={e => setShiftDetail({ ...shiftDetail, editUrgency: e.target.value })} options={[{ v: "normal", l: tr("Normal") }, { v: "urgent", l: tr("Urgent") }]} /></div>
         </div>
@@ -7376,7 +7400,7 @@ const PERMISSION_NOTES = [
   "Supervisors are scoped to their assigned sites for site-level actions.",
   "Some delete actions within Inspections and Sites are reserved to Admin.",
   "Staff covers custodial and porter roles, and client contacts, who use the staff portal. This shows their access to platform data.",
-  "This view reflects the access model in effect today. It is a reference, not an editor.",
+  "Use this as a reference. Change what one person may do under By person.",
 ];
 
 function PermissionsMatrixPanel({ t }) {

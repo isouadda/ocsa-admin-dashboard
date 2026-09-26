@@ -155,40 +155,40 @@ const WINDOWS = [
 
   { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4819] },
   { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [5003] },
-  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5476] },
-  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5535] },
-  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5577] },
-  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5593] },
-  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5609] },
+  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5490] },
+  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5549] },
+  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5591] },
+  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5607] },
+  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5623] },
 
-  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [6206] },
-  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [6237] },
-  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [6269] },
+  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [6230] },
+  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [6261] },
+  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [6293] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6770, 7106] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7098] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7117] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6794, 7130] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7122] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7141] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7843] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7852] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7860] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7874] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7888] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7899] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7867] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7876] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7884] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7898] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7912] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7923] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8294] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9784] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9837] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9952] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9989] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8318] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9808] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9861] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9976] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10013] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10587] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10611] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11097] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11119] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11153] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11369] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11121] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11143] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11177] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11393] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -398,6 +398,10 @@ const HR_ROLES = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/marketplace/roles-are-words/assigned/" + lang, what: "the Assigned column on Shift Pickup draws the role of whoever claimed a shift as the staff_roles list's shown label" },
   { id: "page/marketplace/roles-are-words/reliability/" + lang, what: "the Staff Reliability tab draws each person's role as the staff_roles list's shown label" },
   { id: "page/marketplace/roles-are-words/not-in-list/" + lang, what: "a role the staff_roles list does not hold is drawn on both as the table's word for it, never as its code" },
+  { id: "page/marketplace/status-is-a-word/" + lang, what: "each shift's status badge on Shift Pickup is the table's word for its code" },
+  { id: "page/marketplace/reasons-are-words/" + lang, what: "each shift's reason badge on Shift Pickup is the shift_origins list's shown label for its code" },
+  { id: "page/marketplace/service-is-a-word/" + lang, what: "each shift's service on Shift Pickup is the service_categories list's shown label for what the shift saved" },
+  { id: "page/marketplace/pick-lists-show-their-words/" + lang, what: "Post Open Shift's Reason and Service Category lists and Schedule Shift's Service Category list show the shown labels and carry what they have always sent" },
 ]), []);
 // The questions Schedule and Shift Pickup ask before they change something, and the word a custom
 // date range puts between its dates, are the table's words, in English and in Spanish.

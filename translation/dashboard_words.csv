@@ -189,7 +189,7 @@ Cancel this date,Cancelar esta fecha,Schedule
 Cancel this inspection?,¿Cancelar esta inspección?,"Schedule, an inspection's window; Inspections, an inspection"
 Cancel this open shift? It will no longer be available for pickup.,¿Cancelar este turno abierto? Ya nadie podrá tomarlo.,"Shift Pickup, canceling an open shift"
 Cancel this shift? The pattern will not add it again.,¿Cancelar este turno? El patrón no lo volverá a agregar.,"Schedule, canceling a date of a pattern's shift"
-Cancelled,Cancelado,"Schedule; Schedule, Time off"
+Cancelled,Cancelado,"Schedule; Schedule, Time off; Shift Pickup, a shift's status"
 Cancelled by the person who asked,Cancelada por quien la solicitó,"Schedule, a time off request"
 Capability,Permiso,"Settings, Roles and Permissions, the role reference; Settings, the role reference, printed"
 Case,Caso,"Cases, a case's window, its title"
@@ -223,7 +223,7 @@ Chemical Usage,Uso de químicos,"Reports, Quick snapshots, a CSV export"
 Choose a person,Elija a una persona,"Cases, a case's window, Hand to"
 "Choose who hears about each kind of report. People get an email and a notice in the app. Outside addresses get email only. When nobody is set, every admin gets a notice in the app.","Elija quién recibe avisos de cada tipo de informe. Las personas reciben un correo y un aviso en la aplicación. Las direcciones externas reciben solo el correo. Si no hay nadie, cada administrador recibe un aviso en la aplicación.","Settings, Who gets told"
 City,Ciudad,"Sites, adding or editing a site; Vendors, adding or editing a vendor; Staff Management, the Profile tab"
-Claimed,Tomado,Schedule; Shift Pickup
+Claimed,Tomado,"Schedule; Shift Pickup; Shift Pickup, a shift's status"
 Claimed By,Tomado por,Schedule; Shift Pickup
 Claimed Pickup Shift,Turno disponible tomado,Schedule
 Claims,Turnos tomados,Shift Pickup
@@ -381,7 +381,7 @@ Done,Listo,Schedule
 Download CSV files for audits and clients.,Descargue archivos CSV para auditorías y clientes.,"Reports, Quick snapshots"
 Downloaded,Descargado,"Reports, Quick snapshots, after a CSV export"
 Drop Req,Sol. de baja,Schedule
-Drop Request,Solicitud de baja,Shift Pickup
+Drop Request,Solicitud de baja,"Shift Pickup; Shift Pickup, a shift's status"
 Drop Requested,Baja solicitada,Shift Pickup
 Drop Requests,Solicitudes de baja,Shift Pickup
 Drop approved,Baja aprobada,Shift Pickup
@@ -872,7 +872,7 @@ Onboarding incomplete,Incorporación incompleta,"HR Records, Employees, a filter
 Onboarding initialized,Incorporación iniciada,"HR Records, Onboarding"
 Onboarding {0}/{1},Incorporación {0}/{1},"HR Records, Employees, a card"
 One-Off Assigned,Asignada una sola vez,"Sites, adding or editing a task, Task Type"
-Open,Abierto,Schedule; Shift Pickup
+Open,Abierto,"Schedule; Shift Pickup; Shift Pickup, a shift's status"
 Open Issues,Incidencias abiertas,"Dashboard; Sites, a site's profile"
 Open Marketplace Shift,Turno abierto en el tablero,Schedule
 Open Now,Abiertos ahora,Shift Pickup
@@ -1371,7 +1371,6 @@ This report's data source arrives with the report templates workstream. It will 
 This shift is open in the marketplace and available for staff to claim.,Este turno está abierto en el tablero y cualquier persona elegible puede tomarlo.,Schedule
 This shift runs past midnight. Pick the day it starts.,Este turno pasa de la medianoche. Elija el día en que comienza.,"Schedule, adding a shift, the note about an overnight shift"
 "This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.",Esta fuente llegará con las plantillas de informes. Puede guardar el informe ahora y se ejecutará cuando su fuente de datos esté disponible.,"Reports, adding or editing a report whose source is not live yet"
-"This view reflects the access model in effect today. It is a reference, not an editor.",Esta vista muestra el modelo de acceso vigente hoy y sirve solo de referencia.,"Settings, Roles and Permissions, the role reference"
 "This will permanently remove {0} and all associated tasks, assignments, and data. This action cannot be undone.","Esto eliminará de forma permanente {0} y todas sus tareas, asignaciones y datos. Esta acción no se puede deshacer.","Sites, deleting a site"
 Thu,Jue,Schedule; Shift Pickup
 Thursday,Jueves,"Settings, the Company tab, the day a pay period starts"
@@ -1443,6 +1442,7 @@ Urgency,Urgencia,Shift Pickup
 Urgent,Urgente,Shift Pickup
 Usage events,Registros de uso,"Reports, the supply report and its printed page"
 Use company branding on export,Usar la marca de la empresa al exportar,"Reports, adding or editing a report"
+Use this as a reference. Change what one person may do under By person.,Úselo como referencia. Lo que una persona puede hacer se cambia en Por persona.,"Settings, Roles and Permissions, the role reference"
 "Used by Speak Up. People only, never outside addresses. Nothing uses this until the Speak Up update.","Lo usa Confianza. Solo personas, nunca direcciones externas. Nada lo usa hasta la actualización de Confianza.","Settings, Who gets told"
 User {0},Usuario {0},"Settings, Roles and Permissions, by person, a person with no name"
 Valid,Vigente,"HR Records, a record not yet expired"
@@ -1636,7 +1636,7 @@ All,Todos,"Cases, the list, the tab that agrees with casos"
 All Areas,Todas las áreas,"Inspections, a line item's zone"
 All staff,Todo el personal,"Settings, Roles and Permissions, the role reference, a level of access"
 Approved,Aprobada,"Schedule, Time off, a solicitud that was approved"
-Approved,Aprobado,"Shift Pickup, a turno that was approved"
+Approved,Aprobado,"Shift Pickup, a turno that was approved; Shift Pickup, a shift's status"
 Approved,Aprobado,"Vendors, adding or editing a vendor, Approval Status, which agrees with proveedor"
 Approved,Aprobados,"Vendors, the list, the filter that agrees with proveedores"
 Assigned,Asignada,"Issue Tracker, the issue window, an incidencia given to somebody"
@@ -1665,7 +1665,9 @@ Ended,Terminado,"Schedule, Patterns, a patron that has stopped"
 Escalated,Escalado,"Cases, a case's status"
 Expired,Vencidos,"HR Records, Employees, the filter for expired records"
 Expired,Vencido,"HR Records, a record past its expiry date"
+Expired,Vencido,"Shift Pickup, a shift's status"
 Exterior,Exterior,"Inspections, a line item's zone"
+Filled,Cubierto,"Shift Pickup, a shift's status"
 General,General,"Inspections, a line item's zone"
 In review,En revisión,"Cases, a case's status"
 Inactive,Inactivos,"Sites, the list, the filter that agrees with sitios"

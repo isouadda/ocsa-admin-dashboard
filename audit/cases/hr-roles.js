@@ -230,6 +230,70 @@ async function run({ d, results, seed, stubs, lang }) {
   stubs.reset();
   await freshLists();
   results.note("Shift Pickup in " + lang + ": " + read.assigned.length + " claimed shifts and " + read.reliability.length + " people on Staff Reliability read for their roles");
+
+  // ---- Shift Pickup: a shift's reason, status and service are words, and the pick lists show them
+  // The reason is the shift_origins list's shown label for the code the API sent; the status is the
+  // table's word for the code; the service is the service_categories list's shown label for what the
+  // shift saved, whether that was the list's code or its English label. Each pick list that offers a
+  // reason or a service shows the shown labels and carries what it has always sent: the reason's
+  // code, Schedule's service code, and Shift Pickup's service label.
+  const STATUS_WORD = { open: "Open|shift", claimed: "Claimed|shift", approved: "Approved|shift", filled: "Filled|shift", expired: "Expired|shift", cancelled: "Cancelled|shift", requested: "Drop Request" };
+  const listOf = (slug) => (((served(/^\/api\/lookups(\/all)?$/) || []).find((c) => c.slug === slug) || {}).values || [])
+    .filter((v) => v.is_active).sort((a, b) => a.sort_order - b.sort_order);
+  const serviceWordFor = (saved) => { const v = listOf("service_categories").find((x) => x.value === saved || x.label === saved); return v ? (v.displayLabel || v.label) : saved; };
+  const originWords = shownOf("shift_origins");
+  await d.goto("marketplace");
+  await d.clickText(d.say("All|shifts"), { exact: true }).catch(() => false);
+  await d.settle(400);
+  const bldg = d.say("Bldg: {0}").split("{0}")[0], floor = d.say("Floor: {0}").split("{0}")[0];
+  const drawnRows = await d.page.evaluate(({ shiftHead, statusHead, bldg: b0, floor: f0 }) => {
+    const table = Array.from(document.querySelectorAll("table")).find((t) => t.offsetParent !== null
+      && Array.from(t.querySelectorAll("thead th")).some((th) => th.textContent.trim() === statusHead));
+    if (!table) return [];
+    const heads = Array.from(table.querySelectorAll("thead th")).map((th) => th.textContent.trim());
+    const si = heads.indexOf(shiftHead), st = heads.indexOf(statusHead);
+    return Array.from(table.querySelectorAll("tbody tr")).map((tr) => {
+      const tds = tr.querySelectorAll("td");
+      const spans = Array.from(tds[si].querySelectorAll("span")).map((x) => x.textContent.trim()).filter((x) => x.indexOf(b0) !== 0 && x.indexOf(f0) !== 0);
+      return { service: spans[0] || "", badges: Array.from(tds[st].querySelectorAll("span")).map((x) => x.textContent.trim()) };
+    });
+  }, { shiftHead: d.say("Shift"), statusHead: d.say("Status"), bldg, floor });
+  // The whole list, which the page reads without a status beside its two narrower reads.
+  const servedShifts = (stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/pickups" && Array.isArray(c.json) && String(c.query).indexOf("status=") < 0).pop() || {}).json || [];
+  const tripleOf = (r) => JSON.stringify([r.status, r.origin, r.service]);
+  const wantTriples = servedShifts.map((p) => tripleOf({ status: d.say(STATUS_WORD[p.status] || p.status), origin: originWords[p.origin] || p.origin, service: p.service_category ? serviceWordFor(p.service_category) : "" })).sort();
+  const gotTriples = drawnRows.map((r) => tripleOf({ status: r.badges[0] || "", origin: r.badges[1] || "", service: r.service })).sort();
+  const same = JSON.stringify(wantTriples) === JSON.stringify(gotTriples);
+  const off = (i) => drawnRows.map((r) => [r.badges[0] || "", r.badges[1] || "", r.service][i]).sort().join(" | ") + " where the words are "
+    + servedShifts.map((p) => [d.say(STATUS_WORD[p.status] || p.status), originWords[p.origin] || p.origin, p.service_category ? serviceWordFor(p.service_category) : ""][i]).sort().join(" | ");
+  const statusOk = same || JSON.stringify(drawnRows.map((r) => r.badges[0] || "").sort()) === JSON.stringify(servedShifts.map((p) => d.say(STATUS_WORD[p.status] || p.status)).sort());
+  const reasonOk = same || JSON.stringify(drawnRows.map((r) => r.badges[1] || "").sort()) === JSON.stringify(servedShifts.map((p) => originWords[p.origin] || p.origin).sort());
+  const serviceOk = same || JSON.stringify(drawnRows.map((r) => r.service).sort()) === JSON.stringify(servedShifts.map((p) => p.service_category ? serviceWordFor(p.service_category) : "").sort());
+  const noRows = servedShifts.length === 0 || drawnRows.length !== servedShifts.length;
+  const rowsWhy = "Shift Pickup draws " + drawnRows.length + " rows for " + servedShifts.length + " shifts served";
+  results.check("page", "page/marketplace/status-is-a-word/" + lang, !noRows && statusOk, noRows ? rowsWhy : "the statuses read " + off(0));
+  results.check("page", "page/marketplace/reasons-are-words/" + lang, !noRows && reasonOk && Object.keys(originWords).length > 0,
+    noRows ? rowsWhy : Object.keys(originWords).length === 0 ? "the page was served no shift_origins list" : "the reasons read " + off(1));
+  results.check("page", "page/marketplace/service-is-a-word/" + lang, !noRows && serviceOk && listOf("service_categories").length > 0,
+    noRows ? rowsWhy : listOf("service_categories").length === 0 ? "the page was served no service_categories list" : "the services read " + off(2));
+
+  // The pick lists: what each offers, as value=label pairs, against the list the page was served.
+  const optionsOf = async () => d.modal().locator("select").evaluateAll((els) => els.map((s0) => Array.from(s0.options).filter((o) => o.value).map((o) => o.value + "=" + (o.textContent || "").trim())));
+  const wantOrigins = listOf("shift_origins").map((v) => v.value + "=" + (v.displayLabel || v.label));
+  const wantServiceByLabel = listOf("service_categories").map((v) => v.label + "=" + (v.displayLabel || v.label));
+  const wantServiceByCode = listOf("service_categories").map((v) => v.value + "=" + (v.displayLabel || v.label));
+  const hasList = (lists, want) => lists.some((l) => JSON.stringify(l) === JSON.stringify(want));
+  let postLists = [];
+  if (await d.clickText(d.say("Post Open Shift"), { exact: false }).catch(() => false)) { postLists = await optionsOf(); await d.closeModal(); }
+  await d.goto("schedule");
+  let scheduleLists = [];
+  if (await d.clickText(d.say("Schedule Shift"), { exact: false }).catch(() => false)) { scheduleLists = await optionsOf(); await d.closeModal(); }
+  const listsOk = wantOrigins.length > 0 && hasList(postLists, wantOrigins) && hasList(postLists, wantServiceByLabel) && hasList(scheduleLists, wantServiceByCode);
+  results.check("page", "page/marketplace/pick-lists-show-their-words/" + lang, listsOk,
+    !hasList(postLists, wantOrigins) ? "Post Open Shift's Reason list should offer " + JSON.stringify(wantOrigins) + "; its lists offer " + JSON.stringify(postLists).slice(0, 400)
+      : !hasList(postLists, wantServiceByLabel) ? "Post Open Shift's Service Category list should offer " + JSON.stringify(wantServiceByLabel) + " and send the label; its lists offer " + JSON.stringify(postLists).slice(0, 400)
+        : "Schedule Shift's Service Category list should offer " + JSON.stringify(wantServiceByCode) + " and send the code; its lists offer " + JSON.stringify(scheduleLists).slice(0, 400));
+  results.note("Shift Pickup in " + lang + ": " + drawnRows.length + " shifts read for their status, reason and service, and 3 pick lists read for their words");
 }
 
 module.exports = { run };

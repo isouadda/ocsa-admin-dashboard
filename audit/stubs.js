@@ -163,6 +163,21 @@ function createStubs() {
       { id: "lv-43", value: "day_porter", label: "Day Porter", is_active: true, sort_order: 5 },
       { id: "lv-44", value: "contractor", label: "Contractor", is_active: true, sort_order: 6 },
     ] },
+    // The two lists Shift Pickup and Schedule read that the stub never carried: a shift's reason, by
+    // the codes the API files a shift with, and the services. Their English labels are the words the
+    // page fell back to without them, so an English screen reads as it did.
+    { id: "lk-16", slug: "shift_origins", name: "Shift reasons", values: [
+      { id: "lv-45", value: "callout", label: "Callout", is_active: true, sort_order: 1 },
+      { id: "lv-46", value: "no_show", label: "No-Show", is_active: true, sort_order: 2 },
+      { id: "lv-47", value: "extra_coverage", label: "Extra Coverage", is_active: true, sort_order: 3 },
+      { id: "lv-48", value: "voluntary_drop", label: "Voluntary Drop", is_active: true, sort_order: 4 },
+      { id: "lv-49", value: "new_shift", label: "New Shift", is_active: true, sort_order: 5 },
+    ] },
+    { id: "lk-17", slug: "service_categories", name: "Service types", values: [
+      { id: "lv-50", value: "office_cleaning", label: "Office Cleaning", is_active: true, sort_order: 1 },
+      { id: "lv-51", value: "disinfection", label: "Disinfection Services", is_active: true, sort_order: 2 },
+      { id: "lv-52", value: "post_construction", label: "Post-Construction", is_active: true, sort_order: 3 },
+    ] },
   ];
 
   const SUPPLIES = [
@@ -199,9 +214,9 @@ function createStubs() {
   ];
 
   const PICKUPS = [
-    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
+    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "Office Cleaning", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
     { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", claimed_by_role: "custodial_lead", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
-    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
+    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "voluntary_drop", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
     { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", claimed_by_role: "day_porter", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
   ];
   // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1. The two claimed carry the role of
@@ -778,6 +793,9 @@ function createStubs() {
     "Lead": "L\u00edder", "Porter": "Conserje", "Night": "Noche", "Day": "D\u00eda", "Certification": "Certificaci\u00f3n", "License": "Licencia",
     "Admin": "Administrador", "Supervisor": "Supervisor", "Custodial Lead": "L\u00edder de limpieza", "Custodial Laborer": "Auxiliar de limpieza",
     "Day Porter": "Conserje de d\u00eda", "Contractor": "Contratista",
+    "Callout": "Ausencia", "No-Show": "No se present\u00f3", "Extra Coverage": "Cobertura adicional", "Voluntary Drop": "Baja voluntaria",
+    "New Shift": "Turno nuevo", "Office Cleaning": "Limpieza de oficinas", "Disinfection Services": "Servicios de desinfecci\u00f3n",
+    "Post-Construction": "Posconstrucci\u00f3n",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
