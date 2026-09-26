@@ -2982,6 +2982,7 @@ const NOTICE_TYPE_LABELS = {
 };
 const FORM_TITLE_LABELS = {
   "OCSA-FRM-005": "Daily Service Log",
+  "OCSA-FRM-009": "Customer Complaint Log",
   "OCSA-FRM-016": "Safety Incident Report",
   "OCSA-FRM-017": "Biohazard Incident and Exposure Report",
   "OCSA-FRM-019": "PPE Compliance Log, monthly check",

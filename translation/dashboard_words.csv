@@ -369,6 +369,7 @@ Currently: Blocked (role default),Ahora: Bloqueado (predeterminado del rol),"Set
 Custodial Laborer,Auxiliar de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role; Staff Management, the list"
 Custodial Lead,Líder de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role; Staff Management, the list"
 Custom,Personalizado,"The shell, the date range; Reports, the library, a custom report's badge"
+Customer Complaint Log,Registro de quejas de clientes,"Settings, Who gets told, a form's title"
 DELETE,ELIMINAR,"Sites, deleting a site, the word a person types"
 DROP REQ,SOL. DE BAJA,Schedule
 Daily,Diario,"Reports, a trend's bucket"

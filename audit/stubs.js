@@ -705,6 +705,7 @@ function createStubs() {
   // sends. Each starts on the link to the app, which is what the API does.
   const NOTIFICATION_FORMS = [
     { code: "OCSA-FRM-005", title: "Daily Service Log", delivery: "app_link" },
+    { code: "OCSA-FRM-009", title: "Customer Complaint Log", delivery: "app_link" },
     { code: "OCSA-FRM-016", title: "Safety Incident Report", delivery: "app_link" },
     { code: "OCSA-FRM-017", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
     { code: "OCSA-FRM-019", title: "PPE Compliance Log, monthly check", delivery: "app_link" },

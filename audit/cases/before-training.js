@@ -6,8 +6,9 @@
 // suite has the stub serve one session on one day and two on another, and reads the month. The
 // Issues page draws one line when the API answers no issue at all, and no such line when it answers
 // rows. Live Ops' Refresh draws the circular arrow the Dashboard's Refresh draws, read off each
-// button's own path, and never the plus. The words are written out here by hand, so a wrong entry in
-// the table is red and not merely followed.
+// button's own path, and never the plus. Settings, Who gets told, names the complaint log by its
+// title in the screen's language beside its code. The words are written out here by hand, so a wrong
+// entry in the table is red and not merely followed.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -20,6 +21,7 @@ const STARTED = {
   es: { one: "1 iniciado", two: "2 iniciados" },
 };
 const NO_ISSUES = { en: "No problems reported yet.", es: "Todav\u00eda no se ha reportado ning\u00fan problema." };
+const COMPLAINT_LOG = { en: "Customer Complaint Log", es: "Registro de quejas de clientes" };
 
 // The path of an icon the app draws, read out of src/App.js.
 function iconPath(name) {
@@ -99,7 +101,21 @@ async function run({ d, results, seed, stubs, lang }) {
           : opsPath !== dashboardPath ? "Live Ops' Refresh draws RfI and the Dashboard's Refresh draws " + JSON.stringify(dashboardPath)
             : "Live Ops' Refresh draws the same circular arrow as the Dashboard's Refresh");
 
-  results.note("Before training in " + lang + ": the month's started count at one and two, the Issues page with no rows and with " + seed.ISSUES.length + ", and Live Ops' Refresh icon");
+  // ---- Settings, Who gets told: the complaint log by its title in the screen's language, beside its code
+  await d.goto("settings");
+  await d.settle(400);
+  await d.clickText(d.say("Who gets told"), { exact: true });
+  await d.settle(400);
+  const told = await d.readable();
+  const title = (COMPLAINT_LOG[lang] || COMPLAINT_LOG.en) + " (OCSA-FRM-009)";
+  const english = COMPLAINT_LOG.en + " (OCSA-FRM-009)";
+  const named = told.indexOf(title) >= 0;
+  const inEnglish = title !== english && told.indexOf(english) >= 0;
+  results.check("page", "page/settings/complaint-log-title/" + lang, named && !inEnglish,
+    inEnglish ? "Who gets told names the complaint log in English, " + JSON.stringify(english) + ", where it should say " + JSON.stringify(title)
+      : !named ? "Who gets told does not name " + JSON.stringify(title) : "Who gets told names " + JSON.stringify(title));
+
+  results.note("Before training in " + lang + ": the month's started count at one and two, the Issues page with no rows and with " + seed.ISSUES.length + ", Live Ops' Refresh icon and the complaint log's title");
 }
 
 module.exports = { run };

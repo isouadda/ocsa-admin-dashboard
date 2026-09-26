@@ -388,6 +388,7 @@ export const WORDS = {
   "Custodial Laborer": { es: "Auxiliar de limpieza" },
   "Custodial Lead": { es: "L\u00edder de limpieza" },
   "Custom": { es: "Personalizado" },
+  "Customer Complaint Log": { es: "Registro de quejas de clientes" },
   "DELETE": { es: "ELIMINAR" },
   "DROP REQ": { es: "SOL. DE BAJA" },
   "Daily": { es: "Diario" },
