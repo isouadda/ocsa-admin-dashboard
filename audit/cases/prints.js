@@ -81,6 +81,14 @@ const PRINTS = [
     open: (d) => exportReport(d, "Supply usage and cost") },
   { id: "reports/inspection-quality", what: "the inspection report",
     open: (d) => exportReport(d, "Inspection scores and quality") },
+  // Settings' one: the role reference, printed from its view on Roles and Permissions.
+  { id: "settings/role-reference", what: "the role reference",
+    open: async (d) => {
+      await d.goto("settings");
+      await tab(d, "Roles and Permissions");
+      await tab(d, "Role reference");
+      return d.clickText(d.say("Export PDF"), { exact: true });
+    } },
 ];
 
 async function run({ d, results, lang, stubs }) {

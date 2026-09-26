@@ -59,12 +59,14 @@ const VIEWS = [
   { id: "inspections/completed", page: "inspections", click: "Completed", word: "Completed|inspections", expect: "Inspection" },
   { id: "inspections/reports", page: "inspections", click: "Reports", expect: "score" },
 
-  { id: "settings/company", page: "settings", click: "Company", expect: "Save Company Settings" },
-  { id: "settings/global", page: "settings", click: "Dropdown Options", expect: "categor" },
-  { id: "settings/site", page: "settings", click: "Site Lookups", expect: "site" },
+  // Four of Settings' tabs are an admin's. The person holding only the manage permissions capability
+  // opens Roles and Permissions and nothing else, so a pass as that person reads the other two views.
+  { id: "settings/company", page: "settings", click: "Company", expect: "Save Company Settings", adminOnly: true },
+  { id: "settings/global", page: "settings", click: "Dropdown Options", expect: "categor", adminOnly: true },
+  { id: "settings/site", page: "settings", click: "Site Lookups", expect: "site", adminOnly: true },
   { id: "settings/permissions", page: "settings", click: "Roles and Permissions", expect: "Per-person permissions" },
   { id: "settings/permissions-matrix", page: "settings", click: ["Roles and Permissions", "Role reference"], expect: "Access each role has in the platform today" },
-  { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told" },
+  { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told", adminOnly: true },
 
   { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report" },
   { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Sync All Submissions" },
@@ -415,6 +417,10 @@ const PRINTS = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/prints/reports/issue-timing/" + lang, what: "the issue report, printed" },
   { id: "page/prints/reports/supply-usage/" + lang, what: "the supply report, printed" },
   { id: "page/prints/reports/inspection-quality/" + lang, what: "the inspection report, printed" },
+  { id: "page/prints/staff/record/" + lang, what: "a record from a person's timeline, printed" },
+  { id: "page/prints/staff/timeline/" + lang, what: "a person's timeline, printed" },
+  { id: "page/prints/staff/profile-report/" + lang, what: "a person's profile report, printed" },
+  { id: "page/prints/settings/role-reference/" + lang, what: "the role reference, printed" },
 ]), []);
 // Each report's screen and its charts, read as each person Reports opens for, and each save the report
 // editor makes, which sends the same body in either language.

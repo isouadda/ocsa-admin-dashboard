@@ -54,6 +54,8 @@ export const WORDS = {
   "ADP payroll export": { es: "Exportaci\u00f3n de n\u00f3mina a ADP" },
   "Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.": { es: "El acceso que cada rol tiene hoy en la plataforma, por \u00e1rea. Administrar significa acceso completo, incluidos crear, editar y eliminar. Ver significa acceso de lectura. Las dem\u00e1s etiquetas describen un acceso acotado o limitado. Esta es una referencia y no cambia el acceso." },
   "Access log": { es: "Registro de accesos" },
+  "Access reference": { es: "Referencia de acceso" },
+  "Access reference, generated {0}": { es: "Referencia de acceso, generada el {0}" },
   "Action": { es: "Acci\u00f3n" },
   "Actions": { es: "Acciones" },
   "Activate": { es: "Activar" },

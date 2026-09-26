@@ -7375,20 +7375,20 @@ function PermissionsMatrixPanel({ t }) {
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     let body = "";
     PERMISSION_GROUPS.forEach(g => {
-      body += '<h2>' + esc(g.group) + '</h2><table><thead><tr><th>Capability</th><th>Admin</th><th>Supervisor</th><th>Staff</th></tr></thead><tbody>';
-      g.rows.forEach(r => { body += '<tr><td>' + esc(r.cap) + '</td><td>' + esc(r.a) + '</td><td>' + esc(r.s) + '</td><td>' + esc(r.st) + '</td></tr>'; });
+      body += '<h2>' + esc(tr(g.group)) + '</h2><table><thead><tr><th>' + esc(tr("Capability")) + '</th>' + ACCESS_TIERS.map(x => '<th>' + esc(tr(x.label)) + '</th>').join("") + '</tr></thead><tbody>';
+      g.rows.forEach(r => { body += '<tr><td>' + esc(tr(r.cap)) + '</td>' + ACCESS_TIERS.map(x => '<td>' + esc(tr(r[x.key] + "|access")) + '</td>').join("") + '</tr>'; });
       body += '</tbody></table>';
     });
     let notes = '<ul class="notes">';
-    PERMISSION_NOTES.forEach(n => { notes += '<li>' + esc(n) + '</li>'; });
+    PERMISSION_NOTES.forEach(n => { notes += '<li>' + esc(tr(n)) + '</li>'; });
     notes += '</ul>';
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.notes{font-size:10px;color:#555;margin-top:16px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Roles and Permissions</title>' + style + '</head><body>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Roles and Permissions")) + '</title>' + style + '</head><body>'
       + '<div class="brand"><div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Roles and Permissions</h1>'
-      + '<p class="meta">Access reference, generated ' + esc(gen) + '</p>'
+      + '<h1>' + esc(tr("Roles and Permissions")) + '</h1>'
+      + '<p class="meta">' + esc(tr("Access reference, generated {0}", gen)) + '</p>'
       + body + notes
-      + '<div class="footer">' + esc(cName) + ' &middot; Access reference</div>'
+      + '<div class="footer">' + esc(cName) + ' &middot; ' + esc(tr("Access reference")) + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
     if (!w) return;
