@@ -120,22 +120,37 @@ async function run({ d, results, seed, stubs, lang }) {
   const people = listCall ? listCall.json : [];
   const byPhone = {};
   people.forEach((p) => { byPhone[p.phone] = p; });
-  // Each row's cells: the name, the phone, the status, the role, the employment type and the sites.
+  // Each row's cells: the name, the badge, the phone, the status, the role, the employment type and
+  // the sites.
   const rows = await d.page.evaluate(() => Array.from(document.querySelectorAll("table tbody tr"))
     .map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => String(td.textContent || "").replace(/\s+/g, " ").trim()))
-    .filter((cells) => cells.length >= 6));
+    .filter((cells) => cells.length >= 7));
   const wrong = [];
+  const badgeWrong = [];
   rows.forEach((cells) => {
-    const p = byPhone[cells[1]];
+    const p = byPhone[cells[2]];
     if (!p) { wrong.push("a row whose phone is nobody's on the list"); return; }
+    // The badge as GET /api/users sent it, and an empty cell for a person with none.
+    if (cells[1] !== (p.badgeNumber || "")) badgeWrong.push(p.name + " has badge " + JSON.stringify(cells[1]) + " where the list sent " + JSON.stringify(p.badgeNumber || ""));
     const want = [stateWordFor(p.status), roleWordFor(p.role), employmentWordFor(p.employmentType)];
-    const got = [cells[2], cells[3], cells[4]];
+    const got = [cells[3], cells[4], cells[5]];
     ["status", "role", "employment type"].forEach((what, i) => {
       if (got[i] !== want[i]) wrong.push("a " + what + " drawn as " + JSON.stringify(got[i]) + " where the word is " + JSON.stringify(want[i]));
     });
   });
   results.check("page", "page/staff/codes-are-words/list/" + lang, rows.length > 0 && wrong.length === 0,
     rows.length === 0 ? "the list drew no rows" : wrong.length + " of " + (rows.length * 3) + " cells: " + wrong.slice(0, 3).join("; "));
+  // The column's heading, written out here by hand in each language, after the name.
+  const BADGE = { en: "Badge", es: "Credencial" };
+  // Chromium's innerText applies the heading's text-transform, so the heading is compared without case.
+  const headers = ((await d.tableAt(0)) || { headers: [] }).headers;
+  const badgeAt = headers.map((h) => h.toLowerCase()).indexOf((BADGE[lang] || BADGE.en).toLowerCase());
+  const withBadge = people.filter((p) => p.badgeNumber).length;
+  results.check("page", "page/staff/badge-on-list/" + lang, rows.length > 0 && badgeAt === 1 && badgeWrong.length === 0 && withBadge > 0,
+    rows.length === 0 ? "the list drew no rows"
+      : badgeAt !== 1 ? "the column after the name is headed " + JSON.stringify(headers[1]) + " where " + JSON.stringify(BADGE[lang] || BADGE.en) + " belongs, the headers read " + headers.join(" | ")
+        : badgeWrong.length ? badgeWrong.length + " of " + rows.length + " rows: " + badgeWrong.slice(0, 3).join("; ")
+          : rows.length + " rows carry the badge the list sent, " + withBadge + " of the " + people.length + " people served have one");
 
   // The first person's banner: the role, the employment type in brackets, and the status.
   await d.clickRow(0);
@@ -154,6 +169,20 @@ async function run({ d, results, seed, stubs, lang }) {
     !banner ? "the first person's profile did not open or drew no banner"
       : "the banner says " + JSON.stringify(banner.subtitle) + " and " + JSON.stringify(banner.badge) + " where the words are "
         + JSON.stringify(wantSubtitle) + " and " + JSON.stringify(wantBadge));
+  // The badge number on the profile window's Contact Information card, under its own label, as the
+  // profile route sent it.
+  const badgeCall = stubs.calls.filter((c) => c.method === "GET" && /^\/api\/users\/profile\/[^/]+$/.test(c.path) && c.json && c.json.user).pop();
+  const servedBadge = badgeCall ? (badgeCall.json.user.badgeNumber || "") : "";
+  const BADGE_NUMBER = { en: "Badge number", es: "N\u00famero de credencial" };
+  const badgeLine = await d.page.evaluate((label) => {
+    const box = document.querySelector("div[style*='z-index: 500']") || document.body;
+    const cell = Array.from(box.querySelectorAll("div")).find((el) => el.firstChild && el.firstChild.nodeType === 3 && el.firstChild.textContent.trim() === label && el.children.length === 1);
+    return cell ? cell.children[0].textContent.trim() : null;
+  }, BADGE_NUMBER[lang] || BADGE_NUMBER.en);
+  results.check("page", "page/staff/badge-on-profile/" + lang, !!badgeCall && servedBadge !== "" && badgeLine === servedBadge,
+    !badgeCall ? "the profile was not read" : servedBadge === "" ? "the profile served no badge, so nothing can be held"
+      : badgeLine === null ? "the profile window has no line labelled " + JSON.stringify(BADGE_NUMBER[lang] || BADGE_NUMBER.en)
+        : "the profile window says the badge is " + JSON.stringify(badgeLine) + " where the profile sent " + JSON.stringify(servedBadge));
 
   // ---- the onboarding steps on the first person's HR Files tab
   await d.clickText(d.say("HR Files"), { exact: true });

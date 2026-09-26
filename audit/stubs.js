@@ -51,6 +51,7 @@ function createStubs() {
   const EMPLOYMENT = ["full_time", "full_time", "part_time", "supplemental", null];
   const staffRows = () => clone(seed.STAFF).map((p, i) => Object.assign(p, {
     employeeId: p.employee_id,
+    badgeNumber: p.badge_number, badgeSource: p.badge_number ? "adp" : null,
     employmentType: EMPLOYMENT[i % EMPLOYMENT.length],
     hourlyRate: i >= 4 ? (17 + i) + ".50" : null,
     sites: [{ siteId: p.site_id, siteName: p.site_name }],
@@ -868,6 +869,7 @@ function createStubs() {
     return {
       user: Object.assign({}, u, {
         firstName: u.first_name, lastName: u.last_name, employeeId: u.employee_id,
+        badgeNumber: u.badge_number, badgeSource: u.badge_number ? "adp" : null,
         hireDate: u.hire_date, preferredLanguage: u.preferred_language,
         photoUrl: null, pinSetAt: seed.shift(-100) + "T12:00:00Z",
         emergencyContactName: "T. Almeida", emergencyContactPhone: "2155559100",

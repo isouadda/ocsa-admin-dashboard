@@ -220,6 +220,8 @@ export const WORDS = {
   "Backfill complete.": { es: "Relleno terminado." },
   "Backfill failed: {0}": { es: "El relleno fall\u00f3: {0}" },
   "Backfilling...": { es: "Rellenando..." },
+  "Badge": { es: "Credencial" },
+  "Badge number": { es: "N\u00famero de credencial" },
   "Based on {0}": { es: "Seg\u00fan {0}" },
   "Benefits / Payroll": { es: "Beneficios / N\u00f3mina" },
   "Bi-Weekly": { es: "Quincenal" },

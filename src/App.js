@@ -1257,6 +1257,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Employee ID")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13, fontFamily: "monospace" }}>{u.employeeId || tr("Not set")}</div></div>
+              <div style={{ fontSize: 11, color: t.textMut }}>{tr("Badge number")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13, fontFamily: "monospace" }}>{u.badgeNumber || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.phone || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.email || tr("Not set")}</div></div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Hire Date")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 }}>{u.hireDate ? fmtDate(u.hireDate) : tr("Not set")}</div></div>
@@ -1527,6 +1528,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
         { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{s.email}</div>}</div></div> },
+        // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
+        // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
+        { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
         { header: tr("Phone"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
         { header: tr("Status"), render: s => <Bdg l={stateOf(s.status)} c={statusColor(s.status)} /> },
         { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
@@ -10064,7 +10068,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 // inside HRRecordsPage when the "employees" tab is active.
 // =====================================================
 
-function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
+function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
+  // A role as a word, the way Staff Management draws it: the staff_roles list's shown label, or the
+  // table's word for a role the list does not hold. The code is what is filtered on and sent.
+  const roleOf = useCallback((r) => lkMap("staff_roles", true)[r] || roleWord(r), [lkMap]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -10106,9 +10113,9 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
     const set = new Set();
     employees.forEach(e => { if (e.role) set.add(e.role); });
     const opts = [{ v: "all", l: tr("All roles") }];
-    Array.from(set).sort().forEach(r => opts.push({ v: r, l: roleWord(r) }));
+    Array.from(set).sort().forEach(r => opts.push({ v: r, l: roleOf(r) }));
     return opts;
-  }, [employees]);
+  }, [employees, roleOf]);
 
   const filtered = useMemo(() => {
     let arr = employees.slice();
@@ -10118,7 +10125,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
         const name = (e.first_name + " " + e.last_name).toLowerCase();
         const email = (e.email || "").toLowerCase();
         // The role's code and its word, so a person finds a role by what the card says.
-        const role = ((e.role || "") + " " + (e.role ? roleWord(e.role) : "")).toLowerCase();
+        const role = ((e.role || "") + " " + (e.role ? roleOf(e.role) : "")).toLowerCase();
         return name.includes(q) || email.includes(q) || role.includes(q);
       });
     }
@@ -10148,7 +10155,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
       }
     });
     return arr;
-  }, [employees, search, sortBy, roleFilter, filterExpiring, filterExpired, filterOnbIncomplete]);
+  }, [employees, search, sortBy, roleFilter, filterExpiring, filterExpired, filterOnbIncomplete, roleOf]);
 
   const sortOpts = [
     { v: "last_name_asc", l: tr("Last Name A-Z") },
@@ -10222,7 +10229,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleWord(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStateOf(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
+                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStateOf(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
                     {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: t.goldText, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
                   </div>
                 </div>
@@ -10259,6 +10266,8 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee }) {
 
 function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
   const [data, setData] = useState(null);
+  // The role under the person's name, the same way the grid and Staff Management draw it.
+  const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
   const [pdfBusy, setPdfBusy] = useState(null);
@@ -10395,7 +10404,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
           : <Ini name={fullName} sz={84} />}
         name={fullName + (e.is_test_account ? " (" + tr("TEST") + ")" : "")}
         idCode={e.employee_id}
-        subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleWord(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
+        subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
         badges={e.status ? <Bdg l={personStateOf(e.status)} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
         actions={<Btn t={t} onClick={() => onAddDocument(userId)}>{tr("+ Add Document")}</Btn>}
       />
@@ -10869,6 +10878,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           af={af}
           showToast={showToast}
           t={t}
+          lkMap={lkMap}
           onSelectEmployee={(emp) => {
             setFolderUserId(emp.id);
             setSelUser(emp.id); // keep the legacy dropdown synced for when user switches to old tabs

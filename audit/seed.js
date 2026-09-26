@@ -87,6 +87,9 @@ const STAFF = STAFF_FIRST.map((first, i) => ({
   phone: "21555502" + String(i + 10),
   email: first.toLowerCase() + "." + STAFF_LAST[i].toLowerCase() + "@example.invalid",
   employee_id: "EMP-" + String(1001 + i),
+  // The badge number the slips, the portal sign-in and the ADP tablet run on: 3 to 6 digits, as the
+  // API keeps it. The inactive person has none, so the empty cell is drawn once.
+  badge_number: i === 11 ? null : String(4100 + i * 3),
   hire_date: shift(-400 + i * 11),
   preferred_language: i % 3 === 0 ? "es" : "en",
   site_id: SITES[i % 3].id,
