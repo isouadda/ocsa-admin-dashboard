@@ -1491,7 +1491,24 @@ function createStubs() {
     }
     if (path.startsWith("/api/jotform/pdf-access-log")) return ok({ entries: PDF_ACCESS_LOG, total: PDF_ACCESS_LOG.length });
     if (path === "/api/jotform/config") return ok({ api_key_set: true, base_url: "https://api.jotform.example.invalid", auto_link: true, locale: "en" });
-    if (path.startsWith("/api/jotform/diagnostic") || path.startsWith("/api/jotform/sync-diagnostic")) {
+    // GET /api/jotform/sync-diagnostic the way routes/jotform.js answers its summary: each enabled
+    // form with what Jotform holds, what we hold and the difference, and the totals over them.
+    // hand: 2 forms, neither with a gap, 13 submissions on both sides, 0 unresolved failures.
+    if (path.startsWith("/api/jotform/sync-diagnostic")) {
+      const forms = JOTFORM_FORMS.map((f) => ({
+        form_id: f.id, jotform_form_id: f.form_id, title: f.title, category: "uncategorized", is_enabled: true,
+        submissions_last_synced_at: f.last_submission_at, last_submission_at: f.last_submission_at,
+        jotform_count: f.submission_count, our_count: f.submission_count, delta: 0,
+        has_gap: false, has_overshoot: false, not_in_jotform: false, unresolved_failure_count: 0,
+      }));
+      return ok({ mode: "summary", generated_at: seed.NOW_ISO, forms, summary: {
+        total_forms: forms.length, forms_with_gap: 0,
+        total_jotform_submissions: forms.reduce((n, f) => n + f.jotform_count, 0),
+        total_our_submissions: forms.reduce((n, f) => n + f.our_count, 0),
+        total_unresolved_failures: 0,
+      } });
+    }
+    if (path.startsWith("/api/jotform/diagnostic")) {
       return ok({ forms: JOTFORM_FORMS.map((f) => ({ form_id: f.form_id, title: f.title, cached: f.submission_count, upstream: f.submission_count, missing: 0 })), checkedAt: seed.NOW_ISO });
     }
     if (path.startsWith("/api/jotform/sync-log")) return ok([{ id: "sl-1", ran_at: seed.shift(0) + "T19:00:00Z", kind: "submissions", result: "ok", detail: "2 submissions" }]);

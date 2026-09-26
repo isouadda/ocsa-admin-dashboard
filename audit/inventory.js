@@ -68,12 +68,13 @@ const VIEWS = [
   { id: "settings/permissions-matrix", page: "settings", click: ["Roles and Permissions", "Role reference"], expect: "Access each role has in the platform today" },
   { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told", adminOnly: true },
 
-  { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report" },
-  { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Sync All Submissions" },
-  { id: "forms/pdf_access", page: "forms", click: "PDF Access Log", expect: "access" },
-  { id: "forms/settings", page: "forms", click: "Settings", expect: "Jotform" },
-  { id: "forms/sync_diagnostic", page: "forms", click: "Sync Diagnostic", expect: "Diagnostic" },
-  { id: "forms/aliases", page: "forms", click: "Aliases", expect: "Alias" },
+  // The six Jotform tabs are an admin's; a supervisor the filed list lets in sees Filed forms alone.
+  { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report", adminOnly: true },
+  { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Sync All Submissions", adminOnly: true },
+  { id: "forms/pdf_access", page: "forms", click: "PDF Access Log", expect: "access", adminOnly: true },
+  { id: "forms/settings", page: "forms", click: "Settings", expect: "Jotform", adminOnly: true },
+  { id: "forms/sync_diagnostic", page: "forms", click: "Sync Diagnostic", expect: "Diagnostic", adminOnly: true },
+  { id: "forms/aliases", page: "forms", click: "Aliases", expect: "Alias", adminOnly: true },
   { id: "forms/incident_reports", page: "forms", click: "Filed forms", expect: "report" },
 
   { id: "hr/employees", page: "hr", click: "Employees", expect: "Employees" },
@@ -178,17 +179,17 @@ const WINDOWS = [
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7923] },
 
   { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8318] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9808] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9861] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9976] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10013] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9823] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9876] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9991] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10028] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10611] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10626] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11121] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11143] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11177] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11393] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11136] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11158] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11192] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11408] },
 ];
 
 // ---------------------------------------------------------------------------
