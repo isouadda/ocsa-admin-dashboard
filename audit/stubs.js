@@ -67,6 +67,7 @@ function createStubs() {
     formDelivery: {},
     lookupValues: null,
     notifications: null,
+    settings: null,
   };
 
   const person = () => seed.PEOPLE[signedInAs];
@@ -732,8 +733,17 @@ function createStubs() {
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
   }));
-  const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, {
-    values: withChoiceWords(c.values, lang).filter((v) => !(listGap && listGap.slug === c.slug && listGap.value === v.value)),
+  // GET /api/lookups/all the way the API answers it: each list with its label, its description,
+  // whether it is one of the system's own, its place and whether it is on, then its values. Every
+  // list is the system's own but contract types, which an admin added, and document categories are
+  // off. Neither changes what a pick list offers, since a page reads a list's values whatever the
+  // list's own state.
+  const LIST_DESCRIPTIONS = { issue_severities: "How soon a reported problem needs attention." };
+  const lookupsIn = (lang) => LOOKUPS.map((c, i) => ({
+    id: c.id, slug: c.slug, label: c.name, description: LIST_DESCRIPTIONS[c.slug] || null,
+    is_system: c.slug !== "contract_types", sort_order: i + 1, is_active: c.slug !== "document_categories",
+    values: withChoiceWords(c.values, lang).filter((v) => !(listGap && listGap.slug === c.slug && listGap.value === v.value))
+      .map((v) => Object.assign({ category_id: c.id, color: null, show_other_input: false, metadata: null }, v, { show_other_input: !!v.show_other_input })),
   }));
 
   // A site's checklist the way Step 124's API holds it. Every item has a shift, how often it comes
@@ -879,8 +889,12 @@ function createStubs() {
     if (path === "/api/sites" && method === "GET") return ok(state.sites);
     if (path === "/api/users" && method === "GET") return ok(state.staff);
     if (path === "/api/lookups/all") return ok(lookupsIn(lang));
-    if (path === "/api/settings" && method === "GET") return ok(SETTINGS);
-    if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) return ok(Object.assign(SETTINGS, body || {}));
+    // The company's settings as a run has saved them, which a reset puts back.
+    if (path === "/api/settings" && method === "GET") return ok(state.settings || (state.settings = clone(SETTINGS)));
+    if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) {
+      state.settings = Object.assign(state.settings || clone(SETTINGS), body || {});
+      return ok(state.settings);
+    }
     if (path === "/api/reports/overview") return ok(seed.OVERVIEW);
     if (path === "/api/hr-cases/queue-count") return ok(CASE_QUEUE);
     if (path === "/api/notifications/unread-count") return ok({ unread: state.notifications ? state.notifications.filter((n) => !n.readAt).length : UNREAD_COUNT });
@@ -1615,7 +1629,7 @@ function createStubs() {
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null;
-      state.overrides = seededOverrides(); state.notifications = null;
+      state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
       delays = []; trim = null; listGap = null; exposeDisposition = true;

@@ -168,24 +168,24 @@ const WINDOWS = [
   { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7056] },
   { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7075] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7746] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7755] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7763] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7777] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7791] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7802] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7767] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7776] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7784] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7798] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7812] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7823] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8197] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9687] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9740] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9855] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9892] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8218] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9708] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9761] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9876] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [9913] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10490] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10511] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [10988] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11010] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11041] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11009] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11031] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11062] },
 ];
 
 // ---------------------------------------------------------------------------

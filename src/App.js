@@ -7122,7 +7122,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
       };
       const updated = await af("/api/settings", { method: "PATCH", body });
       setForm(updated);
-      showToast("Company settings saved");
+      showToast(tr("Company settings saved"));
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
   };
@@ -7131,82 +7131,95 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
     const file = e.target.files && e.target.files[0];
     if (logoInput.current) logoInput.current.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) { showToast("Logo must be an image file", "error"); return; }
-    if (file.size > 10 * 1024 * 1024) { showToast("Logo must be under 10MB", "error"); return; }
+    if (!file.type.startsWith("image/")) { showToast(tr("Logo must be an image file"), "error"); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast(tr("Logo must be under 10MB"), "error"); return; }
     setLogoUploading(true);
     try {
       const r = await uf(file, "profile-photos");
       set("logo_url", r.url);
-      showToast("Logo uploaded. Click Save to keep it.");
+      showToast(tr("Logo uploaded. Click Save to keep it."));
     } catch (err) { showToast(err.message, "error"); }
     setLogoUploading(false);
   };
 
-  if (loading || !form) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading company settings...</div>;
+  if (loading || !form) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading company settings...")}</div>;
 
   const inp = { padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, width: "100%", boxSizing: "border-box" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4, display: "block" };
   const sec = { fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 14 };
+  // A pay period starts on a day saved as its English name, which is what the API holds, and each
+  // day is shown as its word. A time zone is saved as its IANA name, which is what the API holds, and
+  // shown as the name people use for it.
   const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const payDay = form.pay_period_start_day || "Saturday";
   const ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu"];
+  const ZONE_LABELS = {
+    "America/New_York": "Eastern Time (New York)",
+    "America/Chicago": "Central Time (Chicago)",
+    "America/Denver": "Mountain Time (Denver)",
+    "America/Phoenix": "Mountain Time, no daylight saving (Phoenix)",
+    "America/Los_Angeles": "Pacific Time (Los Angeles)",
+    "America/Anchorage": "Alaska Time (Anchorage)",
+    "Pacific/Honolulu": "Hawaii Time (Honolulu)",
+  };
 
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       <Crd t={t} style={{ flex: 1, minWidth: 320, padding: 18 }}>
-        <div style={sec}>Company Identity</div>
+        <div style={sec}>{tr("Company Identity")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Display name</label>
+          <label style={lbl}>{tr("Display name")}</label>
           <input style={inp} value={form.display_name || ""} onChange={e => set("display_name", e.target.value)} />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Legal name</label>
+          <label style={lbl}>{tr("Legal name")}</label>
           <input style={inp} value={form.legal_name || ""} onChange={e => set("legal_name", e.target.value)} />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Address</label>
+          <label style={lbl}>{tr("Address")}</label>
           <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={form.address || ""} onChange={e => set("address", e.target.value)} />
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Phone</label>
+            <label style={lbl}>{tr("Phone")}</label>
             <input style={inp} value={form.phone || ""} onChange={e => set("phone", e.target.value)} />
           </div>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Email</label>
+            <label style={lbl}>{tr("Email")}</label>
             <input style={inp} value={form.email || ""} onChange={e => set("email", e.target.value)} />
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Website</label>
+          <label style={lbl}>{tr("Website")}</label>
           <input style={inp} value={form.website || ""} onChange={e => set("website", e.target.value)} />
         </div>
       </Crd>
 
       <Crd t={t} style={{ flex: 1, minWidth: 320, padding: 18 }}>
-        <div style={sec}>Branding</div>
+        <div style={sec}>{tr("Branding")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Logo</label>
+          <label style={lbl}>{tr("Logo")}</label>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 84, height: 84, borderRadius: 8, border: "1px solid " + t.border, background: t.inputBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-              {form.logo_url ? <img src={form.logo_url} alt="logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 10, color: t.textMut }}>No logo</span>}
+              {form.logo_url ? <img src={form.logo_url} alt={tr("logo")} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>}
             </div>
             <div>
               <input ref={logoInput} type="file" accept="image/*" onChange={onLogoPick} style={{ display: "none" }} />
-              <button onClick={() => logoInput.current && logoInput.current.click()} disabled={logoUploading} style={{ padding: "7px 14px", borderRadius: 6, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: logoUploading ? "default" : "pointer", opacity: logoUploading ? 0.6 : 1 }}>{logoUploading ? "Uploading..." : "Upload Logo"}</button>
-              {form.logo_url && <button onClick={() => set("logo_url", null)} style={{ marginLeft: 8, padding: "7px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 12, cursor: "pointer" }}>Remove</button>}
+              <button onClick={() => logoInput.current && logoInput.current.click()} disabled={logoUploading} style={{ padding: "7px 14px", borderRadius: 6, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: logoUploading ? "default" : "pointer", opacity: logoUploading ? 0.6 : 1 }}>{logoUploading ? tr("Uploading...") : tr("Upload Logo")}</button>
+              {form.logo_url && <button onClick={() => set("logo_url", null)} style={{ marginLeft: 8, padding: "7px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 12, cursor: "pointer" }}>{tr("Remove")}</button>}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Primary color</label>
+            <label style={lbl}>{tr("Primary color")}</label>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input type="color" value={form.primary_color || NAVY} onChange={e => set("primary_color", e.target.value)} style={{ width: 36, height: 34, padding: 0, border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, cursor: "pointer" }} />
               <input style={inp} value={form.primary_color || ""} onChange={e => set("primary_color", e.target.value)} />
             </div>
           </div>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Secondary color</label>
+            <label style={lbl}>{tr("Secondary color")}</label>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input type="color" value={form.secondary_color || GOLD} onChange={e => set("secondary_color", e.target.value)} style={{ width: 36, height: 34, padding: 0, border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, cursor: "pointer" }} />
               <input style={inp} value={form.secondary_color || ""} onChange={e => set("secondary_color", e.target.value)} />
@@ -7214,32 +7227,32 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           </div>
         </div>
 
-        <div style={{ ...sec, marginTop: 4 }}>Defaults</div>
+        <div style={{ ...sec, marginTop: 4 }}>{tr("Defaults")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Timezone</label>
-          <select style={inp} value={form.timezone || "America/New_York"} onChange={e => set("timezone", e.target.value)}>{ZONES.map(z => <option key={z} value={z}>{z}</option>)}</select>
+          <label style={lbl}>{tr("Timezone")}</label>
+          <select style={inp} value={form.timezone || "America/New_York"} onChange={e => set("timezone", e.target.value)}>{ZONES.map(z => <option key={z} value={z}>{ZONE_LABELS[z] ? tr(ZONE_LABELS[z]) : z}</option>)}</select>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Pay period start day</label>
-          <select style={inp} value={form.pay_period_start_day || "Saturday"} onChange={e => set("pay_period_start_day", e.target.value)}>{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
+          <label style={lbl}>{tr("Pay period start day")}</label>
+          <select style={inp} value={payDay} onChange={e => set("pay_period_start_day", e.target.value)}>{DAYS.map(d => <option key={d} value={d}>{tr(d)}</option>)}</select>
         </div>
 
-        <div style={{ ...sec, marginTop: 4 }}>Reports</div>
+        <div style={{ ...sec, marginTop: 4 }}>{tr("Reports")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>EIN / Tax ID</label>
+          <label style={lbl}>{tr("EIN / Tax ID")}</label>
           <input style={inp} value={form.ein || ""} onChange={e => set("ein", e.target.value)} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <button onClick={() => set("show_ein_on_reports", !form.show_ein_on_reports)} style={{ width: 44, height: 24, borderRadius: 12, border: "none", background: form.show_ein_on_reports ? GR : t.btnGhost, position: "relative", cursor: "pointer", flexShrink: 0, padding: 0 }}>
             <span style={{ position: "absolute", top: 2, left: form.show_ein_on_reports ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
           </button>
-          <span style={{ fontSize: 12, color: t.textSec }}>Show EIN on report exports by default</span>
+          <span style={{ fontSize: 12, color: t.textSec }}>{tr("Show EIN on report exports by default")}</span>
         </div>
       </Crd>
 
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Reset</button>
-        <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save Company Settings"}</button>
+        <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tr("Reset")}</button>
+        <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? tr("Saving...") : tr("Save Company Settings")}</button>
       </div>
     </div>
   );
@@ -7526,11 +7539,11 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   // Every tab here is an admin tab but one: the manage permissions capability opens Roles and
   // Permissions and nothing else, so that is the tab it draws and the tab it starts on.
   const TABS = [
-    { id: "company", label: "Company", adminOnly: true },
-    { id: "global", label: "Dropdown Options", adminOnly: true },
-    { id: "site", label: "Site Lookups", adminOnly: true },
-    { id: "permissions", label: "Roles and Permissions", adminOnly: false },
-    { id: "recipients", label: "Who gets told", adminOnly: true, style: { fontFamily: FONT_BODY } },
+    { id: "company", label: tr("Company"), adminOnly: true },
+    { id: "global", label: tr("Dropdown Options"), adminOnly: true },
+    { id: "site", label: tr("Site Lookups"), adminOnly: true },
+    { id: "permissions", label: tr("Roles and Permissions"), adminOnly: false },
+    { id: "recipients", label: tr("Who gets told"), adminOnly: true, style: { fontFamily: FONT_BODY } },
   ];
   const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
   const [tab, setTab] = useState(isAdmin ? "company" : "permissions");
@@ -7546,6 +7559,9 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   const [siteTab, setSiteTab] = useState("zone");
   const [addSiteVal, setAddSiteVal] = useState(null);
   const [editSiteVal, setEditSiteVal] = useState(null);
+  // On a screen in another language each list value also shows the words that language draws it
+  // with, its displayLabel, under the English it was saved in, which is what Edit changes.
+  const showsDisplay = getLang() !== "en";
 
   const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -7557,31 +7573,31 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
   // Category CRUD
   const submitAddCat = async () => {
-    if (!addCatForm.label || !addCatForm.slug) { showToast("Label and slug required", "error"); return; }
-    try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast("Category created"); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Label and slug required"), "error"); return; }
+    try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast(tr("Category created")); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditCat = async () => {
-    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast("Category updated"); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteCat = async (id) => {
-    if (!window.confirm("Delete this category and all its values?")) return;
-    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast("Category deleted"); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this category and all its values?"))) return;
+    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Category deleted")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleCatActive = async (cat) => {
-    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? "Category deactivated" : "Category activated"); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   // Value CRUD
   const submitAddVal = async () => {
-    if (!addValForm.value || !addValForm.label) { showToast("Value and label required", "error"); return; }
-    try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast("Value added"); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!addValForm.value || !addValForm.label) { showToast(tr("Value and label required"), "error"); return; }
+    try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast(tr("Value added")); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditVal = async () => {
-    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast("Value updated"); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast(tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
-    if (!window.confirm("Delete this value?")) return;
-    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast("Value deleted"); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this value?"))) return;
+    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Value deleted")); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleValActive = async (val) => {
     try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
@@ -7599,15 +7615,15 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
   // Site lookup CRUD
   const submitAddSiteVal = async () => {
-    if (!addSiteVal.value || !addSiteVal.label) { showToast("Value and label required", "error"); return; }
-    try { await af("/api/lookups/site/" + selSite, { method: "POST", body: addSiteVal }); showToast("Added"); setAddSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    if (!addSiteVal.value || !addSiteVal.label) { showToast(tr("Value and label required"), "error"); return; }
+    try { await af("/api/lookups/site/" + selSite, { method: "POST", body: addSiteVal }); showToast(tr("Added")); setAddSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditSiteVal = async () => {
-    try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast("Updated"); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast(tr("Updated")); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteSiteVal = async (id) => {
-    if (!window.confirm("Delete this value?")) return;
-    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast("Deleted"); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this value?"))) return;
+    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast(tr("Deleted")); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleSiteValActive = async (val) => {
     try { await af("/api/lookups/site/" + selSite + "/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
@@ -7623,14 +7639,18 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
     } catch (e) { showToast(e.message, "error"); }
   };
 
+  // What the site tab says for each type: its heading, the window that adds one, and the line when
+  // there is none, each a whole sentence so a language can put its words in its own order.
   const siteTypeLabel = { zone: "Zones", building: "Buildings", floor: "Floors" };
+  const siteTypeAddLabel = { zone: "Add Zone", building: "Add Building", floor: "Add Floor" };
+  const siteTypeEmptyLabel = { zone: "No zones defined for this site yet.", building: "No buildings defined for this site yet.", floor: "No floors defined for this site yet." };
   const currentSiteList = siteTab === "zone" ? siteLookups.zones : siteTab === "building" ? siteLookups.buildings : siteLookups.floors;
 
-  if (loading) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading settings...</div>;
+  if (loading) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading settings...")}</div>;
 
   return (
     <div>
-      <SecT t={t}>Settings</SecT>
+      <SecT t={t}>{tr("Settings")}</SecT>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
@@ -7639,7 +7659,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {tab === "permissions" && <div>
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {[{ id: "editor", label: "By person" }, { id: "matrix", label: "Role reference" }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
+          {[{ id: "editor", label: tr("By person") }, { id: "matrix", label: tr("Role reference") }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
         </div>
         {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
         {permView === "matrix" && <PermissionsMatrixPanel t={t} />}
@@ -7651,17 +7671,17 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
         {/* Category List */}
         <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Categories ({cats.length})</div>
-            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Categories ({0})", cats.length)}</div>
+            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add")}</button>
           </div>
           <div style={{ maxHeight: 500, overflowY: "auto" }}>
             {cats.map(c => (
               <div key={c.id} onClick={() => setSelCat(c.id)} style={{ padding: "8px 14px", cursor: "pointer", background: selCat === c.id ? t.goldBg : "transparent", borderLeft: selCat === c.id ? "3px solid " + GO : "3px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? t.goldText : t.text }}>{c.label}</div>
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {c.values?.length || 0} values</div>
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {trn("{0} values|count", c.values?.length || 0)}</div>
                 </div>
-                {!c.is_active && <Bdg l="off" c={t.textMut} />}
+                {!c.is_active && <Bdg l={tr("off|category")} c={t.textMut} />}
               </div>
             ))}
           </div>
@@ -7672,13 +7692,13 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeCat.label}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || "No description"}{activeCat.is_system ? " | System category" : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || tr("No description")}{activeCat.is_system ? " | " + tr("System category") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Edit</button>
-              <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? "Deactivate" : "Activate"}</button>
-              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>Delete</button>}
-              <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add Value</button>
+              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? tr("Deactivate") : tr("Activate")}</button>
+              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Delete")}</button>}
+              <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add Value")}</button>
             </div>
           </div>
           <div style={{ padding: "8px 0" }}>
@@ -7691,34 +7711,35 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                 {v.color && <div style={{ width: 14, height: 14, borderRadius: 3, background: v.color, flexShrink: 0 }} />}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{v.label}</div>
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | prompts text input" : ""}</div>
+                  {showsDisplay && <div style={{ fontSize: 11, color: t.textSec }}>{tr("Shown as: {0}", v.displayLabel || v.label)}</div>}
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | " + tr("prompts text input") : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
-                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>Edit</button>
-                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
+                  <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
+                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
+                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
                 </div>
               </div>
             ))}
-            {(!activeCat.values || activeCat.values.length === 0) && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No values yet. Click "+ Add Value" to add one.</div>}
+            {(!activeCat.values || activeCat.values.length === 0) && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No values yet. Click \"+ Add Value\" to add one.")}</div>}
           </div>
         </Crd>}
       </div>}
 
       {tab === "site" && isAdmin && <div>
         <div style={{ marginBottom: 12 }}>
-          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
         </div>
         {selSite && <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {["zone", "building", "floor"].map(st => (
-              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{siteTypeLabel[st]} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
+              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tr(siteTypeLabel[st])} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
             ))}
           </div>
           <Crd t={t} style={{ padding: 0 }}>
             <div style={{ padding: "10px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{siteTypeLabel[siteTab]}</div>
-              <button onClick={() => setAddSiteVal({ lookup_type: siteTab, value: "", label: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(siteTypeLabel[siteTab])}</div>
+              <button onClick={() => setAddSiteVal({ lookup_type: siteTab, value: "", label: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add")}</button>
             </div>
             {currentSiteList.sort((a, b) => a.sort_order - b.sort_order).map(v => (
               <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderBottom: "1px solid " + t.border, opacity: v.is_active ? 1 : 0.5 }}>
@@ -7731,83 +7752,83 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                   <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
-                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>Edit</button>
-                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
+                  <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
+                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
+                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
                 </div>
               </div>
             ))}
-            {currentSiteList.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No {siteTypeLabel[siteTab].toLowerCase()} defined for this site yet.</div>}
+            {currentSiteList.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr(siteTypeEmptyLabel[siteTab])}</div>}
           </Crd>
         </div>}
       </div>}
 
       {/* Add Category Modal */}
       {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add Category</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Label *</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder="e.g. Equipment Types" /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>Slug (auto-generated)</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder="e.g. equipment_types" style={{ fontFamily: "monospace" }} /></div>
-        <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder="Optional description" /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAddCat}>Create Category</Btn></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Category")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Label *")}</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder={tr("e.g. Equipment Types")} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Slug (auto-generated)")}</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder={tr("e.g. equipment_types")} style={{ fontFamily: "monospace" }} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder={tr("Optional description")} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddCat}>{tr("Create Category")}</Btn></div>
       </div></Mdl>}
 
       {/* Edit Category Modal */}
       {editCatForm && <Mdl t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Category</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Label</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
-        <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditCat}>Save</Btn></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Category")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Label")}</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditCatForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditCat}>{tr("Save")}</Btn></div>
       </div></Mdl>}
 
       {/* Add Value Modal */}
       {addValForm && <Mdl t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add Value to {activeCat?.label}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Value to {0}", activeCat ? activeCat.label : "")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value (stored) *</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder="e.g. floor_tech" style={{ fontFamily: "monospace" }} /></div>
-          <div><Lbl>Label (displayed) *</Lbl><Inp t={t} value={addValForm.label} onChange={e => setAddValForm({ ...addValForm, label: e.target.value })} placeholder="e.g. Floor Technician" /></div>
+          <div><Lbl>{tr("Value (stored) *")}</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder={tr("e.g. floor_tech")} style={{ fontFamily: "monospace" }} /></div>
+          <div><Lbl>{tr("Label (displayed) *")}</Lbl><Inp t={t} value={addValForm.label} onChange={e => setAddValForm({ ...addValForm, label: e.target.value })} placeholder={tr("e.g. Floor Technician")} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Color (optional)</Lbl><Inp t={t} value={addValForm.color} onChange={e => setAddValForm({ ...addValForm, color: e.target.value })} placeholder="e.g. #24A4F4" /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Show "Other" text input</span></div>
+          <div><Lbl>{tr("Color (optional)")}</Lbl><Inp t={t} value={addValForm.color} onChange={e => setAddValForm({ ...addValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddValForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAddVal}>Add Value</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddValForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddVal}>{tr("Add Value")}</Btn></div>
       </div></Mdl>}
 
       {/* Edit Value Modal */}
       {editValForm && <Mdl t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Value</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Value")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value (stored)</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
-          <div><Lbl>Label (displayed)</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
+          <div><Lbl>{tr("Value (stored)")}</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
+          <div><Lbl>{tr("Label (displayed)")}</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Color</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder="e.g. #24A4F4" /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Show "Other" text input</span></div>
+          <div><Lbl>{tr("Color")}</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditValForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditVal}>Save</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditValForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
 
       {/* Add Site Lookup Modal */}
       {addSiteVal && <Mdl t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add {siteTypeLabel[addSiteVal.lookup_type] ? siteTypeLabel[addSiteVal.lookup_type].slice(0, -1) : "Value"}</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr(siteTypeAddLabel[addSiteVal.lookup_type] || "Add Value")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value *</Lbl><Inp t={t} value={addSiteVal.value} onChange={e => setAddSiteVal({ ...addSiteVal, value: e.target.value, label: e.target.value })} placeholder="e.g. Gymnasium" /></div>
-          <div><Lbl>Label</Lbl><Inp t={t} value={addSiteVal.label} onChange={e => setAddSiteVal({ ...addSiteVal, label: e.target.value })} /></div>
+          <div><Lbl>{tr("Value *")}</Lbl><Inp t={t} value={addSiteVal.value} onChange={e => setAddSiteVal({ ...addSiteVal, value: e.target.value, label: e.target.value })} placeholder={tr("e.g. Gymnasium")} /></div>
+          <div><Lbl>{tr("Label")}</Lbl><Inp t={t} value={addSiteVal.label} onChange={e => setAddSiteVal({ ...addSiteVal, label: e.target.value })} /></div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSiteVal(null)}>Cancel</Btn><Btn t={t} onClick={submitAddSiteVal}>Add</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSiteVal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddSiteVal}>{tr("Add")}</Btn></div>
       </div></Mdl>}
 
       {/* Edit Site Lookup Modal */}
       {editSiteVal && <Mdl t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Site Lookup</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Site Lookup")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value</Lbl><Inp t={t} value={editSiteVal.value} onChange={e => setEditSiteVal({ ...editSiteVal, value: e.target.value })} /></div>
-          <div><Lbl>Label</Lbl><Inp t={t} value={editSiteVal.label} onChange={e => setEditSiteVal({ ...editSiteVal, label: e.target.value })} /></div>
+          <div><Lbl>{tr("Value")}</Lbl><Inp t={t} value={editSiteVal.value} onChange={e => setEditSiteVal({ ...editSiteVal, value: e.target.value })} /></div>
+          <div><Lbl>{tr("Label")}</Lbl><Inp t={t} value={editSiteVal.label} onChange={e => setEditSiteVal({ ...editSiteVal, label: e.target.value })} /></div>
         </div>
-        <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>Changing the type will reclassify this value. For example, changing from "Building" to "Zone" moves it between categories.</div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>Cancel</Btn><Btn t={t} onClick={submitEditSiteVal}>Save</Btn></div>
+        <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>{tr("Changing the type will reclassify this value. For example, changing from \"Building\" to \"Zone\" moves it between categories.")}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditSiteVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
     </div>
   );

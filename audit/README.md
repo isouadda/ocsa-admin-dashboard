@@ -111,6 +111,16 @@ way: every row of the list for its status, its response and who holds it, and ev
 for its log's roles and actions, and for the summary, the resolution notes and every name, which are
 held to the text the API sent, exactly.
 
+**Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
+company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
+reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
+and in Spanish the words the API sends for it on the line under that. It then saves the company's
+settings with the time zone and the pay period's first day chosen by the words the lists show,
+adds, edits and turns off a list and a value, moves a value and deletes one after the table's
+question, and adds and edits a site's value with its type chosen by its word, and holds each body
+the page sends to one written
+out by hand, the same in both languages.
+
 **A question is in the language of the screen.** The `questions` suite presses each button on
 Schedule and Shift Pickup that asks before it changes something, reads the browser's question box
 and answers No, and holds the question to the table's words in English and in Spanish. It reads the
@@ -142,7 +152,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu`, `hr-roles`, `staff-cases`, `questions`, `zone-chips`, `prints`, `report-screens` and
+`forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens` and
 `house-style`.
 
 ## How much is left in English

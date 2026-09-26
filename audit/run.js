@@ -58,6 +58,10 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Settings shows each list value's English and, in another language, its words there, and saves
+  // exactly what it saves in English, in both languages at 1024.
+  { name: "settings", mod: "./cases/settings", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // The questions Schedule and Shift Pickup ask before they change something, and a site's zone
   // chips, in both languages.
   { name: "questions", mod: "./cases/questions", widths: ["wide"],

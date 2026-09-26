@@ -105,11 +105,11 @@ async function run({ d, results, inventory, stubs }) {
   let choiceEditOk = false;
   let choiceEditWhy = "the value editor did not open";
   await d.goto("settings");
-  await d.clickText("Dropdown Options", { exact: false });
-  if (await d.clickText("Edit", { exact: true, nth: 1 }).catch(() => false)) {
+  await d.clickText(d.say("Dropdown Options"), { exact: false });
+  if (await d.clickText(d.say("Edit"), { exact: true, nth: 1 }).catch(() => false)) {
     const values = await d.modal().locator("input").evaluateAll((els) => els.map((e) => e.value));
     const mark = d.mark();
-    await d.clickText("Save", { inModal: true, exact: true });
+    await d.clickText(d.say("Save"), { inModal: true, exact: true });
     const sent = d.callsSince(mark).filter((c) => c.method === "PATCH" && c.path.indexOf("/api/lookups/values/" + CHOICE.id) >= 0).pop();
     const showsEnglish = values.indexOf(CHOICE.english) >= 0 && values.indexOf(CHOICE.spanish) < 0;
     const sendsEnglish = !!sent && sent.body && sent.body.label === CHOICE.english;
