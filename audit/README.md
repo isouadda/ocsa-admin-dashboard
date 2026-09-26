@@ -51,7 +51,11 @@ and the case checks that the exact words reach the screen and that nothing close
 
 **Every call says its language.** The stub keeps the `Accept-Language` each call sent beside the
 call, and every call that sent none, or sent a language other than the one its screen is drawn in,
-in a list no case can reset. The run fails on that list once every suite is done.
+in a list no case can reset. A signed-in call also names its language once on the address, as
+`locale=en` or `locale=es`, which the API reads ahead of the language on the person's account; the
+stub turns away one that names none, two, or another language, and keeps it in the same kind of
+list. The run fails on both lists once every suite is done. The language on the address is taken
+off the query a case reads, so a route is held to exactly what it has always asked for.
 
 **What the API says in that language goes where it belongs.** The stub answers a checklist item with
 `display` and a pick list choice with `displayLabel`, in the language the call asked for, the way the

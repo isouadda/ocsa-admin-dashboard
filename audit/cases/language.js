@@ -244,13 +244,22 @@ function runLate({ stubs, results, inventory }) {
     seen.calls === 0 ? "no call reached the stub, so no call was checked"
       : misses.length + " of " + seen.calls + " calls did not say the language the screen is drawn in: "
         + misses.slice(0, 3).map(said).join("; "));
-  if (misses.length === 0) {
-    results.note("every one of the " + seen.calls + " calls said the language its screen is drawn in");
+  // The other half of the same rule: a signed-in call names its language once on the address, as
+  // locale=en or locale=es, which the API reads ahead of the language on the person's account. The
+  // stub turns away a call that names none, two, or another language, and keeps it here by name.
+  const unnamed = seen.unnamed || [];
+  const named = (m) => m.method + " " + m.path + " named " + (m.said === null ? "no language" : JSON.stringify(m.said));
+  results.check("language", inventory.LANGUAGE_LOCALE.id, seen.calls > 0 && unnamed.length === 0,
+    seen.calls === 0 ? "no call reached the stub, so no call was checked"
+      : unnamed.length + " signed-in calls did not name their language once as locale=: " + unnamed.slice(0, 3).map(named).join("; "));
+  if (misses.length === 0 && unnamed.length === 0) {
+    results.note("every one of the " + seen.calls + " calls said the language its screen is drawn in, and every signed-in one named it once on the address");
     return;
   }
   // Each route that went wrong is named once, with how many times it did.
   const byRoute = {};
   misses.forEach((m) => { const k = said(m); byRoute[k] = (byRoute[k] || 0) + 1; });
+  unnamed.forEach((m) => { const k = named(m); byRoute[k] = (byRoute[k] || 0) + 1; });
   Object.keys(byRoute).slice(0, 20).forEach((k) => results.note("a call that did not say its language: " + k + " (" + byRoute[k] + " times)"));
 }
 

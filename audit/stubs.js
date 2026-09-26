@@ -16,7 +16,9 @@ function createStubs() {
   const calls = [];
   // Every call the run makes, counted, and the ones that did not ask for the language their screen is
   // drawn in. Nothing resets this.
-  const language = { calls: 0, misses: [] };
+  const language = { calls: 0, misses: [], unnamed: [] };
+  // The languages the dashboard speaks, which are the only ones a call may name.
+  const LOCALES = ["en", "es"];
   // Every read of a site's checklist the run makes, with its query, which no reset clears either.
   const checklistReads = [];
   let refusals = [];
@@ -1658,7 +1660,13 @@ function createStubs() {
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
     const path = u.pathname;
-    const record = { method, path, query: u.search, body: body || null };
+    // The language on the address is read on its own, below, and taken off the query a case reads,
+    // so a route is still held to exactly what it has always asked for.
+    const asked = u.searchParams.getAll("locale");
+    const rest = new URLSearchParams(u.search);
+    rest.delete("locale");
+    const query = rest.toString() ? "?" + rest.toString() : "";
+    const record = { method, path, query, body: body || null };
     calls.push(record);
     // The language the call asked for, kept beside it. Every call says the language the screen is
     // drawn in; one that says nothing, or another language, is also kept apart, where a reset
@@ -1666,9 +1674,20 @@ function createStubs() {
     record.language = (headers && headers["accept-language"]) || null;
     // What the call was sent with, so a case can hold a route to the headers it has always sent.
     record.headers = headers || {};
-    if (method === "GET" && /^\/api\/sites\/[^/]+\/tasks$/.test(path)) checklistReads.push({ path, query: u.search, as: signedInAs });
+    if (method === "GET" && /^\/api\/sites\/[^/]+\/tasks$/.test(path)) checklistReads.push({ path, query, as: signedInAs });
     language.calls += 1;
     if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
+    // A signed-in call names its language once on the address, as locale=en or locale=es, the way
+    // the API reads it ahead of the language on the person's account. One that names none, two, or
+    // a language the dashboard does not speak is kept apart the same way, and turned away, so a call
+    // added later without it fails the run by name.
+    record.locale = asked.length === 1 ? asked[0] : null;
+    const signedIn = !!(headers && headers.authorization);
+    if (signedIn && (asked.length !== 1 || LOCALES.indexOf(asked[0]) < 0)) {
+      language.unnamed.push({ method, path, said: asked.length ? asked.join(", ") : null });
+      record.status = 400;
+      return { status: 400, json: { error: "A signed-in call names its language once, as locale=en or locale=es" } };
+    }
 
     const refusal = matchRefusal(method, path, body);
     if (refusal) {

@@ -5,13 +5,20 @@ import clientConfig from "./clientConfig";
 // else lives there and nothing else leaves this file.
 import { LOCALES, LANGUAGES, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
-// Every call to the API leaves through here. It says the language the screen is drawn in, as
-// Accept-Language, read when the call is made from the same place tr() reads it, so a language
-// switched on screen is the language of the next call. The API answers its refusals, notices, pick
-// lists and checklist items in that language. The address, the body and every other header are the
-// caller's, untouched.
+// Every call to the API leaves through here. It says the language the screen is drawn in twice: as
+// locale= on the address, which a signed-in call is answered in ahead of the language on the
+// person's account, and as Accept-Language, which the API reads for a call made signed out. Both are
+// read when the call is made from the same place tr() reads it, so a language switched on screen is
+// the language of the next call. The API answers its refusals, notices, pick lists and checklist
+// items in that language. An address that already names a language keeps its own. The body and
+// every other header are the caller's, untouched.
+function withLocale(url) {
+  const s = String(url);
+  if (/[?&]locale=/.test(s)) return s;
+  return s + (s.indexOf("?") >= 0 ? "&" : "?") + "locale=" + getLang();
+}
 function apiRequest(url, init = {}) {
-  return fetch(url, { ...init, headers: { ...init.headers, "Accept-Language": getLang() } });
+  return fetch(withLocale(url), { ...init, headers: { ...init.headers, "Accept-Language": getLang() } });
 }
 async function apiUpload(file, bucket, token) {
   const ext = file.name.split(".").pop().toLowerCase();
