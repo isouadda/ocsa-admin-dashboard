@@ -938,7 +938,16 @@ function createStubs() {
     // --- shell ------------------------------------------------------------
     if (path === "/api/sites" && method === "GET") return ok(state.sites);
     if (path === "/api/users" && method === "GET") return ok(state.staff);
-    if (path === "/api/lookups/all") return ok(lookupsIn(lang));
+    // The whole set of lists is an admin's, the way routes/lookups.js gates GET /api/lookups/all by
+    // manage_lookups, so a supervisor is refused it. GET /api/lookups answers anyone signed in with
+    // the active lists and their active values, in the same shape.
+    if (path === "/api/lookups/all") {
+      if (!effectiveMap(person(), state.overrides[person().id]).manage_lookups) return { status: 403, json: { error: "Insufficient permissions" } };
+      return ok(lookupsIn(lang));
+    }
+    if (path === "/api/lookups" && method === "GET") {
+      return ok(lookupsIn(lang).filter((c) => c.is_active).map((c) => Object.assign({}, c, { values: c.values.filter((v) => v.is_active) })));
+    }
     // The company's settings as a run has saved them, which a reset puts back.
     if (path === "/api/settings" && method === "GET") return ok(state.settings || (state.settings = clone(SETTINGS)));
     if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) {
@@ -1664,11 +1673,14 @@ function createStubs() {
     const refusal = matchRefusal(method, path, body);
     if (refusal) {
       record.refused = refusal.status;
+      record.status = refusal.status;
       return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
     }
 
     const answer = route(method, path, u.searchParams, body, record.language);
     if (answer) {
+      // The status the call was answered with, refusals the routes make on their own included.
+      record.status = answer.status;
       answer.delayMs = Math.max(answer.delayMs || 0, delayFor(path));
       if (trim && method === "GET" && path.indexOf(trim.path) >= 0) answer.json = cut(answer.json, trim.keep, trim.keepIds);
       // What the API said, kept beside the call. A Spanish screen may draw any of it: a person's

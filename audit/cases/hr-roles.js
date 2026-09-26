@@ -101,7 +101,7 @@ async function run({ d, results, seed, stubs, lang }) {
   // The lookups' words, from what the stub answered the page in this language.
   const served = (re) => { const c = stubs.calls.filter((x) => re.test(x.path) && x.json).pop(); return c ? c.json : null; };
   const shownOf = (slug) => {
-    const cat = (served(/^\/api\/lookups\/all$/) || []).find((c) => c.slug === slug);
+    const cat = (served(/^\/api\/lookups(\/all)?$/) || []).find((c) => c.slug === slug);
     const m = {};
     ((cat && cat.values) || []).forEach((v) => { m[v.value] = v.displayLabel || v.label; });
     return m;

@@ -451,7 +451,15 @@ export default function AdminDashboard() {
   const [lookups, setLookups] = useState([]);
   const loadSites = useCallback(async () => { try { const s = await af("/api/sites"); setSites(s); return s; } catch (e) { console.warn("Failed to load sites:", e.message); return []; } }, [af]);
   const loadStaff = useCallback(async () => { try { const s = await af("/api/users?status=active"); setAllStaff(s); return s; } catch (e) { console.warn("Failed to load staff:", e.message); return []; } }, [af]);
-  const loadLookups = useCallback(async () => { try { const d = await af("/api/lookups/all"); setLookups(d); } catch (e) { console.warn("Failed to load lookups:", e.message); } }, [af]);
+  // Every pick list the pages draw. The whole set, inactive lists and values included, is an admin's
+  // (manage_lookups). Anyone the API refuses it reads the signed-in route instead, which answers the
+  // active lists and values in the same shape, so a supervisor's pick lists fill the way an admin's
+  // do. An admin's load does not change.
+  const loadLookups = useCallback(async () => {
+    try { const d = await af("/api/lookups/all"); setLookups(d); return; }
+    catch (e) { if (e.status !== 403) { console.warn("Failed to load lookups:", e.message); return; } }
+    try { const d = await af("/api/lookups"); setLookups(d); } catch (e) { console.warn("Failed to load lookups:", e.message); }
+  }, [af]);
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
@@ -10635,6 +10643,12 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const [hrPerPage, setHrPerPage] = useState(10);
 
   const staffOpts = [{ v: "", l: tr("All Employees") }, ...allStaff.map(s => ({ v: s.id, l: s.firstName + " " + s.lastName }))];
+  // + Add Training picks its person from the shell's staff list, which the API refuses a supervisor
+  // (manage_staff), so that list is empty for them. When it is empty the people come from the HR
+  // employees summary, the route Log training for several people reads, which a supervisor may call.
+  // The record saves the person's id either way.
+  const [activePeople] = useActivePeople(af, allStaff.length === 0);
+  const trainingPeopleOpts = allStaff.length > 0 ? staffOpts.filter(s => s.v) : (activePeople || []).map(p => ({ v: p.id, l: p.name }));
   // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
   const docTypeMap = lkMap("document_types", true);
   const trainingTypeMap = lkMap("training_types", true);
@@ -11099,7 +11113,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Training Record") : tr("Add Training Record")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
-            <Sel options={[{ v: "", l: tr("Select employee...") }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            <Sel options={[{ v: "", l: tr("Select employee...") }, ...trainingPeopleOpts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Name")}</div>
             <Inp t={t} placeholder={tr("e.g. General Cleaning Training")} value={form.training_name || ""} onChange={e => setForm({ ...form, training_name: e.target.value })} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Type")}</div>
@@ -11217,17 +11231,19 @@ function printAttendanceSheet({ name, day, rows, typeWords = {} }) {
 // A person as the HR routes send one, which a supervisor may read. The staff list is an admin's, so a
 // supervisor's copy of it is empty.
 const hrPerson = (e) => ({ id: String(e.id), name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role });
-// Everyone active, or null while the list loads.
-function useActivePeople(af) {
+// Everyone active, or null while the list loads. `when` false reads nothing, for a screen that only
+// needs the list when the shell's own staff list is empty.
+function useActivePeople(af, when = true) {
   const [people, setPeople] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
+    if (!when) return undefined;
     let alive = true;
     af("/api/hr/employees-summary?status=active")
       .then((d) => { if (alive) setPeople(((d && d.employees) || []).map(hrPerson)); })
       .catch((e) => { if (alive) { setPeople([]); setError(e.message); } });
     return () => { alive = false; };
-  }, [af]);
+  }, [af, when]);
   return [people, error];
 }
 // The ids of the active people a site's record lists as assigned there, which is how Shift Pickup reads

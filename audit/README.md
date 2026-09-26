@@ -152,7 +152,10 @@ sends to one written out by hand: the report editor saves the codes and the Engl
 **A room is logged once.** The `training` suite drives HR Records' Log training for several people as
 a supervisor, the way the API lets one in: the staff list the shell reads is refused to a supervisor,
 so the window lists everyone active and a site's active people from the HR routes a supervisor may
-call, and the stub's training routes answer the way `routes/hr.js` does. The suite logs three people
+call, and the stub's training routes answer the way `routes/hr.js` does. The stub refuses a supervisor
+the whole set of pick lists too, the way `routes/lookups.js` gates `GET /api/lookups/all`, and answers
+`GET /api/lookups` with the active lists, so the suite sees the shell fall back to it: the window
+offers every active training type, and + Add Training offers everyone active. The suite logs three people
 and holds each of the three creates to a body written out by hand, presses Save again and sees nobody
 sent twice, has the API refuse one person of three and sees the other two saved, the refused one named
 in the API's own words and Try again send only that one, and opens the window at 11:30 PM in
