@@ -68,6 +68,7 @@ function createStubs() {
     lookupValues: null,
     notifications: null,
     settings: null,
+    training: null,
   };
 
   const person = () => seed.PEOPLE[signedInAs];
@@ -349,6 +350,27 @@ function createStubs() {
     administered_by: "Marcus Ferreira",
   }));
   // hand: 12 training records, 6 with an expiry date (every other one).
+  // The records a run can add to, change and delete, in the columns training_records holds and the
+  // routes send back: the twelve above with nothing in their notes, each added at noon Eastern on its
+  // day. A reset puts the twelve back.
+  let trainingNext = 13;
+  const trainingRows = () => {
+    if (!state.training) {
+      state.training = clone(HR_TRAINING).map((r) => Object.assign({ notes: null, document_id: null, created_at: r.completed_date + "T16:00:00.000Z" }, r));
+      trainingNext = 13;
+    }
+    return state.training;
+  };
+  // A record as the list sends it, with the person's name the list joins in, and as the other three
+  // routes send it, the table's own columns alone.
+  const trainingListRow = (r) => Object.assign({}, r, { user_name: (state.staff.find((s0) => s0.id === r.user_id) || {}).name || r.user_name || "" });
+  const trainingTableRow = (r) => { const out = Object.assign({}, r); delete out.user_name; return out; };
+  // ORDER BY completed_date DESC NULLS LAST, created_at DESC.
+  const trainingOrder = (a, b) => {
+    if (!a.completed_date !== !b.completed_date) return a.completed_date ? -1 : 1;
+    if (a.completed_date !== b.completed_date) return a.completed_date < b.completed_date ? 1 : -1;
+    return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+  };
 
   const HR_ONBOARDING = [
     { id: "ob-1", step_category: "paperwork", step_name: "Handbook acknowledged", is_completed: true, completed_date: seed.shift(-20), completed_by_name: "Dana Whitlock" },
@@ -880,12 +902,15 @@ function createStubs() {
   const ok = (json) => ({ status: 200, json });
   const created = (json) => ({ status: 201, json });
 
-  function matchRefusal(method, path) {
+  function matchRefusal(method, path, body) {
     for (let i = 0; i < refusals.length; i += 1) {
       const r = refusals[i];
       if (r.method && r.method.toUpperCase() !== method.toUpperCase()) continue;
       const hit = r.path instanceof RegExp ? r.path.test(path) : path.indexOf(r.path) >= 0;
       if (!hit) continue;
+      // One request among several to the same route, picked out by what it carries: the one person
+      // of a room the API refuses.
+      if (r.when && !r.when(body || {})) continue;
       if (r.once) refusals.splice(i, 1);
       return r;
     }
@@ -1327,10 +1352,39 @@ function createStubs() {
       const uid = q("user_id");
       return ok(uid ? HR_DOCUMENTS.filter((d) => d.user_id === uid) : HR_DOCUMENTS);
     }
-    if (path.startsWith("/api/hr/training")) {
-      if (method !== "GET") return ok({ message: "Training record saved" });
+    // routes/hr.js: a list filtered by user_id and nothing else, one record created per call, and an
+    // update and a delete that find the record or say it is not there. Every route is admin or
+    // supervisor, which is who signs in here.
+    if (path === "/api/hr/training" && method === "GET") {
       const uid = q("user_id");
-      return ok(uid ? HR_TRAINING.filter((d) => d.user_id === uid) : HR_TRAINING);
+      return ok(trainingRows().filter((r) => !uid || r.user_id === uid).map(trainingListRow).sort(trainingOrder));
+    }
+    if (path === "/api/hr/training" && method === "POST") {
+      const b = body || {};
+      // The table holds all three NOT NULL, so the route refuses a body missing one.
+      if (!b.user_id || !b.training_name || !b.training_type) {
+        return { status: 400, json: { error: "A training record needs a person, a training name and a type" } };
+      }
+      const row = {
+        id: "ht-" + trainingNext, user_id: b.user_id, training_name: b.training_name, training_type: b.training_type,
+        completed_date: b.completed_date || null, expiry_date: b.expiry_date || null, score: b.score || null,
+        administered_by: b.administered_by || null, notes: b.notes || null, document_id: b.document_id || null,
+        created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(),
+      };
+      trainingNext += 1;
+      trainingRows().push(row);
+      return ok(trainingTableRow(row));
+    }
+    if (/^\/api\/hr\/training\/[^/]+$/.test(path) && (method === "PUT" || method === "DELETE")) {
+      const id = idAfter("/api/hr/training/");
+      const rows = trainingRows();
+      const at = rows.findIndex((r) => r.id === id);
+      if (at < 0) return { status: 404, json: { error: "Training record not found" } };
+      if (method === "DELETE") { rows.splice(at, 1); return ok({ success: true }); }
+      const b = body || {};
+      ["training_name", "training_type", "completed_date", "expiry_date", "score", "administered_by", "notes", "document_id"]
+        .forEach((k) => { rows[at][k] = b[k] || null; });
+      return ok(trainingTableRow(rows[at]));
     }
     if (path === "/api/hr/employees-summary") {
       const want = q("status") || "active";
@@ -1607,7 +1661,7 @@ function createStubs() {
     language.calls += 1;
     if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
 
-    const refusal = matchRefusal(method, path);
+    const refusal = matchRefusal(method, path, body);
     if (refusal) {
       record.refused = refusal.status;
       return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
@@ -1655,6 +1709,7 @@ function createStubs() {
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
+      state.training = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
       delays = []; trim = null; listGap = null; exposeDisposition = true;

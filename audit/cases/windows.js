@@ -252,6 +252,9 @@ const ROUTES = {
   "hr/training-window": {
     open: async (d) => { await d.goto("hr"); await d.clickText("Training", { exact: false }); return d.clickText("Add Training", { exact: false }); },
   },
+  "hr/training-room-window": {
+    open: async (d) => { await d.goto("hr"); await d.clickText("Training", { exact: false }); return d.clickText("Log training for several people", { exact: true }); },
+  },
   "hr/onboarding-step-window": {
     open: async (d) => { await d.goto("hr"); await d.clickText("Onboarding", { exact: false }); await d.pickPerson("Tomasz"); return d.clickText("Custom Step", { exact: false }); },
   },
