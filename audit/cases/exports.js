@@ -198,6 +198,19 @@ const PRINTS = {
     title: "Chat History",
     expect: () => null,
   },
+  // hand: Bloodborne pathogens was given on three days, one person each: Dana Whitlock on 2025-11-17,
+  // Tomasz Wisniewski on 2025-12-15 and Yuki Tanabe on 2026-01-12. The list puts the newest first, so its
+  // first sheet is Yuki Tanabe's, one person on it.
+  "exports/attendance-sheet-print": {
+    act: async (d) => { await d.goto("hr"); await d.clickText("Training", { exact: true }); await d.pickOption("Bloodborne pathogens"); return d.clickText("Print attendance sheet", { exact: true }); },
+    title: "Attendance sheet",
+    expect: (tables) => {
+      const people = tables.find((t) => t.headers.indexOf("Signature") >= 0);
+      if (!people) return "no table on the sheet has a column to sign in";
+      if (people.rows.length !== 1) return "the sheet lists " + people.rows.length + " people, and the newest session has one";
+      return people.rows[0][1] === "Yuki Tanabe" ? null : "the sheet lists " + JSON.stringify(people.rows[0]) + " where the newest session is Yuki Tanabe's";
+    },
+  },
   "exports/permissions-matrix-pdf": {
     act: async (d) => { await d.goto("settings"); await d.clickText("Roles and Permissions", { exact: false }); await d.clickText("Role reference", { exact: false }); return d.clickText("Export PDF", { exact: false }); },
     title: "Roles and Permissions",

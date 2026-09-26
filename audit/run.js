@@ -76,6 +76,10 @@ const SUITES = [
   // saves, in English and in Spanish at 1024.
   { name: "report-screens", mod: "./cases/report-screens", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Log training for a whole room at once: the window as a supervisor, what it sends and what it
+  // says, in English and in Spanish, and on a phone at every text size. The suite makes its own passes,
+  // since the phone's are 390 wide.
+  { name: "training", mod: "./cases/training", widths: [] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

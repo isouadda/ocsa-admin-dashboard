@@ -770,7 +770,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} />}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -10612,7 +10612,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [] }) {
   const [tab, setTab] = useState("employees");
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
@@ -10627,6 +10627,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
   const [showModal, setShowModal] = useState(null);
   const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
+  // The window that logs one training session for everyone in the room.
+  const [roomOpen, setRoomOpen] = useState(false);
   const [docQ, setDocQ] = useState(""); const [docPage, setDocPage] = useState(1);
   const [trQ, setTrQ] = useState(""); const [trPage, setTrPage] = useState(1);
   const [otQ, setOtQ] = useState(""); const [otPage, setOtPage] = useState(1);
@@ -10870,10 +10872,14 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
 
       {/* TRAINING TAB */}
       {tab === "training" && <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
-          <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <Btn t={t} v="ghost" onClick={() => setRoomOpen(true)} style={{ minHeight: 44 }}>{tr("Log training for several people")}</Btn>
+            <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
+          </div>
         </div>
+        <TrainingGapsPanel af={af} t={t} sites={sites} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -11119,6 +11125,9 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
         </div></div>
       </Mdl>}
 
+      {/* LOG TRAINING FOR SEVERAL PEOPLE */}
+      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
+
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -11134,5 +11143,336 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap }
         </div></div>
       </Mdl>}
     </div>
+  );
+}
+
+// The languages a training session is given in. A record keeps the one its session was given in as a
+// line of its notes, written in English whatever language the screen is drawn in, the way every save
+// sends what it always sent, and a screen or a printed page draws that line through the table.
+const TRAINING_LANGUAGES = [
+  { id: "en", word: "English", note: "Given in English" },
+  { id: "es", word: "Spanish", note: "Given in Spanish" },
+  { id: "fr", word: "French", note: "Given in French" },
+];
+// A training name the way two records are held to be the same training: the same words, whatever the
+// case or the spacing.
+const trainingKey = (name) => String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
+// The day a record says its training was given. The API writes a date column as the date or as the
+// moment it starts, and its first ten characters are the date either way.
+const trainingDay = (d) => (d ? String(d).slice(0, 10) : "");
+// Every training name already used, once each, in the spelling of its latest record. The API sends the
+// latest first.
+const trainingNames = (rows) => {
+  const seen = new Map();
+  (rows || []).forEach((r) => { const k = trainingKey(r.training_name); if (k && !seen.has(k)) seen.set(k, String(r.training_name).trim()); });
+  return Array.from(seen.values()).sort((a, b) => a.localeCompare(b, localeTag()));
+};
+// The language a record's notes say its session was given in, or null.
+const trainingLanguageOf = (notes) => TRAINING_LANGUAGES.find((l) => String(notes || "").split("\n").some((line) => line.trim() === l.note)) || null;
+// A day a record carries, YYYY-MM-DD, in the language's own words. Read as the parts it is written in, so
+// no time zone moves it.
+const trainingDayWords = (day, long) => {
+  const [y, m, dd] = String(day || "").split("-").map(Number);
+  if (!y || !m || !dd) return day || "";
+  return new Date(y, m - 1, dd).toLocaleDateString(localeTag(), long ? { weekday: "long", month: "long", day: "numeric", year: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+};
+// The line each language a session's records name reads on a screen and on a printed page, once each.
+const trainingGivenIn = (rows) => (rows || []).map((r) => trainingLanguageOf(r.notes)).filter((l, i, all) => l && all.indexOf(l) === i).map((l) => tr(l.note));
+
+// The attendance sheet for one session, a training name on one day: what it was, who gave it and in
+// which language, and every person logged for it with a line to sign beside each. It serves payroll and
+// the file, and like every printed page it is drawn in the language of the screen. False when the
+// browser would not open the window.
+function printAttendanceSheet({ name, day, rows, typeWords = {} }) {
+  const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const once = (list) => list.filter((v, i) => v && list.indexOf(v) === i);
+  const people = (rows || []).slice().sort((a, b) => String(a.user_name || "").localeCompare(String(b.user_name || ""), localeTag()));
+  const types = once((rows || []).map((r) => typeWords[r.training_type] || r.training_type || ""));
+  const trainers = once((rows || []).map((r) => String(r.administered_by || "").trim()));
+  const cName = clientConfig.company.name;
+  const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{border-bottom:3px solid ' + GOLD + ';padding-bottom:10px;margin-bottom:14px}.co{font-size:20px;font-weight:700;color:' + NAVY + '}h1{color:' + NAVY + ';font-size:20px;margin:10px 0 8px}.facts{border-collapse:collapse;margin:0 0 6px}.facts th{text-align:left;font-size:11px;color:#555;font-weight:600;padding:3px 14px 3px 0;vertical-align:top}.facts td{font-size:12px;padding:3px 0}.given{font-size:12px;font-weight:700;margin:0 0 14px}.people{border-collapse:collapse;width:100%}.people th{background:' + NAVY + ';color:' + GOLD + ';text-align:left;font-size:11px;padding:6px 8px;border:1px solid #ddd}.people td{border:1px solid #ddd;padding:14px 8px;font-size:12px}.people .n{width:28px;text-align:right}.people .sign{width:45%}.meta{font-size:11px;color:#666;margin-top:10px}.footer{margin-top:24px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Attendance sheet")) + '</title>' + style + '</head><body>'
+    + '<div class="brand"><div class="co">' + esc(cName) + '</div></div>'
+    + '<h1>' + esc(tr("Attendance sheet")) + '</h1>'
+    + '<table class="facts"><tbody>'
+    + '<tr><th>' + esc(tr("Training Name")) + '</th><td>' + esc(name) + '</td></tr>'
+    + '<tr><th>' + esc(tr("Date")) + '</th><td>' + esc(trainingDayWords(day, true)) + '</td></tr>'
+    + '<tr><th>' + esc(tr("Training Type")) + '</th><td>' + esc(types.join(", ")) + '</td></tr>'
+    + '<tr><th>' + esc(tr("Administered By")) + '</th><td>' + esc(trainers.join(", ")) + '</td></tr>'
+    + '</tbody></table>'
+    + '<p class="given">' + esc(trainingGivenIn(rows).join(", ")) + '</p>'
+    + '<table class="people"><thead><tr><th class="n">#</th><th>' + esc(tr("Employee")) + '</th><th class="sign">' + esc(tr("Signature")) + '</th></tr></thead><tbody>'
+    + people.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + esc(r.user_name) + '</td><td class="sign"></td></tr>').join("")
+    + '</tbody></table>'
+    + '<p class="meta">' + esc(trn("{0} person logged|count", people.length)) + ' &middot; ' + esc(tr("Generated {0}", new Date().toLocaleString(localeTag()))) + '</p>'
+    + '<div class="footer">' + esc(cName) + ' &middot; ' + esc(tr("Attendance sheet")) + '</div>'
+    + '</body></html>';
+  const w = window.open("", "_blank");
+  if (!w) return false;
+  w.document.write(html); w.document.close();
+  setTimeout(() => w.print(), 400);
+  return true;
+}
+
+// A person as the HR routes send one, which a supervisor may read. The staff list is an admin's, so a
+// supervisor's copy of it is empty.
+const hrPerson = (e) => ({ id: String(e.id), name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role });
+// Everyone active, or null while the list loads.
+function useActivePeople(af) {
+  const [people, setPeople] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    af("/api/hr/employees-summary?status=active")
+      .then((d) => { if (alive) setPeople(((d && d.employees) || []).map(hrPerson)); })
+      .catch((e) => { if (alive) { setPeople([]); setError(e.message); } });
+    return () => { alive = false; };
+  }, [af]);
+  return [people, error];
+}
+// The ids of the active people a site's record lists as assigned there, which is how Shift Pickup reads
+// a site's people, or null while they load and when no site is picked.
+function useSitePeople(af, siteId) {
+  const [ids, setIds] = useState(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setIds(null);
+    setError("");
+    if (!siteId) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(siteId))
+      .then((d) => { if (alive) setIds(new Set(((d && d.staff) || []).map((s) => String(s.id)))); })
+      .catch((e) => { if (alive) { setIds(new Set()); setError(e.message); } });
+    return () => { alive = false; };
+  }, [af, siteId]);
+  return [ids, error];
+}
+
+// One training session, logged for everyone who was in the room: one record each, sent one after
+// another through the route that adds a single record. Whoever already has a record with the same
+// training name on the same day is left out and named, so a second press logs nobody twice. The people
+// are everyone active, or the active people a site's record lists as assigned there, which is how
+// Shift Pickup reads a site's people.
+function LogTrainingWindow({ af, t, sites = [], typeOpts, typeWords, onClose, onSaved }) {
+  const [people, peopleError] = useActivePeople(af);
+  const [known, setKnown] = useState([]);
+  const [form, setForm] = useState(() => ({ name: "", type: "", date: todayISO(), by: "", lang: "" }));
+  const [offerNames, setOfferNames] = useState(false);
+  const [siteId, setSiteId] = useState("");
+  const [atSite, siteError] = useSitePeople(af, siteId);
+  const [q, setQ] = useState("");
+  const [picked, setPicked] = useState(() => new Set());
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  // A second press while a run is going sends nothing. State would reach the handler too late, since
+  // both presses can land before the page draws again.
+  const running = useRef(false);
+
+  // The names already used, offered as a name is typed.
+  useEffect(() => {
+    let alive = true;
+    af("/api/hr/training").then((rows) => { if (alive) setKnown(rows || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [af]);
+
+  const names = useMemo(() => trainingNames(known), [known]);
+  const typed = trainingKey(form.name);
+  const offered = offerNames && typed ? names.filter((n) => trainingKey(n).indexOf(typed) >= 0 && trainingKey(n) !== typed).slice(0, 5) : [];
+  // A name taken from the list takes its latest record's type too, when no type is chosen yet.
+  const takeName = (n) => {
+    const last = known.find((r) => trainingKey(r.training_name) === trainingKey(n));
+    setForm({ ...form, name: n, type: form.type || (last && last.training_type) || "" });
+    setOfferNames(false);
+  };
+  const needle = q.trim().toLowerCase();
+  // A site's people are held to the active list as well, which leaves out anyone the list leaves out.
+  const listed = (people || []).filter((p) => (!siteId || (atSite && atSite.has(p.id))) && (!needle || p.name.toLowerCase().indexOf(needle) >= 0));
+  const allListedPicked = listed.length > 0 && listed.every((p) => picked.has(p.id));
+  const toggle = (id) => setPicked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const pickListed = () => setPicked((prev) => { const next = new Set(prev); listed.forEach((p) => next.add(p.id)); return next; });
+  const close = () => { if (!running.current) onClose(); };
+
+  // `only` is the people Try again sends, the ones the last run could not save.
+  const save = async (only) => {
+    if (running.current) return;
+    const name = form.name.trim();
+    const lang = TRAINING_LANGUAGES.find((l) => l.id === form.lang);
+    const who = only || (people || []).filter((p) => picked.has(p.id));
+    if (!name || !form.type) { setError(tr("A training name and a type are required")); return; }
+    if (!form.date) { setError(tr("Pick the date it was given")); return; }
+    if (!lang) { setError(tr("Pick the language it was given in")); return; }
+    if (who.length === 0) { setError(tr("Tick at least one person")); return; }
+    running.current = true;
+    setBusy(true); setError(""); setResult(null); setProgress(null);
+    try {
+      // Who has this training on this day already, read now rather than when the window opened, so a
+      // second press finds what the first one saved.
+      const rows = await af("/api/hr/training");
+      const had = (rows || []).filter((r) => trainingKey(r.training_name) === trainingKey(name) && trainingDay(r.completed_date) === form.date);
+      const logged = new Set(had.map((r) => String(r.user_id)));
+      const already = who.filter((p) => logged.has(p.id));
+      const queue = who.filter((p) => !logged.has(p.id));
+      const saved = [];
+      const failed = [];
+      setProgress({ saved: 0, total: queue.length });
+      for (let i = 0; i < queue.length; i += 1) {
+        const p = queue[i];
+        try {
+          const row = await af("/api/hr/training", { method: "POST", body: { user_id: p.id, training_name: name, training_type: form.type, completed_date: form.date, administered_by: form.by.trim() || null, notes: lang.note } });
+          saved.push({ ...row, user_name: p.name });
+        } catch (e) {
+          failed.push({ person: p, why: e.message });
+          // A lapsed session refuses everyone after it in the same words, and the page signs out.
+          if (e.status === 401) { queue.slice(i + 1).forEach((rest) => failed.push({ person: rest, why: e.message })); break; }
+        }
+        setProgress({ saved: saved.length, total: queue.length });
+      }
+      setResult({ name, day: form.date, already, failed, rows: had.concat(saved) });
+      if (saved.length) { setKnown((k) => saved.concat(k)); onSaved(); }
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+
+  const field = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  const tall = { minHeight: 44, minWidth: 44 };
+  const choice = (on) => ({ minWidth: 44, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  return (
+    <Mdl t={t} onClose={close}>
+      <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Log training for several people")}</div>
+        <div><div style={field}>{tr("Training Name")}</div>
+          <Inp t={t} aria-label={tr("Training Name")} placeholder={tr("e.g. General Cleaning Training")} value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setOfferNames(true); }} style={tall} />
+          {offered.length > 0 && <div role="group" aria-label={tr("Names already used")} style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
+            {offered.map((n) => <button key={n} type="button" onClick={() => takeName(n)} style={{ ...tall, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontFamily: FONT_BODY, textAlign: "left", overflowWrap: "anywhere", cursor: "pointer" }}>{n}</button>)}
+          </div>}
+        </div>
+        <div><div style={field}>{tr("Training Type")}</div>
+          <Sel t={t} aria-label={tr("Training Type")} options={typeOpts} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={tall} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div><div style={field}>{tr("Completed Date")}</div>
+            <Inp t={t} type="date" aria-label={tr("Completed Date")} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={tall} /></div>
+          <div><div style={field}>{tr("Administered By")}</div>
+            <Inp t={t} aria-label={tr("Administered By")} value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} style={tall} /></div>
+        </div>
+        <div><div style={field}>{tr("Language it was given in")}</div>
+          <div role="group" aria-label={tr("Language it was given in")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {TRAINING_LANGUAGES.map((l) => <button key={l.id} type="button" aria-pressed={form.lang === l.id} onClick={() => setForm({ ...form, lang: l.id })} style={choice(form.lang === l.id)}>{tr(l.word)}</button>)}
+          </div></div>
+        <div><div style={field}>{tr("Who attended")}</div>
+          <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
+          <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" onClick={pickListed} style={tall}>{tr("Select all")}</Btn>}
+            {picked.size > 0 && <Btn t={t} v="ghost" onClick={() => setPicked(new Set())} style={tall}>{tr("Clear selection")}</Btn>}
+            <span role="status" style={{ fontSize: 13, fontWeight: 600, color: t.textSec }}>{trn("{0} person selected|count", picked.size)}</span>
+          </div>
+          <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden" }}>
+            {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
+              : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
+              : listed.map((p) => <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, cursor: "pointer" }}>
+                <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
+                <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
+                <span style={{ marginLeft: "auto", fontSize: 11, color: t.textMut, textAlign: "right" }}>{roleWord(p.role)}</span>
+              </label>)}
+          </div>
+        </div>
+        {(error || peopleError || siteError) && <div role="alert" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{error || peopleError || siteError}</div>}
+        {progress && progress.total > 0 && <div role="status" style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{trn("{1} of {0} saved|count", progress.total, progress.saved)}</div>}
+        {result && result.already.length > 0 && <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{tr("Already logged, not sent again")}</div>
+          {result.already.map((p) => <div key={p.id} style={{ fontSize: 13, color: t.textSec }}>{p.name}</div>)}
+        </div>}
+        {result && result.failed.length > 0 && <div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("Not saved")}</div>
+          {result.failed.map((f) => <div key={f.person.id} style={{ fontSize: 13, marginBottom: 6 }}>
+            <div style={{ fontWeight: 600, color: t.text }}>{f.person.name}</div>
+            <div style={{ color: t.textSec, overflowWrap: "anywhere" }}>{f.why}</div>
+          </div>)}
+          <Btn t={t} v="ghost" disabled={busy} onClick={() => save(result.failed.map((f) => f.person))} style={tall}>{tr("Try again")}</Btn>
+        </div>}
+        {result && result.rows.length > 0 && <div>
+          <Btn t={t} v="ghost" disabled={busy} onClick={() => { if (!printAttendanceSheet({ name: result.name, day: result.day, rows: result.rows, typeWords })) setError(tr("Allow pop-ups to print the sheet")); }} style={tall}>{tr("Print attendance sheet")}</Btn>
+        </div>}
+      </div></div>
+      <div style={{ position: "sticky", bottom: 0, background: t.card, borderTop: "1px solid " + t.border, padding: "12px 20px", display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={close} style={tall}>{result ? tr("Close") : tr("Cancel")}</Btn>
+        <Btn t={t} disabled={busy} onClick={() => save()} style={{ ...tall, opacity: busy ? 0.6 : 1 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+      </div>
+    </Mdl>
+  );
+}
+
+// Who has no record of one training: every active person, or every active person a site's record lists,
+// with no record of that training name. Training closes on October 29, when every active person has
+// all three pieces on record, so this is the list that closes it. The records are read again each time
+// the tab reads its own, so a save anywhere on the tab is counted here.
+function TrainingGapsPanel({ af, t, sites = [], refreshKey, typeWords, showToast }) {
+  const [people, peopleError] = useActivePeople(af);
+  const [rows, setRows] = useState(null);
+  const [rowsError, setRowsError] = useState("");
+  const [pick, setPick] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [atSite, siteError] = useSitePeople(af, siteId);
+  useEffect(() => {
+    let alive = true;
+    af("/api/hr/training")
+      .then((r) => { if (alive) { setRows(r || []); setRowsError(""); } })
+      .catch((e) => { if (alive) { setRows([]); setRowsError(e.message); } });
+    return () => { alive = false; };
+  }, [af, refreshKey]);
+  const names = useMemo(() => trainingNames(rows), [rows]);
+  const holders = new Set((rows || []).filter((r) => trainingKey(r.training_name) === trainingKey(pick)).map((r) => String(r.user_id)));
+  const scope = (people || []).filter((p) => !siteId || (atSite && atSite.has(p.id)));
+  const missing = scope.filter((p) => !holders.has(p.id));
+  const loading = people === null || rows === null || (siteId && atSite === null);
+  // The days the picked training was given, newest first, each with every record of it.
+  const sessions = useMemo(() => {
+    const byDay = new Map();
+    (rows || []).filter((r) => trainingKey(r.training_name) === trainingKey(pick) && trainingDay(r.completed_date)).forEach((r) => {
+      const day = trainingDay(r.completed_date);
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(r);
+    });
+    return Array.from(byDay.keys()).sort().reverse().map((day) => ({ day, rows: byDay.get(day) }));
+  }, [rows, pick]);
+  const printSession = (s) => { if (!printAttendanceSheet({ name: pick, day: s.day, rows: s.rows, typeWords })) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
+  const error = peopleError || rowsError || siteError;
+  return (
+    <section aria-label={tr("Who has no record")} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, marginBottom: 16, boxShadow: t.shadow }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Who has no record")}</div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}><Sel t={t} aria-label={tr("Training Name")} options={[{ v: "", l: tr("Pick a training...") }, ...names.map((n) => ({ v: n, l: n }))]} value={pick} onChange={(e) => setPick(e.target.value)} style={{ minHeight: 44 }} /></div>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} options={[{ v: "", l: tr("All sites") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={{ minHeight: 44 }} /></div>
+      </div>
+      {error && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10, overflowWrap: "anywhere" }}>{error}</div>}
+      {rows !== null && names.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginTop: 10 }}>{tr("No training records found.")}</div>}
+      {pick && sessions.length > 0 && <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{tr("Sessions")}</div>
+        <div role="list" aria-label={tr("Sessions")}>
+          {sessions.map((s) => <div key={s.day} role="listitem" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid " + t.border }}>
+            <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{trainingDayWords(s.day)}</div>
+              <div style={{ fontSize: 12, color: t.textSec }}>{[trn("{0} person logged|count", s.rows.length)].concat(trainingGivenIn(s.rows)).join(" . ")}</div>
+            </div>
+            <Btn t={t} v="ghost" onClick={() => printSession(s)} style={{ minHeight: 44, minWidth: 44 }}>{tr("Print attendance sheet")}</Btn>
+          </div>)}
+        </div>
+      </div>}
+      {pick && (loading ? <div style={{ fontSize: 13, color: t.textMut, marginTop: 10 }}>{tr("Loading...")}</div> : <>
+        <div role="status" style={{ fontSize: 13, fontWeight: 600, color: missing.length ? OR : GR, marginTop: 12 }}>{trn("{0} of {1} have no record|count", missing.length, scope.length)}</div>
+        {missing.length > 0 && <div role="list" style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden" }}>
+          {missing.map((p) => <div key={p.id} role="listitem" style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", padding: "8px 12px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+            <span style={{ color: t.text, overflowWrap: "anywhere" }}>{p.name}</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: t.textMut }}>{roleWord(p.role)}</span>
+          </div>)}
+        </div>}
+      </>)}
+    </section>
   );
 }

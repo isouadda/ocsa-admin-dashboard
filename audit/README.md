@@ -149,6 +149,21 @@ bar and trend to read the tooltip a person sees. In Spanish all of it is held to
 also saves a new report, an edited one and a copy in each language, and holds each body the editor
 sends to one written out by hand: the report editor saves the codes and the English it always has.
 
+**A room is logged once.** The `training` suite drives HR Records' Log training for several people as
+a supervisor, the way the API lets one in: the staff list the shell reads is refused to a supervisor,
+so the window lists everyone active and a site's active people from the HR routes a supervisor may
+call, and the stub's training routes answer the way `routes/hr.js` does. The suite logs three people
+and holds each of the three creates to a body written out by hand, presses Save again and sees nobody
+sent twice, has the API refuse one person of three and sees the other two saved, the refused one named
+in the API's own words and Try again send only that one, and opens the window at 11:30 PM in
+Philadelphia to see that evening's day sent. It picks a training on the Training tab and holds the
+list of who has no record of it to the active people worked out by hand, all sites and one site, and
+sees a person logged from the window leave the list. It prints a session's attendance sheet from the
+window and from the list, holds its people to everyone logged for that name and day and its words to
+the table, and blocks pop-ups to see both say so. Each in English and in Spanish, and each was
+broken on purpose once and seen to fail. It reads the window and that list again on a phone, 390 wide,
+at every text size: nothing in either runs off the side and every control is at least 44 by 44.
+
 ## How to run less of it
 
 ```
@@ -160,8 +175,8 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
-`forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens` and
-`house-style`.
+`forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
+`training` and `house-style`.
 
 ## How much is left in English
 
