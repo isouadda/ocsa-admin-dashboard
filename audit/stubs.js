@@ -24,6 +24,9 @@ function createStubs() {
   let delays = [];
   // A list route cut to a fixed number of rows, so a table can be driven empty and with one row.
   let trim = null;
+  // A choice left out of the lists /api/lookups/all serves, { slug, value }, the way a list can stop
+  // holding a choice that records still carry.
+  let listGap = null;
   let signedInAs = "admin";
   // A browser reads Content-Disposition off a cross-origin response only when the server exposes it.
   // The API does; a case turns it off to drive the name the dashboard falls back to.
@@ -193,11 +196,25 @@ function createStubs() {
 
   const PICKUPS = [
     { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
-    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
+    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", claimed_by_role: "custodial_lead", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
     { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
-    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
+    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", claimed_by_role: "day_porter", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
   ];
-  // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1.
+  // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1. The two claimed carry the role of
+  // whoever claimed them, the seed's role for that person, the way GET /api/pickups sends it.
+
+  // GET /api/pickups/analytics/staff-reliability: everyone with a claim or a drop request in the
+  // period, each with the role the API reads off the person.
+  const reliabilityRow = (id, counts) => {
+    const p = seed.STAFF.find((x) => x.id === id);
+    return Object.assign({ user_id: p.id, name: p.name, role: p.role }, counts);
+  };
+  const PICKUP_RELIABILITY = { staff: [
+    reliabilityRow("u-staff-10", { total_claims: 1, completed: 1, released: 0, drop_requests: 0 }),
+    reliabilityRow("u-staff-9", { total_claims: 1, completed: 0, released: 0, drop_requests: 0 }),
+    reliabilityRow("u-staff-8", { total_claims: 0, completed: 0, released: 0, drop_requests: 1 }),
+  ] };
+  // hand: 3 people, a day porter, a custodial lead and a custodial laborer.
 
   const PICKUP_ANALYTICS = {
     summary: { open_count: 1, fill_rate: 75, avg_time_to_fill_minutes: 95, callout_count: 2, no_show_count: 1, posted_count: 4, filled_count: 3 },
@@ -715,7 +732,9 @@ function createStubs() {
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
   }));
-  const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, { values: withChoiceWords(c.values, lang) }));
+  const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, {
+    values: withChoiceWords(c.values, lang).filter((v) => !(listGap && listGap.slug === c.slug && listGap.value === v.value)),
+  }));
 
   // A site's checklist the way Step 124's API holds it. Every item has a shift, how often it comes
   // due, the block of the shift it sits in, and whether today's checklist shows it. The clock's today
@@ -1136,6 +1155,7 @@ function createStubs() {
       state.pickups.unshift(row);
       return created({ message: "Open shift posted", pickup: row });
     }
+    if (path.startsWith("/api/pickups/analytics/staff-reliability")) return ok(PICKUP_RELIABILITY);
     if (path.startsWith("/api/pickups/analytics")) return ok(PICKUP_ANALYTICS);
     if (path.startsWith("/api/pickups/convert/")) return ok({ message: "Converted to an open shift" });
     if (/^\/api\/pickups\/[^/]+\/(approve|deny|approve-drop|deny-drop|release)$/.test(path)) {
@@ -1584,6 +1604,7 @@ function createStubs() {
     setExposeDisposition: (v) => { exposeDisposition = v !== false; },
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
+    setListGap: (g) => { listGap = g || null; },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1597,7 +1618,7 @@ function createStubs() {
       state.overrides = seededOverrides(); state.notifications = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
-      delays = []; trim = null; exposeDisposition = true;
+      delays = []; trim = null; listGap = null; exposeDisposition = true;
       agentStream = null; agentTalk = {}; agentPending = {};
       openSessions = {};
     },

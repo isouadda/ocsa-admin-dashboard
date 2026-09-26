@@ -73,7 +73,9 @@ text in pieces that cut a word or a bold phrase in two, a reset, done, an error 
 connection that drops part way. `route.fulfill` sends a body whole, so the stub answers the streaming
 route with a 307 to `audit/stream.js`, a small local server that writes each event with a pause before
 it, holds an answer part way until the journey has read the page, and destroys the socket for a drop.
-The conversation reads the stored answer back, once it is stored.
+The conversation reads the stored answer back, once it is stored. The line under an answer names a
+guide or a general reference in the owner's words and a company document by its code, and the suite
+holds it to that line written out by hand in each language.
 
 **The checklist editor keeps every item.** Since Step 124 a site's checklist read answers only today's
 items of the caller's open shift unless it is told otherwise. The stub answers it the same way, with a
@@ -89,13 +91,19 @@ in Spanish, and holds each role to the word the table has for it. The role label
 `src/App.js`, so the check follows the app, and the role's own code is never an answer. The stub
 carries the `training_types` and `onboarding_categories` lookups with Spanish, and the same suite
 holds the Training table's Type column and the Onboarding checklist's headings to the word each
-lookup the page was served gives the code.
+lookup the page was served gives the code. On Shift Pickup it reads the role of whoever claimed a
+shift and the role under each name on the Staff Reliability tab, which the stub answers the way the
+API does, and holds each to the `staff_roles` list's shown label; then it reads both again with a
+role left off the list the page is served, which `setListGap` does, and holds that role to the
+table's word for it.
 
 **A role on Staff Management is a word, a save sends what it always sent, and what a person typed
 into a case is drawn as typed.** The `staff-cases`
 suite reads the Status, Role and Employment columns of every person on the list's first page and the
 first person's banner, in English and in Spanish at 1024, and holds each to the word the table, or
-the pick list the page was served, has for it; the role's own code is never an answer. It then adds
+the pick list the page was served, has for it; the role's own code is never an answer. It reads the
+first person's onboarding steps on the HR Files tab and holds each to what the API sent: a step the
+API says is done carries its tick and the day it was done, and no other step does. It then adds
 a person, edits one from the list, edits a profile, assigns a site, adds a certification,
 deactivates a person and resets a PIN, choosing every value it can from its list, and holds each
 body the page sends to one written out by hand, the same in both languages. It reads Cases the same

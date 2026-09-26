@@ -1317,9 +1317,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           </Crd>
           {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Onboarding Steps")}</div>
+            {/* A step is done when the API says is_completed, on its completed_date, the two fields HR Records reads. */}
             {hrOnboarding.map((step, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.completed_at ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.completed_at ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.completed_at && <ChkI sz={10} c={GR} />}</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.completed_at && <div style={{ fontSize: 9, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_at))}</div>}</div>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.is_completed ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.is_completed ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.is_completed && <ChkI sz={10} c={GR} />}</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.is_completed && step.completed_date && <div style={{ fontSize: 9, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}</div>}</div>
             </div>)}
           </Crd>}
         </div>}
@@ -2610,6 +2611,22 @@ const agentStoredAnswer = (messages, question) => {
   list.forEach((m, i) => { if (m && m.role === "user" && String(m.text == null ? "" : m.text).trim() === words) asked = i; });
   return asked < 0 ? null : list.slice(asked + 1).find(m => m && m.role === "assistant") || null;
 };
+// The source an answer cites, the way the staff portal names it under an answer: a guide or general
+// reference in words, and a company document by its code. The API sends codes and still does.
+const agentSourceName = (code, say = agentEnglish) => {
+  const c = String(code == null ? "" : code).trim();
+  const k = c.toUpperCase();
+  if (k === "APP-PORTAL" || k === "APP-DASHBOARD") return say("the app guide");
+  if (k === "APP-ADP") return say("the ADP guide");
+  if (k.indexOf("REF-") === 0) return say("general cleaning guidance");
+  return c;
+};
+// Every source an answer cites, each named once: two guide codes on one answer name the app guide once.
+const agentSourcesLine = (codes, say = agentEnglish) => {
+  const out = [];
+  (Array.isArray(codes) ? codes : []).forEach(c => { const w = agentSourceName(c, say); if (w && out.indexOf(w) === -1) out.push(w); });
+  return out.join(", ");
+};
 // AGENT_HELPERS_END
 // Which app a Help message comes from, so the answer gives steps for this app.
 const AGENT_APP = "dashboard";
@@ -2885,7 +2902,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
               </div>}
-              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", m.citedDocs.join(", "))}</div>}
+              {!isMe && agentSourcesLine(m.citedDocs, tr) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
               {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
@@ -5626,7 +5643,10 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const [analyticsTab, setAnalyticsTab] = useState("overview");
   const svcOpts = getOpts("service_categories");
   const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
-  const roleLabels = lkMap("staff_roles");
+  // A person's role as a word, the way Staff Management and Sites draw one: the staff_roles list's
+  // shown label, or the table's word for a role the list does not hold. The code stays the code.
+  const roleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
 
   const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }); };
   const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }); };
@@ -5841,7 +5861,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           const columns = [
             { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? tr("Drop Request") : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
-            { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleLabels[s.claimed_by_role] || RL[s.claimed_by_role] || s.claimed_by_role})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
+            { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
             { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
@@ -6120,7 +6140,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                       <tr key={s.user_id} style={{ borderBottom: "1px solid " + t.border }}>
                         <td style={{ padding: "8px 10px" }}>
                           <div style={{ fontWeight: 600, color: t.text }}>{s.name}</div>
-                          <div style={{ fontSize: 10, color: t.textMut }}>{roleLabels[s.role] || s.role}</div>
+                          <div style={{ fontSize: 10, color: t.textMut }}>{roleOf(s.role)}</div>
                         </td>
                         <td style={{ padding: "8px 10px", textAlign: "center", color: BL, fontWeight: 600 }}>{s.total_claims}</td>
                         <td style={{ padding: "8px 10px", textAlign: "center", color: GR, fontWeight: 600 }}>{s.completed}</td>

@@ -205,10 +205,12 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       await this.settle();
     },
 
-    // A real page load, which is what it takes to refetch the lists the shell holds.
+    // A real page load, which is what it takes to refetch the lists the shell holds. The overview's
+    // greeting is waited on in the language the screen is drawn in.
     async reload() {
       await page.reload({ waitUntil: "domcontentloaded" });
-      await page.waitForSelector("text=Welcome back", { timeout: 20000 }).catch(() => {});
+      const welcome = say("Welcome back, {0}", tongue).split("{0}")[0].replace(/[,\s]+$/, "");
+      await page.waitForSelector("text=" + welcome, { timeout: 20000 }).catch(() => {});
       await this.settle(300);
     },
 
