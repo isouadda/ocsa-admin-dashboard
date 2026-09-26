@@ -10879,6 +10879,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
           </div>
         </div>
+        <TrainingGapsPanel af={af} t={t} sites={sites} refreshKey={training} />
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -11354,5 +11355,51 @@ function LogTrainingWindow({ af, t, sites = [], typeOpts, onClose, onSaved }) {
         <Btn t={t} disabled={busy} onClick={() => save()} style={{ ...tall, opacity: busy ? 0.6 : 1 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
       </div>
     </Mdl>
+  );
+}
+
+// Who has no record of one training: every active person, or every active person a site's record lists,
+// with no record of that training name. Training closes on October 29, when every active person has
+// all three pieces on record, so this is the list that closes it. The records are read again each time
+// the tab reads its own, so a save anywhere on the tab is counted here.
+function TrainingGapsPanel({ af, t, sites = [], refreshKey }) {
+  const [people, peopleError] = useActivePeople(af);
+  const [rows, setRows] = useState(null);
+  const [rowsError, setRowsError] = useState("");
+  const [pick, setPick] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [atSite, siteError] = useSitePeople(af, siteId);
+  useEffect(() => {
+    let alive = true;
+    af("/api/hr/training")
+      .then((r) => { if (alive) { setRows(r || []); setRowsError(""); } })
+      .catch((e) => { if (alive) { setRows([]); setRowsError(e.message); } });
+    return () => { alive = false; };
+  }, [af, refreshKey]);
+  const names = useMemo(() => trainingNames(rows), [rows]);
+  const holders = new Set((rows || []).filter((r) => trainingKey(r.training_name) === trainingKey(pick)).map((r) => String(r.user_id)));
+  const scope = (people || []).filter((p) => !siteId || (atSite && atSite.has(p.id)));
+  const missing = scope.filter((p) => !holders.has(p.id));
+  const loading = people === null || rows === null || (siteId && atSite === null);
+  const error = peopleError || rowsError || siteError;
+  return (
+    <section aria-label={tr("Who has no record")} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, marginBottom: 16, boxShadow: t.shadow }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Who has no record")}</div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}><Sel t={t} aria-label={tr("Training Name")} options={[{ v: "", l: tr("Pick a training...") }, ...names.map((n) => ({ v: n, l: n }))]} value={pick} onChange={(e) => setPick(e.target.value)} style={{ minHeight: 44 }} /></div>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} options={[{ v: "", l: tr("All sites") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={{ minHeight: 44 }} /></div>
+      </div>
+      {error && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10, overflowWrap: "anywhere" }}>{error}</div>}
+      {rows !== null && names.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginTop: 10 }}>{tr("No training records found.")}</div>}
+      {pick && (loading ? <div style={{ fontSize: 13, color: t.textMut, marginTop: 10 }}>{tr("Loading...")}</div> : <>
+        <div role="status" style={{ fontSize: 13, fontWeight: 600, color: missing.length ? OR : GR, marginTop: 12 }}>{trn("{0} of {1} have no record|count", missing.length, scope.length)}</div>
+        {missing.length > 0 && <div role="list" style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden" }}>
+          {missing.map((p) => <div key={p.id} role="listitem" style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", padding: "8px 12px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+            <span style={{ color: t.text, overflowWrap: "anywhere" }}>{p.name}</span>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: t.textMut }}>{roleWord(p.role)}</span>
+          </div>)}
+        </div>}
+      </>)}
+    </section>
   );
 }

@@ -185,10 +185,10 @@ const WINDOWS = [
 
   { id: "cases/window", page: "cases", title: "Case", lines: [10572] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11075] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11097] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11131] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11298] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11076] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11098] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11132] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11299] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -412,8 +412,9 @@ const ZONE_CHIPS = ["en", "es"].map((lang) => (
 // Log training for a whole room at once, in English and in Spanish: a supervisor's window lists everyone
 // active and a site's active people, three people send three creates held to bodies written by hand,
 // a second press logs nobody twice, one refusal leaves the rest saved and Try again sends only that
-// one, the day sent is the local one at 11:30 PM, and the names already used are offered. The window
-// fits a phone, 390 wide, at every text size. Each check was broken on purpose once and seen to fail.
+// one, the day sent is the local one at 11:30 PM, and the names already used are offered. The Training
+// tab lists who has no record of a training. The window and that list fit a phone, 390 wide, at every
+// text size. Each check was broken on purpose once and seen to fail.
 const TRAINING_ROOM = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/hr/training-room/a-supervisor-lists-everyone-active/" + lang, what: "a supervisor, refused the staff list, is offered everyone active and a site's active people", broken: "the people taken from the staff list the shell reads" },
   { id: "page/hr/training-room/three-people-three-creates/" + lang, what: "logging three people sends exactly three creates, each held to a body written by hand", broken: "one body sent for all three" },
@@ -421,10 +422,12 @@ const TRAINING_ROOM = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/hr/training-room/one-refused-the-rest-saved/" + lang, what: "one person refused: the other two save, the refused one is named with the API's words, and Try again sends only that one", broken: "the run stopped at the first refusal" },
   { id: "page/hr/training-room/the-local-day-at-11-30-pm/" + lang, what: "at 11:30 PM in Philadelphia the day sent is that local day", broken: "the day taken from toISOString" },
   { id: "page/hr/training-room/names-already-used-are-offered/" + lang, what: "typing part of a name offers the names already used, and taking one takes its type", broken: "nothing offered" },
+  { id: "page/hr/training-room/who-has-no-record/" + lang, what: "a training picked on the Training tab lists exactly the active people with no record of it and counts them, narrows by site, and drops a person once the window logs them", broken: "inactive people counted as well" },
 ]).concat(lang === "es" ? [
   { id: "page/hr/training-room/no-english-left/es", what: "the window, after a save, draws no English on a Spanish screen", broken: "a new string drawn without the table" },
 ] : []).concat(["standard", "large", "xlarge", "largest"].map((size) => (
-  { id: "page/hr/training-room/window-fits-a-phone/" + size + "/" + lang, what: "at 390 wide the window runs off no side and every control in it is at least 44 by 44", broken: "one control fixed at 30 pixels" }))), []);
+  { id: "page/hr/training-room/window-fits-a-phone/" + size + "/" + lang, what: "at 390 wide the window runs off no side and every control in it is at least 44 by 44", broken: "one control fixed at 30 pixels" }))).concat(["standard", "large", "xlarge", "largest"].map((size) => (
+  { id: "page/hr/training-room/list-fits-a-phone/" + size + "/" + lang, what: "at 390 wide the list of who has no record runs off no side and every control in it is at least 44 by 44", broken: "one control in the list fixed at 30 pixels" }))), []);
 // Every printed page on a page taken as done, opened and read in both languages: in English it opens
 // and carries its words, and in Spanish the English check finds nothing left in it.
 const PRINTS = ["en", "es"].reduce((out, lang) => out.concat([

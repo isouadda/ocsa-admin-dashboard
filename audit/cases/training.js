@@ -145,6 +145,26 @@ const fitLine = (g) => !g ? "it is not on screen"
       g.sideways > 1 ? "it scrolls " + g.sideways + "px sideways" : "",
       g.small.length ? "smaller than 44 by 44: " + g.small.slice(0, 4).join(", ") : ""].filter(Boolean).join("; ");
 
+// Who has no record of a training, as the Training tab shows it: the line that counts them and each
+// person listed.
+const GAPS = (d) => "section[aria-label='" + d.say("Who has no record") + "']";
+async function readGaps(d, name, siteName) {
+  const box = d.page.locator(GAPS(d));
+  await box.locator("select[aria-label='" + d.say("Training Name") + "']").selectOption({ label: name });
+  await box.locator("select[aria-label='" + d.say("Site") + "']").selectOption({ label: siteName || d.say("All sites") });
+  await d.settle(300);
+  return d.page.evaluate((sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    const text = (x) => (x && x.innerText ? x.innerText : "").replace(/\s+/g, " ").trim();
+    const list = el.querySelector("[role=list]:not([aria-label])");
+    return {
+      line: text(el.querySelector("[role=status]")),
+      names: list ? Array.from(list.querySelectorAll("[role=listitem]")).map((li) => text(li.querySelector("span"))) : [],
+    };
+  }, GAPS(d));
+}
+
 // ---- driving the window ------------------------------------------------------
 async function openTraining(d) {
   await d.goto("hr");
@@ -386,6 +406,49 @@ async function run(ctx) {
         !offeredOk ? "typing \"blood\" offers " + JSON.stringify(offering ? offering.offered : null)
           : "taking the name leaves the name " + JSON.stringify(taken ? taken.name : null) + " and the type " + JSON.stringify(taken ? taken.type : null));
       await closeRoom(d);
+
+      // ---- who has no record of a training --------------------------------------------------------
+      // Break: inactive people counted as well.
+      // hand: Bloodborne pathogens is held by Dana Whitlock, Tomasz Wisniewski and Yuki Tanabe. Of the
+      // ten active, 10 - 3 = 7 have no record. At Riverbend Logistics Hub the active are Priya
+      // Raghunathan, Ngozi Okonkwo and Yuki Tanabe, and Yuki holds it: 2 of 3. Counting the inactive
+      // too would read 9 of 12 and 3 of 4, with Salome Mkhize and Kwabena Asante in the list.
+      stubs.reset();
+      stubs.setRefusal(STAFF_LIST_REFUSED);
+      await openTraining(d);
+      const holdsBlood = ["Dana Whitlock", "Tomasz Wisniewski", "Yuki Tanabe"];
+      const gapAll = await readGaps(d, "Bloodborne pathogens", "");
+      const gapRiver = await readGaps(d, "Bloodborne pathogens", "Riverbend Logistics Hub");
+      const wantAll = W.active.filter((n) => holdsBlood.indexOf(n) < 0);
+      const wantRiver2 = W.atSite("Riverbend Logistics Hub").filter((n) => holdsBlood.indexOf(n) < 0);
+      // A record logged from the window takes its person off the list.
+      await readGaps(d, "Bloodborne pathogens", "");
+      await d.clickText(d.say("Log training for several people"), { exact: true });
+      await d.settle(300);
+      await waitLoaded(d);
+      await fillSession(d, { name: "Bloodborne pathogens", typeWord, by: SESSION.by, lang: SESSION.lang });
+      await tick(d, ["Marcus Ferreira"]);
+      await save(d);
+      await closeRoom(d);
+      await d.settle(300);
+      const gapAfter = await d.page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        const text = (x) => (x && x.innerText ? x.innerText : "").replace(/\s+/g, " ").trim();
+        const list = el && el.querySelector("[role=list]:not([aria-label])");
+        return el ? { line: text(el.querySelector("[role=status]")), names: list ? Array.from(list.querySelectorAll("[role=listitem]")).map((li) => text(li.querySelector("span"))) : [] } : null;
+      }, GAPS(d));
+      const wantAfter = wantAll.filter((n) => n !== "Marcus Ferreira");
+      const lineAll = sayCount("{0} of {1} have no record|count", lang, wantAll.length, W.active.length);
+      const lineRiver = sayCount("{0} of {1} have no record|count", lang, wantRiver2.length, W.atSite("Riverbend Logistics Hub").length);
+      const lineAfter = sayCount("{0} of {1} have no record|count", lang, wantAfter.length, W.active.length);
+      check("who-has-no-record", lang,
+        !!gapAll && sameSet(gapAll.names, wantAll) && gapAll.line === lineAll
+          && !!gapRiver && sameSet(gapRiver.names, wantRiver2) && gapRiver.line === lineRiver
+          && !!gapAfter && sameSet(gapAfter.names, wantAfter) && gapAfter.line === lineAfter,
+        !gapAll ? "the Training tab has no list of who has no record"
+          : !sameSet(gapAll.names, wantAll) || gapAll.line !== lineAll ? "Bloodborne pathogens reads " + JSON.stringify(gapAll.line) + " " + JSON.stringify(gapAll.names) + " where it should read " + JSON.stringify(lineAll) + " " + JSON.stringify(wantAll)
+            : !gapRiver || !sameSet(gapRiver.names, wantRiver2) || gapRiver.line !== lineRiver ? "at Riverbend Logistics Hub it reads " + JSON.stringify(gapRiver ? gapRiver.line : null) + " " + JSON.stringify(gapRiver ? gapRiver.names : null) + " where it should read " + JSON.stringify(lineRiver) + " " + JSON.stringify(wantRiver2)
+              : "after Marcus Ferreira is logged it reads " + JSON.stringify(gapAfter ? gapAfter.line : null) + " " + JSON.stringify(gapAfter ? gapAfter.names : null) + " where it should read " + JSON.stringify(lineAfter));
     } catch (e) {
       results.fail("page", "page/hr/training-room/suite/" + lang, "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]);
     } finally {
@@ -419,6 +482,11 @@ async function run(ctx) {
         const g = await fitOf(p, WINDOW + " > div");
         check("window-fits-a-phone/" + size, lang, fits(g), "at 390 wide: " + fitLine(g));
         await closeRoom(p);
+        // The list of who has no record, with a training picked and its people listed.
+        // Break: one control in the list fixed at 30 pixels.
+        await readGaps(p, "Bloodborne pathogens", "");
+        const l = await fitOf(p, GAPS(p));
+        check("list-fits-a-phone/" + size, lang, fits(l), "at 390 wide: " + fitLine(l));
       } catch (e) {
         results.fail("page", "page/hr/training-room/window-fits-a-phone/" + size + "/" + lang, "the case threw: " + String(e && e.message ? e.message : e).split("\n")[0]);
       } finally {

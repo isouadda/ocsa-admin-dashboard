@@ -968,6 +968,7 @@ export const WORDS = {
   "Photos ({0})": { es: "Fotos ({0})" },
   "Pick a conversation on the left to start.": { es: "Elija una conversaci\u00f3n a la izquierda para empezar." },
   "Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.": { es: "Elija a una persona del equipo y defina cada permiso como Predeterminado, Permitir o Denegar. Predeterminado sigue el rol de la persona. Un administrador puede conceder el permiso de administrar permisos para que otra persona abra esta pantalla." },
+  "Pick a training...": { es: "Elija una capacitaci\u00f3n..." },
   "Pick the date it was given": { es: "Elija la fecha en que se imparti\u00f3" },
   "Pick the language it was given in": { es: "Elija el idioma en que se imparti\u00f3" },
   "Pickup": { es: "Turno disponible" },
@@ -1513,6 +1514,7 @@ export const WORDS = {
   "What this report covers": { es: "Lo que cubre este informe" },
   "Who attended": { es: "Qui\u00e9nes asistieron" },
   "Who gets told": { es: "Qui\u00e9n recibe avisos" },
+  "Who has no record": { es: "Qui\u00e9n no tiene registro" },
   "Work Started": { es: "Trabajo iniciado" },
   "Worked": { es: "Trabajados" },
   "Working from the written procedure only right now.": { es: "Por ahora trabajo solo con el procedimiento escrito." },
@@ -1968,6 +1970,10 @@ export const WORDS = {
   "{1} of {0} saved|count": {
     en: { one: "{1} of {0} saved", other: "{1} of {0} saved" },
     es: { one: "{1} de {0} guardado", other: "{1} de {0} guardados" },
+  },
+  "{0} of {1} have no record|count": {
+    en: { one: "{0} of {1} has no record", other: "{0} of {1} have no record" },
+    es: { one: "{0} de {1} no tiene registro", other: "{0} de {1} no tienen registro" },
   },
 };
 

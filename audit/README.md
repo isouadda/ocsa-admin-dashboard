@@ -156,9 +156,11 @@ call, and the stub's training routes answer the way `routes/hr.js` does. The sui
 and holds each of the three creates to a body written out by hand, presses Save again and sees nobody
 sent twice, has the API refuse one person of three and sees the other two saved, the refused one named
 in the API's own words and Try again send only that one, and opens the window at 11:30 PM in
-Philadelphia to see that evening's day sent. Each in English and in Spanish, and each was broken on
-purpose once and seen to fail. It reads the window again on a phone, 390 wide, at every text size:
-nothing in it runs off the side and every control is at least 44 by 44.
+Philadelphia to see that evening's day sent. It picks a training on the Training tab and holds the
+list of who has no record of it to the active people worked out by hand, all sites and one site, and
+sees a person logged from the window leave the list. Each in English and in Spanish, and each was
+broken on purpose once and seen to fail. It reads the window and that list again on a phone, 390 wide,
+at every text size: nothing in either runs off the side and every control is at least 44 by 44.
 
 ## How to run less of it
 
