@@ -167,29 +167,29 @@ const WINDOWS = [
   { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [6302] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6803, 7139] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7131] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7150] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6805, 7141] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7133] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7152] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7876] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7885] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7893] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7907] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7921] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7932] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7878] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7887] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7895] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [7909] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7923] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7934] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8324] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9829] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9882] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9997] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10034] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8326] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9831] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9884] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9999] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10036] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10632] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10634] },
 
   { id: "hr/document-window", page: "hr", title: "Document", lines: [11142] },
   { id: "hr/training-window", page: "hr", title: "Training", lines: [11164] },
   { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11198] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11435] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11439] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -454,6 +454,13 @@ const PICKERS = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/pickers/schedule-lists-the-staff/" + lang, what: "Schedule Shift offers a supervisor the active people who are not admins under Staff Member", broken: "the shell's fallback taken out" },
   { id: "page/pickers/schedule-site-filter-keeps-the-sites-people/" + lang, what: "under a site, Schedule reads the site's record and Schedule Shift offers its active people and every admin", broken: "the site's people not read for a list without site assignments" },
   { id: "page/pickers/pickup-reassign-lists-the-staff/" + lang, what: "an open pickup's window on Schedule offers a supervisor the staff under Reassign To", broken: "the shell's fallback taken out" },
+  { id: "page/pickers/hr-filter-lists-the-active-people/" + lang, what: "HR Records' person filter offers a supervisor everyone active", broken: "HR Records reading the staff list alone" },
+  { id: "page/pickers/hr-filter-narrows-to-the-person/" + lang, what: "picking a person in the filter reads the tab's records with that person's id", broken: "the option's value the person's name" },
+  { id: "page/pickers/add-document-lists-the-active-people/" + lang, what: "+ Add Document offers a supervisor everyone active under Employee", broken: "HR Records reading the staff list alone" },
+  { id: "page/pickers/a-document-sent-names-the-persons-id/" + lang, what: "a document added for a person is sent to that person's id", broken: "the option's value the person's name" },
+  { id: "page/pickers/assigned-supervisor-lists-the-supervisors/" + lang, what: "Inspections' Schedule Inspection offers a supervisor the active supervisors under Assigned Supervisor", broken: "Assigned Supervisor's fallback taken out" },
+  { id: "page/pickers/an-inspection-scheduled-sends-the-chosen-id/" + lang, what: "an inspection scheduled for a supervisor sends that supervisor's id in assigned_to", broken: "the option's value the person's name" },
+  { id: "page/pickers/schedule-inspection-lists-the-supervisors/" + lang, what: "an inspection's window on Schedule offers a supervisor the active supervisors under Assigned Supervisor", broken: "Schedule's supervisors read from /api/users alone" },
   { id: "page/pickers/the-stub-answers-the-staff-list-to-an-admin/" + lang, what: "the stub answers GET /api/users with a 200 to an admin", broken: "the stub refusing the list to everyone" },
 ]), []);
 // Every printed page on a page taken as done, opened and read in both languages: in English it opens

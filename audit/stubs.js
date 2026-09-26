@@ -1530,6 +1530,10 @@ function createStubs() {
     if (path === "/api/jotform/auto-link") return ok({ message: "Linked 1 submission", linked: 1 });
     if (path === "/api/jotform/pdf-backfill") return ok({ message: "Backfilled 2 PDFs", filled: 2 });
     if (path.startsWith("/api/jotform/employee-documents/")) return ok(JOTFORM_SUBMISSIONS.slice(0, 1));
+    // POST /api/jotform/employees/:userId/documents answers the row it inserted, routes/jotform.js.
+    if (/^\/api\/jotform\/employees\/[^/]+\/documents$/.test(path) && method === "POST") {
+      return created({ id: "doc-new-1", user_id: idAfter("/api/jotform/employees/"), category: "uncategorized", created_at: seed.NOW_ISO });
+    }
     if (path === "/api/forms") return ok({ forms: FORM_LIST });
     if (path === "/api/forms/responses") {
       // Who may list decides who may open Forms at all. An admin always may; anyone else may when

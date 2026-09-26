@@ -3,11 +3,13 @@
 // The staff list the shell reads, GET /api/users, is an admin's (manage_staff), and until Step 146 every
 // picker built from it was empty for a supervisor: Assign To on Assigned Tasks, Schedule's people and
 // its shift windows' Staff, the reassign list on a pickup, HR Records' person filter and + Add Document's
-// Employee list. Since Step 146 the shell reads a supervisor's people from GET /api/hr/employees-summary
-// when the API refuses the list, through one helper, and Inspections' Assigned Supervisor falls back the
-// same way. The stub refuses GET /api/users to anyone without manage_staff, the way the API does, so this
-// suite drives each picker as the supervisor the API lets in and holds it to the seed's active people,
-// then reads the same pickers as an admin, whose lists do not change.
+// Employee list, and the Assigned Supervisor lists on Inspections and Schedule, which read the same
+// route narrowed to one role. Since Step 146 the shell reads a supervisor's people from GET
+// /api/hr/employees-summary when the API refuses the list, through one helper, loadPeople, and the
+// supervisor lists fall back through it the same way. The stub refuses GET /api/users to anyone without
+// manage_staff, the way the API does, so this suite drives each picker as the supervisor the API lets in
+// and holds it to the seed's active people, then reads the same pickers as an admin, whose lists do not
+// change.
 //
 // Every claim is read in English and in Spanish at 1024, and what a picker sends is held to the id of
 // the person picked. Each check here was broken on purpose once and seen to fail; the break is named
@@ -168,6 +170,81 @@ async function run({ d, results, seed, stubs, lang }) {
     !opened ? "the open pickup's window did not open from the week grid" : offWhy("Reassign To", reassign, W.staff));
   await d.closeModal().catch(() => {});
 
+  // ---- HR Records: the person filter narrows a tab to one person, and + Add Document names them -----
+  await d.goto("hr");
+  opened = await d.clickText(d.say("Documents"), { exact: true }).catch(() => false);
+  const filter = opened ? await optionsOfPicker(d, d.say("All Employees"), false) : null;
+  note("supervisor", "HR Records, Documents, person filter", filter);
+  // Break: HR Records reading the staff list alone; the filter is empty.
+  check("hr-filter-lists-the-active-people", opened && filter !== null && sameSet(namesOf(filter), W.everyone),
+    !opened ? "the Documents tab did not open from " + JSON.stringify(d.say("Documents")) : offWhy("the person filter", filter, W.everyone));
+  const person = W.byName["Elena Barbosa"];
+  let narrowed = null;
+  if (filter && filter.length) {
+    const before = d.mark();
+    await d.pickOption(person.name, { anywhere: true });
+    await d.settle(400);
+    narrowed = d.callsSince(before).find((c) => c.method === "GET" && c.path === "/api/hr/documents") || null;
+  }
+  // Break: the option's value the person's name rather than their id.
+  check("hr-filter-narrows-to-the-person", !!(narrowed && narrowed.query === "?user_id=" + person.id),
+    !narrowed ? "picking a person read no documents" : "the documents were read with " + JSON.stringify(narrowed.query) + " where the person's id is " + JSON.stringify(person.id));
+  opened = await d.clickText(d.say("+ Add Document"), { exact: false }).catch(() => false);
+  const employee = opened ? await optionsUnder(d, d.say("Employee"), true) : null;
+  note("supervisor", "HR Records, + Add Document, Employee", employee);
+  // Break: HR Records reading the staff list alone; the list is empty.
+  check("add-document-lists-the-active-people", opened && employee !== null && sameSet(namesOf(employee), W.everyone),
+    !opened ? "the document window did not open from " + JSON.stringify(d.say("+ Add Document")) : offWhy("Employee", employee, W.everyone));
+  let upload = null;
+  if (opened && employee && employee.length) {
+    const before = d.mark();
+    await d.pickOption(who.name, { inModal: true });
+    await d.pickOption(d.say("Training"), { inModal: true });
+    await d.modal().locator("input[type=file]").setInputFiles({ name: "signed-form.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4 audit") });
+    await d.clickText(d.say("Add"), { inModal: true, exact: true }).catch(() => false);
+    await d.settle(400);
+    upload = d.callsSince(before).find((c) => c.method === "POST" && /^\/api\/jotform\/employees\/[^/]+\/documents$/.test(c.path)) || null;
+  }
+  // Break: the option's value the person's name rather than their id.
+  check("a-document-sent-names-the-persons-id", !!(upload && upload.path === "/api/jotform/employees/" + who.id + "/documents"),
+    !upload ? "no document was sent" : "the document was sent to " + JSON.stringify(upload.path) + " where the person's id is " + JSON.stringify(who.id));
+  await d.closeModal().catch(() => {});
+
+  // ---- Inspections: Assigned Supervisor lists the supervisors, and a scheduled inspection sends one ---
+  await d.goto("inspections");
+  await d.clickText(d.say("Scheduled|inspections"), { exact: true }).catch(() => false);
+  opened = await d.clickText(d.say("Schedule Inspection"), { exact: false }).catch(() => false);
+  const sups = opened ? await optionsUnder(d, d.say("Assigned Supervisor"), true) : null;
+  note("supervisor", "Inspections, Schedule Inspection, Assigned Supervisor", sups);
+  // Break: Assigned Supervisor's fallback taken out; the list is empty.
+  check("assigned-supervisor-lists-the-supervisors", opened && sups !== null && sameSet(namesOf(sups), W.supervisors),
+    !opened ? "the schedule window did not open from " + JSON.stringify(d.say("Schedule Inspection")) : offWhy("Assigned Supervisor", sups, W.supervisors));
+  const sup = W.byName["Priya Raghunathan"];
+  let scheduled = null;
+  if (opened && sups && sups.length) {
+    const before = d.mark();
+    await d.pickOption(stubs.fixtures.INSPECTION_TEMPLATES[0].name, { inModal: true });
+    await d.pickOption(seed.SITES[1].name, { inModal: true });
+    await d.pickOption(sup.name, { inModal: true });
+    await d.fillByLabel(d.say("Scheduled Date *"), "2026-03-20");
+    await d.clickText(d.say("Schedule|verb"), { inModal: true, exact: true }).catch(() => false);
+    await d.settle(400);
+    scheduled = d.callsSince(before).find((c) => c.method === "POST" && c.path === "/api/inspections/scheduled") || null;
+  }
+  // Break: the option's value the person's name rather than their id.
+  check("an-inspection-scheduled-sends-the-chosen-id", !!(scheduled && scheduled.body && scheduled.body.assigned_to === sup.id),
+    !scheduled ? "no inspection was scheduled" : "the inspection sent assigned_to " + JSON.stringify(scheduled.body && scheduled.body.assigned_to) + " where the supervisor's id is " + JSON.stringify(sup.id));
+  await d.closeModal().catch(() => {});
+  // Schedule's inspection window reads the same list.
+  await d.goto("schedule");
+  opened = await d.clickGridCell(/quality walk|Dock area/).catch(() => false);
+  const schedSups = opened ? await optionsUnder(d, d.say("Assigned Supervisor"), true) : null;
+  note("supervisor", "Schedule, inspection window, Assigned Supervisor", schedSups);
+  // Break: Schedule's supervisors read from /api/users alone; the list is empty.
+  check("schedule-inspection-lists-the-supervisors", opened && schedSups !== null && sameSet(namesOf(schedSups), W.supervisors),
+    !opened ? "the inspection window did not open from the week grid" : offWhy("Assigned Supervisor on Schedule", schedSups, W.supervisors));
+  await d.closeModal().catch(() => {});
+
   // ---- the same pickers as an admin, whose list the stub answers -----------------------------------
   await d.signOutHard();
   const adminMark = d.mark();
@@ -190,6 +267,25 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.goto("schedule");
   if (await d.clickGridCell(openChip).catch(() => false)) {
     note("admin", "Schedule, open pickup, Reassign To", await optionsUnder(d, d.say("Reassign To"), true));
+    await d.closeModal().catch(() => {});
+  }
+  await d.goto("hr");
+  if (await d.clickText(d.say("Documents"), { exact: true }).catch(() => false)) {
+    note("admin", "HR Records, Documents, person filter", await optionsOfPicker(d, d.say("All Employees"), false));
+    if (await d.clickText(d.say("+ Add Document"), { exact: false }).catch(() => false)) {
+      note("admin", "HR Records, + Add Document, Employee", await optionsUnder(d, d.say("Employee"), true));
+      await d.closeModal().catch(() => {});
+    }
+  }
+  await d.goto("inspections");
+  await d.clickText(d.say("Scheduled|inspections"), { exact: true }).catch(() => false);
+  if (await d.clickText(d.say("Schedule Inspection"), { exact: false }).catch(() => false)) {
+    note("admin", "Inspections, Schedule Inspection, Assigned Supervisor", await optionsUnder(d, d.say("Assigned Supervisor"), true));
+    await d.closeModal().catch(() => {});
+  }
+  await d.goto("schedule");
+  if (await d.clickGridCell(/quality walk|Dock area/).catch(() => false)) {
+    note("admin", "Schedule, inspection window, Assigned Supervisor", await optionsUnder(d, d.say("Assigned Supervisor"), true));
     await d.closeModal().catch(() => {});
   }
 

@@ -5224,7 +5224,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   };
 
   useEffect(() => {
-    af("/api/users?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
+    loadPeople(af, "?role=supervisor").then(setSchedSupervisors).catch(e => console.warn("Load supervisors:", e.message));
   }, []);
   useEffect(() => { loadCalendar(); const iv = setInterval(() => loadCalendar(), 45000); return () => clearInterval(iv); }, [dateRange, filterSite]);
 
@@ -6460,7 +6460,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
   useEffect(() => {
     loadTemplates(); loadScheduled();
-    af("/api/users?role=supervisor").then(setSupervisors).catch(e => console.warn("Load supervisors:", e.message));
+    // The supervisors list is the staff list narrowed to one role, which the API refuses a supervisor
+    // (manage_staff); loadPeople answers them with the active supervisors from the HR summary.
+    loadPeople(af, "?role=supervisor").then(setSupervisors).catch(e => console.warn("Load supervisors:", e.message));
   }, []);
 
   useEffect(() => {
@@ -10694,13 +10696,11 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const [otQ, setOtQ] = useState(""); const [otPage, setOtPage] = useState(1);
   const [hrPerPage, setHrPerPage] = useState(10);
 
+  // The person filter, + Add Document's Employee and + Add Training's Employee all pick from the shell's
+  // staff list, which loadPeople fills for a supervisor from the HR employees summary when the API
+  // refuses them the list. Each saves the person's id.
   const staffOpts = [{ v: "", l: tr("All Employees") }, ...allStaff.map(s => ({ v: s.id, l: s.firstName + " " + s.lastName }))];
-  // + Add Training picks its person from the shell's staff list, which the API refuses a supervisor
-  // (manage_staff), so that list is empty for them. When it is empty the people come from the HR
-  // employees summary, the route Log training for several people reads, which a supervisor may call.
-  // The record saves the person's id either way.
-  const [activePeople] = useActivePeople(af, allStaff.length === 0);
-  const trainingPeopleOpts = allStaff.length > 0 ? staffOpts.filter(s => s.v) : (activePeople || []).map(p => ({ v: p.id, l: p.name }));
+  const trainingPeopleOpts = staffOpts.filter(s => s.v);
   // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
   const docTypeMap = lkMap("document_types", true);
   const trainingTypeMap = lkMap("training_types", true);
@@ -11291,32 +11291,36 @@ const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", last
 // no site assignments, so a person read this way has no sites list; Schedule reads a site's people
 // through useSitePeople for such a list. Every read of GET /api/users in this file that fills a list a
 // supervisor can open goes through here rather than copying the fallback.
+//
+// The refusal is asked once a session. It is kept beside the session's fetch, af, which a new sign-in
+// makes anew, so after the shell's own read is refused every later read, a page's supervisors list among
+// them, goes straight to the summary: a supervisor's pages ask for nothing they are refused, and the
+// browser logs no refusal for them.
+const staffListRefused = new WeakMap();
 async function loadPeople(af, query) {
   const q = query || "";
-  try { return await af("/api/users" + q); }
-  catch (e) {
-    if (e.status !== 403) throw e;
-    const want = new URLSearchParams(q.replace(/^\?/, ""));
-    const status = want.get("status");
-    const role = want.get("role");
-    const d = await af("/api/hr/employees-summary?status=active");
-    return ((d && d.employees) || []).map(hrPerson)
-      .filter(p => p.role !== "client_contact" && (!status || p.status === status) && (!role || p.role === role));
+  if (!staffListRefused.get(af)) {
+    try { return await af("/api/users" + q); }
+    catch (e) { if (e.status !== 403) throw e; staffListRefused.set(af, true); }
   }
+  const want = new URLSearchParams(q.replace(/^\?/, ""));
+  const status = want.get("status");
+  const role = want.get("role");
+  const d = await af("/api/hr/employees-summary?status=active");
+  return ((d && d.employees) || []).map(hrPerson)
+    .filter(p => p.role !== "client_contact" && (!status || p.status === status) && (!role || p.role === role));
 }
-// Everyone active, or null while the list loads. `when` false reads nothing, for a screen that only
-// needs the list when the shell's own staff list is empty.
-function useActivePeople(af, when = true) {
+// Everyone active, or null while the list loads.
+function useActivePeople(af) {
   const [people, setPeople] = useState(null);
   const [error, setError] = useState("");
   useEffect(() => {
-    if (!when) return undefined;
     let alive = true;
     af("/api/hr/employees-summary?status=active")
       .then((d) => { if (alive) setPeople(((d && d.employees) || []).map(hrPerson)); })
       .catch((e) => { if (alive) { setPeople([]); setError(e.message); } });
     return () => { alive = false; };
-  }, [af, when]);
+  }, [af]);
   return [people, error];
 }
 // The ids of the active people a site's record lists as assigned there, which is how Shift Pickup reads
