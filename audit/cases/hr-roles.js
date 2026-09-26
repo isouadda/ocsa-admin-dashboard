@@ -13,6 +13,13 @@
 // Since Step 133 the stub carries both lookups, so a pass reads the Training table's Type column
 // and the Onboarding checklist's headings and holds each to the word the lookup the page was served
 // gives its code.
+//
+// Shift Pickup draws a person's role the way Staff Management and Sites do: the staff_roles list's
+// shown label, or the table's word for a role the list does not hold. Until Step 139 it drew the
+// list's English label, and on the Staff Reliability tab the bare code for a role the list lacked. A
+// pass reads the Assigned column of every shift on the All tab and the role under each name on the
+// Staff Reliability tab, then reads both again with day_porter left off the list the page is
+// served, the way an admin can take a choice off a list that people still hold.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -141,6 +148,88 @@ async function run({ d, results, seed, stubs, lang }) {
       : !onbCodes.every((c) => onbWords[c]) ? "the onboarding_categories lookup the page was served has no word for " + onbCodes.filter((c) => !onbWords[c]).join(", ")
         : "the checklist's headings read " + JSON.stringify(headings) + " where the lookup says " + JSON.stringify(wantOnb));
   results.note("HR Records in " + lang + ": " + typeCells.length + " training types and " + headings.length + " onboarding headings read for their lookups' words");
+
+  // ---- Shift Pickup: whoever claimed a shift, and each person on the Staff Reliability tab
+  // The word for a role: the shown label of the staff_roles list the page was last served, or the
+  // table's word when that list does not hold it.
+  const pickupRoleFor = (code) => {
+    const shown = shownOf("staff_roles");
+    return shown[code] || wordFor(code);
+  };
+  const readPickupRoles = async () => {
+    await d.goto("marketplace");
+    await d.clickText(d.say("All|shifts"), { exact: true }).catch(() => false);
+    await d.settle(400);
+    // The Assigned cell of each row: the name, then the role in brackets.
+    const assigned = await d.page.evaluate((head) => {
+      const table = Array.from(document.querySelectorAll("table")).find((t) => t.offsetParent !== null
+        && Array.from(t.querySelectorAll("thead th")).some((th) => th.textContent.trim() === head));
+      if (!table) return [];
+      const col = Array.from(table.querySelectorAll("thead th")).findIndex((th) => th.textContent.trim() === head);
+      return Array.from(table.querySelectorAll("tbody tr")).map((tr) => ((tr.querySelectorAll("td")[col] || {}).textContent || "").trim())
+        .map((text) => { const m = /^(.*) \(([^()]*)\)$/.exec(text); return m ? { name: m[1], got: m[2] } : null; }).filter(Boolean);
+    }, d.say("Assigned|shift"));
+    await d.clickText(d.say("Analytics"), { exact: true }).catch(() => false);
+    await d.settle(300);
+    await d.clickText(d.say("Staff Reliability"), { exact: true }).catch(() => false);
+    await d.settle(400);
+    // The first cell of each row: the name, and the role on the line under it.
+    const reliability = await d.page.evaluate((head) => {
+      const table = Array.from(document.querySelectorAll("table")).find((t) => t.offsetParent !== null
+        && Array.from(t.querySelectorAll("thead th")).some((th) => th.textContent.trim() === head));
+      if (!table) return [];
+      return Array.from(table.querySelectorAll("tbody tr")).map((tr) => {
+        const lines = Array.from((tr.querySelector("td") || { children: [] }).children).map((el) => el.textContent.trim());
+        return { name: lines[0] || "", got: lines[1] || "" };
+      });
+    }, d.say("Staff Member"));
+    return { assigned, reliability };
+  };
+  const pickups = () => (served(/^\/api\/pickups$/) || []).filter((r) => r.claimed_by_name);
+  const reliable = () => ((served(/^\/api\/pickups\/analytics\/staff-reliability$/) || {}).staff || []);
+  // Each row's role held to the word for the code the API sent for that person.
+  const judgeRoles = (drawn, rows, nameOf, codeOf) => {
+    const wrong = [];
+    rows.forEach((r) => {
+      const hit = drawn.find((x) => x.name === nameOf(r));
+      const want = pickupRoleFor(codeOf(r));
+      if (!hit) wrong.push(JSON.stringify(nameOf(r)) + " is not drawn with a role");
+      else if (hit.got !== want) wrong.push(JSON.stringify(nameOf(r)) + " reads " + JSON.stringify(hit.got) + " where the word is " + JSON.stringify(want));
+    });
+    return wrong;
+  };
+
+  // A real page load on the overview, which is what refetches the lists the shell holds.
+  const freshLists = async () => { await d.goto("overview"); await d.reload(); };
+  stubs.reset();
+  await freshLists();
+  let read = await readPickupRoles();
+  const wrongAssigned = judgeRoles(read.assigned, pickups(), (r) => r.claimed_by_name, (r) => r.claimed_by_role);
+  results.check("page", "page/marketplace/roles-are-words/assigned/" + lang, pickups().length > 0 && wrongAssigned.length === 0,
+    pickups().length === 0 ? "Shift Pickup was served no claimed shift" : wrongAssigned.slice(0, 3).join("; "));
+  const wrongReliability = judgeRoles(read.reliability, reliable(), (r) => r.name, (r) => r.role);
+  results.check("page", "page/marketplace/roles-are-words/reliability/" + lang, reliable().length > 0 && wrongReliability.length === 0,
+    reliable().length === 0 ? "the Staff Reliability tab was served nobody" : wrongReliability.slice(0, 3).join("; "));
+
+  // The same two reads with day_porter off the list: the role is the table's word, never the code.
+  stubs.setListGap({ slug: "staff_roles", value: "day_porter" });
+  await freshLists();
+  read = await readPickupRoles();
+  const gapRows = pickups().filter((r) => r.claimed_by_role === "day_porter").map((r) => ({ name: r.claimed_by_name, role: r.claimed_by_role, where: "assigned" }))
+    .concat(reliable().filter((r) => r.role === "day_porter").map((r) => ({ name: r.name, role: r.role, where: "reliability" })));
+  const wrongGap = gapRows.filter((r) => {
+    const hit = read[r.where].find((x) => x.name === r.name);
+    return !hit || hit.got !== wordFor(r.role);
+  }).map((r) => {
+    const hit = read[r.where].find((x) => x.name === r.name);
+    return r.where + ": " + JSON.stringify(r.name) + " reads " + JSON.stringify(hit ? hit.got : null) + " where the table's word is " + JSON.stringify(wordFor(r.role));
+  });
+  results.check("page", "page/marketplace/roles-are-words/not-in-list/" + lang, gapRows.length > 0 && wrongGap.length === 0,
+    gapRows.length === 0 ? "nobody on Shift Pickup holds day_porter" : wrongGap.slice(0, 3).join("; "));
+  stubs.setListGap(null);
+  stubs.reset();
+  await freshLists();
+  results.note("Shift Pickup in " + lang + ": " + read.assigned.length + " claimed shifts and " + read.reliability.length + " people on Staff Reliability read for their roles");
 }
 
 module.exports = { run };

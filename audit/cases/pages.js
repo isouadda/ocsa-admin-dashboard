@@ -265,7 +265,8 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
             left.length + " lines a " + who + " reads are not Spanish: " + said);
           // A page is more than the view it opens on. Every view the page holds is read too, so
           // Schedule is checked on Month, Patterns and Time off as well as Week.
-          for (const v of inventory.VIEWS.filter((x) => x.page === p.id)) {
+          // A view an admin alone opens is read on an admin's pass.
+          for (const v of inventory.VIEWS.filter((x) => x.page === p.id && (isAdmin || !x.adminOnly))) {
             // The page again first, so a window one view opened is not still covering the next.
             await d.goto(p.id);
             await d.settle(150);

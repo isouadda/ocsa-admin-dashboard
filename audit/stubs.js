@@ -24,6 +24,9 @@ function createStubs() {
   let delays = [];
   // A list route cut to a fixed number of rows, so a table can be driven empty and with one row.
   let trim = null;
+  // A choice left out of the lists /api/lookups/all serves, { slug, value }, the way a list can stop
+  // holding a choice that records still carry.
+  let listGap = null;
   let signedInAs = "admin";
   // A browser reads Content-Disposition off a cross-origin response only when the server exposes it.
   // The API does; a case turns it off to drive the name the dashboard falls back to.
@@ -64,6 +67,7 @@ function createStubs() {
     formDelivery: {},
     lookupValues: null,
     notifications: null,
+    settings: null,
   };
 
   const person = () => seed.PEOPLE[signedInAs];
@@ -193,11 +197,25 @@ function createStubs() {
 
   const PICKUPS = [
     { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
-    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
+    { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", claimed_by_role: "custodial_lead", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
     { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
-    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
+    { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", claimed_by_role: "day_porter", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
   ];
-  // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1.
+  // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1. The two claimed carry the role of
+  // whoever claimed them, the seed's role for that person, the way GET /api/pickups sends it.
+
+  // GET /api/pickups/analytics/staff-reliability: everyone with a claim or a drop request in the
+  // period, each with the role the API reads off the person.
+  const reliabilityRow = (id, counts) => {
+    const p = seed.STAFF.find((x) => x.id === id);
+    return Object.assign({ user_id: p.id, name: p.name, role: p.role }, counts);
+  };
+  const PICKUP_RELIABILITY = { staff: [
+    reliabilityRow("u-staff-10", { total_claims: 1, completed: 1, released: 0, drop_requests: 0 }),
+    reliabilityRow("u-staff-9", { total_claims: 1, completed: 0, released: 0, drop_requests: 0 }),
+    reliabilityRow("u-staff-8", { total_claims: 0, completed: 0, released: 0, drop_requests: 1 }),
+  ] };
+  // hand: 3 people, a day porter, a custodial lead and a custodial laborer.
 
   const PICKUP_ANALYTICS = {
     summary: { open_count: 1, fill_rate: 75, avg_time_to_fill_minutes: 95, callout_count: 2, no_show_count: 1, posted_count: 4, filled_count: 3 },
@@ -240,13 +258,28 @@ function createStubs() {
   // hand: 7 notices, 5 unread (n-1, n-2, n-3, n-5, n-7).
   const UNREAD_COUNT = 5;
 
+  // What GET /api/users/:id/permissions sends as capabilities: the API's own list, middleware/
+  // capabilities.js, code for code and name for name, and one code the dashboard does not know, so a
+  // screen can be seen to draw the name the API sends for it.
   const CAPABILITIES = [
-    { key: "manage_permissions", label: "Manage per-person permissions", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
-    { key: "manage_company_settings", label: "Company settings and branding", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
-    { key: "manage_staff", label: "Staff accounts and approvals", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
-    { key: "decide_time_off", label: "Decide time off requests", group: "Time", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
-    { key: "manage_schedule", label: "Schedule and shift pickups", group: "Time", enforced: false, defaults: { admin: true, supervisor: true, staff: false } },
-    { key: "run_reports", label: "Reports and report builder", group: "Reporting", enforced: false, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_permissions", label: "Manage roles and permissions", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_settings", label: "Company settings and branding", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_lookups", label: "Dropdown and site lookups", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_staff", label: "Staff accounts and approvals", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_sites", label: "Site records and floor plans", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_integrations", label: "Integrations and forms", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_tasks", label: "Tasks and assignments", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_inspections", label: "Inspection templates and scheduling", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "manage_time", label: "Manual time entry and shift edits", group: "Operations", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_schedule", label: "Create, edit and delete scheduled shifts", group: "Operations", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "approve_time_off", label: "Approve and deny time off", group: "Operations", enforced: true, defaults: { admin: false, supervisor: false, staff: false } },
+    { key: "manage_supplies", label: "Supply catalog", group: "Supplies", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_vendors", label: "Vendors and services", group: "Supplies", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "view_reports", label: "Reports, labor, and scheduling", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: true, staff: false } },
+    { key: "read_incident_reports", label: "Read filed incident reports", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "export_payroll", label: "ADP payroll export", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "manage_admins", label: "Change admin accounts (role, status, PIN)", group: "Administration", enforced: true, defaults: { admin: false, supervisor: false, staff: false } },
+    { key: "audit_unknown_capability", label: "A capability the dashboard has no name for", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
   ];
 
   const REPORT_DEFS = [
@@ -610,17 +643,27 @@ function createStubs() {
     return (AGENT_CONVERSATIONS[id] || []).concat(agentTalk[id] || []);
   }
 
+  // What GET /api/notification-recipients sends as types: the API's own list, helpers/notify.js,
+  // type for type and name for name.
   const NOTIFICATION_TYPES = [
-    { type: "time_off", label: "Time off requests", keyed: false, allowOutsideEmail: true },
-    { type: "issue", label: "Issues", keyed: false, allowOutsideEmail: true },
-    { type: "form", label: "Reports filed from the app", keyed: true, allowOutsideEmail: true },
-    { type: "hr_case", label: "Speak Up", keyed: false, allowOutsideEmail: false },
-    { type: "hr_case_fallback", label: "Speak Up fallback", keyed: false, allowOutsideEmail: false },
+    { type: "issue", label: "A problem is reported", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "issue_escalated", label: "A worker cannot resolve an assigned problem", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "supply_request", label: "A supply request is made", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "form", label: "A form is submitted", keyed: true, allowOutsideEmail: true, emailCarriesDetail: false },
+    { type: "shift_drop", label: "Someone asks to drop a shift", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "shift_claim", label: "Someone picks up an open shift", keyed: false, allowOutsideEmail: true, emailCarriesDetail: true },
+    { type: "registration", label: "Someone registers for an account", keyed: false, allowOutsideEmail: true, emailCarriesDetail: false },
+    { type: "time_off", label: "Someone requests time off", keyed: false, allowOutsideEmail: true, emailCarriesDetail: false },
+    { type: "hr_case", label: "A Speak Up report is filed", keyed: false, allowOutsideEmail: false, emailCarriesDetail: false },
+    { type: "hr_case_fallback", label: "Nobody else can read a Speak Up report", keyed: false, allowOutsideEmail: false, emailCarriesDetail: false },
   ];
-  // Both forms start on the link to the app, which is what the API does.
+  // And its forms: every form the API defines, by code, with the English title the route always
+  // sends. Each starts on the link to the app, which is what the API does.
   const NOTIFICATION_FORMS = [
+    { code: "OCSA-FRM-005", title: "Daily Service Log", delivery: "app_link" },
     { code: "OCSA-FRM-016", title: "Safety Incident Report", delivery: "app_link" },
-    { code: "OCSA-FRM-021", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
+    { code: "OCSA-FRM-017", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
+    { code: "OCSA-FRM-019", title: "PPE Compliance Log, monthly check", delivery: "app_link" },
   ];
   const NOTIFICATION_RECIPIENTS = [
     { id: "nr-1", subjectType: "time_off", subjectKey: "", isActive: true, viaEmail: true, viaInApp: true, user: { id: seed.STAFF[0].id, name: seed.STAFF[0].name, role: seed.STAFF[0].role } },
@@ -715,7 +758,18 @@ function createStubs() {
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
   }));
-  const lookupsIn = (lang) => LOOKUPS.map((c) => Object.assign({}, c, { values: withChoiceWords(c.values, lang) }));
+  // GET /api/lookups/all the way the API answers it: each list with its label, its description,
+  // whether it is one of the system's own, its place and whether it is on, then its values. Every
+  // list is the system's own but contract types, which an admin added, and document categories are
+  // off. Neither changes what a pick list offers, since a page reads a list's values whatever the
+  // list's own state.
+  const LIST_DESCRIPTIONS = { issue_severities: "How soon a reported problem needs attention." };
+  const lookupsIn = (lang) => LOOKUPS.map((c, i) => ({
+    id: c.id, slug: c.slug, label: c.name, description: LIST_DESCRIPTIONS[c.slug] || null,
+    is_system: c.slug !== "contract_types", sort_order: i + 1, is_active: c.slug !== "document_categories",
+    values: withChoiceWords(c.values, lang).filter((v) => !(listGap && listGap.slug === c.slug && listGap.value === v.value))
+      .map((v) => Object.assign({ category_id: c.id, color: null, show_other_input: false, metadata: null }, v, { show_other_input: !!v.show_other_input })),
+  }));
 
   // A site's checklist the way Step 124's API holds it. Every item has a shift, how often it comes
   // due, the block of the shift it sits in, and whether today's checklist shows it. The clock's today
@@ -860,8 +914,12 @@ function createStubs() {
     if (path === "/api/sites" && method === "GET") return ok(state.sites);
     if (path === "/api/users" && method === "GET") return ok(state.staff);
     if (path === "/api/lookups/all") return ok(lookupsIn(lang));
-    if (path === "/api/settings" && method === "GET") return ok(SETTINGS);
-    if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) return ok(Object.assign(SETTINGS, body || {}));
+    // The company's settings as a run has saved them, which a reset puts back.
+    if (path === "/api/settings" && method === "GET") return ok(state.settings || (state.settings = clone(SETTINGS)));
+    if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) {
+      state.settings = Object.assign(state.settings || clone(SETTINGS), body || {});
+      return ok(state.settings);
+    }
     if (path === "/api/reports/overview") return ok(seed.OVERVIEW);
     if (path === "/api/hr-cases/queue-count") return ok(CASE_QUEUE);
     if (path === "/api/notifications/unread-count") return ok({ unread: state.notifications ? state.notifications.filter((n) => !n.readAt).length : UNREAD_COUNT });
@@ -1136,6 +1194,7 @@ function createStubs() {
       state.pickups.unshift(row);
       return created({ message: "Open shift posted", pickup: row });
     }
+    if (path.startsWith("/api/pickups/analytics/staff-reliability")) return ok(PICKUP_RELIABILITY);
     if (path.startsWith("/api/pickups/analytics")) return ok(PICKUP_ANALYTICS);
     if (path.startsWith("/api/pickups/convert/")) return ok({ message: "Converted to an open shift" });
     if (/^\/api\/pickups\/[^/]+\/(approve|deny|approve-drop|deny-drop|release)$/.test(path)) {
@@ -1584,6 +1643,7 @@ function createStubs() {
     setExposeDisposition: (v) => { exposeDisposition = v !== false; },
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
+    setListGap: (g) => { listGap = g || null; },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1594,10 +1654,10 @@ function createStubs() {
       state.issues = clone(seed.ISSUES);
       state.supplies = null; state.supplyRequests = null; state.pickups = null;
       state.schedule = null; state.patterns = null; state.timeOff = null;
-      state.overrides = seededOverrides(); state.notifications = null;
+      state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
-      delays = []; trim = null; exposeDisposition = true;
+      delays = []; trim = null; listGap = null; exposeDisposition = true;
       agentStream = null; agentTalk = {}; agentPending = {};
       openSessions = {};
     },

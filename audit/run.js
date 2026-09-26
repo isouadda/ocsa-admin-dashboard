@@ -49,12 +49,18 @@ const SUITES = [
   // The checklist editor on Sites asks for every item, and Forms is in the menu for whoever it opens for.
   { name: "checklist", mod: "./cases/checklist", widths: ["wide"] },
   { name: "forms-menu", mod: "./cases/forms-menu", widths: ["wide"] },
-  // The role, the training type and the onboarding category on HR Records are words, in both languages.
+  // The role, the training type and the onboarding category on HR Records, and a role on Shift Pickup,
+  // are words, in both languages.
   { name: "hr-roles", mod: "./cases/hr-roles", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
-  // Staff Management draws a role, a status and an employment type as words and saves exactly what it
-  // saves in English, and Cases draws what a person typed exactly as typed, in both languages at 1024.
+  // Staff Management draws a role, a status and an employment type as words, shows which onboarding
+  // steps are done and saves exactly what it saves in English, and Cases draws what a person typed
+  // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Settings shows each list value's English and, in another language, its words there, and saves
+  // exactly what it saves in English, in both languages at 1024.
+  { name: "settings", mod: "./cases/settings", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // The questions Schedule and Shift Pickup ask before they change something, and a site's zone
   // chips, in both languages.

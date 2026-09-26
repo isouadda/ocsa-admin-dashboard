@@ -785,7 +785,7 @@ export default function AdminDashboard() {
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -1317,9 +1317,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           </Crd>
           {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Onboarding Steps")}</div>
+            {/* A step is done when the API says is_completed, on its completed_date, the two fields HR Records reads. */}
             {hrOnboarding.map((step, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.completed_at ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.completed_at ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.completed_at && <ChkI sz={10} c={GR} />}</div>
-              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.completed_at && <div style={{ fontSize: 9, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_at))}</div>}</div>
+              <div style={{ width: 18, height: 18, borderRadius: "50%", background: step.is_completed ? GR + "20" : t.cardAlt, border: "1.5px solid " + (step.is_completed ? GR : t.border), display: "flex", alignItems: "center", justifyContent: "center" }}>{step.is_completed && <ChkI sz={10} c={GR} />}</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 12, color: t.text }}>{step.step_name}</div>{step.is_completed && step.completed_date && <div style={{ fontSize: 9, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}</div>}</div>
             </div>)}
           </Crd>}
         </div>}
@@ -2610,6 +2611,22 @@ const agentStoredAnswer = (messages, question) => {
   list.forEach((m, i) => { if (m && m.role === "user" && String(m.text == null ? "" : m.text).trim() === words) asked = i; });
   return asked < 0 ? null : list.slice(asked + 1).find(m => m && m.role === "assistant") || null;
 };
+// The source an answer cites, the way the staff portal names it under an answer: a guide or general
+// reference in words, and a company document by its code. The API sends codes and still does.
+const agentSourceName = (code, say = agentEnglish) => {
+  const c = String(code == null ? "" : code).trim();
+  const k = c.toUpperCase();
+  if (k === "APP-PORTAL" || k === "APP-DASHBOARD") return say("the app guide");
+  if (k === "APP-ADP") return say("the ADP guide");
+  if (k.indexOf("REF-") === 0) return say("general cleaning guidance");
+  return c;
+};
+// Every source an answer cites, each named once: two guide codes on one answer name the app guide once.
+const agentSourcesLine = (codes, say = agentEnglish) => {
+  const out = [];
+  (Array.isArray(codes) ? codes : []).forEach(c => { const w = agentSourceName(c, say); if (w && out.indexOf(w) === -1) out.push(w); });
+  return out.join(", ");
+};
 // AGENT_HELPERS_END
 // Which app a Help message comes from, so the answer gives steps for this app.
 const AGENT_APP = "dashboard";
@@ -2885,7 +2902,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
               </div>}
-              {!isMe && m.citedDocs && m.citedDocs.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", m.citedDocs.join(", "))}</div>}
+              {!isMe && agentSourcesLine(m.citedDocs, tr) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
               {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
@@ -2924,7 +2941,30 @@ const HR_FALLBACK_NOTE = "Told when everyone else on the team is named in a repo
 const FORM_SUB_NOTE = "These people are told about this form as well as anyone under Every form.";
 const FORM_PDF_NOTE = "Every email about this form carries everything the report says, to every person and address on these lists.";
 const BOTH_OFF = "Keep at least one of Email or In app on.";
-function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
+// A kind of report and a form, which GET /api/notification-recipients sends with their English names
+// only, by their codes. The English is the API's, and the table has the words for each in every
+// other language. One the dashboard does not know is drawn as the API names it.
+const NOTICE_TYPE_LABELS = {
+  issue: "A problem is reported",
+  issue_escalated: "A worker cannot resolve an assigned problem",
+  supply_request: "A supply request is made",
+  form: "A form is submitted",
+  shift_drop: "Someone asks to drop a shift",
+  shift_claim: "Someone picks up an open shift",
+  registration: "Someone registers for an account",
+  time_off: "Someone requests time off",
+  hr_case: "A Speak Up report is filed",
+  hr_case_fallback: "Nobody else can read a Speak Up report",
+};
+const FORM_TITLE_LABELS = {
+  "OCSA-FRM-005": "Daily Service Log",
+  "OCSA-FRM-016": "Safety Incident Report",
+  "OCSA-FRM-017": "Biohazard Incident and Exposure Report",
+  "OCSA-FRM-019": "PPE Compliance Log, monthly check",
+};
+const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
+const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (f.title || f.code));
+function WhoGetsToldPanel({ af, showToast, t, allStaff = [], lkMap }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState("");
@@ -2936,37 +2976,41 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   // The choice a form is being moved to, held only while the PATCH is in flight. A refusal drops
   // it, which puts the control back on what the server holds.
   const [deliveryPending, setDeliveryPending] = useState({});
+  // A person's role as a word, the way Staff Management draws one: the staff_roles list's shown
+  // label, or the table's word for a role the list does not hold. The code stays the code.
+  const roleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
 
   const load = useCallback(async () => {
     setLoading(true); setFailed("");
     try { const d = await af("/api/notification-recipients"); setData(d || {}); }
-    catch (e) { setData(null); setFailed(e.message || "Request failed"); }
+    catch (e) { setData(null); setFailed(e.message || tr("Request failed")); }
     setLoading(false);
   }, [af]);
   useEffect(() => { load(); }, [load]);
 
   const slotKey = (type, key) => type + "|" + (key || "");
   const setErr = (slot, msg) => setErrors(p => ({ ...p, [slot]: msg }));
-  const after = (slot) => { setErr(slot, ""); showToast("Saved"); load(); };
+  const after = (slot) => { setErr(slot, ""); showToast(tr("Saved")); load(); };
   const post = async (slot, body) => {
     if (busy) return;
     setBusy(true); setErr(slot, "");
     try { await af("/api/notification-recipients", { method: "POST", body }); setPicks(p => ({ ...p, [slot]: "" })); setEmails(p => ({ ...p, [slot]: "" })); after(slot); }
-    catch (e) { setErr(slot, e.message || "Request failed"); }
+    catch (e) { setErr(slot, e.message || tr("Request failed")); }
     setBusy(false);
   };
   const patch = async (slot, id, body) => {
     if (busy) return;
     setBusy(true); setErr(slot, "");
     try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "PATCH", body }); after(slot); }
-    catch (e) { setErr(slot, e.message || "Request failed"); }
+    catch (e) { setErr(slot, e.message || tr("Request failed")); }
     setBusy(false);
   };
   const remove = async (slot, id) => {
     if (busy) return;
     setBusy(true); setErr(slot, "");
     try { await af("/api/notification-recipients/" + encodeURIComponent(id), { method: "DELETE" }); setConfirming(null); after(slot); }
-    catch (e) { setErr(slot, e.message || "Request failed"); setConfirming(null); }
+    catch (e) { setErr(slot, e.message || tr("Request failed")); setConfirming(null); }
     setBusy(false);
   };
   const setFormDelivery = async (slot, code, value) => {
@@ -2974,12 +3018,12 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
     setBusy(true); setErr(slot, ""); setDeliveryPending(p => ({ ...p, [code]: value }));
     const done = () => setDeliveryPending(p => { const n = { ...p }; delete n[code]; return n; });
     try { await af("/api/notification-recipients/forms/" + encodeURIComponent(code), { method: "PATCH", body: { delivery: value } }); done(); after(slot); }
-    catch (e) { done(); setErr(slot, e.message || "Request failed"); }
+    catch (e) { done(); setErr(slot, e.message || tr("Request failed")); }
     setBusy(false);
   };
   const toggle = (slot, r, field) => {
     const next = { viaEmail: r.viaEmail, viaInApp: r.viaInApp, [field]: !r[field] };
-    if (!next.viaEmail && !next.viaInApp) { setErr(slot, BOTH_OFF); return; }
+    if (!next.viaEmail && !next.viaInApp) { setErr(slot, tr(BOTH_OFF)); return; }
     patch(slot, r.id, { [field]: !r[field] });
   };
 
@@ -2987,10 +3031,10 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
   const staffOptions = (slot, rows) => {
     const taken = new Set(rows.filter(r => r.user).map(r => String(r.user.id)));
     return allStaff.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active") && !taken.has(String(u.id)))
-      .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + u.role + ")" : "") }));
+      .map(u => ({ v: String(u.id), l: ((u.firstName || "") + " " + (u.lastName || "")).trim() + (u.role ? " (" + roleOf(u.role) + ")" : "") }));
   };
 
-  const deliveryBtn = (slot, form, value, label, ariaName, current) => <button key={value} onClick={() => setFormDelivery(slot, form.code, value)} disabled={busy} aria-label={label + " for " + ariaName} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (current === value ? GO : t.border), background: current === value ? t.goldBg : "transparent", color: current === value ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{label}</button>;
+  const deliveryBtn = (slot, form, value, label, ariaName, current) => <button key={value} onClick={() => setFormDelivery(slot, form.code, value)} disabled={busy} aria-label={tr("{0} for {1}", label, ariaName)} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (current === value ? GO : t.border), background: current === value ? t.goldBg : "transparent", color: current === value ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{label}</button>;
 
   const renderSection = ({ type, key2, title, note, allowEmail, ariaName, form }) => {
     const slot = slotKey(type, key2);
@@ -3004,56 +3048,56 @@ function WhoGetsToldPanel({ af, showToast, t, allStaff = [] }) {
       {note && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{note}</div>}
       {form && <div style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {deliveryBtn(slot, form, "app_link", "Link to the app", ariaName, delivery)}
-          {deliveryBtn(slot, form, "pdf", "Attach the filled report as a PDF", ariaName, delivery)}
+          {deliveryBtn(slot, form, "app_link", tr("Link to the app"), ariaName, delivery)}
+          {deliveryBtn(slot, form, "pdf", tr("Attach the filled report as a PDF"), ariaName, delivery)}
         </div>
-        {delivery === "pdf" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{FORM_PDF_NOTE}</div>}
+        {delivery === "pdf" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr(FORM_PDF_NOTE)}</div>}
       </div>}
-      {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>Nobody set. Every admin gets a notice in the app.</div>}
+      {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "6px 0" }}>{tr("Nobody set. Every admin gets a notice in the app.")}</div>}
       {rows.map(r => {
-        const who = r.user ? r.user.name + (r.user.role ? " (" + r.user.role + ")" : "") : r.email;
+        const who = r.user ? r.user.name + (r.user.role ? " (" + roleOf(r.user.role) + ")" : "") : r.email;
         return (<div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
           <div style={{ flex: 1, minWidth: 140, fontSize: 13, color: t.text }}>{who}</div>
           {r.user ? (<>
-            <button onClick={() => toggle(slot, r, "viaEmail")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaEmail ? GO : t.border), background: r.viaEmail ? t.goldBg : "transparent", color: r.viaEmail ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Email</button>
-            <button onClick={() => toggle(slot, r, "viaInApp")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaInApp ? GO : t.border), background: r.viaInApp ? t.goldBg : "transparent", color: r.viaInApp ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>In app</button>
-          </>) : <span style={{ fontSize: 12, color: t.textMut }}>Email only</span>}
-          <button onClick={() => setConfirming({ slot, id: r.id, who })} disabled={busy} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>Remove</button>
+            <button onClick={() => toggle(slot, r, "viaEmail")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaEmail ? GO : t.border), background: r.viaEmail ? t.goldBg : "transparent", color: r.viaEmail ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Email")}</button>
+            <button onClick={() => toggle(slot, r, "viaInApp")} disabled={busy} style={{ minHeight: 44, padding: "0 12px", borderRadius: R.sm, border: "1px solid " + (r.viaInApp ? GO : t.border), background: r.viaInApp ? t.goldBg : "transparent", color: r.viaInApp ? t.goldText : t.textMut, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("In app")}</button>
+          </>) : <span style={{ fontSize: 12, color: t.textMut }}>{tr("Email only")}</span>}
+          <button onClick={() => setConfirming({ slot, id: r.id, who })} disabled={busy} style={{ minHeight: 44, padding: "0 12px", background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Remove")}</button>
         </div>);
       })}
       {confirming && confirming.slot === slot && <div style={{ padding: "8px 0", fontSize: 12, color: t.text }}>
-        <div style={{ marginBottom: 6 }}>Stop telling {confirming.who} about this?</div>
+        <div style={{ marginBottom: 6 }}>{tr("Stop telling {0} about this?", confirming.who)}</div>
         <div style={{ display: "flex", gap: 8 }}>
-          <Btn t={t} v="danger" aria-label={"Remove " + confirming.who} onClick={() => remove(slot, confirming.id)} disabled={busy} style={{ minHeight: 44 }}>Remove</Btn>
-          <Btn t={t} v="ghost" aria-label={"Cancel removing " + confirming.who} onClick={() => setConfirming(null)} disabled={busy} style={{ minHeight: 44 }}>Cancel</Btn>
+          <Btn t={t} v="danger" aria-label={tr("Remove {0}", confirming.who)} onClick={() => remove(slot, confirming.id)} disabled={busy} style={{ minHeight: 44 }}>{tr("Remove")}</Btn>
+          <Btn t={t} v="ghost" aria-label={tr("Cancel removing {0}", confirming.who)} onClick={() => setConfirming(null)} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
         </div>
       </div>}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}>
-        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={"Add a person to " + ariaName} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: "Add a person" }, ...opts]} /></div>
-        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>Add</Btn>
+        <div style={{ flex: 1, minWidth: 180 }}><Sel t={t} aria-label={tr("Add a person to {0}", ariaName)} value={picks[slot] || ""} onChange={e => setPicks(p => ({ ...p, [slot]: e.target.value }))} options={[{ v: "", l: tr("Add a person") }, ...opts]} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), userId: picks[slot] })} disabled={busy || !picks[slot]} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>
       {allowEmail && <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 8 }}>
-        <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" aria-label={"Add an email address to " + ariaName} placeholder="Add an email address" value={emails[slot] || ""} onChange={e => setEmails(p => ({ ...p, [slot]: e.target.value }))} style={{ minHeight: 44 }} /></div>
-        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), email: (emails[slot] || "").trim() })} disabled={busy || !(emails[slot] || "").trim()} style={{ minHeight: 44 }}>Add</Btn>
+        <div style={{ flex: 1, minWidth: 180 }}><Inp t={t} type="email" aria-label={tr("Add an email address to {0}", ariaName)} placeholder={tr("Add an email address")} value={emails[slot] || ""} onChange={e => setEmails(p => ({ ...p, [slot]: e.target.value }))} style={{ minHeight: 44 }} /></div>
+        <Btn t={t} onClick={() => post(slot, { subjectType: type, ...(key2 ? { subjectKey: key2 } : {}), email: (emails[slot] || "").trim() })} disabled={busy || !(emails[slot] || "").trim()} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
       </div>}
       {err && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{err}</div>}
     </div>);
   };
 
-  if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading...</div>;
-  if (failed) return <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{failed} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>;
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
+  if (failed) return <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{failed} <button onClick={load} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>;
   const types = (data && Array.isArray(data.types) ? data.types : []);
   const forms = (data && Array.isArray(data.forms) ? data.forms : []);
   return (<div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{RECIPIENTS_INTRO}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr(RECIPIENTS_INTRO)}</div>
     {types.map(ty => (<Crd t={t} key={ty.type} style={{ marginBottom: 12 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{ty.label}</div>
-      {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE}</div>}
-      {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{HR_CASE_NOTE} {HR_FALLBACK_NOTE}</div>}
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{noticeTypeName(ty)}</div>
+      {ty.type === "hr_case" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr(HR_CASE_NOTE)}</div>}
+      {ty.type === "hr_case_fallback" && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr(HR_CASE_NOTE)} {tr(HR_FALLBACK_NOTE)}</div>}
       {ty.keyed && ty.type === "form" ? (<>
-        {renderSection({ type: ty.type, key2: "", title: "Every form", allowEmail: ty.allowOutsideEmail, ariaName: "Every form" })}
-        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: f.title + " (" + f.code + ")", note: FORM_SUB_NOTE, allowEmail: ty.allowOutsideEmail, ariaName: f.title + " (" + f.code + ")", form: f }))}
-      </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: ty.label })}
+        {renderSection({ type: ty.type, key2: "", title: tr("Every form"), allowEmail: ty.allowOutsideEmail, ariaName: tr("Every form") })}
+        {forms.map(f => renderSection({ type: ty.type, key2: f.code, title: formTitleName(f) + " (" + f.code + ")", note: tr(FORM_SUB_NOTE), allowEmail: ty.allowOutsideEmail, ariaName: formTitleName(f) + " (" + f.code + ")", form: f }))}
+      </>) : renderSection({ type: ty.type, key2: "", allowEmail: ty.allowOutsideEmail, ariaName: noticeTypeName(ty) })}
     </Crd>))}
   </div>);
 }
@@ -5626,7 +5670,10 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const [analyticsTab, setAnalyticsTab] = useState("overview");
   const svcOpts = getOpts("service_categories");
   const SVCATS = svcOpts.length > 0 ? svcOpts.map(o => o.l) : ["Office Cleaning", "Laboratory Cleaning", "Industrial Cleaning", "Biohazard Cleaning", "Post-Construction", "Disinfection Services", "Landscaping", "Green Cleaning"];
-  const roleLabels = lkMap("staff_roles");
+  // A person's role as a word, the way Staff Management and Sites draw one: the staff_roles list's
+  // shown label, or the table's word for a role the list does not hold. The code stays the code.
+  const roleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
 
   const fmtDt = (d) => { const s = String(d).slice(0, 10); return new Date(s + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }); };
   const fmtTm = (t) => { const [h, m] = t.split(":").map(Number); return new Date(2000, 0, 1, h, m).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }); };
@@ -5841,7 +5888,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
           const columns = [
             { header: tr("Shift"), render: s => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{s.site_name}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{fmtDt(s.scheduled_date)}, {tr("{0} to {1}", fmtTm(s.start_time), fmtTm(s.end_time))}</div><div style={{ display: "flex", gap: 10, marginTop: 2, flexWrap: "wrap" }}>{s.building_name && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Bldg: {0}", s.building_name)}</span>}{s.floor_number && <span style={{ fontSize: 10, color: t.textMut }}>{tr("Floor: {0}", s.floor_number)}</span>}{s.service_category && <span style={{ fontSize: 10, color: t.textMut }}>{s.service_category}</span>}</div>{s.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>{s.notes}</div>}</div> },
             { header: tr("Status"), render: s => <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}><Bdg l={s.status === "requested" ? tr("Drop Request") : s.status} c={statusColor[s.status] || GO} /><Bdg l={originLabel[s.origin] || s.origin} c={originColor[s.origin] || GO} />{s.urgency === "urgent" && <Bdg l={tr("URGENT")} c={RD} />}{s.ot_warning && <Bdg l={tr("OT Risk")} c={OR} />}</div> },
-            { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleLabels[s.claimed_by_role] || RL[s.claimed_by_role] || s.claimed_by_role})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
+            { header: tr("Assigned|shift"), render: s => (s.claimed_by_name && s.claimed_by_name.trim()) ? <div style={{ fontSize: 12 }}><span style={{ color: BL, fontWeight: 600 }}>{s.claimed_by_name}</span>{s.claimed_by_role && <span style={{ color: t.textMut }}> ({roleOf(s.claimed_by_role)})</span>}</div> : ((s.original_user_name && s.original_user_name.trim() && s.status === "requested") ? <span style={{ color: "#F1C40F", fontWeight: 600, fontSize: 12 }}>{s.original_user_name}</span> : <span style={{ color: t.textMut }}>-</span>) },
             { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>{s.status === "claimed" && <button onClick={() => approveShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{(s.status === "claimed" || s.status === "approved") && <button onClick={() => releaseShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Release")}</button>}{s.status === "open" && <button onClick={() => cancelShift(s.id)} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Cancel")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/approve-drop", { method: "POST" }); showToast(tr("Drop approved")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{s.status === "requested" && <button onClick={async () => { try { await af("/api/pickups/" + s.id + "/deny-drop", { method: "POST" }); showToast(tr("Request denied")); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, fontWeight: 600, cursor: "pointer" }}>{tr("Deny")}</button>}<button title={tr("View shift")} onClick={() => openDetail(s)} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openDetail(s)} empty={tr("No shifts found for this period and filter.")} footer={<Pagination t={t} page={cur} perPage={pkPerPage} total={searched.length} onPage={setPkPage} />} />;
@@ -6120,7 +6167,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                       <tr key={s.user_id} style={{ borderBottom: "1px solid " + t.border }}>
                         <td style={{ padding: "8px 10px" }}>
                           <div style={{ fontWeight: 600, color: t.text }}>{s.name}</div>
-                          <div style={{ fontSize: 10, color: t.textMut }}>{roleLabels[s.role] || s.role}</div>
+                          <div style={{ fontSize: 10, color: t.textMut }}>{roleOf(s.role)}</div>
                         </td>
                         <td style={{ padding: "8px 10px", textAlign: "center", color: BL, fontWeight: 600 }}>{s.total_claims}</td>
                         <td style={{ padding: "8px 10px", textAlign: "center", color: GR, fontWeight: 600 }}>{s.completed}</td>
@@ -7102,7 +7149,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
       };
       const updated = await af("/api/settings", { method: "PATCH", body });
       setForm(updated);
-      showToast("Company settings saved");
+      showToast(tr("Company settings saved"));
     } catch (e) { showToast(e.message, "error"); }
     setSaving(false);
   };
@@ -7111,82 +7158,95 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
     const file = e.target.files && e.target.files[0];
     if (logoInput.current) logoInput.current.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) { showToast("Logo must be an image file", "error"); return; }
-    if (file.size > 10 * 1024 * 1024) { showToast("Logo must be under 10MB", "error"); return; }
+    if (!file.type.startsWith("image/")) { showToast(tr("Logo must be an image file"), "error"); return; }
+    if (file.size > 10 * 1024 * 1024) { showToast(tr("Logo must be under 10MB"), "error"); return; }
     setLogoUploading(true);
     try {
       const r = await uf(file, "profile-photos");
       set("logo_url", r.url);
-      showToast("Logo uploaded. Click Save to keep it.");
+      showToast(tr("Logo uploaded. Click Save to keep it."));
     } catch (err) { showToast(err.message, "error"); }
     setLogoUploading(false);
   };
 
-  if (loading || !form) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading company settings...</div>;
+  if (loading || !form) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading company settings...")}</div>;
 
   const inp = { padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, width: "100%", boxSizing: "border-box" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4, display: "block" };
   const sec = { fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 14 };
+  // A pay period starts on a day saved as its English name, which is what the API holds, and each
+  // day is shown as its word. A time zone is saved as its IANA name, which is what the API holds, and
+  // shown as the name people use for it.
   const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const payDay = form.pay_period_start_day || "Saturday";
   const ZONES = ["America/New_York", "America/Chicago", "America/Denver", "America/Phoenix", "America/Los_Angeles", "America/Anchorage", "Pacific/Honolulu"];
+  const ZONE_LABELS = {
+    "America/New_York": "Eastern Time (New York)",
+    "America/Chicago": "Central Time (Chicago)",
+    "America/Denver": "Mountain Time (Denver)",
+    "America/Phoenix": "Mountain Time, no daylight saving (Phoenix)",
+    "America/Los_Angeles": "Pacific Time (Los Angeles)",
+    "America/Anchorage": "Alaska Time (Anchorage)",
+    "Pacific/Honolulu": "Hawaii Time (Honolulu)",
+  };
 
   return (
     <div style={{ display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
       <Crd t={t} style={{ flex: 1, minWidth: 320, padding: 18 }}>
-        <div style={sec}>Company Identity</div>
+        <div style={sec}>{tr("Company Identity")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Display name</label>
+          <label style={lbl}>{tr("Display name")}</label>
           <input style={inp} value={form.display_name || ""} onChange={e => set("display_name", e.target.value)} />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Legal name</label>
+          <label style={lbl}>{tr("Legal name")}</label>
           <input style={inp} value={form.legal_name || ""} onChange={e => set("legal_name", e.target.value)} />
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Address</label>
+          <label style={lbl}>{tr("Address")}</label>
           <textarea style={{ ...inp, minHeight: 60, resize: "vertical" }} value={form.address || ""} onChange={e => set("address", e.target.value)} />
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Phone</label>
+            <label style={lbl}>{tr("Phone")}</label>
             <input style={inp} value={form.phone || ""} onChange={e => set("phone", e.target.value)} />
           </div>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Email</label>
+            <label style={lbl}>{tr("Email")}</label>
             <input style={inp} value={form.email || ""} onChange={e => set("email", e.target.value)} />
           </div>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Website</label>
+          <label style={lbl}>{tr("Website")}</label>
           <input style={inp} value={form.website || ""} onChange={e => set("website", e.target.value)} />
         </div>
       </Crd>
 
       <Crd t={t} style={{ flex: 1, minWidth: 320, padding: 18 }}>
-        <div style={sec}>Branding</div>
+        <div style={sec}>{tr("Branding")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Logo</label>
+          <label style={lbl}>{tr("Logo")}</label>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ width: 84, height: 84, borderRadius: 8, border: "1px solid " + t.border, background: t.inputBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
-              {form.logo_url ? <img src={form.logo_url} alt="logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 10, color: t.textMut }}>No logo</span>}
+              {form.logo_url ? <img src={form.logo_url} alt={tr("logo")} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 10, color: t.textMut }}>{tr("No logo")}</span>}
             </div>
             <div>
               <input ref={logoInput} type="file" accept="image/*" onChange={onLogoPick} style={{ display: "none" }} />
-              <button onClick={() => logoInput.current && logoInput.current.click()} disabled={logoUploading} style={{ padding: "7px 14px", borderRadius: 6, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: logoUploading ? "default" : "pointer", opacity: logoUploading ? 0.6 : 1 }}>{logoUploading ? "Uploading..." : "Upload Logo"}</button>
-              {form.logo_url && <button onClick={() => set("logo_url", null)} style={{ marginLeft: 8, padding: "7px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 12, cursor: "pointer" }}>Remove</button>}
+              <button onClick={() => logoInput.current && logoInput.current.click()} disabled={logoUploading} style={{ padding: "7px 14px", borderRadius: 6, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: logoUploading ? "default" : "pointer", opacity: logoUploading ? 0.6 : 1 }}>{logoUploading ? tr("Uploading...") : tr("Upload Logo")}</button>
+              {form.logo_url && <button onClick={() => set("logo_url", null)} style={{ marginLeft: 8, padding: "7px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 12, cursor: "pointer" }}>{tr("Remove")}</button>}
             </div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Primary color</label>
+            <label style={lbl}>{tr("Primary color")}</label>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input type="color" value={form.primary_color || NAVY} onChange={e => set("primary_color", e.target.value)} style={{ width: 36, height: 34, padding: 0, border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, cursor: "pointer" }} />
               <input style={inp} value={form.primary_color || ""} onChange={e => set("primary_color", e.target.value)} />
             </div>
           </div>
           <div style={{ flex: 1, marginBottom: 14 }}>
-            <label style={lbl}>Secondary color</label>
+            <label style={lbl}>{tr("Secondary color")}</label>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input type="color" value={form.secondary_color || GOLD} onChange={e => set("secondary_color", e.target.value)} style={{ width: 36, height: 34, padding: 0, border: "1px solid " + t.inputBorder, borderRadius: 6, background: t.inputBg, cursor: "pointer" }} />
               <input style={inp} value={form.secondary_color || ""} onChange={e => set("secondary_color", e.target.value)} />
@@ -7194,42 +7254,68 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           </div>
         </div>
 
-        <div style={{ ...sec, marginTop: 4 }}>Defaults</div>
+        <div style={{ ...sec, marginTop: 4 }}>{tr("Defaults")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Timezone</label>
-          <select style={inp} value={form.timezone || "America/New_York"} onChange={e => set("timezone", e.target.value)}>{ZONES.map(z => <option key={z} value={z}>{z}</option>)}</select>
+          <label style={lbl}>{tr("Timezone")}</label>
+          <select style={inp} value={form.timezone || "America/New_York"} onChange={e => set("timezone", e.target.value)}>{ZONES.map(z => <option key={z} value={z}>{ZONE_LABELS[z] ? tr(ZONE_LABELS[z]) : z}</option>)}</select>
         </div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>Pay period start day</label>
-          <select style={inp} value={form.pay_period_start_day || "Saturday"} onChange={e => set("pay_period_start_day", e.target.value)}>{DAYS.map(d => <option key={d} value={d}>{d}</option>)}</select>
+          <label style={lbl}>{tr("Pay period start day")}</label>
+          <select style={inp} value={payDay} onChange={e => set("pay_period_start_day", e.target.value)}>{DAYS.map(d => <option key={d} value={d}>{tr(d)}</option>)}</select>
         </div>
 
-        <div style={{ ...sec, marginTop: 4 }}>Reports</div>
+        <div style={{ ...sec, marginTop: 4 }}>{tr("Reports")}</div>
         <div style={{ marginBottom: 14 }}>
-          <label style={lbl}>EIN / Tax ID</label>
+          <label style={lbl}>{tr("EIN / Tax ID")}</label>
           <input style={inp} value={form.ein || ""} onChange={e => set("ein", e.target.value)} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
           <button onClick={() => set("show_ein_on_reports", !form.show_ein_on_reports)} style={{ width: 44, height: 24, borderRadius: 12, border: "none", background: form.show_ein_on_reports ? GR : t.btnGhost, position: "relative", cursor: "pointer", flexShrink: 0, padding: 0 }}>
             <span style={{ position: "absolute", top: 2, left: form.show_ein_on_reports ? 22 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff" }} />
           </button>
-          <span style={{ fontSize: 12, color: t.textSec }}>Show EIN on report exports by default</span>
+          <span style={{ fontSize: 12, color: t.textSec }}>{tr("Show EIN on report exports by default")}</span>
         </div>
       </Crd>
 
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-        <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Reset</button>
-        <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? "Saving..." : "Save Company Settings"}</button>
+        <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tr("Reset")}</button>
+        <button onClick={save} disabled={saving} style={{ fontFamily: FONT_HEAD, padding: "9px 22px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 13, fontWeight: 600, cursor: saving ? "default" : "pointer", opacity: saving ? 0.6 : 1 }}>{saving ? tr("Saving...") : tr("Save Company Settings")}</button>
       </div>
     </div>
   );
 }
 
+// The role reference's three columns, by the key each row files its level under. Each is drawn as the
+// table's word for its name.
 const ACCESS_TIERS = [
   { key: "a", label: "Admin" },
   { key: "s", label: "Supervisor" },
   { key: "st", label: "Staff" },
 ];
+
+// A capability's name, by its code. GET /api/users/:id/permissions sends each capability with its
+// English name, which is the name the dashboard knows the code by here, and the table has the words
+// for it in every other language. A code the dashboard does not know is drawn as the API names it.
+const CAPABILITY_LABELS = {
+  manage_permissions: "Manage roles and permissions",
+  manage_settings: "Company settings and branding",
+  manage_lookups: "Dropdown and site lookups",
+  manage_staff: "Staff accounts and approvals",
+  manage_sites: "Site records and floor plans",
+  manage_integrations: "Integrations and forms",
+  manage_tasks: "Tasks and assignments",
+  manage_inspections: "Inspection templates and scheduling",
+  manage_time: "Manual time entry and shift edits",
+  manage_schedule: "Create, edit and delete scheduled shifts",
+  approve_time_off: "Approve and deny time off",
+  manage_supplies: "Supply catalog",
+  manage_vendors: "Vendors and services",
+  view_reports: "Reports, labor, and scheduling",
+  read_incident_reports: "Read filed incident reports",
+  export_payroll: "ADP payroll export",
+  manage_admins: "Change admin accounts (role, status, PIN)",
+};
+const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
 const PERMISSION_GROUPS = [
   { group: "Administration", rows: [
@@ -7289,20 +7375,20 @@ function PermissionsMatrixPanel({ t }) {
     const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     let body = "";
     PERMISSION_GROUPS.forEach(g => {
-      body += '<h2>' + esc(g.group) + '</h2><table><thead><tr><th>Capability</th><th>Admin</th><th>Supervisor</th><th>Staff</th></tr></thead><tbody>';
-      g.rows.forEach(r => { body += '<tr><td>' + esc(r.cap) + '</td><td>' + esc(r.a) + '</td><td>' + esc(r.s) + '</td><td>' + esc(r.st) + '</td></tr>'; });
+      body += '<h2>' + esc(tr(g.group)) + '</h2><table><thead><tr><th>' + esc(tr("Capability")) + '</th>' + ACCESS_TIERS.map(x => '<th>' + esc(tr(x.label)) + '</th>').join("") + '</tr></thead><tbody>';
+      g.rows.forEach(r => { body += '<tr><td>' + esc(tr(r.cap)) + '</td>' + ACCESS_TIERS.map(x => '<td>' + esc(tr(r[x.key] + "|access")) + '</td>').join("") + '</tr>'; });
       body += '</tbody></table>';
     });
     let notes = '<ul class="notes">';
-    PERMISSION_NOTES.forEach(n => { notes += '<li>' + esc(n) + '</li>'; });
+    PERMISSION_NOTES.forEach(n => { notes += '<li>' + esc(tr(n)) + '</li>'; });
     notes += '</ul>';
     const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left}th{background:' + navy + ';color:' + gold + '}.notes{font-size:10px;color:#555;margin-top:16px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Roles and Permissions</title>' + style + '</head><body>'
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Roles and Permissions")) + '</title>' + style + '</head><body>'
       + '<div class="brand"><div class="co">' + esc(cName) + '</div></div>'
-      + '<h1>Roles and Permissions</h1>'
-      + '<p class="meta">Access reference, generated ' + esc(gen) + '</p>'
+      + '<h1>' + esc(tr("Roles and Permissions")) + '</h1>'
+      + '<p class="meta">' + esc(tr("Access reference, generated {0}", gen)) + '</p>'
       + body + notes
-      + '<div class="footer">' + esc(cName) + ' &middot; Access reference</div>'
+      + '<div class="footer">' + esc(cName) + ' &middot; ' + esc(tr("Access reference")) + '</div>'
       + '</body></html>';
     const w = window.open("", "_blank");
     if (!w) return;
@@ -7317,22 +7403,22 @@ function PermissionsMatrixPanel({ t }) {
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
         <div style={{ fontSize: 12.5, color: t.textSec, maxWidth: 620, lineHeight: 1.5 }}>
-          Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.
+          {tr("Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.")}
         </div>
-        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Export PDF</button>
+        <button onClick={printMatrix} style={{ fontFamily: FONT_HEAD, padding: "8px 16px", borderRadius: 8, border: "1px solid " + GO, background: GO + "18", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>{tr("Export PDF")}</button>
       </div>
 
       {PERMISSION_GROUPS.map((g, gi) => (
         <Crd key={gi} t={t} style={{ marginBottom: 14, padding: 16 }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{g.group}</div>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr(g.group)}</div>
           <div style={{ display: "grid", gridTemplateColumns: "2.2fr 1fr 1fr 1fr" }}>
-            <div style={headCell}>Capability</div>
-            {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tier.label}</div>)}
+            <div style={headCell}>{tr("Capability")}</div>
+            {ACCESS_TIERS.map(tier => <div key={tier.key} style={{ ...headCell, textAlign: "center" }}>{tr(tier.label)}</div>)}
             {g.rows.flatMap((r, ri) => [
-              <div key={"cap-" + ri} style={capCell}>{r.cap}</div>,
+              <div key={"cap-" + ri} style={capCell}>{tr(r.cap)}</div>,
               ...ACCESS_TIERS.map(tier => (
                 <div key={"c-" + ri + "-" + tier.key} style={{ ...capCell, textAlign: "center" }}>
-                  <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: 11, fontSize: 11, fontWeight: 600, color: cellColor(r[tier.key]), background: cellBg(r[tier.key]) }}>{r[tier.key]}</span>
+                  <span style={{ display: "inline-block", padding: "3px 9px", borderRadius: 11, fontSize: 11, fontWeight: 600, color: cellColor(r[tier.key]), background: cellBg(r[tier.key]) }}>{tr(r[tier.key] + "|access")}</span>
                 </div>
               )),
             ])}
@@ -7341,10 +7427,10 @@ function PermissionsMatrixPanel({ t }) {
       ))}
 
       <Crd t={t} style={{ padding: 16 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 8 }}>Notes</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textSec, marginBottom: 8 }}>{tr("Notes")}</div>
         {PERMISSION_NOTES.map((n, i) => (
           <div key={i} style={{ fontSize: 11.5, color: t.textMut, marginBottom: 5, paddingLeft: 12, position: "relative" }}>
-            <span style={{ position: "absolute", left: 0, color: t.goldText }}>-</span>{n}
+            <span style={{ position: "absolute", left: 0, color: t.goldText }}>-</span>{tr(n)}
           </div>
         ))}
       </Crd>
@@ -7352,7 +7438,7 @@ function PermissionsMatrixPanel({ t }) {
   );
 }
 
-function PermissionsEditorPanel({ af, uf, showToast, t }) {
+function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   const [staff, setStaff] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [selId, setSelId] = useState("");
@@ -7360,6 +7446,10 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   const [overrides, setOverrides] = useState({});
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [saving, setSaving] = useState(false);
+  // A person's role as a word, the way Staff Management draws one: the staff_roles list's shown
+  // label, or the table's word for a role the list does not hold. The code stays the code.
+  const roleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => roleShown[r] || roleWord(r);
 
   useEffect(() => {
     setLoadingStaff(true);
@@ -7369,7 +7459,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         setStaff(list);
         setLoadingStaff(false);
       })
-      .catch((e) => { setLoadingStaff(false); showToast("Could not load team: " + e.message, "error"); });
+      .catch((e) => { setLoadingStaff(false); showToast(tr("Could not load team: {0}", e.message), "error"); });
   }, []);
 
   const loadDetail = (id) => {
@@ -7381,7 +7471,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         setOverrides(d && d.overrides && typeof d.overrides === "object" ? Object.assign({}, d.overrides) : {});
         setLoadingDetail(false);
       })
-      .catch((e) => { setLoadingDetail(false); showToast("Could not load permissions: " + e.message, "error"); });
+      .catch((e) => { setLoadingDetail(false); showToast(tr("Could not load permissions: {0}", e.message), "error"); });
   };
 
   const onSelect = (id) => { setSelId(id); loadDetail(id); };
@@ -7417,9 +7507,9 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
         setDetail((prev) => prev ? Object.assign({}, prev, { overrides: (d && d.overrides) || {}, effective: (d && d.effective) || prev.effective }) : prev);
         setOverrides((d && d.overrides) ? Object.assign({}, d.overrides) : {});
         setSaving(false);
-        showToast("Permissions saved", "success");
+        showToast(tr("Permissions saved"), "success");
       })
-      .catch((e) => { setSaving(false); showToast("Could not save: " + e.message, "error"); });
+      .catch((e) => { setSaving(false); showToast(tr("Could not save: {0}", e.message), "error"); });
   };
 
   const groups = [];
@@ -7432,40 +7522,44 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
   const card = { background: t.card, border: "1px solid " + t.borderSolid, borderRadius: 10, padding: 18, marginBottom: 16 };
   const selSt = { padding: "8px 12px", borderRadius: 8, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer", minWidth: 260 };
   const segBtn = (active, color) => ({ padding: "5px 10px", borderRadius: 6, border: "1px solid " + (active ? color : t.borderSolid), background: active ? color : "transparent", color: active ? "#fff" : t.textMut, fontSize: 11, fontFamily: FONT_BODY, cursor: "pointer", fontWeight: active ? 700 : 500 });
+  // What a capability's row says it is now, a whole sentence for each state it can be in.
+  const currentlyLine = (eff, st) => (st === "locked" ? tr("Currently: Allowed (admins always allowed)")
+    : st === "default" ? (eff ? tr("Currently: Allowed (role default)") : tr("Currently: Blocked (role default)"))
+      : (eff ? tr("Currently: Allowed (override)") : tr("Currently: Blocked (override)")));
   const tag = (txt, color) => (<span style={{ fontSize: 9, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: color, border: "1px solid " + color, borderRadius: 4, padding: "1px 5px", marginLeft: 8 }}>{txt}</span>);
 
   return (
     <div>
       <div style={card}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>Per-person permissions</div>
-        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.</div>
+        <div style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Per-person permissions")}</div>
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 14 }}>{tr("Pick a team member, then set each capability to Default, Allow, or Deny. Default follows the person role. An admin can grant the manage permissions capability to let someone else open this screen.")}</div>
         {loadingStaff ? (
-          <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>Loading team...</div>
+          <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Loading team...")}</div>
         ) : (
           <select value={selId} onChange={(e) => onSelect(e.target.value)} style={selSt}>
-            <option value="">Select a team member...</option>
+            <option value="">{tr("Select a team member...")}</option>
             {staff.map((u) => (
-              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || ("User " + u.id)) + (u.role ? "  (" + u.role + ")" : ""))}</option>
+              <option key={u.id} value={u.id}>{((((u.first_name || u.firstName || "") + " " + (u.last_name || u.lastName || "")).trim() || u.name || u.full_name || u.fullName || u.email || tr("User {0}", u.id)) + (u.role ? "  (" + roleOf(u.role) + ")" : ""))}</option>
             ))}
           </select>
         )}
       </div>
 
       {loadingDetail ? (
-        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>Loading permissions...</div>
+        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("Loading permissions...")}</div>
       ) : detail ? (
         <div style={card}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>{detail.name}</div>
-              <div style={{ fontSize: 11, color: t.textMut }}>Role: {role}. Default follows this role until you override it.</div>
+              <div style={{ fontSize: 11, color: t.textMut }}>{tr("Role: {0}. Default follows this role until you override it.", roleOf(role))}</div>
             </div>
-            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? "Saving..." : "Save changes"}</button>
+            <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? tr("Saving...") : tr("Save changes")}</button>
           </div>
 
           {groups.map((g) => (
             <div key={g.name} style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{g.name}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5, color: t.textMut, marginBottom: 6 }}>{tr(g.name)}</div>
               {g.items.map((c) => {
                 const st = stateOf(c);
                 const eff = effOf(c);
@@ -7473,17 +7567,17 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
                 return (
                   <div key={c.key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid " + t.borderSolid, flexWrap: "wrap", gap: 8 }}>
                     <div style={{ flex: "1 1 240px" }}>
-                      <span style={{ fontSize: 13, color: t.text }}>{c.label}</span>
-                      {c.enforced ? tag("Enforced", GR) : tag("Rolling out", OR)}
-                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>Currently: {eff ? "Allowed" : "Blocked"}{st === "default" ? " (role default)" : st === "locked" ? " (admins always allowed)" : " (override)"}</div>
+                      <span style={{ fontSize: 13, color: t.text }}>{capabilityName(c)}</span>
+                      {c.enforced ? tag(tr("Enforced"), GR) : tag(tr("Rolling out"), OR)}
+                      <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{currentlyLine(eff, st)}</div>
                     </div>
                     {locked ? (
-                      <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>Locked on</div>
+                      <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("Locked on")}</div>
                     ) : (
                       <div style={{ display: "flex", gap: 6 }}>
-                        <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>Default</button>
-                        <button onClick={() => setAllow(c.key)} style={segBtn(st === "allow", GR)}>Allow</button>
-                        <button onClick={() => setDeny(c.key)} style={segBtn(st === "deny", RD)}>Deny</button>
+                        <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>{tr("Default|permission")}</button>
+                        <button onClick={() => setAllow(c.key)} style={segBtn(st === "allow", GR)}>{tr("Allow")}</button>
+                        <button onClick={() => setDeny(c.key)} style={segBtn(st === "deny", RD)}>{tr("Deny")}</button>
                       </div>
                     )}
                   </div>
@@ -7491,26 +7585,26 @@ function PermissionsEditorPanel({ af, uf, showToast, t }) {
               })}
             </div>
           ))}
-          <div style={{ fontSize: 10, color: t.textMut, marginTop: 8 }}>Enforced capabilities take effect immediately. Rolling out capabilities are saved against the person now and begin enforcing as each area is wired.</div>
+          <div style={{ fontSize: 10, color: t.textMut, marginTop: 8 }}>{tr("Enforced capabilities take effect immediately. Rolling out capabilities are saved against the person now and begin enforcing as each area is wired.")}</div>
         </div>
       ) : (
-        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>No team member selected.</div>
+        <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No team member selected.")}</div>
       )}
     </div>
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false, lkMap }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
   // Every tab here is an admin tab but one: the manage permissions capability opens Roles and
   // Permissions and nothing else, so that is the tab it draws and the tab it starts on.
   const TABS = [
-    { id: "company", label: "Company", adminOnly: true },
-    { id: "global", label: "Dropdown Options", adminOnly: true },
-    { id: "site", label: "Site Lookups", adminOnly: true },
-    { id: "permissions", label: "Roles and Permissions", adminOnly: false },
-    { id: "recipients", label: "Who gets told", adminOnly: true, style: { fontFamily: FONT_BODY } },
+    { id: "company", label: tr("Company"), adminOnly: true },
+    { id: "global", label: tr("Dropdown Options"), adminOnly: true },
+    { id: "site", label: tr("Site Lookups"), adminOnly: true },
+    { id: "permissions", label: tr("Roles and Permissions"), adminOnly: false },
+    { id: "recipients", label: tr("Who gets told"), adminOnly: true, style: { fontFamily: FONT_BODY } },
   ];
   const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
   const [tab, setTab] = useState(isAdmin ? "company" : "permissions");
@@ -7526,6 +7620,9 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   const [siteTab, setSiteTab] = useState("zone");
   const [addSiteVal, setAddSiteVal] = useState(null);
   const [editSiteVal, setEditSiteVal] = useState(null);
+  // On a screen in another language each list value also shows the words that language draws it
+  // with, its displayLabel, under the English it was saved in, which is what Edit changes.
+  const showsDisplay = getLang() !== "en";
 
   const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
   useEffect(() => { load(); }, []);
@@ -7537,31 +7634,31 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
   // Category CRUD
   const submitAddCat = async () => {
-    if (!addCatForm.label || !addCatForm.slug) { showToast("Label and slug required", "error"); return; }
-    try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast("Category created"); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Label and slug required"), "error"); return; }
+    try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast(tr("Category created")); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditCat = async () => {
-    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast("Category updated"); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteCat = async (id) => {
-    if (!window.confirm("Delete this category and all its values?")) return;
-    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast("Category deleted"); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this category and all its values?"))) return;
+    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Category deleted")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleCatActive = async (cat) => {
-    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? "Category deactivated" : "Category activated"); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
   };
 
   // Value CRUD
   const submitAddVal = async () => {
-    if (!addValForm.value || !addValForm.label) { showToast("Value and label required", "error"); return; }
-    try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast("Value added"); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!addValForm.value || !addValForm.label) { showToast(tr("Value and label required"), "error"); return; }
+    try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast(tr("Value added")); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditVal = async () => {
-    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast("Value updated"); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast(tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
-    if (!window.confirm("Delete this value?")) return;
-    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast("Value deleted"); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this value?"))) return;
+    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Value deleted")); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleValActive = async (val) => {
     try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
@@ -7579,15 +7676,15 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
   // Site lookup CRUD
   const submitAddSiteVal = async () => {
-    if (!addSiteVal.value || !addSiteVal.label) { showToast("Value and label required", "error"); return; }
-    try { await af("/api/lookups/site/" + selSite, { method: "POST", body: addSiteVal }); showToast("Added"); setAddSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    if (!addSiteVal.value || !addSiteVal.label) { showToast(tr("Value and label required"), "error"); return; }
+    try { await af("/api/lookups/site/" + selSite, { method: "POST", body: addSiteVal }); showToast(tr("Added")); setAddSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditSiteVal = async () => {
-    try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast("Updated"); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast(tr("Updated")); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteSiteVal = async (id) => {
-    if (!window.confirm("Delete this value?")) return;
-    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast("Deleted"); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Delete this value?"))) return;
+    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast(tr("Deleted")); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleSiteValActive = async (val) => {
     try { await af("/api/lookups/site/" + selSite + "/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
@@ -7603,14 +7700,18 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
     } catch (e) { showToast(e.message, "error"); }
   };
 
+  // What the site tab says for each type: its heading, the window that adds one, and the line when
+  // there is none, each a whole sentence so a language can put its words in its own order.
   const siteTypeLabel = { zone: "Zones", building: "Buildings", floor: "Floors" };
+  const siteTypeAddLabel = { zone: "Add Zone", building: "Add Building", floor: "Add Floor" };
+  const siteTypeEmptyLabel = { zone: "No zones defined for this site yet.", building: "No buildings defined for this site yet.", floor: "No floors defined for this site yet." };
   const currentSiteList = siteTab === "zone" ? siteLookups.zones : siteTab === "building" ? siteLookups.buildings : siteLookups.floors;
 
-  if (loading) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>Loading settings...</div>;
+  if (loading) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading settings...")}</div>;
 
   return (
     <div>
-      <SecT t={t}>Settings</SecT>
+      <SecT t={t}>{tr("Settings")}</SecT>
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
@@ -7619,29 +7720,29 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {tab === "permissions" && <div>
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {[{ id: "editor", label: "By person" }, { id: "matrix", label: "Role reference" }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
+          {[{ id: "editor", label: tr("By person") }, { id: "matrix", label: tr("Role reference") }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
         </div>
-        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} />}
+        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} lkMap={lkMap} />}
         {permView === "matrix" && <PermissionsMatrixPanel t={t} />}
       </div>}
 
-      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} />}
+      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "global" && isAdmin && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
         <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>Categories ({cats.length})</div>
-            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Categories ({0})", cats.length)}</div>
+            <button onClick={() => setAddCatForm({ label: "", slug: "", description: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add")}</button>
           </div>
           <div style={{ maxHeight: 500, overflowY: "auto" }}>
             {cats.map(c => (
               <div key={c.id} onClick={() => setSelCat(c.id)} style={{ padding: "8px 14px", cursor: "pointer", background: selCat === c.id ? t.goldBg : "transparent", borderLeft: selCat === c.id ? "3px solid " + GO : "3px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? t.goldText : t.text }}>{c.label}</div>
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {c.values?.length || 0} values</div>
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {trn("{0} values|count", c.values?.length || 0)}</div>
                 </div>
-                {!c.is_active && <Bdg l="off" c={t.textMut} />}
+                {!c.is_active && <Bdg l={tr("off|category")} c={t.textMut} />}
               </div>
             ))}
           </div>
@@ -7652,13 +7753,13 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeCat.label}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || "No description"}{activeCat.is_system ? " | System category" : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{activeCat.description || tr("No description")}{activeCat.is_system ? " | " + tr("System category") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4 }}>
-              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>Edit</button>
-              <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? "Deactivate" : "Activate"}</button>
-              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>Delete</button>}
-              <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add Value</button>
+              <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? tr("Deactivate") : tr("Activate")}</button>
+              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Delete")}</button>}
+              <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add Value")}</button>
             </div>
           </div>
           <div style={{ padding: "8px 0" }}>
@@ -7671,34 +7772,35 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                 {v.color && <div style={{ width: 14, height: 14, borderRadius: 3, background: v.color, flexShrink: 0 }} />}
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{v.label}</div>
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | prompts text input" : ""}</div>
+                  {showsDisplay && <div style={{ fontSize: 11, color: t.textSec }}>{tr("Shown as: {0}", v.displayLabel || v.label)}</div>}
+                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | " + tr("prompts text input") : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
-                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>Edit</button>
-                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
+                  <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
+                  <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
+                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
                 </div>
               </div>
             ))}
-            {(!activeCat.values || activeCat.values.length === 0) && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No values yet. Click "+ Add Value" to add one.</div>}
+            {(!activeCat.values || activeCat.values.length === 0) && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No values yet. Click \"+ Add Value\" to add one.")}</div>}
           </div>
         </Crd>}
       </div>}
 
       {tab === "site" && isAdmin && <div>
         <div style={{ marginBottom: 12 }}>
-          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: "Select a site..." }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
+          <Sel t={t} value={selSite} onChange={e => { setSelSite(e.target.value); }} options={[{ v: "", l: tr("Select a site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} />
         </div>
         {selSite && <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
             {["zone", "building", "floor"].map(st => (
-              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{siteTypeLabel[st]} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
+              <button key={st} onClick={() => setSiteTab(st)} style={{ padding: "6px 14px", borderRadius: 6, border: siteTab === st ? "2px solid " + GO : "1px solid " + t.border, background: siteTab === st ? t.goldBg : "transparent", color: siteTab === st ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tr(siteTypeLabel[st])} ({(st === "zone" ? siteLookups.zones : st === "building" ? siteLookups.buildings : siteLookups.floors).length})</button>
             ))}
           </div>
           <Crd t={t} style={{ padding: 0 }}>
             <div style={{ padding: "10px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{siteTypeLabel[siteTab]}</div>
-              <button onClick={() => setAddSiteVal({ lookup_type: siteTab, value: "", label: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>+ Add</button>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(siteTypeLabel[siteTab])}</div>
+              <button onClick={() => setAddSiteVal({ lookup_type: siteTab, value: "", label: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add")}</button>
             </div>
             {currentSiteList.sort((a, b) => a.sort_order - b.sort_order).map(v => (
               <div key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderBottom: "1px solid " + t.border, opacity: v.is_active ? 1 : 0.5 }}>
@@ -7711,83 +7813,83 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                   <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}</div>
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? "Off" : "On"}</button>
-                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>Edit</button>
-                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>Del</button>
+                  <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
+                  <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
+                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
                 </div>
               </div>
             ))}
-            {currentSiteList.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>No {siteTypeLabel[siteTab].toLowerCase()} defined for this site yet.</div>}
+            {currentSiteList.length === 0 && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr(siteTypeEmptyLabel[siteTab])}</div>}
           </Crd>
         </div>}
       </div>}
 
       {/* Add Category Modal */}
       {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add Category</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Label *</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder="e.g. Equipment Types" /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>Slug (auto-generated)</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder="e.g. equipment_types" style={{ fontFamily: "monospace" }} /></div>
-        <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder="Optional description" /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAddCat}>Create Category</Btn></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Category")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Label *")}</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder={tr("e.g. Equipment Types")} /></div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Slug (auto-generated)")}</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder={tr("e.g. equipment_types")} style={{ fontFamily: "monospace" }} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder={tr("Optional description")} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddCat}>{tr("Create Category")}</Btn></div>
       </div></Mdl>}
 
       {/* Edit Category Modal */}
       {editCatForm && <Mdl t={t} onClose={() => setEditCatForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Category</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Label</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
-        <div style={{ marginBottom: 16 }}><Lbl>Description</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditCatForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditCat}>Save</Btn></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Category")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Label")}</Lbl><Inp t={t} value={editCatForm.label} onChange={e => setEditCatForm({ ...editCatForm, label: e.target.value })} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={editCatForm.description} onChange={e => setEditCatForm({ ...editCatForm, description: e.target.value })} /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditCatForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditCat}>{tr("Save")}</Btn></div>
       </div></Mdl>}
 
       {/* Add Value Modal */}
       {addValForm && <Mdl t={t} onClose={() => setAddValForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add Value to {activeCat?.label}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Value to {0}", activeCat ? activeCat.label : "")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value (stored) *</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder="e.g. floor_tech" style={{ fontFamily: "monospace" }} /></div>
-          <div><Lbl>Label (displayed) *</Lbl><Inp t={t} value={addValForm.label} onChange={e => setAddValForm({ ...addValForm, label: e.target.value })} placeholder="e.g. Floor Technician" /></div>
+          <div><Lbl>{tr("Value (stored) *")}</Lbl><Inp t={t} value={addValForm.value} onChange={e => setAddValForm({ ...addValForm, value: e.target.value })} placeholder={tr("e.g. floor_tech")} style={{ fontFamily: "monospace" }} /></div>
+          <div><Lbl>{tr("Label (displayed) *")}</Lbl><Inp t={t} value={addValForm.label} onChange={e => setAddValForm({ ...addValForm, label: e.target.value })} placeholder={tr("e.g. Floor Technician")} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Color (optional)</Lbl><Inp t={t} value={addValForm.color} onChange={e => setAddValForm({ ...addValForm, color: e.target.value })} placeholder="e.g. #24A4F4" /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Show "Other" text input</span></div>
+          <div><Lbl>{tr("Color (optional)")}</Lbl><Inp t={t} value={addValForm.color} onChange={e => setAddValForm({ ...addValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddValForm(null)}>Cancel</Btn><Btn t={t} onClick={submitAddVal}>Add Value</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddValForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddVal}>{tr("Add Value")}</Btn></div>
       </div></Mdl>}
 
       {/* Edit Value Modal */}
       {editValForm && <Mdl t={t} onClose={() => setEditValForm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Value</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Value")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value (stored)</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
-          <div><Lbl>Label (displayed)</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
+          <div><Lbl>{tr("Value (stored)")}</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
+          <div><Lbl>{tr("Label (displayed)")}</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Color</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder="e.g. #24A4F4" /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>Show "Other" text input</span></div>
+          <div><Lbl>{tr("Color")}</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditValForm(null)}>Cancel</Btn><Btn t={t} onClick={submitEditVal}>Save</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditValForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
 
       {/* Add Site Lookup Modal */}
       {addSiteVal && <Mdl t={t} onClose={() => setAddSiteVal(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Add {siteTypeLabel[addSiteVal.lookup_type] ? siteTypeLabel[addSiteVal.lookup_type].slice(0, -1) : "Value"}</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr(siteTypeAddLabel[addSiteVal.lookup_type] || "Add Value")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addSiteVal.lookup_type} onChange={e => setAddSiteVal({ ...addSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value *</Lbl><Inp t={t} value={addSiteVal.value} onChange={e => setAddSiteVal({ ...addSiteVal, value: e.target.value, label: e.target.value })} placeholder="e.g. Gymnasium" /></div>
-          <div><Lbl>Label</Lbl><Inp t={t} value={addSiteVal.label} onChange={e => setAddSiteVal({ ...addSiteVal, label: e.target.value })} /></div>
+          <div><Lbl>{tr("Value *")}</Lbl><Inp t={t} value={addSiteVal.value} onChange={e => setAddSiteVal({ ...addSiteVal, value: e.target.value, label: e.target.value })} placeholder={tr("e.g. Gymnasium")} /></div>
+          <div><Lbl>{tr("Label")}</Lbl><Inp t={t} value={addSiteVal.label} onChange={e => setAddSiteVal({ ...addSiteVal, label: e.target.value })} /></div>
         </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSiteVal(null)}>Cancel</Btn><Btn t={t} onClick={submitAddSiteVal}>Add</Btn></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddSiteVal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddSiteVal}>{tr("Add")}</Btn></div>
       </div></Mdl>}
 
       {/* Edit Site Lookup Modal */}
       {editSiteVal && <Mdl t={t} onClose={() => setEditSiteVal(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>Edit Site Lookup</div>
-        <div style={{ marginBottom: 12 }}><Lbl>Type</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: "Zone" }, { v: "building", l: "Building" }, { v: "floor", l: "Floor" }]} /></div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Edit Site Lookup")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={editSiteVal.lookup_type} onChange={e => setEditSiteVal({ ...editSiteVal, lookup_type: e.target.value })} options={[{ v: "zone", l: tr("Zone") }, { v: "building", l: tr("Building") }, { v: "floor", l: tr("Floor") }]} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
-          <div><Lbl>Value</Lbl><Inp t={t} value={editSiteVal.value} onChange={e => setEditSiteVal({ ...editSiteVal, value: e.target.value })} /></div>
-          <div><Lbl>Label</Lbl><Inp t={t} value={editSiteVal.label} onChange={e => setEditSiteVal({ ...editSiteVal, label: e.target.value })} /></div>
+          <div><Lbl>{tr("Value")}</Lbl><Inp t={t} value={editSiteVal.value} onChange={e => setEditSiteVal({ ...editSiteVal, value: e.target.value })} /></div>
+          <div><Lbl>{tr("Label")}</Lbl><Inp t={t} value={editSiteVal.label} onChange={e => setEditSiteVal({ ...editSiteVal, label: e.target.value })} /></div>
         </div>
-        <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>Changing the type will reclassify this value. For example, changing from "Building" to "Zone" moves it between categories.</div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>Cancel</Btn><Btn t={t} onClick={submitEditSiteVal}>Save</Btn></div>
+        <div style={{ fontSize: 10, color: t.textMut, marginBottom: 12, padding: "6px 10px", background: t.cardAlt, borderRadius: 4 }}>{tr("Changing the type will reclassify this value. For example, changing from \"Building\" to \"Zone\" moves it between categories.")}</div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSiteVal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditSiteVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
     </div>
   );

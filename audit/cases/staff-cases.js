@@ -8,6 +8,12 @@
 // first page, and the banner of the first person's profile, and holds each to that word. A code the
 // page has no word for would still be drawn as it arrives, so the code itself is never an answer here.
 //
+// The same profile's HR Files tab lists the person's onboarding steps. A step is done when the API
+// says is_completed, on its completed_date, the two fields GET /api/hr/onboarding/:user_id sends and
+// HR Records reads; until Step 139 the tab read completed_at, which the API never sends, so no step
+// ever showed as done. A pass holds every step to what was served: a done step carries its tick and
+// the line saying the day it was done, and a step that is not done carries neither.
+//
 // Staff Management edits people, so every value it saves is exactly what it saves in English. A pass
 // adds a person, edits one from the list, edits a profile, assigns a site, adds a certification,
 // deactivates a person and resets a PIN. It chooses a role, an employment type, a language, a role at
@@ -148,6 +154,40 @@ async function run({ d, results, seed, stubs, lang }) {
     !banner ? "the first person's profile did not open or drew no banner"
       : "the banner says " + JSON.stringify(banner.subtitle) + " and " + JSON.stringify(banner.badge) + " where the words are "
         + JSON.stringify(wantSubtitle) + " and " + JSON.stringify(wantBadge));
+
+  // ---- the onboarding steps on the first person's HR Files tab
+  await d.clickText(d.say("HR Files"), { exact: true });
+  await d.settle(500);
+  const onbCall = stubs.calls.filter((c) => c.method === "GET" && /^\/api\/hr\/onboarding\/[^/]+$/.test(c.path) && Array.isArray(c.json)).pop();
+  const stepsServed = onbCall ? onbCall.json : [];
+  const onb = await d.page.evaluate(([head, completed, tag, served]) => {
+    const title = Array.from(document.querySelectorAll("div")).find((el) => el.children.length === 0 && el.textContent.trim() === head);
+    const card = title && title.parentElement;
+    if (!card) return null;
+    // The day a step was done, formatted the way the page formats it.
+    const day = (ymd) => { const [y, m, dd] = String(ymd).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, dd).toLocaleDateString(tag, { month: "short", day: "numeric", year: "numeric" }); };
+    return {
+      drawn: Array.from(card.children).slice(1).map((row) => {
+        const lines = row.children[1] ? Array.from(row.children[1].children).map((el) => el.textContent.trim()) : [];
+        return { name: lines[0] || "", done: !!(row.children[0] && row.children[0].querySelector("svg")), line: lines[1] || "" };
+      }),
+      want: served.map((st) => ({ name: st.step_name, done: !!st.is_completed,
+        line: st.is_completed && st.completed_date ? completed.replace("{0}", day(st.completed_date)) : "" })),
+    };
+  }, [d.say("Onboarding Steps"), d.say("Completed {0}"), require("../lib/words").localeTagFor(lang), stepsServed]);
+  const onbWrong = !onb ? [] : onb.want.map((w, i) => {
+    const got = onb.drawn[i];
+    if (!got) return JSON.stringify(w.name) + " is not drawn";
+    if (got.name !== w.name) return "step " + (i + 1) + " is " + JSON.stringify(got.name) + " where the API sent " + JSON.stringify(w.name);
+    if (got.done !== w.done) return JSON.stringify(w.name) + (w.done ? " is done and carries no tick" : " is not done and carries a tick");
+    if (got.line !== w.line) return JSON.stringify(w.name) + " says " + JSON.stringify(got.line) + " where it should say " + JSON.stringify(w.line);
+    return null;
+  }).filter(Boolean);
+  const doneServed = stepsServed.filter((st) => st.is_completed).length;
+  results.check("page", "page/staff/onboarding-steps/" + lang, !!onb && stepsServed.length > 0 && doneServed > 0 && onbWrong.length === 0,
+    !onb ? "the HR Files tab drew no onboarding steps" : stepsServed.length === 0 ? "no onboarding steps were served"
+      : onbWrong.length ? onbWrong.length + " of " + stepsServed.length + " steps: " + onbWrong.slice(0, 3).join("; ")
+        : doneServed + " of " + stepsServed.length + " steps drawn as done, each with its day");
 
   // ---- what each save sends, held to a body written out by hand
   const saves = [];

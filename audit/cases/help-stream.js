@@ -9,7 +9,9 @@
 // way through an answer however slow the machine is, and can drop the connection part way.
 //
 // Every journey runs in English and in Spanish, as help-stream/<journey>/<language>. The answers,
-// the refusal and the documents are invented.
+// the refusal and the documents are invented. The three guide codes, APP-DASHBOARD, APP-PORTAL and
+// APP-ADP, are the ones the API cites, and the words the line under an answer names them with are
+// the owner's, written out here by hand.
 "use strict";
 const stream = require("../stream");
 
@@ -30,6 +32,7 @@ const SAY = {
     again: "The answer, written again.",
     busy: "Help is busy right now. Ask again in a minute.",
     follow: "And after that?",
+    sources: "Based on the app guide, the ADP guide, general cleaning guidance, DOC-PRACTICE-7",
   },
   es: {
     question: "\u00bfQu\u00e9 hago con un derrame en el vest\u00edbulo?",
@@ -42,6 +45,7 @@ const SAY = {
     again: "La respuesta, escrita de nuevo.",
     busy: "Ayuda est\u00e1 ocupada ahora. Pregunte de nuevo en un minuto.",
     follow: "\u00bfY despu\u00e9s?",
+    sources: "Seg\u00fan la gu\u00eda de la aplicaci\u00f3n, la gu\u00eda de ADP, una gu\u00eda general de limpieza, DOC-PRACTICE-7",
   },
 };
 const DOC = "DOC-PRACTICE-7";
@@ -315,6 +319,22 @@ async function run({ d, results, stubs, lang }) {
       if (!next || !next.body || next.body.conversationId !== id0) why = "the next question carried " + JSON.stringify(next && next.body) + " where the conversation is " + JSON.stringify(id0);
     }
     check("done-is-read-key-for-key", !why, why);
+    await fresh();
+  }
+
+  // ---- the line under an answer names its sources in words -----------------------------------------
+  // The answer cites both app guides, the ADP guide, two general references and a company document.
+  // The line names the app guide once for the two guide codes, the ADP guide and general cleaning
+  // guidance in words, and the company document by its code, in the order the answer cites them.
+  {
+    stubs.setAgentStream({ pieces: [w.again], done: { citedDocs: ["APP-DASHBOARD", "APP-ADP", "APP-PORTAL", "REF-FLOORS-2", "REF-RESTROOMS-1", DOC] } });
+    await ask(w.question);
+    const fin = await until((t) => !!lastAnswer(t) && flat(lastAnswer(t).words) === flat(w.again) && lastAnswer(t).lines.length > 0, 8000);
+    const a = fin.t ? lastAnswer(fin.t) : null;
+    let why = "";
+    if (!fin.ok || !a) why = "the answer never finished with a line under it: " + shown(fin.t);
+    else if (a.lines.map(flat).indexOf(w.sources) < 0) why = "the line under the answer reads " + JSON.stringify(a.lines.map(flat)) + " where it should read " + JSON.stringify(w.sources);
+    check("sources-in-words", !why, why);
     await fresh();
   }
 
