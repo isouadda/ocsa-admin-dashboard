@@ -61,7 +61,9 @@ off the query a case reads, so a route is held to exactly what it has always ask
 `display` and a pick list choice with `displayLabel`, in the language the call asked for, the way the
 API does. The `language` suite reads them in Spanish, where they are different words from the
 English they were saved in: a screen that only shows an item or a choice draws them, and a screen
-that edits one shows the English and sends the English.
+that edits one shows the English and sends the English. It opens a filed report the same way and
+holds each question and answer to the text the API sent, exactly; the stub's answer carries a bar,
+where the word table would cut it if the text went through it.
 
 **Help fits the window.** The `help-fit` suite reads the Help page at 1024 and 1280 wide and 660 and
 900 high, at every text size, in both themes and both languages: with the one unfinished report the

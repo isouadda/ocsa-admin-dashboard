@@ -597,7 +597,9 @@ function createStubs() {
     { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
       value: r.siteName || "", displayValue: r.siteName || "" },
     { id: "f-2", key: "what", label: "What happened", half: "agent", type: "textarea",
-      value: "A delivery pallet scuffed the lobby floor.", displayValue: "A delivery pallet scuffed the lobby floor." },
+      // The bar is deliberate: the word table cuts a key at its last bar, so an answer drawn through
+      // the table would lose its tail, and the language suite holds the window to the whole text.
+      value: "A delivery pallet scuffed the lobby floor. Lobby | north entry.", displayValue: "A delivery pallet scuffed the lobby floor. Lobby | north entry." },
     { id: "f-3", key: "action", label: "Corrective action", half: "supervisor", type: "textarea",
       value: "", displayValue: "" },
   ];

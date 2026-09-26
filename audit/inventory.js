@@ -178,18 +178,18 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [7912] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [7923] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8318] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9823] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9876] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9991] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10028] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8315] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9820] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9873] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [9988] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10025] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10626] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10623] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11136] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11158] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11192] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11408] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11133] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11155] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11189] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11405] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -486,6 +486,7 @@ const DISPLAY_FIELDS = [
   { id: "language/a-supply-card-draws-its-choices-as-words", what: "a supply's card on Inventory draws its category and unit as the lookups' shown labels" },
   { id: "language/a-service-category-reads-the-table", what: "the Service Catalog's cards draw each service's category as the table's word for its label" },
   { id: "language/a-count-of-one-reads-in-the-one-form", what: "the no-show count under Callouts on Shift Pickup reads the one form at one" },
+  { id: "language/a-filed-answer-is-drawn-as-filed", what: "the filed report window draws a form's own questions and answers exactly as the API sent them, an answer with a bar in it included" },
 ];
 
 // ---------------------------------------------------------------------------

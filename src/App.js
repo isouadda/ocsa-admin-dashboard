@@ -8070,16 +8070,13 @@ function JotformPickerField({ af, form, setForm, t }) {
 // Every read of a report writes an audit row, so a report is fetched only when a person opens one,
 // once per opening. Nothing here prefetches, refetches on a re-render, or polls.
 const IR_PAGE_SIZE = 50;
-const IR_NO_ACCESS = "Your account cannot read incident reports.";
-const IR_NOT_FOUND = "This report could not be found, or your account cannot open it.";
-const IR_RESEND_ASK = "Send this report again to everyone set for this form?";
-// Built from the answer: how many emails, how many app notices, and what the email carried.
-const irCount = (n, one, many) => n + " " + (n === 1 ? one : many);
-const irSentLine = (d) => "Sent again: " + irCount(Number(d && d.email) || 0, "email", "emails")
-  + " and " + irCount(Number(d && d.inApp) || 0, "app notice", "app notices")
-  + ", " + ((d && d.attached) ? "with the PDF attached" : "with a link to the app") + ".";
-const IR_SUPERVISOR_DESK_NOTE = "Fill this in at your desk. Answers are saved when you press Save, and a sign-off is made with its own button.";
-const IR_SUPERVISOR_NOTE = "A supervisor completes this part at a desk. The app cannot fill it in yet.";
+// The line the window says once a report is sent again, built from the answer: how many emails, how
+// many app notices, and what the email carried. Read when it is said, so it is in the screen's
+// language, the way every other line of the window is.
+const irSentLine = (d) => tr("Sent again: {0} and {1}, {2}.",
+  trn("{0} email|count", Number(d && d.email) || 0),
+  trn("{0} app notice|count", Number(d && d.inApp) || 0),
+  (d && d.attached) ? tr("with the PDF attached") : tr("with a link to the app"));
 const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
@@ -8109,7 +8106,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     setLoading(true); setError(""); setData(null);
     af("/api/forms/responses/" + encodeURIComponent(id))
       .then(d => { if (alive) { setData(d || null); setLoading(false); } })
-      .catch(e => { if (alive) { setError(e && e.status === 404 ? IR_NOT_FOUND : (e.message || "Request failed")); setLoading(false); } });
+      .catch(e => { if (alive) { setError(e && e.status === 404 ? tr("This report could not be found, or your account cannot open it.") : (e.message || tr("Request failed"))); setLoading(false); } });
     return () => { alive = false; };
   }, [af, id]);
   useEffect(() => {
@@ -8131,7 +8128,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       a.href = url; a.download = f.filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } catch (e) { setActionError(e.message || "Request failed"); }
+    } catch (e) { setActionError(e.message || tr("Request failed")); }
     setDownloading(false);
   };
 
@@ -8144,7 +8141,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     try {
       const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key } });
       if (d && d.draft) setData(d);
-    } catch (e) { setActionError(e.message || "Request failed"); }
+    } catch (e) { setActionError(e.message || tr("Request failed")); }
     signingRef.current = false; setSigning("");
   };
 
@@ -8162,7 +8159,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     try {
       const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers: sup } });
       if (d && d.draft) { setData(d); setSup({}); }
-    } catch (e) { setActionError(e.message || "Request failed"); }
+    } catch (e) { setActionError(e.message || tr("Request failed")); }
     savingRef.current = false; setSaving(false);
   };
 
@@ -8175,7 +8172,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       setSentLine(irSentLine(d));
     } catch (e) {
       const st = e && e.body && e.body.status;
-      setActionError((e.message || "Request failed") + (st ? " Status: " + st + "." : ""));
+      setActionError((e.message || tr("Request failed")) + (st ? " " + tr("Status: {0}.", st) : ""));
     }
     sendingRef.current = false; setSending(false);
   };
@@ -8191,7 +8188,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // What a cell reads as. A ticked box is a word rather than a mark, a picked option is the label
   // the form offers rather than the value it stores, and everything else is what the API sent.
   const cellText = (col, raw) => {
-    if (col && col.type === "checkbox") return raw === true || raw === "true" ? "Yes" : "No";
+    if (col && col.type === "checkbox") return raw === true || raw === "true" ? tr("Yes") : tr("No");
     if (col && col.type === "select") {
       const opt = (col.options || []).find(o => String(o.value) === String(raw));
       if (opt) return opt.label;
@@ -8215,7 +8212,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     return (<div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead><tr>
-          <th style={thCell}>{declared ? "Item" : "#"}</th>
+          <th style={thCell}>{declared ? tr("Item") : "#"}</th>
           {cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}
         </tr></thead>
         <tbody>
@@ -8223,19 +8220,19 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
             <td style={Object.assign({}, tdCell, { fontWeight: 500, whiteSpace: "nowrap" })}>{b.head}</td>
             {cols.map(c => <td key={c.key} style={tdCell}>{cell ? cell(f, b, c) : cellText(c, b.row[c.key])}</td>)}
           </tr>))}
-          {body.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>Nothing was added.</td></tr>}
+          {body.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>{tr("Nothing was added.")}</td></tr>}
         </tbody>
       </table>
     </div>);
   };
   // A stamp says who signed and when, read in the company's own day wherever the computer is set.
   const stampLine = (v) => {
-    if (!v || !v.at) return "Not signed";
+    if (!v || !v.at) return tr("Not signed");
     const tz = clientConfig.company.timeZone;
     const when = new Date(v.at);
     const day = when.toLocaleDateString(localeTag(), { timeZone: tz, month: "long", day: "numeric", year: "numeric" });
     const time = when.toLocaleTimeString(localeTag(), { timeZone: tz, hour: "numeric", minute: "2-digit" });
-    return "Signed by " + (v.name || "someone") + " on " + day + " at " + time;
+    return tr("Signed by {0} on {1} at {2}", v.name || tr("someone"), day, time);
   };
   const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
   const canWriteSupervisor = !!(data && data.canWriteSupervisor);
@@ -8244,7 +8241,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <div style={{ fontSize: 13, color: f.value && f.value.at ? t.text : t.textMut }}>{stampLine(f.value)}</div>
-      {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? "Signing..." : "Sign"}</Btn>}
+      {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? tr("Signing...") : tr("Sign")}</Btn>}
     </div>
   </div>);
   // What the supervisor section holds right now: what was typed if anything was, and what the API
@@ -8276,7 +8273,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     if (c.type === "select") {
       return <Sel t={t} aria-label={b.head + " " + c.label} value={raw == null ? "" : String(raw)}
         onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }}
-        options={[{ v: "", l: "Not answered" }].concat((c.options || []).map(o => ({ v: o.value, l: o.label })))} />;
+        options={[{ v: "", l: tr("Not answered") }].concat((c.options || []).map(o => ({ v: o.value, l: o.label })))} />;
     }
     return <Inp t={t} aria-label={b.head + " " + c.label} type={c.type === "number" ? "number" : "text"}
       value={raw == null ? "" : String(raw)} onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }} />;
@@ -8295,7 +8292,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 88 }} />);
     if (f.type === "select") return box(<Sel t={t} aria-label={f.label} value={cur == null ? "" : String(cur)}
       onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }}
-      options={[{ v: "", l: "Not answered" }].concat((f.options || []).map(o => ({ v: o.value, l: o.label })))} />);
+      options={[{ v: "", l: tr("Not answered") }].concat((f.options || []).map(o => ({ v: o.value, l: o.label })))} />);
     const kind = f.type === "date" || f.type === "time" || f.type === "number" ? f.type : "text";
     return box(<Inp t={t} type={kind} aria-label={f.label} value={cur == null ? "" : String(cur)}
       onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }} />);
@@ -8310,7 +8307,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     return (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
       {f.displayValue == null || f.displayValue === ""
-        ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>Not answered</div>
+        ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>{tr("Not answered")}</div>
         : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
     </div>);
   };
@@ -8318,62 +8315,62 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 16 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || "Report"}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
         {draft && <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Bdg l={submitted ? "Submitted" : "Unfinished"} c={submitted ? GR : OR} />
-          <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || "No site"}</span>
-          <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? "Filed " + irWhen(draft.submittedAt) : "Started " + irWhen(draft.createdAt)}</span>
-          {row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>Filed by {row.userName}</span>}
+          <Bdg l={submitted ? tr("Submitted") : tr("Unfinished")} c={submitted ? GR : OR} />
+          <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || tr("No site")}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? tr("Filed {0}", irWhen(draft.submittedAt)) : tr("Started {0}", irWhen(draft.createdAt))}</span>
+          {row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", row.userName)}</span>}
         </div>}
-        {draft && !submitted && <div style={{ fontSize: 11, color: t.textSec, marginTop: 6 }}>{Number(draft.answered) || 0} answered, {Number(draft.remaining) || 0} to go</div>}
+        {draft && !submitted && <div style={{ fontSize: 11, color: t.textSec, marginTop: 6 }}>{tr("{0} answered, {1} to go", Number(draft.answered) || 0, Number(draft.remaining) || 0)}</div>}
       </div>
-      <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
     </div>
-    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>Loading...</div>}
+    {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
     {error && <div style={{ padding: 20, textAlign: "center", color: RD, fontSize: 13 }}>{error}</div>}
     {!loading && !error && draft && (<>
       <div style={{ marginBottom: 18 }}>
-        <Lbl>What was reported</Lbl>
-        {agentFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>Nothing reported yet.</div>}
+        <Lbl>{tr("What was reported")}</Lbl>
+        {agentFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing reported yet.")}</div>}
         {agentFields.map(fieldRow)}
       </div>
       <div>
-        <Lbl>Supervisor section</Lbl>
+        <Lbl>{tr("Supervisor section")}</Lbl>
         {canWriteSupervisor
           ? (<>
-            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_DESK_NOTE}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("Fill this in at your desk. Answers are saved when you press Save, and a sign-off is made with its own button.")}</div>
             {supervisorMissing.length > 0 && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
-              <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 4 }}>Still needed in the supervisor section</div>
-              <ul aria-label="Still needed in the supervisor section" style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: t.textSec }}>
+              <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 4 }}>{tr("Still needed in the supervisor section")}</div>
+              <ul aria-label={tr("Still needed in the supervisor section")} style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: t.textSec }}>
                 {supervisorMissing.map(m => <li key={m.key}>{m.label}</li>)}
               </ul>
             </div>}
-            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
             {supervisorFields.map(supervisorInput)}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? "Saving..." : "Save"}</Btn>
+              <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
             </div>
           </>)
           : (<>
-            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{IR_SUPERVISOR_NOTE}</div>
-            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>No supervisor questions on this form.</div>}
+            <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("A supervisor completes this part at a desk. The app cannot fill it in yet.")}</div>
+            {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
             {supervisorFields.map(fieldRow)}
           </>)}
       </div>
     </>)}
     {asking && <div style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
-      <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>{IR_RESEND_ASK}</div>
+      <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>{tr("Send this report again to everyone set for this form?")}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Btn t={t} onClick={resend} disabled={sending} style={{ minHeight: 44 }}>{sending ? "Sending..." : "Send it"}</Btn>
-        <Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={sending} style={{ minHeight: 44 }}>Not yet</Btn>
+        <Btn t={t} onClick={resend} disabled={sending} style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send it")}</Btn>
+        <Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={sending} style={{ minHeight: 44 }}>{tr("Not yet")}</Btn>
       </div>
     </div>}
     {sentLine && <div style={{ fontSize: 12, color: GR, marginTop: 14 }}>{sentLine}</div>}
     {actionError && <div style={{ fontSize: 12, color: RD, marginTop: 14 }}>{actionError}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
-      {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? "Downloading..." : "Download PDF"}</Btn>}
-      {!loading && !error && submitted && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>Send again</Btn>}
-      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>Close</Btn>
+      {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? tr("Downloading...") : tr("Download PDF")}</Btn>}
+      {!loading && !error && submitted && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
     </div>
   </div></Mdl>);
 }
@@ -8417,7 +8414,7 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
       setError(null);
     } catch (e) {
       if (!before) setRows([]);
-      setError({ status: e && e.status, message: e.message || "Request failed" });
+      setError({ status: e && e.status, message: e.message || tr("Request failed") });
     }
     setLoading(false); setPaging(false);
   }, [af, query]);
@@ -8426,21 +8423,21 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
   const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
 
   const submittedCols = [
-    { header: "Filed", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: "Form", render: r => <span style={{ color: t.text }}>{r.formName}</span> },
-    { header: "Site", tdStyle: { color: t.textSec }, render: r => r.siteName || "No site" },
-    { header: "Filed by", tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
+    { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
+    { header: tr("Form"), render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
+    { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
   ];
   const draftCols = [
-    { header: "Started", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
-    { header: "Form", render: r => <span style={{ color: t.text }}>{r.formName}</span> },
-    { header: "Site", tdStyle: { color: t.textSec }, render: r => r.siteName || "No site" },
-    { header: "Started by", tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
-    { header: "Answered", tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (Number(r.answered) || 0) + " of " + ((Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
-    { header: "Due", tdStyle: { whiteSpace: "nowrap" }, render: r => {
+    { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
+    { header: tr("Form"), render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
+    { header: tr("Started by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
+    { header: tr("Answered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => tr("{0} of {1}", Number(r.answered) || 0, (Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
+    { header: tr("Due"), tdStyle: { whiteSpace: "nowrap" }, render: r => {
       if (!r.dueAt) return <span style={{ color: t.textSec }}>--</span>;
       const past = new Date(r.dueAt).getTime() < Date.now();
-      return past ? <span style={{ color: RD, fontWeight: 600 }}>Past due {irDay(r.dueAt)}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
+      return past ? <span style={{ color: RD, fontWeight: 600 }}>{tr("Past due {0}", irDay(r.dueAt))}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
     } },
   ];
 
@@ -8448,15 +8445,15 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
 
   return (<div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", "Submitted")}{sw("draft", "Unfinished")}</div>
-      <div style={{ minWidth: 200 }}><Sel t={t} aria-label="Form" value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: "All forms" }, ...forms.map(f => ({ v: f.code, l: f.title }))]} /></div>
-      <div style={{ minWidth: 200 }}><Sel t={t} aria-label="Site" value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: "All sites" }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: f.title }))]} /></div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
     </div>
-    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>Loading reports...</div>}
-    {!loading && error && error.status === 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{IR_NO_ACCESS}</div>}
-    {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>Try again</button></div>}
-    {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? "No reports filed yet." : "No unfinished reports."} />}
-    {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? "Loading..." : "Load more"}</button></div>}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading reports...")}</div>}
+    {!loading && error && error.status === 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{tr("Your account cannot read incident reports.")}</div>}
+    {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
+    {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : tr("No unfinished reports.")} />}
+    {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
     {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} />}
   </div>);
 }

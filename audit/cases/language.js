@@ -233,6 +233,25 @@ async function run({ d, results, inventory, stubs }) {
   results.check("language", ids["a-service-category-reads-the-table"], wantWords.length > 0 && missingWords.length === 0 && english.length === 0,
     english.length ? "the catalog draws " + JSON.stringify(english) + " where the table says " + JSON.stringify(english.map((w) => d.say(w)))
       : "the catalog's cards draw " + JSON.stringify(badges) + " where the table says " + JSON.stringify(wantWords));
+
+  // A filed form's own questions and answers, as filed: the window draws each exactly as the API
+  // sent it, on a Spanish screen as on an English one. The stub's answer carries a bar, where the
+  // word table would cut the text if it went through it.
+  await d.goto("forms");
+  await d.clickText(d.say("Filed forms"), { exact: false });
+  const openedFiled = await d.clickRow(0);
+  const filedText = openedFiled ? await d.modalText() : "";
+  const filedCall = stubs.calls.filter((c) => c.method === "GET" && /^\/api\/forms\/responses\/[^/]+$/.test(c.path) && c.json && Array.isArray(c.json.fields)).pop();
+  const filedFields = filedCall ? filedCall.json.fields.filter((f) => f.type !== "signoff" && f.displayValue) : [];
+  const notDrawn = filedFields.filter((f) => filedText.indexOf(f.label) < 0 || filedText.indexOf(String(f.displayValue)) < 0);
+  const barred = filedFields.some((f) => String(f.displayValue).indexOf("|") >= 0);
+  results.check("language", ids["a-filed-answer-is-drawn-as-filed"], openedFiled && filedFields.length > 0 && barred && notDrawn.length === 0,
+    !openedFiled ? "the filed report window did not open from the first row"
+      : filedFields.length === 0 ? "the API sent the window no answered question"
+        : !barred ? "no answer the API sent carries a bar, so a value run through the table would read the same"
+          : "the window does not draw " + notDrawn.map((f) => JSON.stringify(f.label) + " with " + JSON.stringify(f.displayValue)).slice(0, 2).join(", ")
+            + "; it reads " + JSON.stringify(filedText.replace(/\s+/g, " ").slice(0, 240)));
+  if (openedFiled) await d.closeModal();
 }
 
 function runLate({ stubs, results, inventory }) {
