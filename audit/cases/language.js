@@ -233,6 +233,25 @@ async function run({ d, results, inventory, stubs }) {
   results.check("language", ids["a-service-category-reads-the-table"], wantWords.length > 0 && missingWords.length === 0 && english.length === 0,
     english.length ? "the catalog draws " + JSON.stringify(english) + " where the table says " + JSON.stringify(english.map((w) => d.say(w)))
       : "the catalog's cards draw " + JSON.stringify(badges) + " where the table says " + JSON.stringify(wantWords));
+
+  // A filed form's own questions and answers, as filed: the window draws each exactly as the API
+  // sent it, on a Spanish screen as on an English one. The stub's answer carries a bar, where the
+  // word table would cut the text if it went through it.
+  await d.goto("forms");
+  await d.clickText(d.say("Filed forms"), { exact: false });
+  const openedFiled = await d.clickRow(0);
+  const filedText = openedFiled ? await d.modalText() : "";
+  const filedCall = stubs.calls.filter((c) => c.method === "GET" && /^\/api\/forms\/responses\/[^/]+$/.test(c.path) && c.json && Array.isArray(c.json.fields)).pop();
+  const filedFields = filedCall ? filedCall.json.fields.filter((f) => f.type !== "signoff" && f.displayValue) : [];
+  const notDrawn = filedFields.filter((f) => filedText.indexOf(f.label) < 0 || filedText.indexOf(String(f.displayValue)) < 0);
+  const barred = filedFields.some((f) => String(f.displayValue).indexOf("|") >= 0);
+  results.check("language", ids["a-filed-answer-is-drawn-as-filed"], openedFiled && filedFields.length > 0 && barred && notDrawn.length === 0,
+    !openedFiled ? "the filed report window did not open from the first row"
+      : filedFields.length === 0 ? "the API sent the window no answered question"
+        : !barred ? "no answer the API sent carries a bar, so a value run through the table would read the same"
+          : "the window does not draw " + notDrawn.map((f) => JSON.stringify(f.label) + " with " + JSON.stringify(f.displayValue)).slice(0, 2).join(", ")
+            + "; it reads " + JSON.stringify(filedText.replace(/\s+/g, " ").slice(0, 240)));
+  if (openedFiled) await d.closeModal();
 }
 
 function runLate({ stubs, results, inventory }) {
@@ -244,13 +263,22 @@ function runLate({ stubs, results, inventory }) {
     seen.calls === 0 ? "no call reached the stub, so no call was checked"
       : misses.length + " of " + seen.calls + " calls did not say the language the screen is drawn in: "
         + misses.slice(0, 3).map(said).join("; "));
-  if (misses.length === 0) {
-    results.note("every one of the " + seen.calls + " calls said the language its screen is drawn in");
+  // The other half of the same rule: a signed-in call names its language once on the address, as
+  // locale=en or locale=es, which the API reads ahead of the language on the person's account. The
+  // stub turns away a call that names none, two, or another language, and keeps it here by name.
+  const unnamed = seen.unnamed || [];
+  const named = (m) => m.method + " " + m.path + " named " + (m.said === null ? "no language" : JSON.stringify(m.said));
+  results.check("language", inventory.LANGUAGE_LOCALE.id, seen.calls > 0 && unnamed.length === 0,
+    seen.calls === 0 ? "no call reached the stub, so no call was checked"
+      : unnamed.length + " signed-in calls did not name their language once as locale=: " + unnamed.slice(0, 3).map(named).join("; "));
+  if (misses.length === 0 && unnamed.length === 0) {
+    results.note("every one of the " + seen.calls + " calls said the language its screen is drawn in, and every signed-in one named it once on the address");
     return;
   }
   // Each route that went wrong is named once, with how many times it did.
   const byRoute = {};
   misses.forEach((m) => { const k = said(m); byRoute[k] = (byRoute[k] || 0) + 1; });
+  unnamed.forEach((m) => { const k = named(m); byRoute[k] = (byRoute[k] || 0) + 1; });
   Object.keys(byRoute).slice(0, 20).forEach((k) => results.note("a call that did not say its language: " + k + " (" + byRoute[k] + " times)"));
 }
 

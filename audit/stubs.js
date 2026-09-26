@@ -16,7 +16,9 @@ function createStubs() {
   const calls = [];
   // Every call the run makes, counted, and the ones that did not ask for the language their screen is
   // drawn in. Nothing resets this.
-  const language = { calls: 0, misses: [] };
+  const language = { calls: 0, misses: [], unnamed: [] };
+  // The languages the dashboard speaks, which are the only ones a call may name.
+  const LOCALES = ["en", "es"];
   // Every read of a site's checklist the run makes, with its query, which no reset clears either.
   const checklistReads = [];
   let refusals = [];
@@ -161,6 +163,21 @@ function createStubs() {
       { id: "lv-43", value: "day_porter", label: "Day Porter", is_active: true, sort_order: 5 },
       { id: "lv-44", value: "contractor", label: "Contractor", is_active: true, sort_order: 6 },
     ] },
+    // The two lists Shift Pickup and Schedule read that the stub never carried: a shift's reason, by
+    // the codes the API files a shift with, and the services. Their English labels are the words the
+    // page fell back to without them, so an English screen reads as it did.
+    { id: "lk-16", slug: "shift_origins", name: "Shift reasons", values: [
+      { id: "lv-45", value: "callout", label: "Callout", is_active: true, sort_order: 1 },
+      { id: "lv-46", value: "no_show", label: "No-Show", is_active: true, sort_order: 2 },
+      { id: "lv-47", value: "extra_coverage", label: "Extra Coverage", is_active: true, sort_order: 3 },
+      { id: "lv-48", value: "voluntary_drop", label: "Voluntary Drop", is_active: true, sort_order: 4 },
+      { id: "lv-49", value: "new_shift", label: "New Shift", is_active: true, sort_order: 5 },
+    ] },
+    { id: "lk-17", slug: "service_categories", name: "Service types", values: [
+      { id: "lv-50", value: "office_cleaning", label: "Office Cleaning", is_active: true, sort_order: 1 },
+      { id: "lv-51", value: "disinfection", label: "Disinfection Services", is_active: true, sort_order: 2 },
+      { id: "lv-52", value: "post_construction", label: "Post-Construction", is_active: true, sort_order: 3 },
+    ] },
   ];
 
   const SUPPLIES = [
@@ -197,9 +214,9 @@ function createStubs() {
   ];
 
   const PICKUPS = [
-    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "SD", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
+    { id: "pk-1", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(2), start_time: "18:00", end_time: "02:00", status: "open", origin: "new_shift", urgency: "normal", building_name: "North Wing", floor_number: "3", service_category: "Office Cleaning", notes: "Covering a vacancy.", claimed_by_name: null, assigned_to_name: null, original_user_id: "u-staff-5", posted_at: seed.shift(-1) + "T14:00:00Z" },
     { id: "pk-2", site_id: S[1].id, site_name: S[1].name, scheduled_date: seed.shift(3), start_time: "06:00", end_time: "14:00", status: "claimed", origin: "new_shift", urgency: "high", building_name: "Clinic", floor_number: "1", service_category: "SD", notes: "", claimed_by_name: "Yuki Tanabe", claimed_by: "u-staff-9", claimed_by_role: "custodial_lead", assigned_to_name: null, original_user_id: "u-staff-9", posted_at: seed.shift(-2) + "T10:00:00Z" },
-    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "drop_request", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
+    { id: "pk-3", site_id: S[2].id, site_name: S[2].name, scheduled_date: seed.shift(1), start_time: "22:00", end_time: "06:00", status: "requested", origin: "voluntary_drop", urgency: "normal", building_name: "Dock A", floor_number: "1", service_category: "SD", notes: "Family commitment.", claimed_by_name: null, assigned_to_name: "Rashid Haddad", assigned_to: "u-staff-8", original_user_id: "u-staff-8", posted_at: seed.shift(-1) + "T08:00:00Z" },
     { id: "pk-4", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(-3), start_time: "18:00", end_time: "02:00", status: "approved", origin: "new_shift", urgency: "normal", building_name: "South Wing", floor_number: "2", service_category: "SD", notes: "", claimed_by_name: "Bertrand Lefevre", claimed_by: "u-staff-10", claimed_by_role: "day_porter", assigned_to_name: null, original_user_id: "u-staff-10", posted_at: seed.shift(-6) + "T12:00:00Z" },
   ];
   // hand: 4 pickups. open 1, claimed 1, requested 1, approved 1. The two claimed carry the role of
@@ -580,7 +597,9 @@ function createStubs() {
     { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
       value: r.siteName || "", displayValue: r.siteName || "" },
     { id: "f-2", key: "what", label: "What happened", half: "agent", type: "textarea",
-      value: "A delivery pallet scuffed the lobby floor.", displayValue: "A delivery pallet scuffed the lobby floor." },
+      // The bar is deliberate: the word table cuts a key at its last bar, so an answer drawn through
+      // the table would lose its tail, and the language suite holds the window to the whole text.
+      value: "A delivery pallet scuffed the lobby floor. Lobby | north entry.", displayValue: "A delivery pallet scuffed the lobby floor. Lobby | north entry." },
     { id: "f-3", key: "action", label: "Corrective action", half: "supervisor", type: "textarea",
       value: "", displayValue: "" },
   ];
@@ -776,6 +795,9 @@ function createStubs() {
     "Lead": "L\u00edder", "Porter": "Conserje", "Night": "Noche", "Day": "D\u00eda", "Certification": "Certificaci\u00f3n", "License": "Licencia",
     "Admin": "Administrador", "Supervisor": "Supervisor", "Custodial Lead": "L\u00edder de limpieza", "Custodial Laborer": "Auxiliar de limpieza",
     "Day Porter": "Conserje de d\u00eda", "Contractor": "Contratista",
+    "Callout": "Ausencia", "No-Show": "No se present\u00f3", "Extra Coverage": "Cobertura adicional", "Voluntary Drop": "Baja voluntaria",
+    "New Shift": "Turno nuevo", "Office Cleaning": "Limpieza de oficinas", "Disinfection Services": "Servicios de desinfecci\u00f3n",
+    "Post-Construction": "Posconstrucci\u00f3n",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
     displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
@@ -938,7 +960,16 @@ function createStubs() {
     // --- shell ------------------------------------------------------------
     if (path === "/api/sites" && method === "GET") return ok(state.sites);
     if (path === "/api/users" && method === "GET") return ok(state.staff);
-    if (path === "/api/lookups/all") return ok(lookupsIn(lang));
+    // The whole set of lists is an admin's, the way routes/lookups.js gates GET /api/lookups/all by
+    // manage_lookups, so a supervisor is refused it. GET /api/lookups answers anyone signed in with
+    // the active lists and their active values, in the same shape.
+    if (path === "/api/lookups/all") {
+      if (!effectiveMap(person(), state.overrides[person().id]).manage_lookups) return { status: 403, json: { error: "Insufficient permissions" } };
+      return ok(lookupsIn(lang));
+    }
+    if (path === "/api/lookups" && method === "GET") {
+      return ok(lookupsIn(lang).filter((c) => c.is_active).map((c) => Object.assign({}, c, { values: c.values.filter((v) => v.is_active) })));
+    }
     // The company's settings as a run has saved them, which a reset puts back.
     if (path === "/api/settings" && method === "GET") return ok(state.settings || (state.settings = clone(SETTINGS)));
     if (path === "/api/settings" && (method === "PUT" || method === "PATCH")) {
@@ -1462,7 +1493,24 @@ function createStubs() {
     }
     if (path.startsWith("/api/jotform/pdf-access-log")) return ok({ entries: PDF_ACCESS_LOG, total: PDF_ACCESS_LOG.length });
     if (path === "/api/jotform/config") return ok({ api_key_set: true, base_url: "https://api.jotform.example.invalid", auto_link: true, locale: "en" });
-    if (path.startsWith("/api/jotform/diagnostic") || path.startsWith("/api/jotform/sync-diagnostic")) {
+    // GET /api/jotform/sync-diagnostic the way routes/jotform.js answers its summary: each enabled
+    // form with what Jotform holds, what we hold and the difference, and the totals over them.
+    // hand: 2 forms, neither with a gap, 13 submissions on both sides, 0 unresolved failures.
+    if (path.startsWith("/api/jotform/sync-diagnostic")) {
+      const forms = JOTFORM_FORMS.map((f) => ({
+        form_id: f.id, jotform_form_id: f.form_id, title: f.title, category: "uncategorized", is_enabled: true,
+        submissions_last_synced_at: f.last_submission_at, last_submission_at: f.last_submission_at,
+        jotform_count: f.submission_count, our_count: f.submission_count, delta: 0,
+        has_gap: false, has_overshoot: false, not_in_jotform: false, unresolved_failure_count: 0,
+      }));
+      return ok({ mode: "summary", generated_at: seed.NOW_ISO, forms, summary: {
+        total_forms: forms.length, forms_with_gap: 0,
+        total_jotform_submissions: forms.reduce((n, f) => n + f.jotform_count, 0),
+        total_our_submissions: forms.reduce((n, f) => n + f.our_count, 0),
+        total_unresolved_failures: 0,
+      } });
+    }
+    if (path.startsWith("/api/jotform/diagnostic")) {
       return ok({ forms: JOTFORM_FORMS.map((f) => ({ form_id: f.form_id, title: f.title, cached: f.submission_count, upstream: f.submission_count, missing: 0 })), checkedAt: seed.NOW_ISO });
     }
     if (path.startsWith("/api/jotform/sync-log")) return ok([{ id: "sl-1", ran_at: seed.shift(0) + "T19:00:00Z", kind: "submissions", result: "ok", detail: "2 submissions" }]);
@@ -1649,7 +1697,13 @@ function createStubs() {
   function handle({ method, url, body, headers, lang }) {
     const u = new URL(url);
     const path = u.pathname;
-    const record = { method, path, query: u.search, body: body || null };
+    // The language on the address is read on its own, below, and taken off the query a case reads,
+    // so a route is still held to exactly what it has always asked for.
+    const asked = u.searchParams.getAll("locale");
+    const rest = new URLSearchParams(u.search);
+    rest.delete("locale");
+    const query = rest.toString() ? "?" + rest.toString() : "";
+    const record = { method, path, query, body: body || null };
     calls.push(record);
     // The language the call asked for, kept beside it. Every call says the language the screen is
     // drawn in; one that says nothing, or another language, is also kept apart, where a reset
@@ -1657,18 +1711,32 @@ function createStubs() {
     record.language = (headers && headers["accept-language"]) || null;
     // What the call was sent with, so a case can hold a route to the headers it has always sent.
     record.headers = headers || {};
-    if (method === "GET" && /^\/api\/sites\/[^/]+\/tasks$/.test(path)) checklistReads.push({ path, query: u.search, as: signedInAs });
+    if (method === "GET" && /^\/api\/sites\/[^/]+\/tasks$/.test(path)) checklistReads.push({ path, query, as: signedInAs });
     language.calls += 1;
     if (lang && record.language !== lang) language.misses.push({ method, path, said: record.language, want: lang });
+    // A signed-in call names its language once on the address, as locale=en or locale=es, the way
+    // the API reads it ahead of the language on the person's account. One that names none, two, or
+    // a language the dashboard does not speak is kept apart the same way, and turned away, so a call
+    // added later without it fails the run by name.
+    record.locale = asked.length === 1 ? asked[0] : null;
+    const signedIn = !!(headers && headers.authorization);
+    if (signedIn && (asked.length !== 1 || LOCALES.indexOf(asked[0]) < 0)) {
+      language.unnamed.push({ method, path, said: asked.length ? asked.join(", ") : null });
+      record.status = 400;
+      return { status: 400, json: { error: "A signed-in call names its language once, as locale=en or locale=es" } };
+    }
 
     const refusal = matchRefusal(method, path, body);
     if (refusal) {
       record.refused = refusal.status;
+      record.status = refusal.status;
       return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
     }
 
     const answer = route(method, path, u.searchParams, body, record.language);
     if (answer) {
+      // The status the call was answered with, refusals the routes make on their own included.
+      record.status = answer.status;
       answer.delayMs = Math.max(answer.delayMs || 0, delayFor(path));
       if (trim && method === "GET" && path.indexOf(trim.path) >= 0) answer.json = cut(answer.json, trim.keep, trim.keepIds);
       // What the API said, kept beside the call. A Spanish screen may draw any of it: a person's

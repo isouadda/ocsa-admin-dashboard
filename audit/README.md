@@ -51,13 +51,19 @@ and the case checks that the exact words reach the screen and that nothing close
 
 **Every call says its language.** The stub keeps the `Accept-Language` each call sent beside the
 call, and every call that sent none, or sent a language other than the one its screen is drawn in,
-in a list no case can reset. The run fails on that list once every suite is done.
+in a list no case can reset. A signed-in call also names its language once on the address, as
+`locale=en` or `locale=es`, which the API reads ahead of the language on the person's account; the
+stub turns away one that names none, two, or another language, and keeps it in the same kind of
+list. The run fails on both lists once every suite is done. The language on the address is taken
+off the query a case reads, so a route is held to exactly what it has always asked for.
 
 **What the API says in that language goes where it belongs.** The stub answers a checklist item with
 `display` and a pick list choice with `displayLabel`, in the language the call asked for, the way the
 API does. The `language` suite reads them in Spanish, where they are different words from the
 English they were saved in: a screen that only shows an item or a choice draws them, and a screen
-that edits one shows the English and sends the English.
+that edits one shows the English and sends the English. It opens a filed report the same way and
+holds each question and answer to the text the API sent, exactly; the stub's answer carries a bar,
+where the word table would cut it if the text went through it.
 
 **Help fits the window.** The `help-fit` suite reads the Help page at 1024 and 1280 wide and 660 and
 900 high, at every text size, in both themes and both languages: with the one unfinished report the
@@ -95,7 +101,12 @@ lookup the page was served gives the code. On Shift Pickup it reads the role of 
 shift and the role under each name on the Staff Reliability tab, which the stub answers the way the
 API does, and holds each to the `staff_roles` list's shown label; then it reads both again with a
 role left off the list the page is served, which `setListGap` does, and holds that role to the
-table's word for it.
+table's word for it. It reads every shift's status, reason and service on the same list: the status
+is the table's word for the code, the reason the `shift_origins` list's shown label, and the service
+the `service_categories` list's shown label for what the shift saved, a code from Schedule or a
+label from Shift Pickup. The stub carries both lists since Step 143, with Spanish. It then opens
+Post Open Shift and Schedule Shift and holds their Reason and Service Category lists to the shown
+labels, each sending what it has always sent.
 
 **A role on Staff Management is a word, a save sends what it always sent, and what a person typed
 into a case is drawn as typed.** The `staff-cases`
@@ -152,7 +163,10 @@ sends to one written out by hand: the report editor saves the codes and the Engl
 **A room is logged once.** The `training` suite drives HR Records' Log training for several people as
 a supervisor, the way the API lets one in: the staff list the shell reads is refused to a supervisor,
 so the window lists everyone active and a site's active people from the HR routes a supervisor may
-call, and the stub's training routes answer the way `routes/hr.js` does. The suite logs three people
+call, and the stub's training routes answer the way `routes/hr.js` does. The stub refuses a supervisor
+the whole set of pick lists too, the way `routes/lookups.js` gates `GET /api/lookups/all`, and answers
+`GET /api/lookups` with the active lists, so the suite sees the shell fall back to it: the window
+offers every active training type, and + Add Training offers everyone active. The suite logs three people
 and holds each of the three creates to a body written out by hand, presses Save again and sees nobody
 sent twice, has the API refuse one person of three and sees the other two saved, the refused one named
 in the API's own words and Try again send only that one, and opens the window at 11:30 PM in
@@ -187,7 +201,9 @@ node audit/count.js
 It counts, page by page, the strings the finder in `audit/lib/strings.js` finds that do not go through
 `tr` or `trn`, in the component the render switch draws for the page and in everything that component
 reaches, beside the part `audit/spanish-todo.json` gives the page. A page the file no longer lists is
-done, and a count there is English left on a page taken as finished.
+done, and a count there is English left on a page taken as finished. Since Step 143 the file lists no
+page: every page and every printed page reads 0, and the count is the guard that keeps it so, since
+`house-style` fails the run on the first place a page taken as done draws without the table.
 
 The finder reads printed pages too: in a function that builds a page as HTML and opens it in a window,
 the text between the tags of every string is a place, the way a line a toast says is one. The count

@@ -279,7 +279,7 @@ async function run(ctx) {
       await d.signOutHard();
       await d.signIn("supervisor");
       // The shown word for the session's type, from the list the page was served in this language.
-      const served = stubs.calls.filter((c) => c.path === "/api/lookups/all" && c.json).pop();
+      const served = stubs.calls.filter((c) => (c.path === "/api/lookups/all" || c.path === "/api/lookups") && Array.isArray(c.json)).pop();
       const types = ((served && served.json) || []).find((c) => c.slug === "training_types");
       const typeWord = ((types && types.values) || []).filter((v) => v.value === SESSION.type).map((v) => v.displayLabel || v.label)[0];
 
@@ -297,6 +297,22 @@ async function run(ctx) {
         !opened ? "the window did not open from " + JSON.stringify(d.say("Log training for several people"))
           : !sameSet(everyone, W.active) ? "everyone active reads " + JSON.stringify(everyone) + " where the seed's active people are " + JSON.stringify(W.active)
             : "Riverbend Logistics Hub reads " + JSON.stringify(riverbend) + " where its active people are " + JSON.stringify(wantRiver));
+
+      // ---- a supervisor's pick lists fill from the route the API lets them read ----------------------
+      // The API refuses a supervisor the whole set of lists (manage_lookups), so the shell reads the
+      // signed-in route instead, and the window's Training Type list holds every active type in this
+      // language. Break: the shell reading /api/lookups/all alone, which leaves every list empty.
+      const refusedAll = stubs.calls.filter((c) => c.path === "/api/lookups/all").pop();
+      const readLists = stubs.calls.filter((c) => c.path === "/api/lookups" && c.method === "GET" && Array.isArray(c.json)).pop();
+      const wantTypes = (((readLists && readLists.json) || []).find((c) => c.slug === "training_types") || { values: [] }).values
+        .filter((v) => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map((v) => v.value + "=" + (v.displayLabel || v.label));
+      const offeredTypes = opened ? await inWindow(d).locator("select[aria-label='" + d.say("Training Type") + "'] option")
+        .evaluateAll((els) => els.filter((o) => o.value).map((o) => o.value + "=" + (o.textContent || "").trim())) : [];
+      check("a-supervisor-is-offered-the-training-types", lang,
+        !!refusedAll && refusedAll.status === 403 && !!readLists && wantTypes.length > 0 && JSON.stringify(offeredTypes) === JSON.stringify(wantTypes),
+        !refusedAll || refusedAll.status !== 403 ? "the API's 403 on /api/lookups/all did not reach the shell"
+          : !readLists ? "refused /api/lookups/all, the shell never read /api/lookups"
+            : "the Training Type list offers " + JSON.stringify(offeredTypes) + " where the list the supervisor was served holds " + JSON.stringify(wantTypes));
 
       // ---- three people, three creates ------------------------------------------------------------
       // Break: one body sent for all three.
@@ -521,6 +537,20 @@ async function run(ctx) {
           : !sameSet(gapAll.names, wantAll) || gapAll.line !== lineAll ? "Bloodborne pathogens reads " + JSON.stringify(gapAll.line) + " " + JSON.stringify(gapAll.names) + " where it should read " + JSON.stringify(lineAll) + " " + JSON.stringify(wantAll)
             : !gapRiver || !sameSet(gapRiver.names, wantRiver2) || gapRiver.line !== lineRiver ? "at Riverbend Logistics Hub it reads " + JSON.stringify(gapRiver ? gapRiver.line : null) + " " + JSON.stringify(gapRiver ? gapRiver.names : null) + " where it should read " + JSON.stringify(lineRiver) + " " + JSON.stringify(wantRiver2)
               : "after Marcus Ferreira is logged it reads " + JSON.stringify(gapAfter ? gapAfter.line : null) + " " + JSON.stringify(gapAfter ? gapAfter.names : null) + " where it should read " + JSON.stringify(lineAfter));
+
+      // ---- + Add Training lists the active people for a supervisor ----------------------------------
+      // The staff list the shell reads is refused to a supervisor, so the window's Employee list takes
+      // the same people the room reads, everyone active from the HR summary. Break: the list built from
+      // the shell's staff list alone, which offers nobody.
+      const addOpened = await d.clickText(d.say("+ Add Training"), { exact: true });
+      await d.settle(300);
+      const addPeople = addOpened && (await d.modalOpen())
+        ? await d.modal().locator("select").first().locator("option").evaluateAll((els) => els.filter((o) => o.value).map((o) => (o.textContent || "").trim()))
+        : [];
+      check("add-training-lists-the-active-people", lang, addOpened && sameSet(addPeople, W.active),
+        !addOpened ? "the window did not open from " + JSON.stringify(d.say("+ Add Training"))
+          : "+ Add Training offers " + JSON.stringify(addPeople) + " where the active people are " + JSON.stringify(W.active));
+      await closeRoom(d);
     } catch (e) {
       results.fail("page", "page/hr/training-room/suite/" + lang, "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]);
     } finally {
@@ -543,7 +573,7 @@ async function run(ctx) {
         // ticked, one of them refused, and the run's lines, Try again and all.
         await openRoom(p);
         await tick(p, ["Tomasz Wisniewski", "Ngozi Okonkwo"]);
-        const served = stubs.calls.filter((c) => c.path === "/api/lookups/all" && c.json).pop();
+        const served = stubs.calls.filter((c) => (c.path === "/api/lookups/all" || c.path === "/api/lookups") && Array.isArray(c.json)).pop();
         const types = ((served && served.json) || []).find((c) => c.slug === "training_types");
         const typeWord = ((types && types.values) || []).filter((v) => v.value === SESSION.type).map((v) => v.displayLabel || v.label)[0];
         await fillSession(p, { name: "Bl", typeWord, by: SESSION.by, lang: SESSION.lang });
