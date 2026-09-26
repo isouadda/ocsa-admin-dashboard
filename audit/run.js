@@ -80,6 +80,10 @@ const SUITES = [
   // says, in English and in Spanish, and on a phone at every text size. The suite makes its own passes,
   // since the phone's are 390 wide.
   { name: "training", mod: "./cases/training", widths: [] },
+  // Every staff picker fills for a supervisor, whom the stub refuses the staff list the way the API
+  // does: each picker as the supervisor and as an admin, and what each sends, in both languages at 1024.
+  { name: "pickers", mod: "./cases/pickers", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 

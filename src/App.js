@@ -457,7 +457,9 @@ export default function AdminDashboard() {
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
   const loadSites = useCallback(async () => { try { const s = await af("/api/sites"); setSites(s); return s; } catch (e) { console.warn("Failed to load sites:", e.message); return []; } }, [af]);
-  const loadStaff = useCallback(async () => { try { const s = await af("/api/users?status=active"); setAllStaff(s); return s; } catch (e) { console.warn("Failed to load staff:", e.message); return []; } }, [af]);
+  // The staff list is an admin's (manage_staff). loadPeople reads a supervisor's copy from the HR
+  // employees summary when the API refuses the list, so every picker built from allStaff fills for them.
+  const loadStaff = useCallback(async () => { try { const s = await loadPeople(af, "?status=active"); setAllStaff(s); return s; } catch (e) { console.warn("Failed to load staff:", e.message); return []; } }, [af]);
   // Every pick list the pages draw. The whole set, inactive lists and values included, is an admin's
   // (manage_lookups). Anyone the API refuses it reads the signed-in route instead, which answers the
   // active lists and values in the same shape, so a supervisor's pick lists fill the way an admin's
@@ -5244,8 +5246,15 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     return [first, last, (first + " " + last).trim(), s.name, s.employeeId || s.employee_id].some(f => String(f || "").toLowerCase().includes(needle));
   };
 
+  // An admin's list carries each person's site assignments. A supervisor's comes from the HR summary
+  // through loadPeople, which carries none, so for a list without them a site's people are read from
+  // the site's record through useSitePeople, the way Log training for several people reads them. No
+  // site is read for a list that carries its assignments.
+  const peopleLackSites = staffList.length > 0 && !staffList.some(s => Array.isArray(s.sites));
+  const [sitePeople] = useSitePeople(af, peopleLackSites ? filterSite : "");
+  const atSite = (s) => Array.isArray(s.sites) ? s.sites.some(x => x && String(x.siteId) === String(filterSite)) : !!(sitePeople && sitePeople.has(String(s.id)));
   const staffForSite = (() => {
-    let list = filterSite ? staffList.filter(s => s.role === "admin" || (Array.isArray(s.sites) && s.sites.some(x => x && String(x.siteId) === String(filterSite)))) : staffList.filter(s => s.role !== "admin");
+    let list = filterSite ? staffList.filter(s => s.role === "admin" || atSite(s)) : staffList.filter(s => s.role !== "admin");
     if (searchStaff) list = list.filter(s => staffSearchMatch(s, searchStaff));
     return list;
   })();
@@ -7492,7 +7501,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
 
   useEffect(() => {
     setLoadingStaff(true);
-    af("/api/users")
+    loadPeople(af, "")
       .then((d) => {
         const list = Array.isArray(d) ? d : (d && Array.isArray(d.users) ? d.users : []);
         setStaff(list);
@@ -11271,9 +11280,30 @@ function printAttendanceSheet({ name, day, rows, typeWords = {} }) {
   return true;
 }
 
-// A person as the HR routes send one, which a supervisor may read. The staff list is an admin's, so a
-// supervisor's copy of it is empty.
-const hrPerson = (e) => ({ id: String(e.id), name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role });
+// A person as the HR routes send one, which a supervisor may read, in the shape the staff list's
+// readers know: id, first and last name, the two joined, role and status.
+const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", lastName: e.last_name || "", name: ((e.first_name || "") + " " + (e.last_name || "")).trim(), role: e.role, status: e.status });
+// The people GET /api/users answers, for whoever is signed in. The route is an admin's (manage_staff).
+// When the API refuses it, a 403 and nothing else, the active people are read from the HR employees
+// summary, which a supervisor may call, each mapped through hrPerson and kept to what the query asked
+// (status, role) and to the people the route lists, which leaves a client contact out. Any other
+// failure is thrown to the caller as before, and an admin's read does not change. The summary carries
+// no site assignments, so a person read this way has no sites list; Schedule reads a site's people
+// through useSitePeople for such a list. Every read of GET /api/users in this file that fills a list a
+// supervisor can open goes through here rather than copying the fallback.
+async function loadPeople(af, query) {
+  const q = query || "";
+  try { return await af("/api/users" + q); }
+  catch (e) {
+    if (e.status !== 403) throw e;
+    const want = new URLSearchParams(q.replace(/^\?/, ""));
+    const status = want.get("status");
+    const role = want.get("role");
+    const d = await af("/api/hr/employees-summary?status=active");
+    return ((d && d.employees) || []).map(hrPerson)
+      .filter(p => p.role !== "client_contact" && (!status || p.status === status) && (!role || p.role === role));
+  }
+}
 // Everyone active, or null while the list loads. `when` false reads nothing, for a screen that only
 // needs the list when the shell's own staff list is empty.
 function useActivePeople(af, when = true) {

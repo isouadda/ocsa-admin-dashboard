@@ -178,6 +178,16 @@ the table, and blocks pop-ups to see both say so. Each in English and in Spanish
 broken on purpose once and seen to fail. It reads the window and that list again on a phone, 390 wide,
 at every text size: nothing in either runs off the side and every control is at least 44 by 44.
 
+**Every staff picker fills for a supervisor.** The staff list the shell reads, `GET /api/users`, is an
+admin's (`manage_staff`), and the stub refuses it to anyone without that capability, the way
+`routes/users.js` does, so a supervisor's people come the way the dashboard reads them since Step 146:
+from `GET /api/hr/employees-summary`, through one helper, `loadPeople`. The `pickers` suite signs in as
+the supervisor, checks that the stub itself made the refusal and that the shell read the summary after
+it, then opens Assigned Tasks' Create Task, Schedule's Schedule Shift with and without a site picked, and
+an open pickup's window on Schedule, and holds each picker to the seed's active people, and a task
+created for a person to that person's id. It reads the same pickers as an admin, whose list the stub
+answers, and notes what each offers. Both languages, at 1024.
+
 ## How to run less of it
 
 ```
@@ -190,7 +200,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training` and `house-style`.
+`training`, `pickers` and `house-style`.
 
 ## How much is left in English
 

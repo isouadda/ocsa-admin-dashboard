@@ -959,7 +959,13 @@ function createStubs() {
 
     // --- shell ------------------------------------------------------------
     if (path === "/api/sites" && method === "GET") return ok(state.sites);
-    if (path === "/api/users" && method === "GET") return ok(state.staff);
+    // The staff list is an admin's, the way routes/users.js gates GET /api/users by manage_staff, so a
+    // supervisor is refused it whatever the query asks. The dashboard reads a supervisor's people from
+    // GET /api/hr/employees-summary instead, below under hr.
+    if (path === "/api/users" && method === "GET") {
+      if (!effectiveMap(person(), state.overrides[person().id]).manage_staff) return { status: 403, json: { error: "Insufficient permissions" } };
+      return ok(state.staff);
+    }
     // The whole set of lists is an admin's, the way routes/lookups.js gates GET /api/lookups/all by
     // manage_lookups, so a supervisor is refused it. GET /api/lookups answers anyone signed in with
     // the active lists and their active values, in the same shape.
