@@ -178,6 +178,16 @@ the table, and blocks pop-ups to see both say so. Each in English and in Spanish
 broken on purpose once and seen to fail. It reads the window and that list again on a phone, 390 wide,
 at every text size: nothing in either runs off the side and every control is at least 44 by 44.
 
+**What a lead sees from October 1 is in words.** The `before-training` suite reads, in both languages,
+Schedule's Month view with one shift started on one day and two on another, served by the stub, and
+holds the two cells to "1 started" and "2 started" and their Spanish, written out by hand; the Issues
+page served no issue at all, which has to say so in one line, and served the seed's rows, which must
+not; Live Ops' Refresh, whose icon path has to be the circular arrow the Dashboard's Refresh draws and
+never the plus; and Settings, Who gets told, which names the complaint log by its title in the
+screen's language beside its code. The `staff-cases` suite reads the Badge column after each name and
+the badge number on the profile window, held to what GET /api/users and the profile sent, in both
+languages.
+
 **Every staff picker fills for a supervisor.** The staff list the shell reads, `GET /api/users`, is an
 admin's (`manage_staff`), and the stub refuses it to anyone without that capability, the way
 `routes/users.js` does, so a supervisor's people come the way the dashboard reads them since Step 146:
@@ -203,7 +213,7 @@ AUDIT_CHROMIUM=/path/to/chrome npm run audit
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers` and `house-style`.
+`training`, `pickers`, `before-training` and `house-style`.
 
 ## How much is left in English
 

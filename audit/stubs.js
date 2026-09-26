@@ -29,6 +29,8 @@ function createStubs() {
   // A choice left out of the lists /api/lookups/all serves, { slug, value }, the way a list can stop
   // holding a choice that records still carry.
   let listGap = null;
+  // What GET /api/shift-sessions/by-site answers in place of the seed's sessions, when a case sets it.
+  let shiftSessions = null;
   let signedInAs = "admin";
   // A browser reads Content-Disposition off a cross-origin response only when the server exposes it.
   // The API does; a case turns it off to drive the name the dashboard falls back to.
@@ -1289,7 +1291,7 @@ function createStubs() {
         { id: "ta-2", action: "started_work", created_at: seed.shift(-1) + "T18:10:00Z", user_name: "Tomasz Wisniewski", details: "" },
       ]);
     }
-    if (path.startsWith("/api/shift-sessions/by-site")) return ok(SHIFT_SESSIONS);
+    if (path.startsWith("/api/shift-sessions/by-site")) return ok(shiftSessions || SHIFT_SESSIONS);
 
     // --- inspections ------------------------------------------------------
     if (path === "/api/inspections/templates" && method === "GET") return ok(INSPECTION_TEMPLATES);
@@ -1778,6 +1780,9 @@ function createStubs() {
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
     setListGap: (g) => { listGap = g || null; },
+    setShiftSessions: (s) => { shiftSessions = s || null; },
+    // The issues the API answers: the rows given, or the seed's rows again with null.
+    setIssues: (rows) => { state.issues = rows ? rows : clone(seed.ISSUES); },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1792,7 +1797,7 @@ function createStubs() {
       state.training = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
-      delays = []; trim = null; listGap = null; exposeDisposition = true;
+      delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};
       openSessions = {};
     },

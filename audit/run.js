@@ -84,6 +84,10 @@ const SUITES = [
   // does: each picker as the supervisor and as an admin, and what each sends, in both languages at 1024.
   { name: "pickers", mod: "./cases/pickers", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Six small things before training: the month's started count at one and two, the Issues page with
+  // nothing reported, Live Ops' refresh icon and the complaint log's title, in both languages.
+  { name: "before-training", mod: "./cases/before-training", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
