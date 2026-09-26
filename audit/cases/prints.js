@@ -43,6 +43,16 @@ async function exportReport(d, name) {
 
 // Each print by what it is, and the steps that put it in a window.
 const PRINTS = [
+  // HR Records' one: the attendance sheet of a training's newest session, printed from the list of who
+  // has no record of that training on the Training tab.
+  { id: "hr/attendance-sheet", what: "a training session's attendance sheet",
+    open: async (d) => {
+      await d.goto("hr"); await tab(d, "Training");
+      await d.page.locator("section[aria-label='" + d.say("Who has no record") + "'] select[aria-label='" + d.say("Training Name") + "']")
+        .selectOption({ label: "Bloodborne pathogens" });
+      await d.settle(300);
+      return d.clickText(d.say("Print attendance sheet"), { exact: true });
+    } },
   { id: "sites/chat-history", what: "a site's chat history",
     open: async (d) => { await openSite(d); await tab(d, "Chat"); return d.clickText(d.say("Print"), { exact: true }); } },
   { id: "sites/timeline", what: "a site's timeline",
@@ -118,4 +128,4 @@ async function run({ d, results, lang, stubs }) {
   results.note("printed pages in " + lang + ": " + read + " of " + PRINTS.length + " opened and read");
 }
 
-module.exports = { run, PRINTS };
+module.exports = { run, PRINTS, printLines };

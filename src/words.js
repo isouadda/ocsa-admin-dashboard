@@ -134,6 +134,7 @@ export const WORDS = {
   "All supplies are already assigned to this site": { es: "Todos los suministros ya est\u00e1n asignados a este sitio" },
   "Allow": { es: "Permitir" },
   "Allow pop-ups to export the PDF": { es: "Permita las ventanas emergentes para exportar el PDF" },
+  "Allow pop-ups to print the sheet": { es: "Permita las ventanas emergentes para imprimir la hoja" },
   "Already logged, not sent again": { es: "Ya ten\u00edan este registro, no se enviaron de nuevo" },
   "Analytics": { es: "An\u00e1lisis" },
   "Annual": { es: "Anual" },
@@ -168,6 +169,7 @@ export const WORDS = {
   "Attached": { es: "Adjunto" },
   "Attached Photo": { es: "Foto adjunta" },
   "Attached Video": { es: "Video adjunto" },
+  "Attendance sheet": { es: "Hoja de asistencia" },
   "Available Metadata": { es: "Metadatos disponibles" },
   "Average": { es: "Promedio" },
   "Average score by site": { es: "Puntaje promedio por sitio" },
@@ -984,6 +986,7 @@ export const WORDS = {
   "Prime Contractor": { es: "Contratista principal" },
   "Print": { es: "Imprimir" },
   "Print Report": { es: "Imprimir el informe" },
+  "Print attendance sheet": { es: "Imprimir la hoja de asistencia" },
   "Print this QR code and attach it to the supply container": { es: "Imprima este c\u00f3digo QR y p\u00e9guelo en el envase del suministro" },
   "Priority": { es: "Prioridad" },
   "Private conversations": { es: "Conversaciones privadas" },
@@ -1198,6 +1201,7 @@ export const WORDS = {
   "Services: create, edit, delete, link": { es: "Servicios: crear, editar, eliminar y vincular" },
   "Services: view": { es: "Servicios: ver" },
   "Session expired": { es: "La sesi\u00f3n expir\u00f3" },
+  "Sessions": { es: "Sesiones" },
   "Settings": { es: "Configuraci\u00f3n" },
   "Share button": { es: "bot\u00f3n Compartir" },
   "Shift": { es: "Turno" },
@@ -1229,6 +1233,7 @@ export const WORDS = {
   "Shown as: {0}": { es: "Se muestra como: {0}" },
   "Sign In": { es: "Iniciar sesi\u00f3n" },
   "Sign Out": { es: "Cerrar sesi\u00f3n" },
+  "Signature": { es: "Firma" },
   "Signing in...": { es: "Iniciando sesi\u00f3n..." },
   "Since midnight": { es: "Desde la medianoche" },
   "Site": { es: "Sitio" },
@@ -1974,6 +1979,10 @@ export const WORDS = {
   "{0} of {1} have no record|count": {
     en: { one: "{0} of {1} has no record", other: "{0} of {1} have no record" },
     es: { one: "{0} de {1} no tiene registro", other: "{0} de {1} no tienen registro" },
+  },
+  "{0} person logged|count": {
+    en: { one: "{0} person logged", other: "{0} people logged" },
+    es: { one: "{0} persona registrada", other: "{0} personas registradas" },
   },
 };
 

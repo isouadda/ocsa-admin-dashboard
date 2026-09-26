@@ -17,6 +17,8 @@
 "use strict";
 const { englishLeftOn } = require("../lib/english");
 const { readTable, baseOf } = require("../lib/words");
+const { printLines } = require("./prints");
+const { htmlTables } = require("./exports");
 
 const TEXT_SIZES = ["standard", "large", "xlarge", "largest"];
 const LANGS = ["en", "es"];
@@ -85,6 +87,18 @@ function readWindow(d) {
     };
   }, { sel: WINDOW, words: d.trainingWords });
 }
+
+// A printed sheet: its words, its people and the day it names in the language of the screen.
+function sheetOf(print) {
+  if (!print) return null;
+  const people = htmlTables(print.html).find((t) => t.headers.length === 3 && t.rows.every((r) => r.length === 3));
+  return { lines: printLines(print.html), people: people ? people.rows.map((r) => r[1]) : [], printed: print.printed };
+}
+const longDay = (d, day) => d.page.evaluate(({ day: x, tag }) => {
+  const [y, m, dd] = x.split("-").map(Number);
+  return new Date(y, m - 1, dd).toLocaleDateString(tag, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+}, { day, tag: d.lang === "es" ? "es-US" : "en-US" });
+const sortedNames = (d, names) => d.page.evaluate(({ list, tag }) => list.slice().sort((a, b) => a.localeCompare(b, tag)), { list: names, tag: d.lang === "es" ? "es-US" : "en-US" });
 
 // Every piece of text a person reads in the window, the way the driver reads a page.
 function windowReadable(d) {
@@ -300,6 +314,12 @@ async function run(ctx) {
         offFirst || (writes(d, mark).length !== 3 ? writes(d, mark).length + " writes to the training routes where 3 creates were due"
           : "the window reads " + JSON.stringify(w ? w.status : null) + " where it should read " + JSON.stringify(savedLine)));
 
+      // ---- the attendance sheet, printed from the window after the save ------------------------------
+      await d.clearCaptures();
+      await inWindow(d).getByRole("button", { name: d.say("Print attendance sheet"), exact: true }).click();
+      await d.settle(700);
+      const sheetOne = sheetOf((await d.prints()).pop());
+
       // ---- Spanish through and through ------------------------------------------------------------
       if (lang === "es") {
         // Break: one of the window's new strings drawn without the table.
@@ -336,6 +356,49 @@ async function run(ctx) {
               : "a double press: " + doubleOff);
       await closeRoom(d);
 
+      // ---- the attendance sheet, printed from the list, after the double press ------------------------
+      // Break: the sheet's heading left in English on a Spanish screen.
+      // hand: the session now holds the three logged first and the two of the double press, five people.
+      const five = three.concat(["Oyelaran Adebayo", "Marcus Ferreira"]);
+      await readGaps(d, SESSION.name, "");
+      const sessionLines = await d.page.evaluate((sel) => {
+        const list = document.querySelector(sel);
+        const text = (x) => (x && x.innerText ? x.innerText : "").replace(/\s+/g, " ").trim();
+        return list ? Array.from(list.querySelectorAll("[role=listitem]")).map((li) => Array.from(li.firstElementChild.children).map(text)) : [];
+      }, GAPS(d) + " [role=list][aria-label='" + d.say("Sessions") + "']");
+      await d.clearCaptures();
+      await d.page.locator(GAPS(d) + " [role=list][aria-label='" + d.say("Sessions") + "'] button").first().click();
+      await d.settle(700);
+      const sheetFive = sheetOf((await d.prints()).pop());
+      const day = await longDay(d, SESSION.day);
+      const wantOne = await sortedNames(d, three);
+      const wantFive = await sortedNames(d, five);
+      const must = [d.say("Attendance sheet"), SESSION.name, day, typeWord, SESSION.by, d.say("Given in Spanish")];
+      const missingWords = (sh) => must.filter((x) => sh.lines.indexOf(x) < 0);
+      const shortDay = await d.page.evaluate(({ day: x, tag }) => {
+        const [y, m, dd] = x.split("-").map(Number);
+        return new Date(y, m - 1, dd).toLocaleDateString(tag, { month: "short", day: "numeric", year: "numeric" });
+      }, { day: SESSION.day, tag: lang === "es" ? "es-US" : "en-US" });
+      const sessionWant = [shortDay, sayCount("{0} person logged|count", lang, 5) + " . " + d.say("Given in Spanish")];
+      const sheetLeft = lang === "es" ? [sheetOne, sheetFive].filter(Boolean).reduce((out, sh) => out.concat(englishLeftOn(sh.lines, stubs.calls)), []) : [];
+      const sheetProblem = !sheetOne ? "the window's Print attendance sheet opened no sheet"
+        : !sheetFive ? "the list's Print attendance sheet opened no sheet"
+          : JSON.stringify(sheetOne.people) !== JSON.stringify(wantOne) ? "the sheet printed from the window lists " + JSON.stringify(sheetOne.people) + " where the session holds " + JSON.stringify(wantOne)
+            : JSON.stringify(sheetFive.people) !== JSON.stringify(wantFive) ? "the sheet printed from the list lists " + JSON.stringify(sheetFive.people) + " where the session holds " + JSON.stringify(wantFive)
+              : missingWords(sheetOne).length || missingWords(sheetFive).length ? "the sheet does not carry " + JSON.stringify(missingWords(sheetOne).concat(missingWords(sheetFive)))
+                : !sheetOne.printed || !sheetFive.printed ? "a sheet was written and print was never called on it"
+                  : sessionLines.length !== 1 || JSON.stringify(sessionLines[0]) !== JSON.stringify(sessionWant) ? "the list's sessions read " + JSON.stringify(sessionLines) + " where the one session should read " + JSON.stringify(sessionWant)
+                    : sheetLeft.length ? sheetLeft.length + " lines of the sheet are not Spanish: " + sheetLeft.slice(0, 4).map((x) => JSON.stringify(x.left || x.line)).join(", ")
+                      : null;
+      check("attendance-sheet", lang, !sheetProblem, sheetProblem);
+      // A browser that will not open the sheet's window is told so, from the list here and from the
+      // window after the refusal below. Break: the refusal left unsaid.
+      await d.waitToastGone();
+      await d.setPopupsBlocked(true);
+      await d.page.locator(GAPS(d) + " [role=list][aria-label='" + d.say("Sessions") + "'] button").first().click({ timeout: 5000 });
+      const blockedList = await d.waitToast(2500);
+      await d.setPopupsBlocked(false);
+
       // ---- one person refused, the other two saved, and Try again sends only that one ---------------
       // Break: the run stopped at the first refusal.
       stubs.reset();
@@ -356,6 +419,15 @@ async function run(ctx) {
       const retried = creates(d, mark);
       const afterRetry = await readWindow(d);
       const oneLine = sayCount("{1} of {0} saved|count", lang, 1, 1);
+      await d.setPopupsBlocked(true);
+      await inWindow(d).getByRole("button", { name: d.say("Print attendance sheet"), exact: true }).click({ timeout: 5000 });
+      await d.settle(200);
+      const blockedWindow = await readWindow(d);
+      await d.setPopupsBlocked(false);
+      const blockedWords = d.say("Allow pop-ups to print the sheet");
+      check("pop-ups-blocked", lang, blockedList === blockedWords && !!blockedWindow && blockedWindow.alert.indexOf(blockedWords) >= 0,
+        blockedList !== blockedWords ? "with pop-ups blocked the list says " + JSON.stringify(blockedList) + " where it should say " + JSON.stringify(blockedWords)
+          : "with pop-ups blocked the window says " + JSON.stringify(blockedWindow ? blockedWindow.alert : null) + " where it should say " + JSON.stringify(blockedWords));
       const triedOff = heldToHand(tried, room.map((n) => hand(n, SESSION)));
       const retryOff = heldToHand(retried, [hand("Ngozi Okonkwo", SESSION)]);
       const listedRefused = refusedRun ? refusedRun.failed : [];

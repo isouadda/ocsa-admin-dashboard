@@ -188,7 +188,7 @@ const WINDOWS = [
   { id: "hr/document-window", page: "hr", title: "Document", lines: [11076] },
   { id: "hr/training-window", page: "hr", title: "Training", lines: [11098] },
   { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11132] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11299] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11346] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -239,7 +239,7 @@ const EXPORTS = [
   { id: "exports/staff-timeline-csv", kind: "csv", name: "_Timeline_" },
   { id: "exports/site-timeline-csv", kind: "csv", name: "_Timeline_" },
 
-  // Print, thirteen. Each opens a window, writes a document into it and calls print on it.
+  // Print, fourteen. Each opens a window, writes a document into it and calls print on it.
   { id: "exports/issue-report-pdf", kind: "print", name: "Issue Response and Resolution" },
   { id: "exports/supply-report-pdf", kind: "print", name: "Supply Usage and Cost" },
   { id: "exports/inspection-report-pdf", kind: "print", name: "Inspection" },
@@ -252,6 +252,7 @@ const EXPORTS = [
   { id: "exports/site-timeline-detail-print", kind: "print", name: "Record" },
   { id: "exports/site-chat-print", kind: "print", name: "Chat History" },
   { id: "exports/permissions-matrix-pdf", kind: "print", name: "Roles and Permissions" },
+  { id: "exports/attendance-sheet-print", kind: "print", name: "Attendance sheet" },
   { id: "exports/submission-pdf-print", kind: "print", name: "" },
 ];
 
@@ -422,6 +423,8 @@ const TRAINING_ROOM = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/hr/training-room/one-refused-the-rest-saved/" + lang, what: "one person refused: the other two save, the refused one is named with the API's words, and Try again sends only that one", broken: "the run stopped at the first refusal" },
   { id: "page/hr/training-room/the-local-day-at-11-30-pm/" + lang, what: "at 11:30 PM in Philadelphia the day sent is that local day", broken: "the day taken from toISOString" },
   { id: "page/hr/training-room/names-already-used-are-offered/" + lang, what: "typing part of a name offers the names already used, and taking one takes its type", broken: "nothing offered" },
+  { id: "page/hr/training-room/pop-ups-blocked/" + lang, what: "with pop-ups blocked, printing the sheet from the list and from the window says so", broken: "the refusal left unsaid" },
+  { id: "page/hr/training-room/attendance-sheet/" + lang, what: "the sheet printed from the window and from the list names the training, the day, the type, the trainer and the language, and lists every person logged for that name and day, in the language of the screen", broken: "the sheet's heading left in English on a Spanish screen" },
   { id: "page/hr/training-room/who-has-no-record/" + lang, what: "a training picked on the Training tab lists exactly the active people with no record of it and counts them, narrows by site, and drops a person once the window logs them", broken: "inactive people counted as well" },
 ]).concat(lang === "es" ? [
   { id: "page/hr/training-room/no-english-left/es", what: "the window, after a save, draws no English on a Spanish screen", broken: "a new string drawn without the table" },
@@ -441,6 +444,7 @@ const PRINTS = ["en", "es"].reduce((out, lang) => out.concat([
   { id: "page/prints/staff/timeline/" + lang, what: "a person's timeline, printed" },
   { id: "page/prints/staff/profile-report/" + lang, what: "a person's profile report, printed" },
   { id: "page/prints/settings/role-reference/" + lang, what: "the role reference, printed" },
+  { id: "page/prints/hr/attendance-sheet/" + lang, what: "a training session's attendance sheet, printed" },
 ]), []);
 // Each report's screen and its charts, read as each person Reports opens for, and each save the report
 // editor makes, which sends the same body in either language.
