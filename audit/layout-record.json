@@ -10904,8 +10904,8 @@
       }
     },
     "marketplace@wide": {
-      "n": 263,
-      "digest": "1ae301eeadb1aa4c",
+      "n": 268,
+      "digest": "b3012d46cad3fb21",
       "named": {
         "body:Dashboard": [
           0,
@@ -11531,6 +11531,36 @@
           0,
           0
         ],
+        "option:Callout": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:No-Show": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:Extra Coverage": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:Voluntary Drop": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:New Shift": [
+          0,
+          0,
+          0,
+          0
+        ],
         "button:Convert Callout": [
           1125,
           191,
@@ -11714,25 +11744,25 @@
         "th:SHIFT": [
           245,
           454,
-          370,
+          392,
           38
         ],
         "th:STATUS": [
-          615,
+          637,
           454,
-          283,
+          273,
           38
         ],
         "th:ASSIGNED": [
-          898,
+          910,
           454,
-          159,
+          153,
           38
         ],
         "th:ACTIONS": [
-          1056,
+          1063,
           454,
-          199,
+          192,
           38
         ],
         "tbody:Harbor Point Center": [
@@ -11750,25 +11780,25 @@
         "td:Harbor Point Center": [
           245,
           492,
-          370,
+          392,
           86
         ],
         "div:Harbor Point Center": [
           261,
           504,
-          338,
+          360,
           61
         ],
         "div:Thu, Mar 19, 6:00 PM to 2:00 AM": [
           261,
           521,
-          338,
+          360,
           14
         ],
         "div:Bldg: North Wing": [
           261,
           537,
-          338,
+          360,
           11
         ],
         "span:Bldg: North Wing": [
@@ -11783,10 +11813,10 @@
           38,
           11
         ],
-        "span:SD": [
+        "span:Office Cleaning": [
           404,
           537,
-          14,
+          76,
           11
         ],
         "div:Covering a vacancy.": [
@@ -11796,51 +11826,51 @@
           13
         ],
         "td:OPEN": [
-          615,
+          637,
           492,
-          283,
+          273,
           86
         ],
         "div:OPEN": [
-          631,
+          653,
           526,
-          251,
+          241,
           17
         ],
         "span:OPEN": [
-          631,
+          653,
           526,
           53,
           17
         ],
         "span:NEW SHIFT": [
-          688,
+          710,
           526,
           86,
           17
         ],
         "td:-": [
-          898,
+          910,
           492,
-          159,
+          153,
           86
         ],
         "span:-": [
-          914,
+          926,
           527,
           5,
           15
         ],
         "td:Cancel": [
-          1056,
+          1063,
           492,
-          199,
+          192,
           86
         ],
         "div:Cancel": [
-          1072,
+          1079,
           520,
-          167,
+          160,
           30
         ],
         "button:Cancel": [
@@ -21458,8 +21488,8 @@
       }
     },
     "marketplace@narrow": {
-      "n": 198,
-      "digest": "92a7902ab2c071a7",
+      "n": 203,
+      "digest": "ea31b6fb31d23840",
       "named": {
         "body:2": [
           0,
@@ -21695,6 +21725,36 @@
           0,
           0
         ],
+        "option:Callout": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:No-Show": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:Extra Coverage": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:Voluntary Drop": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "option:New Shift": [
+          0,
+          0,
+          0,
+          0
+        ],
         "button:Convert Callout": [
           869,
           191,
@@ -21872,25 +21932,25 @@
         "th:SHIFT": [
           89,
           454,
-          333,
+          353,
           38
         ],
         "th:STATUS": [
-          422,
+          442,
           454,
-          255,
+          246,
           38
         ],
         "th:ASSIGNED": [
-          677,
+          688,
           454,
-          143,
+          138,
           38
         ],
         "th:ACTIONS": [
-          820,
+          826,
           454,
-          179,
+          173,
           38
         ],
         "tbody:Harbor Point Center": [
@@ -21908,25 +21968,25 @@
         "td:Harbor Point Center": [
           89,
           492,
-          333,
+          353,
           86
         ],
         "div:Harbor Point Center": [
           105,
           504,
-          301,
+          321,
           61
         ],
         "div:Thu, Mar 19, 6:00 PM to 2:00 AM": [
           105,
           521,
-          301,
+          321,
           14
         ],
         "div:Bldg: North Wing": [
           105,
           537,
-          301,
+          321,
           11
         ],
         "span:Bldg: North Wing": [
@@ -21941,64 +22001,64 @@
           38,
           11
         ],
-        "span:SD": [
+        "span:Office Cleaning": [
           248,
           537,
-          14,
+          76,
           11
         ],
         "div:Covering a vacancy.": [
           105,
           552,
-          301,
+          320,
           13
         ],
         "td:OPEN": [
-          422,
+          442,
           492,
-          255,
+          246,
           86
         ],
         "div:OPEN": [
-          438,
+          458,
           526,
-          223,
+          214,
           17
         ],
         "span:OPEN": [
-          438,
+          458,
           526,
           53,
           17
         ],
         "span:NEW SHIFT": [
-          495,
+          515,
           526,
           86,
           17
         ],
         "td:-": [
-          677,
+          688,
           492,
-          143,
+          138,
           86
         ],
         "span:-": [
-          693,
+          704,
           527,
           5,
           15
         ],
         "td:Cancel": [
-          820,
+          826,
           492,
-          179,
+          173,
           86
         ],
         "div:Cancel": [
-          836,
+          842,
           520,
-          147,
+          141,
           30
         ],
         "button:Cancel": [

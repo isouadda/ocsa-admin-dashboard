@@ -201,7 +201,9 @@ node audit/count.js
 It counts, page by page, the strings the finder in `audit/lib/strings.js` finds that do not go through
 `tr` or `trn`, in the component the render switch draws for the page and in everything that component
 reaches, beside the part `audit/spanish-todo.json` gives the page. A page the file no longer lists is
-done, and a count there is English left on a page taken as finished.
+done, and a count there is English left on a page taken as finished. Since Step 143 the file lists no
+page: every page and every printed page reads 0, and the count is the guard that keeps it so, since
+`house-style` fails the run on the first place a page taken as done draws without the table.
 
 The finder reads printed pages too: in a function that builds a page as HTML and opens it in a window,
 the text between the tags of every string is a place, the way a line a toast says is one. The count
