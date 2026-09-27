@@ -93,8 +93,8 @@ const SUITES = [
   // nothing reported, Live Ops' refresh icon and the complaint log's title, in both languages.
   { name: "before-training", mod: "./cases/before-training", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
-  // Four small things beside the phone: Schedule's refresh icon, the Staff table against its box and the
-  // training example, in English at both widths and in
+  // Four small things beside the phone: Schedule's refresh icon, the Staff table against its box, the
+  // training example and the names in the Dropdown Options editor, in English at both widths and in
   // Spanish at 1024.
   { name: "small-things", mod: "./cases/small-things", widths: ["wide", "narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es", only: "narrow" }] },

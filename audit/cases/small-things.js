@@ -1,4 +1,4 @@
-// Three small things beside the phone, Step 154, in English at 1280 and 1024 and in Spanish at 1024.
+// Four small things beside the phone, Step 154, in English at 1280 and 1024 and in Spanish at 1024.
 //
 // Schedule's Refresh draws the circular arrow the Dashboard's Refresh draws, read off the button's own
 // path, and never the plus. The Staff page's table fits its box at 1280 at Standard: its narrowest
@@ -6,7 +6,9 @@
 // the same table needs 118 more than its box in English and 192 in Spanish, since Badge, Phone, Role
 // and Employment are one-line columns under a one-line header row, so there it scrolls inside its own
 // card and the page never scrolls sideways. + Add Training's Administered By example names a role
-// and no person, in both languages, written out here by hand.
+// and no person, in both languages, written out here by hand. The Dropdown Options editor names each
+// list by its label and never its slug, held to the lists the stub served, one of which carries the
+// certification framework's name in its slug.
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -95,7 +97,24 @@ async function run({ d, results, seed, stubs, width, lang }) {
           : "the example reads " + JSON.stringify(example) + " where it should read " + JSON.stringify(want));
   if (opened) await d.closeModal();
 
-  results.note("Small things" + at + " in " + lang + ": Schedule's Refresh icon, the Staff table against its box and the training example");
+  // ---- Settings, Dropdown Options: each list by its name, never its slug
+  await d.goto("settings");
+  await d.settle(300);
+  await d.clickText(d.say("Dropdown Options"), { exact: true });
+  await d.settle(400);
+  const served = stubs.calls.filter((c) => c.path === "/api/lookups/all" && Array.isArray(c.json)).pop();
+  const lists = (served && served.json) || [];
+  const lines = await d.readable();
+  const text = lines.join("\n");
+  const slugs = lists.map((c) => c.slug).filter((s) => s && text.indexOf(s) >= 0);
+  const unnamed = lists.map((c) => c.label).filter((l) => l && text.indexOf(l) < 0);
+  results.check("view", "view/settings/global/list-names-not-slugs" + tail, lists.length > 0 && slugs.length === 0 && unnamed.length === 0,
+    lists.length === 0 ? "the stub served no list"
+      : slugs.length ? "the editor prints " + slugs.length + " slugs: " + slugs.slice(0, 3).join(", ")
+        : unnamed.length ? "the editor does not name " + unnamed.slice(0, 3).join(", ")
+          : "every one of " + lists.length + " lists is named by its label and none by its slug");
+
+  results.note("Small things" + at + " in " + lang + ": Schedule's Refresh icon, the Staff table against its box, the training example and the Dropdown Options names");
 }
 
 module.exports = { run };

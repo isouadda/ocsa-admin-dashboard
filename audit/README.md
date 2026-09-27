@@ -208,7 +208,9 @@ and in Spanish at 1024, Schedule's Refresh, whose icon path has to be the circul
 Dashboard's Refresh draws and never the plus; the Staff page's table, which fits its box at 1280 in
 English and at 1024 scrolls inside its own card while the page never scrolls sideways, with the
 table's width against its box noted on every pass; + Add Training's Administered By example, held to
-"e.g. Site supervisor" and its Spanish written out by hand, with no person's first name in it.
+"e.g. Site supervisor" and its Spanish written out by hand, with no person's first name in it; and
+the Dropdown Options editor, which names every list the stub served by its label and prints no
+list's slug.
 
 **Every staff picker fills for a supervisor.** The staff list the shell reads, `GET /api/users`, is an
 admin's (`manage_staff`), and the stub refuses it to anyone without that capability, the way

@@ -7776,7 +7776,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
   // Category CRUD
   const submitAddCat = async () => {
-    if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Label and slug required"), "error"); return; }
+    if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Name required"), "error"); return; }
     try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast(tr("Category created")); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditCat = async () => {
@@ -7882,7 +7882,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
               <div key={c.id} onClick={() => setSelCat(c.id)} style={{ padding: "8px 14px", cursor: "pointer", background: selCat === c.id ? t.goldBg : "transparent", borderLeft: selCat === c.id ? "3px solid " + GO : "3px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? t.goldText : t.text }}>{c.label}</div>
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {trn("{0} values|count", c.values?.length || 0)}</div>
+                  <div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{trn("{0} values|count", c.values?.length || 0)}</div>
                 </div>
                 {!c.is_active && <Bdg l={tr("off|category")} c={t.textMut} />}
               </div>
@@ -7970,7 +7970,6 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
       {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Category")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Label *")}</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder={tr("e.g. Equipment Types")} /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Slug (auto-generated)")}</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder={tr("e.g. equipment_types")} style={{ fontFamily: "monospace" }} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder={tr("Optional description")} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddCat}>{tr("Create Category")}</Btn></div>
       </div></Mdl>}
