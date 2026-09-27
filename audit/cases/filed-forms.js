@@ -306,6 +306,103 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     await d.reload();
   }
 
+  // ---- a table a person adds rows to, on the supervisor half ------------
+  // Step 159. The stub adds two such tables when asked, one with a floor of one row and room for
+  // five and one with room for one row, and the supervisor the list lets in fills them. Break: the
+  // Add row control dropped; Remove row drawn on every row; the full line dropped; the empty row sent.
+  {
+    stubs.reset();
+    stubs.setFiledFormExtras({ rows: true });
+    await d.signOutHard();
+    await d.signIn("supervisor");
+    await openLog(d);
+    const pressIn = (label) => d.page.evaluate((want) => {
+      const b = Array.from(document.querySelectorAll("div[style*='z-index: 500'] button")).find((x) => x.getAttribute("aria-label") === want);
+      if (!b) return false;
+      b.click();
+      return true;
+    }, label);
+    const count = (list, word) => list.filter((b) => b === word).length;
+    const buttons0 = await d.modalButtons();
+    const tables0 = await tablesIn(d);
+    const completed = tables0.find((t) => t.head.indexOf("What was completed") >= 0);
+    check("filed-forms/add-row-is-offered-on-an-added-rows-table", count(buttons0, "Add row") === 2,
+      "the window offers " + count(buttons0, "Add row") + " Add row where the stub sent two tables that take rows: " + JSON.stringify(buttons0));
+    check("filed-forms/a-table-with-a-floor-starts-with-its-rows",
+      !!completed && completed.cells.indexOf("1") >= 0 && completed.cells.indexOf("2") < 0 && count(buttons0, "Remove row") === 0,
+      !completed ? "no table headed What was completed"
+        : "the table draws " + JSON.stringify(completed.cells.slice(0, 3)) + " and the window offers " + count(buttons0, "Remove row") + " Remove row at the floor");
+
+    const added = await pressIn("What was completed: Add row");
+    await d.settle(200);
+    const tables1 = await tablesIn(d);
+    const completed1 = tables1.find((t) => t.head.indexOf("What was completed") >= 0);
+    const buttons1 = await d.modalButtons();
+    const inputs1 = await d.modalFields();
+    check("filed-forms/add-row-adds-a-row",
+      added && !!completed1 && completed1.cells.indexOf("2") >= 0 && inputs1.indexOf("input:2 What was completed") >= 0 && count(buttons1, "Remove row") === 2,
+      !added ? "no Add row button carries the table's name" : "after one tap the table draws " + JSON.stringify(completed1 ? completed1.cells.slice(0, 4) : [])
+        + ", the inputs are " + JSON.stringify(inputs1.filter((x) => x.indexOf("What was completed") >= 0)) + " and the window offers " + count(buttons1, "Remove row") + " Remove row");
+
+    const removed = await pressIn("Row 2, Remove row");
+    await d.settle(200);
+    const buttons2 = await d.modalButtons();
+    const tables2 = await tablesIn(d);
+    const completed2 = tables2.find((t) => t.head.indexOf("What was completed") >= 0);
+    check("filed-forms/remove-row-takes-a-row-out",
+      removed && !!completed2 && completed2.cells.indexOf("2") < 0 && count(buttons2, "Remove row") === 0,
+      !removed ? "no Remove row button on the second row" : "after Remove row the table draws " + JSON.stringify(completed2 ? completed2.cells.slice(0, 4) : []) + " and offers " + count(buttons2, "Remove row") + " Remove row");
+
+    // One row filled and one left empty on the floored table, and one row added and left empty on
+    // the table with room for one, which then says it is full.
+    await pressIn("What was completed: Add row");
+    await d.settle(150);
+    await d.modal().locator("input[aria-label='1 What was completed']").fill("Replaced the lobby mat");
+    await d.modal().locator("input[aria-label='1 Completed on']").fill("2026-03-17");
+    const filledMax = await pressIn("Findings verified in person: Add row");
+    await d.settle(200);
+    const text3 = await d.modalText();
+    const buttons3 = await d.modalButtons();
+    check("filed-forms/a-full-table-says-so",
+      filledMax && text3.indexOf("This table is full.") >= 0 && count(buttons3, "Add row") === 1,
+      !filledMax ? "no Add row button on the table with room for one" : "after one row the window reads full " + (text3.indexOf("This table is full.") >= 0) + " and offers " + count(buttons3, "Add row") + " Add row");
+
+    const mark = d.mark();
+    const saved = await d.clickText("Save", { inModal: true, exact: true });
+    await d.settle(700);
+    const sent = d.callsSince(mark).filter((c) => c.method === "PATCH" && /\/supervisor$/.test(c.path));
+    const body = sent.length ? sent[0].body : null;
+    const answers = body && body.answers ? body.answers : {};
+    check("filed-forms/save-sends-the-filled-row-and-not-the-empty-one",
+      !!saved && sent.length === 1 && Array.isArray(answers.completed) && answers.completed.length === 1
+        && answers.completed[0].what === "Replaced the lobby mat" && answers.completed[0].when === "2026-03-17",
+      "the body sent was " + JSON.stringify(body));
+    check("filed-forms/an-emptied-table-sends-null",
+      sent.length === 1 && Object.prototype.hasOwnProperty.call(answers, "verified") && answers.verified === null,
+      "the table left with no filled row went as " + JSON.stringify(answers.verified));
+    const held = await d.modalFields();
+    const value1 = await d.modal().locator("input[aria-label='1 What was completed']").inputValue().catch(() => "");
+    const left = await stillNeeded(d);
+    check("filed-forms/the-saved-rows-are-drawn-after-the-answer",
+      value1 === "Replaced the lobby mat" && held.indexOf("input:2 What was completed") < 0 && left.indexOf("What was completed") < 0,
+      "after the API answered the first row reads " + JSON.stringify(value1) + ", the inputs are " + JSON.stringify(held.filter((x) => x.indexOf("What was completed") >= 0)) + " and still needed lists " + JSON.stringify(left));
+
+    // The same window on a phone, 390 wide.
+    await d.page.setViewportSize({ width: 390, height: 844 });
+    await d.settle(400);
+    const g = await windowGeometry(d);
+    const tables4 = await tablesIn(d);
+    check("filed-forms/the-tables-fit-a-phone",
+      g.over <= 1 && g.small.length === 0 && tables4.length > 0 && tables4.every((t) => !t.wide || t.boxScrolls),
+      "at 390 the page runs " + g.over + " pixels off the side, controls under 44 by 44: " + JSON.stringify(g.small) + ", a table wider than its box with nothing to scroll it: " + tables4.some((t) => t.wide && !t.boxScrolls));
+    await d.page.setViewportSize({ width: 1280, height: 900 });
+    await d.settle(300);
+    await d.closeModal();
+    stubs.reset();
+    await d.signOutHard();
+    await d.signIn("admin");
+  }
+
   // ---- who may open Forms at all ----------------------------------------
   {
     await d.signOutHard();

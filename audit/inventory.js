@@ -178,18 +178,18 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8014] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8025] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8417] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9922] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [9975] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10090] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10127] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8454] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9959] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10012] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10127] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10164] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10730] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10767] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11239] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11261] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11295] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11536] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11276] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11298] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11332] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11573] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -566,6 +566,16 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/save-sends-a-checklist-in-its-shape", name: "A checklist is sent as an object keyed by row then column" },
   { id: "filed-forms/the-section-is-swapped-for-the-answer", name: "The section is swapped for what the API answered" },
   { id: "filed-forms/what-is-still-needed-shrinks", name: "The still-needed line drops a question once it is answered" },
+  // Step 159: a table a person adds rows to, on the supervisor half.
+  { id: "filed-forms/add-row-is-offered-on-an-added-rows-table", name: "A writable table with no declared rows offers Add row" },
+  { id: "filed-forms/a-table-with-a-floor-starts-with-its-rows", name: "A table with a floor draws that many rows from the start, with no Remove row" },
+  { id: "filed-forms/add-row-adds-a-row", name: "A tap on Add row adds an open row and each row above the floor offers Remove row" },
+  { id: "filed-forms/remove-row-takes-a-row-out", name: "Remove row takes its row out and is not offered at the floor" },
+  { id: "filed-forms/a-full-table-says-so", name: "A table at its maxRows says This table is full. in place of Add row" },
+  { id: "filed-forms/save-sends-the-filled-row-and-not-the-empty-one", name: "Save sends the filled row and drops the row with no cell filled" },
+  { id: "filed-forms/an-emptied-table-sends-null", name: "A table left with no filled row is sent as null" },
+  { id: "filed-forms/the-saved-rows-are-drawn-after-the-answer", name: "The rows the API answered are drawn in the table after Save" },
+  { id: "filed-forms/the-tables-fit-a-phone", name: "At 390 the row controls are 44 by 44 and the tables scroll inside their boxes" },
 ];
 
 module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, TRAINING_ROOM, PICKERS };

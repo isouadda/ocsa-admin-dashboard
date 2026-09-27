@@ -547,10 +547,24 @@ function createStubs() {
     role: person().role,
     at: seed.NOW_ISO,
   });
-  const SUPERVISOR_REQUIRED = [
+  // Step 159: what a case switches on in the daily service log's payload beyond what the suite has
+  // always read, so every payload read before stays byte for byte as it was. rows adds two tables a
+  // person adds rows to on the supervisor half, one with a floor of one row and room for five and one
+  // with room for one row; the required one joins the missing list until it holds a row.
+  let filedExtras = { rows: false, sections: false };
+  const COMPLETED_COLUMNS = [
+    { key: "what", label: "What was completed", type: "text", required: true },
+    { key: "when", label: "Completed on", type: "date", required: false },
+  ];
+  const VERIFIED_COLUMNS = [
+    { key: "finding", label: "Finding verified", type: "text", required: true },
+    { key: "ok", label: "Holds", type: "checkbox", required: false },
+  ];
+  const SUPERVISOR_REQUIRED_BASE = [
     { key: "reviewed_on", label: "Date reviewed" },
     { key: "checks", label: "Checks at review" },
   ];
+  const supervisorRequired = () => SUPERVISOR_REQUIRED_BASE.concat(filedExtras.rows ? [{ key: "completed", label: "What was completed" }] : []);
   const answered = (v) => {
     if (v == null || v === "") return false;
     if (Array.isArray(v)) return v.length > 0;
@@ -561,7 +575,7 @@ function createStubs() {
     const sup = filedState().supervisor;
     const stamp = filedState().signed.review_signoff || null;
     const checks = sup.checks || {};
-    return [
+    const fields = [
       { id: "sf-1", key: "service_date", label: "Date of service", half: "agent", type: "date",
         value: "2026-03-16", displayValue: "March 16, 2026" },
       // The filing half carries the staff portal's word for itself here on purpose: this repo
@@ -589,6 +603,18 @@ function createStubs() {
       { id: "sf-8", key: "review_signoff", label: "Reviewed by", half: "supervisor", type: "signoff",
         signer: "supervisor", displayValue: "", value: stamp },
     ];
+    if (filedExtras.rows) {
+      fields.splice(7, 0,
+        { id: "sf-9", key: "completed", label: "What was completed", half: "supervisor", type: "grid",
+          columns: COMPLETED_COLUMNS, rows: null, minRows: 1, maxRows: 5,
+          value: sup.completed || null,
+          displayValue: (sup.completed || []).map((r) => r.what).join(". ") },
+        { id: "sf-10", key: "verified", label: "Findings verified in person", half: "supervisor", type: "grid",
+          columns: VERIFIED_COLUMNS, rows: null, minRows: null, maxRows: 1,
+          value: sup.verified || null,
+          displayValue: (sup.verified || []).map((r) => r.finding).join(". ") });
+    }
+    return fields;
   };
   const FORM_LIST = [
     { code: "incident", title: "Incident report" },
@@ -619,7 +645,7 @@ function createStubs() {
       fields: fields,
       canSign: isLog && !mine && !signed ? ["review_signoff"] : [],
       canWriteSupervisor: canWrite,
-      supervisorMissing: canWrite ? SUPERVISOR_REQUIRED.filter((q) => !answered(sup[q.key])) : [],
+      supervisorMissing: canWrite ? supervisorRequired().filter((q) => !answered(sup[q.key])) : [],
     };
   };
 
@@ -1784,6 +1810,8 @@ function createStubs() {
     setShiftSessions: (s) => { shiftSessions = s || null; },
     // The issues the API answers: the rows given, or the seed's rows again with null.
     setIssues: (rows) => { state.issues = rows ? rows : clone(seed.ISSUES); },
+    // What the daily service log's payload carries beyond what the suite has always read.
+    setFiledFormExtras: (x) => { filedExtras = Object.assign({ rows: false, sections: false }, x || {}); },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1798,6 +1826,7 @@ function createStubs() {
       state.training = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
+      filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};
       openSessions = {};
