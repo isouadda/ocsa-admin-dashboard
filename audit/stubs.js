@@ -29,6 +29,8 @@ function createStubs() {
   // A choice left out of the lists /api/lookups/all serves, { slug, value }, the way a list can stop
   // holding a choice that records still carry.
   let listGap = null;
+  // What GET /api/shift-sessions/by-site answers in place of the seed's sessions, when a case sets it.
+  let shiftSessions = null;
   let signedInAs = "admin";
   // A browser reads Content-Disposition off a cross-origin response only when the server exposes it.
   // The API does; a case turns it off to drive the name the dashboard falls back to.
@@ -51,6 +53,7 @@ function createStubs() {
   const EMPLOYMENT = ["full_time", "full_time", "part_time", "supplemental", null];
   const staffRows = () => clone(seed.STAFF).map((p, i) => Object.assign(p, {
     employeeId: p.employee_id,
+    badgeNumber: p.badge_number, badgeSource: p.badge_number ? "adp" : null,
     employmentType: EMPLOYMENT[i % EMPLOYMENT.length],
     hourlyRate: i >= 4 ? (17 + i) + ".50" : null,
     sites: [{ siteId: p.site_id, siteName: p.site_name }],
@@ -702,6 +705,7 @@ function createStubs() {
   // sends. Each starts on the link to the app, which is what the API does.
   const NOTIFICATION_FORMS = [
     { code: "OCSA-FRM-005", title: "Daily Service Log", delivery: "app_link" },
+    { code: "OCSA-FRM-009", title: "Customer Complaint Log", delivery: "app_link" },
     { code: "OCSA-FRM-016", title: "Safety Incident Report", delivery: "app_link" },
     { code: "OCSA-FRM-017", title: "Biohazard Incident and Exposure Report", delivery: "app_link" },
     { code: "OCSA-FRM-019", title: "PPE Compliance Log, monthly check", delivery: "app_link" },
@@ -868,6 +872,7 @@ function createStubs() {
     return {
       user: Object.assign({}, u, {
         firstName: u.first_name, lastName: u.last_name, employeeId: u.employee_id,
+        badgeNumber: u.badge_number, badgeSource: u.badge_number ? "adp" : null,
         hireDate: u.hire_date, preferredLanguage: u.preferred_language,
         photoUrl: null, pinSetAt: seed.shift(-100) + "T12:00:00Z",
         emergencyContactName: "T. Almeida", emergencyContactPhone: "2155559100",
@@ -1287,7 +1292,7 @@ function createStubs() {
         { id: "ta-2", action: "started_work", created_at: seed.shift(-1) + "T18:10:00Z", user_name: "Tomasz Wisniewski", details: "" },
       ]);
     }
-    if (path.startsWith("/api/shift-sessions/by-site")) return ok(SHIFT_SESSIONS);
+    if (path.startsWith("/api/shift-sessions/by-site")) return ok(shiftSessions || SHIFT_SESSIONS);
 
     // --- inspections ------------------------------------------------------
     if (path === "/api/inspections/templates" && method === "GET") return ok(INSPECTION_TEMPLATES);
@@ -1776,6 +1781,9 @@ function createStubs() {
     clearDelays: () => { delays = []; },
     setTrim: (t) => { trim = t; },
     setListGap: (g) => { listGap = g || null; },
+    setShiftSessions: (s) => { shiftSessions = s || null; },
+    // The issues the API answers: the rows given, or the seed's rows again with null.
+    setIssues: (rows) => { state.issues = rows ? rows : clone(seed.ISSUES); },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1790,7 +1798,7 @@ function createStubs() {
       state.training = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
-      delays = []; trim = null; listGap = null; exposeDisposition = true;
+      delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};
       openSessions = {};
     },

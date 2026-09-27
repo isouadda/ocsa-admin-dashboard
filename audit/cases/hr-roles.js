@@ -39,7 +39,16 @@ function roleLabels() {
 
 async function run({ d, results, seed, stubs, lang }) {
   const RL = roleLabels();
-  const wordFor = (code) => (RL[code] ? d.say(RL[code]) : null);
+  // Since Step 151 HR Records draws a role the way Staff Management does: the staff_roles list's
+  // shown label, or the table's word for a role the list does not hold. The code is never an answer.
+  const servedRoles = () => {
+    const call = stubs.calls.filter((c) => c.path === "/api/lookups/all" && Array.isArray(c.json)).pop();
+    return call ? ((call.json.find((x) => x.slug === "staff_roles") || {}).values || []) : [];
+  };
+  const wordFor = (code) => {
+    const v = servedRoles().find((x) => x.value === code);
+    return v ? (v.displayLabel || v.label) : (RL[code] ? d.say(RL[code]) : null);
+  };
   const byName = {};
   seed.STAFF.forEach((p) => { byName[p.first_name + " " + p.last_name] = p; });
   // What a line says about a role: the text before the first " . ", which is where the card and the
