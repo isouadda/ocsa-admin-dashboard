@@ -132,6 +132,17 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       });
       return;
     }
+    // A route that answers bytes rather than JSON, an image the page fetches with the token and draws
+    // from a blob URL.
+    if (answer.bytes) {
+      await route.fulfill({
+        status: answer.status,
+        contentType: answer.contentType || "application/octet-stream",
+        headers: Object.assign({ "Access-Control-Allow-Origin": "*" }, answer.headers || {}),
+        body: answer.bytes,
+      });
+      return;
+    }
     await route.fulfill({
       status: answer.status,
       contentType: "application/json; charset=utf-8",

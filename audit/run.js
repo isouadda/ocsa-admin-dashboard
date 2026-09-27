@@ -33,6 +33,10 @@ const SUITES = [
   { name: "filed-forms", mod: "./cases/filed-forms", widths: ["wide", "narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "light", size: "standard" },
       { theme: "dark", size: "largest" }, { theme: "light", size: "largest" }] },
+  // Photos on a filed form and the signature box, in both languages, since the refusals under a
+  // question and the words in the box are the table's.
+  { name: "filed-photos", mod: "./cases/filed-photos", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },

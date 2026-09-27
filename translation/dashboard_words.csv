@@ -31,6 +31,7 @@ A supply request is made,Se hace una solicitud de suministros,"Settings, Who get
 A training name and a type are required,El nombre de la capacitación y el tipo son obligatorios,"HR Records, logging training for several people, a save with no name or no type"
 A unique QR code will be generated automatically.,Se generará automáticamente un código QR único.,"Inventory, adding a supply"
 A worker cannot resolve an assigned problem,Un trabajador no puede resolver una incidencia asignada,"Settings, Who gets told, a kind of report"
+Add photos,Agregar fotos,"Forms, a filed report, a photos question in the supervisor section"
 ADP payroll export,Exportación de nómina a ADP,"Settings, Roles and Permissions, the role reference; Settings, Roles and Permissions, a capability's name"
 API Connection,Conexión con la API,"Forms, Settings"
 "Access each role has in the platform today, by area. Manage means full access, including create, edit, and delete. View means read access. Other labels describe a scoped or limited form of access. This is a reference and does not change access.","El acceso que cada rol tiene hoy en la plataforma, por área. Administrar significa acceso completo, incluidos crear, editar y eliminar. Ver significa acceso de lectura. Las demás etiquetas describen un acceso acotado o limitado. Esta es una referencia y no cambia el acceso.","Settings, Roles and Permissions, the role reference"
@@ -918,6 +919,7 @@ Next Week,La próxima semana,Schedule
 No,No,"Reports, the supply report's printed page, whether a supply is green certified; Cases, the list; Cases, a case's window; Forms, a filed report, a box left empty; Forms, Sync Diagnostic, the failures"
 No HR records on file for this employee yet.,Todavía no hay expedientes de personal para esta persona.,"HR Records, a folder"
 "No PDF access events recorded yet. Events appear here as soon as anyone views, downloads, or prints a submission PDF.","Todavía no hay accesos a PDF registrados. Aparecerán aquí en cuanto alguien vea, descargue o imprima el PDF de un envío.","Forms, PDF Access Log, with no events"
+No photos,Sin fotos,"Forms, a filed report, a photos question with nothing on it"
 No Show,No se presentó,Schedule
 No activity found for this filter.,No se encontró actividad con este filtro.,"Staff Management, the Timeline tab"
 No activity recorded for this site,No hay actividad registrada para este sitio,"Sites, Timeline"
@@ -1048,7 +1050,9 @@ Nothing was added.,No se agregó nada.,"Forms, a filed report, a table with no r
 Nothing yet.,Nada todavía.,The bell
 Notifications,Avisos,The shell; The bell
 Notifications did not load.,Los avisos no se cargaron.,The bell
+Only a photo can be added here.,Aquí solo se puede agregar una foto.,"Forms, a filed report, a photos question, the API's refusal by its code"
 OPEN,ABIERTO,Schedule
+Open photo {0},Abrir la foto {0},"Forms, a filed report, a thumbnail's name for a screen reader"
 OT Risk,Riesgo de horas extra,Shift Pickup
 Occurrences,Veces,"Inspections, Reports, the printed report"
 Oldest Activity,Actividad más antigua,"HR Records, Employees, the order"
@@ -1248,6 +1252,7 @@ Reliability,Cumplimiento,Shift Pickup
 Remove,Quitar,"Sites; HR Records, Onboarding; Staff Management, the Assignments tab; Staff Management, the Certifications tab; Settings, the Company tab; Settings, Who gets told; Forms, Aliases"
 Remove alias {0}?,¿Quitar el alias {0}?,"Forms, Aliases, the question before an alias is removed"
 Remove photo,Quitar la foto,"Help, a photo waiting to be sent, for a screen reader"
+Remove photo,Quitar foto,"Forms, a filed report, a photos question in the supervisor section, under each photo"
 Remove row,Quitar fila,"Forms, a filed report, a table in the supervisor section"
 Remove the link for this submission?,¿Quitar el vínculo de este envío?,"Forms, a submission's window, the question before its record link is removed"
 Remove this certification?,¿Quitar esta certificación?,"Staff Management, the Certifications tab"
@@ -1258,6 +1263,7 @@ Remove this site assignment?,¿Quitar esta asignación de sitio?,"Staff Manageme
 Remove this supply from the site?,¿Quitar este suministro del sitio?,"Sites, Supplies"
 Remove this vendor?,¿Quitar este proveedor?,"Vendors, a vendor"
 Remove {0},Quitar a {0},"Settings, Who gets told, for a screen reader"
+Removing...,Quitando...,"Forms, a filed report, a photos question, while a photo is being removed"
 Repeat on,Repetir los,Schedule
 Repeat this shift,Repetir este turno,Schedule
 Repeats,Se repite,Schedule
@@ -1655,6 +1661,8 @@ Template deleted,Plantilla eliminada,"Inspections, Templates"
 Templates,Plantillas,"Inspections, a tab"
 Text size,Tamaño del texto,The shell
 That one is for admins. Ask an admin to take a look.,Ese es para administradores. Pídale a un administrador que lo revise.,The shell
+That photo is no longer on the form.,Esa foto ya no está en el formulario.,"Forms, a filed report, a photos question, the API's refusal by its code"
+That photo is too large.,Esa foto es demasiado grande.,"Forms, a filed report, a photos question, the API's refusal by its code"
 "The Jotform Count is what Jotform's API reports for each form. The Our Count is what we have stored. A positive Delta means Jotform has submissions we never picked up. Click ""Show Missing IDs"" to see which specific submissions are missing and Force Fetch them one at a time. Unresolved Failures are submissions the sync attempted to insert but errored on. Use the Failures table below to retry or dismiss them.","El conteo de Jotform es lo que informa la API de Jotform para cada formulario. El conteo nuestro es lo que tenemos guardado. Una diferencia positiva significa que Jotform tiene envíos que nunca recogimos. Presione ""Mostrar los ID faltantes"" para ver cuáles faltan y forzar su descarga uno por uno. Los fallos sin resolver son envíos que la sincronización intentó insertar y dieron error. Use la tabla de fallos de abajo para reintentarlos o descartarlos.","Forms, Sync Diagnostic, the note"
 The case goes back to the team.,El caso vuelve al equipo.,"Cases, a case's window, beside Release"
 The connection dropped. Your answer is saved.,Se perdió la conexión. La respuesta quedó guardada.,"Help, when the connection drops while an answer is arriving"
@@ -1668,6 +1676,7 @@ Then add it to your home screen from that browser.,Luego agréguela a su pantall
 These people are told about this form as well as anyone under Every form.,"Estas personas reciben avisos de este formulario, igual que quienes están en Todos los formularios.","Settings, Who gets told"
 They will get an email. The email carries no case text.,Recibirá un correo. El correo no incluye el texto del caso.,"Cases, a case's window, under Hand to"
 This Month,Este mes,"The shell, the date range; Shift Pickup; Reports, adding or editing a report, the default range; Reports, a report's date range"
+This question is full.,Esta pregunta está llena.,"Forms, a filed report, a photos question that holds all the photos it takes"
 This Week,Esta semana,"The shell, the date range; Schedule; Shift Pickup"
 This affects future auto-matching. Existing linked submissions are not changed.,Esto afecta las futuras vinculaciones automáticas. Los envíos ya vinculados no cambian.,"Forms, Aliases, the question before an alias is removed"
 This case is not available.,Este caso no está disponible.,"Cases, the list, a case that cannot be opened"
@@ -1835,6 +1844,7 @@ Working...,Procesando...,"Forms, a submission's window, while its PDF is fetched
 Works,Funciona,"Forms, Settings, the diagnostic"
 Yes,Sí,"Reports, the supply report's printed page, whether a supply is green certified; Cases, the list; Forms, a filed report, a ticked box; Forms, Sync Diagnostic, the failures"
 You can send up to 3 photos with one message.,Puede enviar hasta 3 fotos con un mensaje.,"Help, the camera button once three photos are waiting"
+You cannot change the photos on this question.,No puede cambiar las fotos de esta pregunta.,"Forms, a filed report, a photos question, the API's refusal by its code"
 YouTube link attached,Enlace de YouTube adjunto,"Sites, editing a task"
 Your account cannot read incident reports.,Su cuenta no puede leer los informes de incidentes.,"Forms, Filed forms, when the API refuses the list"
 Your messages,Sus mensajes,"Messages, before a conversation is picked"

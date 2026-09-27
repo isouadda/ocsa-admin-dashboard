@@ -46,6 +46,15 @@ async function apiDownload(path, token, fallbackName) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
+// A request whose body is files rather than JSON, sent as multipart form data. The token and the
+// refusal handling are apiFetch's, so a 401 signs out and a refusal arrives with the words the API
+// sent, its status and its code.
+async function apiMultipart(path, token, formData) {
+  const r = await apiRequest(API + path, { method: "POST", headers: { "Authorization": "Bearer " + token }, body: formData });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  return r.json();
+}
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
@@ -8187,6 +8196,148 @@ const irSentLine = (d) => tr("Sent again: {0} and {1}, {2}.",
 const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
+// ===== PHOTOS ON A FORM (Step 165) =====
+// A photos question carries the photos the API holds for it, [{ id, name, bytes, uploadedAt }], and
+// how many it takes in maxPhotos. Each image is fetched with the token and drawn from a blob URL,
+// which is revoked when the photo or the question leaves the screen. A refusal is drawn under the
+// question as the table's word for its code, and as the API's own words for a code the table does
+// not know.
+const PHOTO_REFUSAL_WORDS = {
+  "forms.photosFull": "This question is full.",
+  "forms.photoTooLarge": "That photo is too large.",
+  "forms.notAPhoto": "Only a photo can be added here.",
+  "forms.photoNotFound": "That photo is no longer on the form.",
+  "forms.photosForbidden": "You cannot change the photos on this question.",
+};
+const photoRefusalLine = (e) => (e && e.code && PHOTO_REFUSAL_WORDS[e.code] ? tr(PHOTO_REFUSAL_WORDS[e.code]) : ((e && e.message) || tr("Request failed")));
+const photoPath = (responseId, tail) => "/api/forms/responses/" + encodeURIComponent(responseId) + "/photos/" + tail;
+const photoBlobUrl = (u) => !!u && u !== "pending" && u !== "failed";
+
+function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
+  const photos = Array.isArray(field.value) ? field.value : [];
+  const max = Number(field.maxPhotos) > 0 ? Number(field.maxPhotos) : 0;
+  const full = canWrite && max > 0 && photos.length >= max;
+  const [thumbs, setThumbs] = useState({});
+  const thumbsRef = useRef({});
+  const [open, setOpen] = useState(null);
+  const openRef = useRef(null);
+  const [fullUrl, setFullUrl] = useState("");
+  const [busy, setBusy] = useState("");
+  const busyRef = useRef(false);
+  const [refusal, setRefusal] = useState("");
+  const fileRef = useRef(null);
+  const mounted = useRef(true);
+
+  // One thumbnail per photo, fetched once and kept while the photo is on the form. A thumbnail whose
+  // photo has gone is revoked, and so is every one when the question leaves the screen.
+  useEffect(() => {
+    const keep = {};
+    photos.forEach(p => { if (p && p.id) keep[p.id] = true; });
+    Object.keys(thumbsRef.current).forEach(k => {
+      if (keep[k]) return;
+      if (photoBlobUrl(thumbsRef.current[k])) URL.revokeObjectURL(thumbsRef.current[k]);
+      delete thumbsRef.current[k];
+    });
+    photos.forEach(p => {
+      if (!p || !p.id || thumbsRef.current[p.id]) return;
+      thumbsRef.current[p.id] = "pending";
+      apiDownload(photoPath(responseId, encodeURIComponent(p.id) + "/thumb"), token)
+        .then(f => {
+          const url = URL.createObjectURL(f.blob);
+          if (!mounted.current || !thumbsRef.current[p.id]) { URL.revokeObjectURL(url); return; }
+          thumbsRef.current[p.id] = url;
+          setThumbs(prev => Object.assign({}, prev, { [p.id]: url }));
+        })
+        .catch(() => { if (thumbsRef.current[p.id]) thumbsRef.current[p.id] = "failed"; if (mounted.current) setThumbs(prev => Object.assign({}, prev, { [p.id]: "failed" })); });
+    });
+  }, [photos, responseId, token]);
+  useEffect(() => () => {
+    mounted.current = false;
+    Object.keys(thumbsRef.current).forEach(k => { if (photoBlobUrl(thumbsRef.current[k])) URL.revokeObjectURL(thumbsRef.current[k]); });
+    thumbsRef.current = {};
+  }, []);
+
+  // The full image, in the window's own overlay. Escape closes the overlay and leaves the window
+  // open, so the window's own Escape does not see the press.
+  const closePhoto = () => {
+    openRef.current = null;
+    setFullUrl(prev => { if (prev) URL.revokeObjectURL(prev); return ""; });
+    setOpen(null);
+  };
+  const openPhoto = async (p) => {
+    openRef.current = p.id;
+    setOpen(p); setFullUrl(""); setRefusal("");
+    try {
+      const f = await apiDownload(photoPath(responseId, encodeURIComponent(p.id)), token);
+      if (!mounted.current || openRef.current !== p.id) return;
+      setFullUrl(URL.createObjectURL(f.blob));
+    } catch (e) { if (mounted.current) { closePhoto(); setRefusal(photoRefusalLine(e)); } }
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); closePhoto(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open]);
+
+  // Every photo picked goes up at once, in one request. What the API answers replaces the question's
+  // photos, so the thumbnails are drawn from what it holds rather than from what was picked.
+  const upload = async (files) => {
+    if (busyRef.current || files.length === 0) return;
+    busyRef.current = true; setBusy("upload"); setRefusal("");
+    const fd = new FormData();
+    files.forEach(f => fd.append("photos", f, f.name));
+    try {
+      const d = await apiMultipart(photoPath(responseId, encodeURIComponent(field.key)), token, fd);
+      if (mounted.current && d && Array.isArray(d.value)) onValue(d.value);
+    } catch (e) { if (mounted.current) setRefusal(photoRefusalLine(e)); }
+    busyRef.current = false;
+    if (mounted.current) setBusy("");
+  };
+  const remove = async (p) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy("remove:" + p.id); setRefusal("");
+    try {
+      const d = await af(photoPath(responseId, encodeURIComponent(field.key) + "/" + encodeURIComponent(p.id)), { method: "DELETE" });
+      if (mounted.current && d && Array.isArray(d.value)) onValue(d.value);
+    } catch (e) { if (mounted.current) setRefusal(photoRefusalLine(e)); }
+    busyRef.current = false;
+    if (mounted.current) setBusy("");
+  };
+
+  const thumbBox = { width: 96, height: 96, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, display: "block" };
+  const smallBtn = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+  return (<div>
+    {photos.length === 0 && <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>{tr("No photos")}</div>}
+    {photos.length > 0 && <div data-photos={field.key} style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+      {photos.map(p => (<div key={p.id} style={{ width: 96 }}>
+        <button type="button" aria-label={tr("Open photo {0}", p.name || "")} onClick={() => openPhoto(p)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", minWidth: 44, minHeight: 44, display: "block" }}>
+          {photoBlobUrl(thumbs[p.id]) ? <img src={thumbs[p.id]} alt={p.name || ""} style={thumbBox} /> : <div style={thumbBox} />}
+        </button>
+        <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, wordBreak: "break-word", lineHeight: 1.3 }}>{p.name || ""}</div>
+        {canWrite && <Btn t={t} v="ghost" onClick={() => remove(p)} disabled={!!busy} aria-label={tr("Remove photo|form") + ": " + (p.name || "")} style={Object.assign({}, smallBtn, { marginTop: 4, width: "100%", padding: "10px 6px" })}>{busy === "remove:" + p.id ? tr("Removing...") : tr("Remove photo|form")}</Btn>}
+      </div>))}
+    </div>}
+    {canWrite && <div style={{ marginTop: 8 }}>
+      {full
+        ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("This question is full.")}</div>
+        : <>
+          <input ref={fileRef} type="file" accept="image/*" multiple aria-label={field.label + ": " + tr("Add photos")} style={{ display: "none" }}
+            onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ""; upload(files); }} />
+          <Btn t={t} v="ghost" onClick={() => { if (fileRef.current) fileRef.current.click(); }} disabled={!!busy} style={smallBtn}>{busy === "upload" ? tr("Uploading...") : tr("Add photos")}</Btn>
+        </>}
+    </div>}
+    {refusal && <div data-photo-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    {open && <div role="dialog" aria-label={open.name || tr("Photo")} onClick={closePhoto} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 510, background: "rgba(0,0,0,0.88)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 16 }}>
+      {fullUrl
+        ? <img src={fullUrl} alt={open.name || ""} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "calc(100% - 96px)", objectFit: "contain", borderRadius: 8 }} />
+        : <div style={{ color: "#F8F7F4", fontSize: 13 }}>{tr("Loading...")}</div>}
+      <div style={{ color: "#F8F7F4", fontSize: 12, textAlign: "center", wordBreak: "break-word" }}>{open.name || ""}</div>
+      <Btn t={t} v="ghost" onClick={closePhoto} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
+    </div>}
+  </div>);
+}
+
 function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -8442,10 +8593,25 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     return <Inp t={t} aria-label={b.head + " " + c.label} type={c.type === "number" ? "number" : "text"}
       value={raw == null ? "" : String(raw)} onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }} />;
   };
+  // A photos question: its thumbnails and the overlay on either half, and on a writable supervisor
+  // half Add photos and Remove photo. An upload and a removal are their own requests, answered with
+  // the question's photos, which replace the question's value here; a question that now holds a
+  // photo leaves the still-needed list.
+  const setPhotoValue = (key, v) => setData(prev => {
+    if (!prev) return prev;
+    const next = (prev.fields || []).map(x => (x.key === key ? Object.assign({}, x, { value: v }) : x));
+    const missing = Array.isArray(prev.supervisorMissing) && v.length > 0 ? prev.supervisorMissing.filter(m => m.key !== key) : prev.supervisorMissing;
+    return Object.assign({}, prev, { fields: next, supervisorMissing: missing });
+  });
+  const photosRow = (f, writable) => (<div key={f.key} data-question={f.key} style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+    <PhotoQuestion t={t} token={token} af={af} responseId={id} field={f} canWrite={writable} onValue={v => setPhotoValue(f.key, v)} />
+  </div>);
   // Each question in its own type, which is what a person expects to type into at a desk. A
   // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
   const supervisorInput = (f) => {
     if (f.type === "signoff") return signoffRow(f);
+    if (f.type === "photos") return photosRow(f, true);
     const cur = supValue(f);
     const box = (inner) => (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
@@ -8464,6 +8630,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // The label comes from the API and is shown as sent: some carry required federal wording.
   const fieldRow = (f) => {
     if (f.type === "signoff") return signoffRow(f);
+    if (f.type === "photos") return photosRow(f, false);
     if (f.type === "grid") return (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
       {gridTable(f)}

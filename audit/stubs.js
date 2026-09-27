@@ -538,9 +538,33 @@ function createStubs() {
   // What the stamp and the saved supervisor answers look like between calls, so the window can be
   // read again after the API answers.
   const filedState = () => {
-    if (!state.filedForms) state.filedForms = { signed: {}, supervisor: {} };
+    if (!state.filedForms) state.filedForms = { signed: {}, supervisor: {}, photos: {} };
+    if (!state.filedForms.photos) state.filedForms.photos = {};
     return state.filedForms;
   };
+  // Step 165: photos on a filed form. A photos question carries [{ id, name, bytes, uploadedAt }]
+  // and maxPhotos; the filing half's holds two photos from the crew, and the supervisor half's takes
+  // uploads from whoever may write that half, up to two. Every image the stub streams is this one
+  // pixel PNG, which is enough for a thumbnail and an overlay to draw. The refusal words are in
+  // the language the call asked for, the way the API answers, each with its code.
+  const PNG_BYTES = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
+  const imageAnswer = () => ({ status: 200, bytes: PNG_BYTES, contentType: "image/png", json: null });
+  const SITE_PHOTOS = [
+    { id: "ph-1", name: "lobby.jpg", bytes: 24576, uploadedAt: seed.shift(-1) + "T21:50:00Z" },
+    { id: "ph-2", name: "dock.jpg", bytes: 30720, uploadedAt: seed.shift(-1) + "T21:52:00Z" },
+  ];
+  const PHOTO_REFUSAL = {
+    notAPhotoQuestion: { code: "forms.notAPhotoQuestion", status: 400, en: "That is not a photos question on this form", es: "Esa no es una pregunta de fotos en este formulario" },
+    photosForbidden: { code: "forms.photosForbidden", status: 403, en: "You cannot change the photos on this question", es: "No puede cambiar las fotos de esta pregunta" },
+    notAPhoto: { code: "forms.notAPhoto", status: 400, en: "Only a photo can be added here", es: "Aquí solo se puede agregar una foto" },
+    photosFull: { code: "forms.photosFull", status: 409, en: "This question is full", es: "Esta pregunta está llena" },
+    photoNotFound: { code: "forms.photoNotFound", status: 404, en: "That photo is no longer on the form", es: "Esa foto ya no está en el formulario" },
+  };
+  const photoRefusal = (which, lang) => {
+    const r = PHOTO_REFUSAL[which];
+    return { status: r.status, json: { error: lang === "es" ? r.es : r.en, code: r.code } };
+  };
+  let photoSeq = 10;
   const stampNow = () => ({
     userId: person().id,
     name: person().firstName + " " + person().lastName,
@@ -581,8 +605,8 @@ function createStubs() {
       { key: "closure", title: "Cierre" },
     ],
   };
-  const LOG_SECTION_OF = { service_date: "service", areas: "service", supplies_used: "service", filed_signoff: "service",
-    reviewed_on: "review", review_note: "review", checks: "review", completed: "closure", verified: "closure", review_signoff: "signing" };
+  const LOG_SECTION_OF = { service_date: "service", areas: "service", supplies_used: "service", filed_signoff: "service", site_photos: "service",
+    reviewed_on: "review", review_note: "review", checks: "review", verification_photos: "review", completed: "closure", verified: "closure", review_signoff: "signing" };
   const supervisorRequired = () => SUPERVISOR_REQUIRED_BASE.concat(filedExtras.rows ? [{ key: "completed", label: "What was completed" }] : []);
   const answered = (v) => {
     if (v == null || v === "") return false;
@@ -608,6 +632,8 @@ function createStubs() {
         columns: SUPPLY_COLUMNS, rows: null, minRows: 1, maxRows: 5,
         value: SUPPLY_VALUE,
         displayValue: "All purpose cleaner 2 Case. Liner bags 6 Each." },
+      { id: "sf-11", key: "site_photos", label: "Photos of the site", half: "agent", type: "photos",
+        maxPhotos: 6, value: SITE_PHOTOS, displayValue: "" },
       { id: "sf-4", key: "filed_signoff", label: "Filed by", half: "agent", type: "signoff",
         signer: "agent", displayValue: "",
         value: { userId: FILER.id, name: FILER.name, role: FILER.role, at: seed.shift(-1) + "T22:10:00Z" } },
@@ -619,6 +645,8 @@ function createStubs() {
         columns: CHECK_COLUMNS, rows: CHECK_ROWS, minRows: null, maxRows: null,
         value: checks,
         displayValue: CHECK_ROWS.filter((r) => checks[r.key] && checks[r.key].ok).map((r) => r.label).join(". ") },
+      { id: "sf-12", key: "verification_photos", label: "Verification photos", half: "supervisor", type: "photos",
+        maxPhotos: 2, value: filedState().photos.verification_photos || [], displayValue: "" },
       { id: "sf-8", key: "review_signoff", label: "Reviewed by", half: "supervisor", type: "signoff",
         signer: "supervisor", displayValue: "", value: stamp },
     ];
@@ -667,11 +695,13 @@ function createStubs() {
     const mine = String(r.userId || "") === String(person().id);
     const signed = !!filedState().signed.review_signoff;
     const sup = filedState().supervisor;
-    const canWrite = isLog && r.status === "submitted" && !mine;
+    // Step 165: with the log locked, nobody may write its supervisor half or sign it, which is how a
+    // person who is not a writer reads a photos question.
+    const canWrite = isLog && r.status === "submitted" && !mine && !filedExtras.locked;
     return Object.assign({
       draft: Object.assign({}, r),
       fields: fields,
-      canSign: isLog && !mine && !signed ? ["review_signoff"] : [],
+      canSign: isLog && !mine && !signed && !filedExtras.locked ? ["review_signoff"] : [],
       canWriteSupervisor: canWrite,
       supervisorMissing: canWrite ? supervisorRequired().filter((q) => !answered(sup[q.key])) : [],
     }, isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
@@ -1652,6 +1682,36 @@ function createStubs() {
       Object.keys(answers).forEach((k) => { filedState().supervisor[k] = answers[k]; });
       return ok(reportPayload(r, lang));
     }
+    // Step 165: the photo routes. The thumbnail and the full image are streamed; an upload takes
+    // multipart photos and answers the question's photos; a removal answers them too. An upload or a
+    // removal is refused with a code on a question that is not a photos question, on one this person
+    // may not write, with no photo in it, past maxPhotos, and for a photo that is not there.
+    if (/^\/api\/forms\/responses\/[^/]+\/photos\/[^/]+\/thumb$/.test(path) && method === "GET") return imageAnswer();
+    if (/^\/api\/forms\/responses\/[^/]+\/photos\/[^/]+$/.test(path) && method === "GET") return imageAnswer();
+    if (/^\/api\/forms\/responses\/[^/]+\/photos\/[^/]+(\/[^/]+)?$/.test(path) && (method === "POST" || method === "DELETE")) {
+      const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
+      if (!r) return { status: 404, json: { error: "Report not found" } };
+      const key = decodeURIComponent(path.split("/")[6] || "");
+      const payload = reportPayload(r, lang);
+      const f = payload.fields.find((x) => x.key === key);
+      if (!f || f.type !== "photos") return photoRefusal("notAPhotoQuestion", lang);
+      if (f.half !== "supervisor" || !payload.canWriteSupervisor) return photoRefusal("photosForbidden", lang);
+      const have = (filedState().photos[key] || []).slice();
+      if (method === "DELETE") {
+        const photoId = decodeURIComponent(path.split("/")[7] || "");
+        if (!have.some((p) => p.id === photoId)) return photoRefusal("photoNotFound", lang);
+        filedState().photos[key] = have.filter((p) => p.id !== photoId);
+        return ok({ value: filedState().photos[key] });
+      }
+      const raw = String(body || "");
+      const names = [];
+      raw.replace(/name="photos"; filename="([^"]*)"/g, (m, n) => { names.push(n); return m; });
+      if (names.length === 0) return photoRefusal("notAPhoto", lang);
+      if (Number(f.maxPhotos) > 0 && have.length + names.length > Number(f.maxPhotos)) return photoRefusal("photosFull", lang);
+      names.forEach((name, i) => { photoSeq += 1; have.push({ id: "ph-" + photoSeq, name, bytes: 4096 * (i + 1), uploadedAt: seed.NOW_ISO }); });
+      filedState().photos[key] = have;
+      return ok({ value: have });
+    }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
@@ -1853,7 +1913,8 @@ function createStubs() {
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.formDelivery = {};
-      state.filedForms = { signed: {}, supervisor: {} };
+      state.filedForms = { signed: {}, supervisor: {}, photos: {} };
+      photoSeq = 10;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};
