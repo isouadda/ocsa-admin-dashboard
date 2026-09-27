@@ -1,7 +1,8 @@
 // npm run audit. One process, one table, non-zero exit on any failure.
 //
 // It builds the production bundle, serves it, and drives it in a headless browser at 1280 by 900,
-// then repeats the pages, views and tables at 1024 to catch a table that will not fit.
+// then repeats the pages, views and tables at 1024 to catch a table that will not fit, and the pages
+// once more on a phone, 390 by 844, to catch a page that will not fit a hand.
 "use strict";
 const path = require("path");
 const { build, BUILD_DIR } = require("./lib/build");
@@ -17,11 +18,15 @@ const seed = require("./seed");
 
 const SUITES = [
   // Pages run in both themes at Standard, and again at the largest text size in dark, at both widths.
-  { name: "pages", mod: "./cases/pages", widths: ["wide", "narrow"],
-    variants: [{ theme: "dark", size: "standard" }, { theme: "light", size: "standard" }, { theme: "dark", size: "largest" },
+  { name: "pages", mod: "./cases/pages", widths: ["wide", "narrow", "phone"],
+    variants: [{ theme: "dark", size: "standard", only: ["wide", "narrow"] }, { theme: "light", size: "standard", only: ["wide", "narrow"] },
+      { theme: "dark", size: "largest", only: ["wide", "narrow"] },
       // Spanish at 1024 only, where a third more letters is what breaks a page, and for the two
       // people who live in these screens. The English passes cover the other width and the rest.
-      { theme: "dark", size: "standard", lang: "es", only: "narrow" }] },
+      { theme: "dark", size: "standard", lang: "es", only: "narrow" },
+      // The phone, 390 wide, once: in light at Standard in English, as the admin and the supervisor,
+      // so the run time stays bounded. Windows and the Spanish pass at 390 wait for a later step.
+      { theme: "light", size: "standard", only: "phone" }] },
   { name: "views", mod: "./cases/views", widths: ["wide"] },
   // The filed report window is read in every theme, at every text size, at both widths, because a
   // table inside a window is the first thing to run off the side.
@@ -88,6 +93,11 @@ const SUITES = [
   // nothing reported, Live Ops' refresh icon and the complaint log's title, in both languages.
   { name: "before-training", mod: "./cases/before-training", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Four small things beside the phone: Schedule's refresh icon, the Staff table against its box, the
+  // training example and the names in the Dropdown Options editor, in English at both widths and in
+  // Spanish at 1024.
+  { name: "small-things", mod: "./cases/small-things", widths: ["wide", "narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es", only: "narrow" }] },
   { name: "house-style", mod: "./cases/house-style", widths: [] },
 ];
 
@@ -135,20 +145,24 @@ async function main() {
       }
       for (const width of s.widths) {
         for (const v of (s.variants || [{ theme: "dark", size: "standard" }])) {
-          if (v.only && v.only !== width) continue;
+          // A variant names the widths it runs at, one or several; one that names none runs at all.
+          if (v.only && [].concat(v.only).indexOf(width) < 0) continue;
           const theme = v.theme || "dark";
           const textSize = v.size || "standard";
           const lang = v.lang || "en";
           if (langOnly && lang !== langOnly) continue;
-          process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : "1024x900")
+          process.stdout.write("run        " + s.name + " at " + (width === "wide" ? "1280x900" : width === "narrow" ? "1024x900" : "390x844")
             + " in " + theme + (textSize === "standard" ? "" : ", text " + textSize)
             + (lang === "en" ? "" : ", in " + lang) + "\n");
+          const passStarted = Date.now();
           const d = await createDriver({ browser, origin: srv.origin, stubs, viewport: width, theme, textSize, lang });
           // A suite that throws fails the run. It does not erase the table, because the other suites
           // still have something to say.
           try { await suite.run(Object.assign({}, ctx, { d, width, theme, textSize, lang })); }
-          catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : "") + (theme === "light" ? " light" : "") + (textSize === "standard" ? "" : " " + textSize) + (lang === "en" ? "" : " " + lang), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
+          catch (e) { results.fail("suite", s.name + (width === "narrow" ? " @1024" : width === "phone" ? " @390" : "") + (theme === "light" ? " light" : "") + (textSize === "standard" ? "" : " " + textSize) + (lang === "en" ? "" : " " + lang), "the suite threw: " + String(e && e.message ? e.message : e).split("\n")[0]); }
           finally { await d.close(); }
+          // How long the pass took, so a pass that grows is seen to grow.
+          process.stdout.write("           " + Math.round((Date.now() - passStarted) / 1000) + "s\n");
         }
       }
     }

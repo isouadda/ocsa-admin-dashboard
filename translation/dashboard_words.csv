@@ -873,6 +873,7 @@ Median resolution,Mediana de resolución,"Reports, the issue report and its prin
 Median resolution (h),Mediana de resolución (h),"Reports, the issue report, a chart's tooltip"
 Median resolution by site,Mediana de resolución por sitio,"Reports, the issue report, a chart"
 Medium,Media,"Reports, a severity, which agrees with severidad; Reports, the issue report's filter and printed page; Reports, the issue report, a chart's legend"
+Menu,Menú,"The shell, on a phone"
 Messages,Mensajes,"The shell; Messages; Settings, Roles and Permissions, the role reference"
 "Min order, availability notes...","Pedido mínimo, notas de disponibilidad...","Vendors, linking a supply"
 Min: {0},Mín.: {0},"Sites, Supplies"
@@ -885,6 +886,7 @@ Monthly,Mensual,"Sites, editing a site, Billing; Reports, a trend's bucket"
 Monthly Totals,Totales del mes,Shift Pickup
 Monthly Value,Valor mensual,"Sites, General Info"
 Monthly Value ($),Valor mensual ($),"Sites, editing a site"
+More,Más,"The shell, on a phone"
 Most Recent Activity,Actividad más reciente,"HR Records, Employees, the order"
 Most recent inspection per site,Inspección más reciente por sitio,Dashboard
 Mountain Time (Denver),Hora de la Montaña (Denver),"Settings, the Company tab, a time zone"
@@ -1862,6 +1864,7 @@ e.g. Marcus called out sick,p. ej. una persona se reportó enferma,Shift Pickup
 e.g. Office Cleaning,p. ej. Limpieza de oficinas,"Service Catalog, adding or editing a service"
 e.g. Offices,p. ej. Oficinas,"Assigned Tasks, creating a task, the zone"
 e.g. Restrooms,p. ej. Baños,"Sites, adding a task"
+e.g. Site supervisor,p. ej. Supervisor del sitio,"HR Records, adding a training record"
 e.g. Standard Office Cleaning,p. ej. Limpieza estándar de oficinas,"Inspections, adding a template"
 e.g. Toilets scrubbed and sanitized,p. ej. Inodoros tallados y desinfectados,"Inspections, a template, adding a line item"
 e.g. Vacuum carpets,p. ej. Aspirar las alfombras,"Sites, adding a task"

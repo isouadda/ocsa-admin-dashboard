@@ -59,12 +59,21 @@ const INIT = `(() => {
 // The side panel, which is the one fixed box as tall as the window. Its height is written as a
 // calc when the text is made larger, so both spellings are matched.
 const SIDEBAR = "div[style*='position: fixed'][style*='border-right']";
-const VIEWPORTS = { wide: { width: 1280, height: 900 }, narrow: { width: 1024, height: 900 } };
+// The page content area, the div the render switch puts a page into. Its padding is the one thing
+// that names it, and the phone shell gives it a narrower one.
+const CONTENT = "div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']";
+// The phone is 390 by 844, the screen a supervisor holds at a site.
+const VIEWPORTS = { wide: { width: 1280, height: 900 }, narrow: { width: 1024, height: 900 }, phone: { width: 390, height: 844 } };
 // The bell carries its name in its title, which is a word like any other. Both are accepted while
 // the parts are being translated: a screen the current part has not reached yet is still English,
-// and the driver has to be able to drive it either way.
+// and the driver has to be able to drive it either way. On a phone the bell sits inside the More
+// menu, so the More button is the sign the shell is up there.
 const bellSelector = (lang) => {
-  const words = [say("Notifications", lang), "Notifications"];
+  const words = [say("Notifications", lang), "Notifications", say("More", lang), "More"];
+  return words.filter((w, i) => words.indexOf(w) === i).map((w) => 'button[title="' + w + '"]').join(", ");
+};
+const titled = (english, lang) => {
+  const words = [say(english, lang), english];
   return words.filter((w, i) => words.indexOf(w) === i).map((w) => 'button[title="' + w + '"]').join(", ");
 };
 const THEME_SEED = (mode, size, lang) => '(() => { try { localStorage.setItem("ocsa-theme", ' + JSON.stringify(mode)
@@ -139,6 +148,8 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
   const d = {
     page, context, stubs, pageErrors,
     viewport: viewport || "wide",
+    // True on the phone, where the side panel is a drawer and the bar's controls sit in the More menu.
+    phone: viewport === "phone",
     theme: mode,
     textSize: size,
     lang: tongue,
@@ -288,7 +299,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // The page content area, the div the render switch puts a page into. Everything above it, the
     // header with the page label and the sidebar, is the shell and is read separately.
     contentBox() {
-      return page.locator("div[style*='padding: 16px 24px 30px']").first();
+      return page.locator(CONTENT).first();
     },
     async bodyText() {
       const box = this.contentBox();
@@ -342,6 +353,58 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
         return sb ? sb.getBoundingClientRect().width < 100 : false;
       }, SIDEBAR);
     },
+    // Whether the panel is out of the way: collapsed to its icons, or, on a phone, not drawn at all
+    // until the menu button opens it as a drawer.
+    async panelCollapsed() {
+      return page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
+        return sb ? sb.getBoundingClientRect().width < 100 : true;
+      }, SIDEBAR);
+    },
+    // The panel's box and how many controls it holds, or null when it is not drawn.
+    async panelBox() {
+      return page.evaluate((SIDEBAR) => {
+        const sb = document.querySelector(SIDEBAR);
+        if (!sb) return null;
+        const r = sb.getBoundingClientRect();
+        return { x: Math.round(r.x), y: Math.round(r.y), width: Math.round(r.width), height: Math.round(r.height),
+          windowHeight: window.innerHeight, buttons: sb.querySelectorAll("button").length };
+      }, SIDEBAR);
+    },
+
+    // ---- the phone shell --------------------------------------------------
+    // The drawer is the side panel, opened by the menu button at the left of the bar. It closes on a
+    // pick, on its backdrop and on Escape, so closing it here is one Escape.
+    async drawerOpen() { return (await this.panelBox()) !== null; },
+    async openDrawer() {
+      if (await this.drawerOpen()) return true;
+      const btn = page.locator(titled("Menu", tongue)).first();
+      if ((await btn.count()) === 0) return false;
+      await btn.click();
+      await this.settle(260);
+      return this.drawerOpen();
+    },
+    async closeDrawer() {
+      if (!(await this.drawerOpen())) return true;
+      await page.keyboard.press("Escape");
+      await this.settle(260);
+      return !(await this.drawerOpen());
+    },
+    // The More menu holds what the bar shows on a wider screen: language, text size, notifications,
+    // light and dark, and sign out.
+    async moreMenuOpen() { return (await page.locator("[role='menu']").count()) > 0; },
+    async openMoreMenu() {
+      if (await this.moreMenuOpen()) return true;
+      const btn = page.locator(titled("More", tongue)).first();
+      if ((await btn.count()) === 0) return false;
+      await btn.click();
+      await this.settle(260);
+      return this.moreMenuOpen();
+    },
+    async closeMenus() {
+      await page.keyboard.press("Escape");
+      await this.settle(200);
+    },
 
     // ---- the user menu ---------------------------------------------------
     // The trigger is the avatar chip in the top bar, which carries the person's initials and first
@@ -359,6 +422,8 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
         btns[btns.length - 1].click();
         return true;
       });
+      // On a phone there is no avatar chip: the person's menu is the More menu.
+      if (!clicked) return (await this.openMoreMenu()) && (await this.has(say("Sign Out", tongue)));
       await this.settle(200);
       return clicked && (await this.has("Sign Out"));
     },
@@ -373,6 +438,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // The collapse toggle in the sidebar head. At 1024 the app starts collapsed, so a case that
     // reads nav labels expands it first.
     async collapseSidebar() {
+      if (this.phone) return this.closeDrawer();
       if (await this.sidebarCollapsed()) return true;
       await page.evaluate((SIDEBAR) => {
         const sb = document.querySelector(SIDEBAR);
@@ -384,6 +450,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       return this.sidebarCollapsed();
     },
     async expandSidebar() {
+      if (this.phone) return this.openDrawer();
       if (!(await this.sidebarCollapsed())) return true;
       await page.evaluate((SIDEBAR) => {
         const sb = document.querySelector(SIDEBAR);
@@ -451,7 +518,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // and the button's word in the language the screen is drawn in.
     async clickReportAction(reportName, english) {
       const clicked = await page.evaluate(({ name, word }) => {
-        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const cards = Array.from(box.querySelectorAll("div")).filter((el) => {
           const txt = (el.innerText || "").trim();
           return txt.toLowerCase().indexOf(name.toLowerCase()) === 0 && txt.indexOf(word) >= 0 && txt.length < 400;
@@ -517,7 +584,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // One capability row, read by the label the API sent for it.
     async capabilityRow(label) {
       return page.evaluate((lbl) => {
-        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const spans = Array.from(box.querySelectorAll("span")).filter((s0) => (s0.innerText || "").trim() === lbl);
         if (!spans.length) return null;
         let row = spans[0];
@@ -541,7 +608,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
 
     async setCapability(label, which) {
       const done = await page.evaluate(([lbl, w]) => {
-        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const spans = Array.from(box.querySelectorAll("span")).filter((s0) => (s0.innerText || "").trim() === lbl);
         if (!spans.length) return false;
         let row = spans[0];
@@ -592,7 +659,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // A button identified by its title attribute, which is how the list Actions columns mark theirs.
     async clickTitle(title) {
       const clicked = await page.evaluate((t0) => {
-        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const b = Array.from(box.querySelectorAll("button")).find((x) => x.getAttribute("title") === t0 && x.offsetParent !== null);
         if (!b) return false;
         b.click();
@@ -616,7 +683,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       const re = pattern instanceof RegExp ? pattern : new RegExp(pattern);
       const clicked = await page.evaluate((src) => {
         const rx = new RegExp(src[0], src[1]);
-        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const cands = Array.from(box.querySelectorAll("div")).filter((el) => {
           if (el.offsetParent === null) return false;
           const txt = (el.innerText || "").trim();
@@ -724,7 +791,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // The search box on a list screen. An empty value clears it.
     async typeSearch(value) {
       const typed = await page.evaluate((v) => {
-        const box = document.querySelector("div[style*='padding: 16px 24px 30px']") || document.body;
+        const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const inputs = Array.from(box.querySelectorAll("input")).filter((i) => i.offsetParent !== null
           && /search/i.test((i.getAttribute("placeholder") || "") + " " + (i.getAttribute("aria-label") || "")));
         if (!inputs.length) return false;

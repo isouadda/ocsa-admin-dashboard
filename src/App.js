@@ -156,6 +156,23 @@ const FONT_BODY = FONT_HEAD;
 const ONE_COLUMN_PX = 1000;
 const NARROW_GRID_CSS = '[style*="grid-template-columns: 1fr 1fr"]{grid-template-columns:1fr !important}'
   + '[style*="grid-template-columns: 140px repeat(7"]{grid-template-columns:minmax(88px,140px) repeat(7,minmax(84px,1fr)) !important}';
+// Under this width the shell is a phone shell: the side panel is a drawer behind a menu button, the
+// top bar holds that button, the page title and one More button, and the rules below hold every page
+// to the width of the screen. A grid stacks to one column, and a week keeps its seven days, which fit
+// any width. A row of controls wraps rather than running off the side. A table scrolls inside its own
+// box, the way the daily-log tables do on the portal. Nothing fixed is wider than the screen, a long
+// word breaks, and every control is at least 44 by 44, which is what a finger needs. A window takes
+// the full width with 16 pixels of margin. Each rule matches the inline style the file already
+// writes, so no screen is rewritten, and none of it is applied at 700 or above.
+const PHONE_PX = 700;
+const PHONE_CSS = '[style*="grid-template-columns"]:not([style*="repeat(7"]){grid-template-columns:1fr !important}'
+  + '[style*="display: flex"]:not([style*="flex-direction: column"]):not([style*="flex-wrap"]){flex-wrap:wrap}'
+  + 'table{display:block;overflow-x:auto;max-width:100%}'
+  + '#root div:not([style*="position: absolute"]):not([style*="position: fixed"]){max-width:100%}'
+  + '#root{overflow-wrap:anywhere}'
+  + 'img,iframe,video,canvas{max-width:100%}'
+  + 'button,input,select,textarea{min-width:44px !important;min-height:44px !important}'
+  + 'div[style*="z-index: 500"]{padding:16px !important}';
 const TEXT_SIZES = [
   { id: "standard", label: "Standard", factor: 1 },
   { id: "large", label: "Large", factor: 1.15 },
@@ -388,6 +405,12 @@ export default function AdminDashboard() {
   const zoomStyle = zoom === 1 ? {} : { zoom, "--zoom": String(zoom) };
   const chooseTextSize = (id) => { setTextSize(id); try { localStorage.setItem("ocsa-text-size", id); } catch {} };
   const [pageNarrow, setPageNarrow] = useState(() => { try { return window.innerWidth / zoom < ONE_COLUMN_PX; } catch (e) { return false; } });
+  // The phone shell, and the two things only it draws: the drawer and the More menu. The phone is the
+  // window itself, whatever the text size: a phone's width does not grow with the text, and a laptop
+  // at the largest size keeps the bar and the panel it has at Standard.
+  const [phone, setPhone] = useState(() => { try { return window.innerWidth < PHONE_PX; } catch (e) { return false; } });
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => { try { return localStorage.getItem("ocsa-sb-collapsed") === "true"; } catch { return false; } });
   const [collapsedGroups, setCollapsedGroups] = useState(new Set());
   const [navQ, setNavQ] = useState(""); const [navOpen, setNavOpen] = useState(false); const [userMenuOpen, setUserMenuOpen] = useState(false); const [notif, setNotif] = useState(null);
@@ -402,6 +425,7 @@ export default function AdminDashboard() {
       // The page's own width, which is the window's divided by whatever the text is zoomed by.
       const own = window.innerWidth / zoom;
       setPageNarrow(own < ONE_COLUMN_PX);
+      setPhone(window.innerWidth < PHONE_PX);
       if (own < NARROW_BREAKPOINT_PX) setSidebarCollapsed(true);
       else setSidebarCollapsed(userPreference());
     };
@@ -409,6 +433,15 @@ export default function AdminDashboard() {
     window.addEventListener("resize", applyResponsive);
     return () => window.removeEventListener("resize", applyResponsive);
   }, [zoom]);
+  // Leaving the phone width closes what only the phone shell draws.
+  useEffect(() => { if (!phone) { setDrawerOpen(false); setMoreOpen(false); } }, [phone]);
+  // Escape closes the drawer and the More menu, the way it closes a window.
+  useEffect(() => {
+    if (!drawerOpen && !moreOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") { setDrawerOpen(false); setMoreOpen(false); } };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [drawerOpen, moreOpen]);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
   useEffect(() => {
@@ -579,7 +612,7 @@ export default function AdminDashboard() {
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")}</button></div>
     </div>
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -619,7 +652,9 @@ export default function AdminDashboard() {
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
-  const SB_W = sidebarCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
+  // On a phone the panel is a drawer and is always drawn with its labels.
+  const sbCollapsed = phone ? false : sidebarCollapsed;
+  const SB_W = sbCollapsed ? SB_W_COLLAPSED : SB_W_EXPANDED;
   const SB_BG = themeMode === "light" ? PANEL_LIGHT : NAVY_DARK;
   const SB_HOVER = themeMode === "light" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)";
   const SB_ACTIVE = themeMode === "light" ? "rgba(255,255,255,0.92)" : "linear-gradient(90deg, rgba(231,176,23,0.20), rgba(231,176,23,0.04))";
@@ -628,17 +663,41 @@ export default function AdminDashboard() {
   const SB_TEXT_ACTIVE = themeMode === "light" ? PANEL_LIGHT : GO;
   const SB_STRIPE = themeMode === "light" ? LIGHT.goldText : GO;
 
+  // The page search box: in the bar on a wider screen, at the top of the drawer on a phone, where its
+  // matches are listed in place rather than dropped over the panel, which clips what hangs past it.
+  const navSearch = (<div style={{ position: "relative", minWidth: 132 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: phone ? "0 14px" : "7px 14px", width: 200, maxWidth: "100%" }}>
+      <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
+      <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder={tr("Search pages")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+    </div>
+    {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
+      <div style={{ position: phone ? "static" : "absolute", top: 44, right: 0, width: phone ? "100%" : 240, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto", marginTop: phone ? 6 : 0 }}>
+        {matches.slice(0, 8).map(it => { const NI = it.i; return (
+          <button key={it.id} onClick={() => { setPage(it.id); setNavQ(""); setNavOpen(false); if (phone) setDrawerOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><NI sz={16} c={t.goldText} /><span>{it.l}</span></button>
+        ); })}
+        {matches.length === 0 && <div style={{ padding: "10px", fontSize: 12, color: t.textMut }}>{tr("No matching pages")}</div>}
+      </div>
+    ); })()}
+  </div>);
+  // A row of the More menu, the row the user menu draws.
+  const menuRow = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY };
+
   return (<ThemeCtx.Provider value={t}><div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, fontFamily: FONT_BODY, color: t.text, display: "flex" }}>
     {/* ===== SIDEBAR ===== */}
+    {/* On a phone the panel is a drawer: drawn only while open, over a backdrop that closes it, and
+        closed again by a pick, by its own close button and by Escape. */}
+    {phone && drawerOpen && <div onClick={() => setDrawerOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(10,22,40,0.55)", zIndex: 49 }} />}
+    {(!phone || drawerOpen) && (
     <div style={{ width: SB_W, height: vh(100, zoom), background: SB_BG, borderRight: "1px solid " + SB_BORDER, display: "flex", flexDirection: "column", flexShrink: 0, position: "fixed", top: 0, left: 0, zIndex: 50, transition: "width 0.2s ease", overflow: "hidden" }}>
 
       {/* Logo + collapse toggle */}
       <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid " + SB_BORDER, display: "flex", alignItems: "center", justifyContent: "space-between", minHeight: 56 }}>
-        {!sidebarCollapsed && <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 8px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt={clientConfig.company.shortName} style={{ height: 26 }} /></div>}
-        <button onClick={toggleSidebar} title={sidebarCollapsed ? tr("Expand sidebar") : tr("Collapse sidebar")} style={{ marginLeft: sidebarCollapsed ? "auto" : 0, marginRight: sidebarCollapsed ? "auto" : 0, background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: SB_TEXT, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Ic d={sidebarCollapsed ? "M13 17l5-5-5-5M6 17l5-5-5-5" : "M11 17l-5-5 5-5M18 17l-5-5 5-5"} sz={16} c={SB_TEXT} />
+        {!sbCollapsed && <div style={{ display: "inline-flex", alignItems: "center", padding: "4px 8px", background: "rgba(255,255,255,0.92)", borderRadius: 6 }}><img src={LOGO_SM} alt={clientConfig.company.shortName} style={{ height: 26 }} /></div>}
+        <button onClick={phone ? () => setDrawerOpen(false) : toggleSidebar} title={phone ? tr("Close") : sbCollapsed ? tr("Expand sidebar") : tr("Collapse sidebar")} style={{ marginLeft: sbCollapsed ? "auto" : 0, marginRight: sbCollapsed ? "auto" : 0, background: "none", border: "none", cursor: "pointer", padding: 6, borderRadius: 6, color: SB_TEXT, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Ic d={phone ? "M18 6L6 18M6 6l12 12" : sbCollapsed ? "M13 17l5-5-5-5M6 17l5-5-5-5" : "M11 17l-5-5 5-5M18 17l-5-5 5-5"} sz={16} c={SB_TEXT} />
         </button>
       </div>
+      {phone && <div style={{ padding: "10px 12px 2px" }}>{navSearch}</div>}
 
       {/* Nav Groups */}
       <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "8px 0" }}>
@@ -649,7 +708,7 @@ export default function AdminDashboard() {
           const isAnyItemActive = group.items.some(item => page === item.id);
 
           // COLLAPSED SIDEBAR: show one icon per group, individual icons for label-less items
-          if (sidebarCollapsed) {
+          if (sbCollapsed) {
             if (group.label) {
               // One representative icon for the whole group
               return (
@@ -696,7 +755,7 @@ export default function AdminDashboard() {
                 const active = page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} onClick={() => setPage(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                  <button key={item.id} onClick={() => { setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
@@ -710,12 +769,12 @@ export default function AdminDashboard() {
       </div>
 
       {/* Bottom: user + theme + logout */}
-      <div style={{ borderTop: "1px solid " + SB_BORDER, padding: sidebarCollapsed ? "10px 0" : "10px 14px" }}>
-        <button onClick={toggleTheme} title={sidebarCollapsed ? (themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")) : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", gap: 8, padding: sidebarCollapsed ? "7px 0" : "6px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
+      <div style={{ borderTop: "1px solid " + SB_BORDER, padding: sbCollapsed ? "10px 0" : "10px 14px" }}>
+        <button onClick={toggleTheme} title={sbCollapsed ? (themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")) : undefined} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: sbCollapsed ? "center" : "flex-start", gap: 8, padding: sbCollapsed ? "7px 0" : "6px 0", background: "none", border: "none", cursor: "pointer", color: SB_TEXT, fontSize: 12 }}>
           {themeMode === "dark" ? <SunI sz={15} c={SB_TEXT} /> : <MoonI sz={15} c={SB_TEXT} />}
-          {!sidebarCollapsed && (themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode"))}
+          {!sbCollapsed && (themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode"))}
         </button>
-        {!sidebarCollapsed ? (
+        {!sbCollapsed ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 28, height: 28, borderRadius: "50%", background: themeMode === "light" ? "rgba(255,255,255,0.92)" : "rgba(231,176,23,0.12)", border: "1px solid " + (themeMode === "light" ? PANEL_LIGHT : GO), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: themeMode === "light" ? PANEL_LIGHT : GO, flexShrink: 0 }}>{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
@@ -727,35 +786,59 @@ export default function AdminDashboard() {
           <button onClick={signOut} title={tr("Logout")} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "7px 0", background: "none", border: "none", cursor: "pointer", marginTop: 4 }}><LoI sz={16} c={SB_TEXT} /></button>
         )}
       </div>
-    </div>
+    </div>)}
 
     {/* ===== MAIN CONTENT ===== */}
     {/* A flex child keeps a minimum width of auto, which is the widest thing inside it, so a wide
         table pushes the whole page past the window and the page scrolls sideways. minWidth: 0 lets
         the column be as narrow as the window, and the width that no longer fits becomes a scroll
         inside the table's own box. It is on at every text size now, Standard included. */}
-    <div style={{ flex: 1, marginLeft: SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", minWidth: 0 }}>
-      {/* Top Bar */}
+    <div style={{ flex: 1, marginLeft: phone ? 0 : SB_W, minHeight: vh(100, zoom), display: "flex", flexDirection: "column", transition: "margin-left 0.2s ease", minWidth: 0 }}>
+      {/* Top Bar. On a phone it holds the menu button, the page title on one line and one More button,
+          whose menu holds what the wider bar shows: the person, language, text size, notifications,
+          light and dark, and sign out. The search box sits at the top of the drawer. */}
+      {phone ? (
+      <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "8px 12px", display: "flex", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 8, boxShadow: t.shadow }}>
+        <button onClick={() => { setDrawerOpen(true); setMoreOpen(false); setBellOpen(false); }} title={tr("Menu")} aria-label={tr("Menu")} aria-expanded={drawerOpen} style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+          <Ic d="M3 6h18M3 12h18M3 18h18" sz={20} c={t.textSec} />
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div data-page-title="" style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pageLabels[page] || tr("Dashboard")}</div>
+        </div>
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <button onClick={() => { setMoreOpen(o => !o); setNavOpen(false); setBellOpen(false); }} title={tr("More")} aria-label={tr("More")} aria-expanded={moreOpen} style={{ position: "relative", width: 44, height: 44, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+            <Ic d="M12 5h.01M12 12h.01M12 19h.01" sz={20} c={t.textSec} strokeWidth="3" />
+            {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
+          </button>
+          {moreOpen && (
+            <div role="menu" aria-label={tr("More")} style={{ position: "absolute", top: 50, right: 0, width: "min(320px, calc(100vw / var(--zoom, 1) - 24px))", maxHeight: "calc(85vh / var(--zoom, 1))", overflowY: "auto", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
+              <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? tr("Administrator") : tr("Supervisor")}</div></div>
+                <span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.12)", padding: "4px 10px", borderRadius: 10, fontWeight: 600, letterSpacing: ".5px" }}>{tr("LIVE")}</span>
+              </div>
+              {languageChoice(true)}
+              <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
+              <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>
+                <button onClick={() => { setMoreOpen(false); setBellOpen(true); }} title={tr("Notifications")} aria-label={unread > 0 ? tr("{0} unread notifications", unread) : tr("Notifications")} style={menuRow}>
+                  <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("Notifications")}
+                  {unread > 0 && <span style={{ marginLeft: "auto", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#fff", fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread > 9 ? "9+" : unread}</span>}
+                </button>
+                <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={menuRow}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />} {themeMode === "dark" ? tr("Light mode") : tr("Dark mode")}</button>
+                <button onClick={signOut} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
+              </div>
+            </div>
+          )}
+          {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} />}
+        </div>
+      </div>
+      ) : (
       <div style={{ background: t.card, borderBottom: "1px solid " + t.border, padding: "10px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 40, gap: 16, boxShadow: t.shadow }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pageLabels[page] || tr("Dashboard")}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{isAdmin ? tr("{0} Admin", clientConfig.company.shortName) : tr("{0} Supervisor", clientConfig.company.shortName)}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ position: "relative", minWidth: 132 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 14px", width: 200, maxWidth: "100%" }}>
-              <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-              <input value={navQ} onChange={e => { setNavQ(e.target.value); setNavOpen(true); setUserMenuOpen(false); }} onFocus={() => { setNavOpen(true); setUserMenuOpen(false); }} placeholder={tr("Search pages")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
-            </div>
-            {navOpen && navQ.trim() && (() => { const matches = allNavItems.filter(it => it.l.toLowerCase().includes(navQ.trim().toLowerCase())); return (
-              <div style={{ position: "absolute", top: 44, right: 0, width: 240, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41, maxHeight: 320, overflowY: "auto" }}>
-                {matches.slice(0, 8).map(it => { const NI = it.i; return (
-                  <button key={it.id} onClick={() => { setPage(it.id); setNavQ(""); setNavOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><NI sz={16} c={t.goldText} /><span>{it.l}</span></button>
-                ); })}
-                {matches.length === 0 && <div style={{ padding: "10px", fontSize: 12, color: t.textMut }}>{tr("No matching pages")}</div>}
-              </div>
-            ); })()}
-          </div>
+          {navSearch}
           <div style={{ position: "relative" }}>
             <button onClick={() => setBellOpen(o => !o)} aria-label={unread > 0 ? tr("{0} unread notifications", unread) : tr("Notifications")} title={tr("Notifications")} style={{ position: "relative", width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
@@ -783,9 +866,10 @@ export default function AdminDashboard() {
           <span style={{ fontSize: 9, color: GR, background: "rgba(46,204,113,0.12)", padding: "4px 10px", borderRadius: 10, fontWeight: 600, letterSpacing: ".5px" }}>{tr("LIVE")}</span>
         </div>
       </div>
-      {(navOpen || userMenuOpen) && <div onClick={() => { setNavOpen(false); setUserMenuOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 38 }} />}
+      )}
+      {(navOpen || userMenuOpen || moreOpen) && <div onClick={() => { setNavOpen(false); setUserMenuOpen(false); setMoreOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 38 }} />}
       {/* Page Content */}
-      <div style={{ flex: 1, padding: "16px 24px 30px", display: "flex", flexDirection: "column" }}>
+      <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -809,7 +893,7 @@ export default function AdminDashboard() {
     </div>
 
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
 }
 
@@ -1529,7 +1613,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -5471,7 +5555,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
   return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-      <SecT t={t} action={tr("Refresh")} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
+      <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
@@ -7692,7 +7776,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
   // Category CRUD
   const submitAddCat = async () => {
-    if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Label and slug required"), "error"); return; }
+    if (!addCatForm.label || !addCatForm.slug) { showToast(tr("Name required"), "error"); return; }
     try { await af("/api/lookups/categories", { method: "POST", body: addCatForm }); showToast(tr("Category created")); setAddCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditCat = async () => {
@@ -7798,7 +7882,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
               <div key={c.id} onClick={() => setSelCat(c.id)} style={{ padding: "8px 14px", cursor: "pointer", background: selCat === c.id ? t.goldBg : "transparent", borderLeft: selCat === c.id ? "3px solid " + GO : "3px solid transparent", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontSize: 12, fontWeight: selCat === c.id ? 600 : 400, color: selCat === c.id ? t.goldText : t.text }}>{c.label}</div>
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace", marginTop: 2 }}>{c.slug} | {trn("{0} values|count", c.values?.length || 0)}</div>
+                  <div style={{ fontSize: 9, color: t.textMut, marginTop: 2 }}>{trn("{0} values|count", c.values?.length || 0)}</div>
                 </div>
                 {!c.is_active && <Bdg l={tr("off|category")} c={t.textMut} />}
               </div>
@@ -7886,7 +7970,6 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
       {addCatForm && <Mdl t={t} onClose={() => setAddCatForm(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 16 }}>{tr("Add Category")}</div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Label *")}</Lbl><Inp t={t} value={addCatForm.label} onChange={e => setAddCatForm({ ...addCatForm, label: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") })} placeholder={tr("e.g. Equipment Types")} /></div>
-        <div style={{ marginBottom: 12 }}><Lbl>{tr("Slug (auto-generated)")}</Lbl><Inp t={t} value={addCatForm.slug} onChange={e => setAddCatForm({ ...addCatForm, slug: e.target.value })} placeholder={tr("e.g. equipment_types")} style={{ fontFamily: "monospace" }} /></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Description")}</Lbl><Inp t={t} value={addCatForm.description} onChange={e => setAddCatForm({ ...addCatForm, description: e.target.value })} placeholder={tr("Optional description")} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddCatForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddCat}>{tr("Create Category")}</Btn></div>
       </div></Mdl>}
@@ -11194,7 +11277,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Score")}</div>
               <Inp t={t} placeholder={tr("e.g. 95% or Pass")} value={form.score || ""} onChange={e => setForm({ ...form, score: e.target.value })} /></div>
             <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Administered By")}</div>
-              <Inp t={t} placeholder={tr("e.g. {0}", "Sameerah")} value={form.administered_by || ""} onChange={e => setForm({ ...form, administered_by: e.target.value })} /></div>
+              <Inp t={t} placeholder={tr("e.g. Site supervisor")} value={form.administered_by || ""} onChange={e => setForm({ ...form, administered_by: e.target.value })} /></div>
           </div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Notes (optional)")}</div>
             <textarea value={form.notes || ""} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, resize: "vertical" }} /></div>

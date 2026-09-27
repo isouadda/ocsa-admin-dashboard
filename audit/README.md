@@ -8,8 +8,9 @@ npm run audit
 ```
 
 It builds the production bundle, serves it, and drives it in a headless browser at 1280 by 900, then
-repeats the pages, views and tables at 1024 to catch a table that will not fit. Nothing in `src/`
-is touched and nothing leaves the machine.
+repeats the pages, views and tables at 1024 to catch a table that will not fit, and the pages once
+more on a phone, 390 by 844, to catch a page that will not fit a hand. Nothing in `src/` is touched
+and nothing leaves the machine.
 
 **Every dashboard build from now on runs `npm run audit` and pastes the table.**
 
@@ -188,6 +189,29 @@ screen's language beside its code. The `staff-cases` suite reads the Badge colum
 the badge number on the profile window, held to what GET /api/users and the profile sent, in both
 languages.
 
+**The dashboard fits a phone.** Under 700 pixels the shell is a phone shell: the side panel is a
+drawer behind the menu button at the left of the top bar, and the bar holds that button, the page
+title on one line and one More button, whose menu holds what the wider bar shows, language, text size,
+notifications, light and dark, and sign out. The `pages` suite runs once more at 390 by 844, in light
+at Standard in English, as the admin and as the supervisor, so the run time stays bounded, and reads
+the shell and every page's first render: the body scrolls no wider than the screen, no button, input,
+select, text area or link is under 44 by 44, the bar holds its three things and nothing else that can
+be pressed, the drawer opens from the menu button and closes on Escape, on a pick and on its backdrop,
+and the More menu holds its five items and closes on Escape. Windows at 390 and the Spanish pass at
+390 wait for a later step: the training window and its list are the two read on a phone today, by the
+`training` suite. At every width the suite runs, the page title draws on one line and the side panel
+is collapsed whenever the page's own width is under 1,100, read before anything has touched it and
+again on every page.
+
+**Four small things beside the phone.** The `small-things` suite reads, in English at 1280 and 1024
+and in Spanish at 1024, Schedule's Refresh, whose icon path has to be the circular arrow the
+Dashboard's Refresh draws and never the plus; the Staff page's table, which fits its box at 1280 in
+English and at 1024 scrolls inside its own card while the page never scrolls sideways, with the
+table's width against its box noted on every pass; + Add Training's Administered By example, held to
+"e.g. Site supervisor" and its Spanish written out by hand, with no person's first name in it; and
+the Dropdown Options editor, which names every list the stub served by its label and prints no
+list's slug.
+
 **Every staff picker fills for a supervisor.** The staff list the shell reads, `GET /api/users`, is an
 admin's (`manage_staff`), and the stub refuses it to anyone without that capability, the way
 `routes/users.js` does, so a supervisor's people come the way the dashboard reads them since Step 146:
@@ -210,10 +234,12 @@ AUDIT_FORCE_BUILD=1 npm run audit        # rebuild even when the bundle looks fr
 AUDIT_CHROMIUM=/path/to/chrome npm run audit
 ```
 
+Every pass prints how long it took under its `run` line, so a pass that grows is seen to grow.
+
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things` and `house-style`.
 
 ## How much is left in English
 
