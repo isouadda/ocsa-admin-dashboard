@@ -3070,6 +3070,11 @@ const FORM_TITLE_LABELS = {
   "OCSA-FRM-016": "Safety Incident Report",
   "OCSA-FRM-017": "Biohazard Incident and Exposure Report",
   "OCSA-FRM-019": "PPE Compliance Log, monthly check",
+  "OCSA-FRM-010": "Corrective Action Report",
+  "OCSA-FRM-015": "Safety Inspection Checklist",
+  "OCSA-FRM-027": "Environmental Compliance Audit",
+  "OCSA-FRM-032": "PPE Hazard Assessment Written Verification",
+  "OCSA-FRM-036": "Safety Committee Minutes and Attendance",
 };
 const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
 const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (f.title || f.code));
@@ -8258,8 +8263,13 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     const keys = Object.keys(sup);
     if (!keys.length) return;
     savingRef.current = true; setSaving(true); setActionError(""); setSentLine("");
+    // A row with no cell filled is never sent: it is dropped from a table a person adds rows to, and
+    // a table left with no rows goes as null, the way the portal sends one, so the API's missing list
+    // keeps naming a required table the way it always has.
+    const answers = {};
+    keys.forEach(k => { answers[k] = rowsToSend(fieldByKey[k], sup[k]); });
     try {
-      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers: sup } });
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers } });
       if (d && d.draft) { setData(d); setSup({}); }
     } catch (e) { setActionError(e.message || tr("Request failed")); }
     savingRef.current = false; setSaving(false);
@@ -8286,6 +8296,37 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // words this platform uses for that half are read the same way, so the answers show either way.
   const agentFields = fields.filter(f => f.half !== "supervisor");
   const supervisorFields = fields.filter(f => f.half === "supervisor");
+  const fieldByKey = {};
+  fields.forEach(f => { fieldByKey[f.key] = f; });
+  // The form's sections, when the API sends them (Step 157 on the API): each is drawn as a title,
+  // its help line under it where one is sent, and its fields under that, in the order the API lists
+  // them. A field whose section the list does not name, and every field of a payload with no
+  // sections, draws flat exactly as before, ahead of the sections.
+  const sections = data && Array.isArray(data.sections) ? data.sections.filter(sec => sec && sec.key != null) : [];
+  const grouped = (list, draw) => {
+    if (sections.length === 0) return list.map(draw);
+    const named = new Set(sections.map(sec => String(sec.key)));
+    const out = list.filter(f => !named.has(String(f.section))).map(draw);
+    sections.forEach(sec => {
+      const mine = list.filter(f => String(f.section) === String(sec.key));
+      if (mine.length === 0) return;
+      out.push(<div key={"section-" + sec.key} style={{ marginBottom: 6 }}>
+        <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginTop: 4, marginBottom: sec.help ? 2 : 8 }}>{sec.title == null ? String(sec.key) : String(sec.title)}</div>
+        {sec.help != null && sec.help !== "" && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{String(sec.help)}</div>}
+        {mine.map(draw)}
+      </div>);
+    });
+    return out;
+  };
+  // A cell with something in it. An unticked box and an empty string are nothing.
+  const cellFilled = (v) => !(v == null || v === "" || v === false);
+  // A table a person adds rows to, keyed by row number, has no declared rows; a checklist has them.
+  const addsRows = (f) => !!f && f.type === "grid" && !Array.isArray(f.rows);
+  const rowsToSend = (f, v) => {
+    if (!addsRows(f) || !Array.isArray(v)) return v;
+    const kept = v.filter(row => row && Object.keys(row).some(k => cellFilled(row[k])));
+    return kept.length ? kept : null;
+  };
   const submitted = draft && draft.status === "submitted";
   // What a cell reads as. A ticked box is a word rather than a mark, a picked option is the label
   // the form offers rather than the value it stores, and everything else is what the API sent.
@@ -8307,25 +8348,46 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const gridTable = (f, cell) => {
     const cols = Array.isArray(f.columns) ? f.columns : [];
     const declared = Array.isArray(f.rows) ? f.rows : null;
-    const added = Array.isArray(f.value) ? f.value : [];
+    // A table a person adds rows to, drawn to be written in, draws the rows held here rather than the
+    // rows the API sent, padded to its floor so the first row's cells are on screen before anyone
+    // taps Add row. A row drawn for the floor and not written in is not an answer: Save drops it.
+    const editable = !!cell && !declared;
+    const held = editable && Array.isArray(supValue(f)) ? supValue(f) : [];
+    const floor = editable ? Math.max(0, Math.floor(Number(f.minRows)) || 0) : 0;
+    const rows = held.length < floor ? held.concat(Array.from({ length: floor - held.length }, () => ({}))) : held;
+    const removable = editable && rows.length > floor;
+    const full = editable && Number(f.maxRows) > 0 && rows.length >= Number(f.maxRows);
+    const added = editable ? rows : (Array.isArray(f.value) ? f.value : []);
     const body = declared
       ? declared.map(r => ({ key: r.key, head: r.label, row: (f.value || {})[r.key] || {} }))
       : added.map((v, i) => ({ key: String(i), head: String(i + 1), row: v || {} }));
-    return (<div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+    const rowButton = { minHeight: 44, minWidth: 44, padding: "10px 14px", fontSize: 12 };
+    const table = (<div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
       <table style={{ borderCollapse: "collapse", width: "100%" }}>
         <thead><tr>
           <th style={thCell}>{declared ? tr("Item") : "#"}</th>
           {cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}
         </tr></thead>
         <tbody>
-          {body.map(b => (<tr key={b.key}>
+          {body.map((b, i) => (<tr key={b.key}>
             <td style={Object.assign({}, tdCell, { fontWeight: 500, whiteSpace: "nowrap" })}>{b.head}</td>
-            {cols.map(c => <td key={c.key} style={tdCell}>{cell ? cell(f, b, c) : cellText(c, b.row[c.key])}</td>)}
+            {cols.map((c, ci) => <td key={c.key} style={tdCell}>{cell ? cell(f, b, c) : cellText(c, b.row[c.key])}
+              {removable && ci === cols.length - 1 && <div style={{ marginTop: 6 }}><Btn t={t} v="ghost" aria-label={tr("Row {0}", i + 1) + ", " + tr("Remove row")} onClick={() => setSupValue(f, rows.filter((r, j) => j !== i))} style={rowButton}>{tr("Remove row")}</Btn></div>}
+            </td>)}
           </tr>))}
           {body.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>{tr("Nothing was added.")}</td></tr>}
         </tbody>
       </table>
     </div>);
+    if (!editable) return table;
+    return (<>
+      {table}
+      <div style={{ marginTop: 8 }}>
+        {full
+          ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("This table is full.")}</div>
+          : <Btn t={t} v="ghost" aria-label={f.label + ": " + tr("Add row")} onClick={() => setSupValue(f, rows.concat([{}]))} style={rowButton}>{tr("Add row")}</Btn>}
+      </div>
+    </>);
   };
   // A stamp says who signed and when, read in the company's own day wherever the computer is set.
   const stampLine = (v) => {
@@ -8434,7 +8496,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       <div style={{ marginBottom: 18 }}>
         <Lbl>{tr("What was reported")}</Lbl>
         {agentFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing reported yet.")}</div>}
-        {agentFields.map(fieldRow)}
+        {grouped(agentFields, fieldRow)}
       </div>
       <div>
         <Lbl>{tr("Supervisor section")}</Lbl>
@@ -8448,7 +8510,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
               </ul>
             </div>}
             {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
-            {supervisorFields.map(supervisorInput)}
+            {grouped(supervisorFields, supervisorInput)}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
             </div>
@@ -8456,7 +8518,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
           : (<>
             <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("A supervisor completes this part at a desk. The app cannot fill it in yet.")}</div>
             {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
-            {supervisorFields.map(fieldRow)}
+            {grouped(supervisorFields, fieldRow)}
           </>)}
       </div>
     </>)}
@@ -8548,7 +8610,7 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
   return (<div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
-      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: f.title }))]} /></div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading reports...")}</div>}

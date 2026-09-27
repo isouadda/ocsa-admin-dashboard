@@ -547,10 +547,43 @@ function createStubs() {
     role: person().role,
     at: seed.NOW_ISO,
   });
-  const SUPERVISOR_REQUIRED = [
+  // Step 159: what a case switches on in the daily service log's payload beyond what the suite has
+  // always read, so every payload read before stays byte for byte as it was. rows adds two tables a
+  // person adds rows to on the supervisor half, one with a floor of one row and room for five and one
+  // with room for one row; the required one joins the missing list until it holds a row.
+  let filedExtras = { rows: false, sections: false };
+  const COMPLETED_COLUMNS = [
+    { key: "what", label: "What was completed", type: "text", required: true },
+    { key: "when", label: "Completed on", type: "date", required: false },
+  ];
+  const VERIFIED_COLUMNS = [
+    { key: "finding", label: "Finding verified", type: "text", required: true },
+    { key: "ok", label: "Holds", type: "checkbox", required: false },
+  ];
+  const SUPERVISOR_REQUIRED_BASE = [
     { key: "reviewed_on", label: "Date reviewed" },
     { key: "checks", label: "Checks at review" },
   ];
+  // sections adds the form's sections and puts each field in one, shaped the way ocsa-api's
+  // reportPayload and fieldViews send them since Step 157: sections is the catalog's list in the
+  // language asked, key and title and help where the definition writes one, and every field carries
+  // section, the key of the section it sits in. The reviewer's stamp is put in a section the list
+  // does not name, so the window is seen to draw such a field flat.
+  const LOG_SECTIONS = {
+    en: [
+      { key: "service", title: "The service", help: "What was done on the day, as the crew filed it." },
+      { key: "review", title: "Review at a desk", help: "Filled in by whoever reviews the log." },
+      { key: "closure", title: "Closure" },
+    ],
+    es: [
+      { key: "service", title: "El servicio", help: "Lo que se hizo ese d\u00eda, tal como lo registr\u00f3 el equipo." },
+      { key: "review", title: "Revisi\u00f3n en el escritorio", help: "Lo llena quien revisa el registro." },
+      { key: "closure", title: "Cierre" },
+    ],
+  };
+  const LOG_SECTION_OF = { service_date: "service", areas: "service", supplies_used: "service", filed_signoff: "service",
+    reviewed_on: "review", review_note: "review", checks: "review", completed: "closure", verified: "closure", review_signoff: "signing" };
+  const supervisorRequired = () => SUPERVISOR_REQUIRED_BASE.concat(filedExtras.rows ? [{ key: "completed", label: "What was completed" }] : []);
   const answered = (v) => {
     if (v == null || v === "") return false;
     if (Array.isArray(v)) return v.length > 0;
@@ -561,7 +594,7 @@ function createStubs() {
     const sup = filedState().supervisor;
     const stamp = filedState().signed.review_signoff || null;
     const checks = sup.checks || {};
-    return [
+    const fields = [
       { id: "sf-1", key: "service_date", label: "Date of service", half: "agent", type: "date",
         value: "2026-03-16", displayValue: "March 16, 2026" },
       // The filing half carries the staff portal's word for itself here on purpose: this repo
@@ -589,11 +622,32 @@ function createStubs() {
       { id: "sf-8", key: "review_signoff", label: "Reviewed by", half: "supervisor", type: "signoff",
         signer: "supervisor", displayValue: "", value: stamp },
     ];
+    if (filedExtras.rows) {
+      fields.splice(7, 0,
+        { id: "sf-9", key: "completed", label: "What was completed", half: "supervisor", type: "grid",
+          columns: COMPLETED_COLUMNS, rows: null, minRows: 1, maxRows: 5,
+          value: sup.completed || null,
+          displayValue: (sup.completed || []).map((r) => r.what).join(". ") },
+        { id: "sf-10", key: "verified", label: "Findings verified in person", half: "supervisor", type: "grid",
+          columns: VERIFIED_COLUMNS, rows: null, minRows: null, maxRows: 1,
+          value: sup.verified || null,
+          displayValue: (sup.verified || []).map((r) => r.finding).join(". ") });
+    }
+    if (filedExtras.sections) fields.forEach((f) => { f.section = LOG_SECTION_OF[f.key] || null; });
+    return fields;
   };
   const FORM_LIST = [
     { code: "incident", title: "Incident report" },
     { code: "vehicle", title: "Vehicle report" },
     { code: "service-log", title: "Daily service log" },
+    // The five batch two forms, by the codes the API lists them under, each with an invented title
+    // of the API's own, so a screen that draws the API's title rather than the table's word for the
+    // code is seen to. Step 159.
+    { code: "OCSA-FRM-010", title: "Form 010 as the API titles it" },
+    { code: "OCSA-FRM-015", title: "Form 015 as the API titles it" },
+    { code: "OCSA-FRM-027", title: "Form 027 as the API titles it" },
+    { code: "OCSA-FRM-032", title: "Form 032 as the API titles it" },
+    { code: "OCSA-FRM-036", title: "Form 036 as the API titles it" },
   ];
   const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
   const INCIDENT_FIELDS = (r) => [
@@ -607,20 +661,20 @@ function createStubs() {
       value: "", displayValue: "" },
   ];
   // What the read answers, and what the sign-off and supervisor routes answer back.
-  const reportPayload = (r) => {
+  const reportPayload = (r, lang) => {
     const isLog = r.id === SERVICE_LOG_ID;
     const fields = isLog ? serviceLogFields() : INCIDENT_FIELDS(r);
     const mine = String(r.userId || "") === String(person().id);
     const signed = !!filedState().signed.review_signoff;
     const sup = filedState().supervisor;
     const canWrite = isLog && r.status === "submitted" && !mine;
-    return {
+    return Object.assign({
       draft: Object.assign({}, r),
       fields: fields,
       canSign: isLog && !mine && !signed ? ["review_signoff"] : [],
       canWriteSupervisor: canWrite,
-      supervisorMissing: canWrite ? SUPERVISOR_REQUIRED.filter((q) => !answered(sup[q.key])) : [],
-    };
+      supervisorMissing: canWrite ? supervisorRequired().filter((q) => !answered(sup[q.key])) : [],
+    }, isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
   };
 
   // GET /api/notification-recipients. Every type except the two Speak Up ones takes an outside
@@ -1571,14 +1625,14 @@ function createStubs() {
       const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
       if (!r) return { status: 404, json: { error: "Report not found" } };
       const key = body && body.key;
-      const payload = reportPayload(r);
+      const payload = reportPayload(r, lang);
       const keys = payload.fields.filter((f) => f.type === "signoff").map((f) => f.key);
       if (keys.indexOf(key) < 0) return { status: 400, json: { error: "That is not a sign-off on this form" } };
       if (String(r.userId || "") === String(person().id)) return { status: 403, json: { error: "You cannot sign off on your own report" } };
       if (filedState().signed[key]) return { status: 409, json: { error: "This part is already signed" } };
       if (payload.canSign.indexOf(key) < 0) return { status: 403, json: { error: "You cannot sign this part of the form" } };
       filedState().signed[key] = stampNow();
-      return ok(reportPayload(r));
+      return ok(reportPayload(r, lang));
     }
     if (/^\/api\/forms\/responses\/[^/]+\/supervisor$/.test(path) && method === "PATCH") {
       const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
@@ -1587,7 +1641,7 @@ function createStubs() {
       if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
         return { status: 400, json: { error: "Send answers as an object of key and value" } };
       }
-      const payload = reportPayload(r);
+      const payload = reportPayload(r, lang);
       if (!payload.canWriteSupervisor) return { status: 403, json: { error: "You cannot fill in the supervisor section" } };
       const byKey = {};
       payload.fields.forEach((f) => { byKey[f.key] = f; });
@@ -1596,13 +1650,13 @@ function createStubs() {
       const stamp = Object.keys(answers).find((k) => byKey[k].type === "signoff");
       if (stamp) return { status: 400, json: { error: "A sign-off is made with its own button" } };
       Object.keys(answers).forEach((k) => { filedState().supervisor[k] = answers[k]; });
-      return ok(reportPayload(r));
+      return ok(reportPayload(r, lang));
     }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
       if (method !== "GET") return ok({ message: "Report saved", draft: r });
-      return ok(reportPayload(r));
+      return ok(reportPayload(r, lang));
     }
 
     // --- settings sub-panels ---------------------------------------------
@@ -1784,6 +1838,8 @@ function createStubs() {
     setShiftSessions: (s) => { shiftSessions = s || null; },
     // The issues the API answers: the rows given, or the seed's rows again with null.
     setIssues: (rows) => { state.issues = rows ? rows : clone(seed.ISSUES); },
+    // What the daily service log's payload carries beyond what the suite has always read.
+    setFiledFormExtras: (x) => { filedExtras = Object.assign({ rows: false, sections: false }, x || {}); },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1798,6 +1854,7 @@ function createStubs() {
       state.training = null;
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {} };
+      filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};
       openSessions = {};
