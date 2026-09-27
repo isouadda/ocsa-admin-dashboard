@@ -8293,6 +8293,26 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const supervisorFields = fields.filter(f => f.half === "supervisor");
   const fieldByKey = {};
   fields.forEach(f => { fieldByKey[f.key] = f; });
+  // The form's sections, when the API sends them (Step 157 on the API): each is drawn as a title,
+  // its help line under it where one is sent, and its fields under that, in the order the API lists
+  // them. A field whose section the list does not name, and every field of a payload with no
+  // sections, draws flat exactly as before, ahead of the sections.
+  const sections = data && Array.isArray(data.sections) ? data.sections.filter(sec => sec && sec.key != null) : [];
+  const grouped = (list, draw) => {
+    if (sections.length === 0) return list.map(draw);
+    const named = new Set(sections.map(sec => String(sec.key)));
+    const out = list.filter(f => !named.has(String(f.section))).map(draw);
+    sections.forEach(sec => {
+      const mine = list.filter(f => String(f.section) === String(sec.key));
+      if (mine.length === 0) return;
+      out.push(<div key={"section-" + sec.key} style={{ marginBottom: 6 }}>
+        <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginTop: 4, marginBottom: sec.help ? 2 : 8 }}>{sec.title == null ? String(sec.key) : String(sec.title)}</div>
+        {sec.help != null && sec.help !== "" && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{String(sec.help)}</div>}
+        {mine.map(draw)}
+      </div>);
+    });
+    return out;
+  };
   // A cell with something in it. An unticked box and an empty string are nothing.
   const cellFilled = (v) => !(v == null || v === "" || v === false);
   // A table a person adds rows to, keyed by row number, has no declared rows; a checklist has them.
@@ -8471,7 +8491,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       <div style={{ marginBottom: 18 }}>
         <Lbl>{tr("What was reported")}</Lbl>
         {agentFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing reported yet.")}</div>}
-        {agentFields.map(fieldRow)}
+        {grouped(agentFields, fieldRow)}
       </div>
       <div>
         <Lbl>{tr("Supervisor section")}</Lbl>
@@ -8485,7 +8505,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
               </ul>
             </div>}
             {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
-            {supervisorFields.map(supervisorInput)}
+            {grouped(supervisorFields, supervisorInput)}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
               <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
             </div>
@@ -8493,7 +8513,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
           : (<>
             <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("A supervisor completes this part at a desk. The app cannot fill it in yet.")}</div>
             {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
-            {supervisorFields.map(fieldRow)}
+            {grouped(supervisorFields, fieldRow)}
           </>)}
       </div>
     </>)}

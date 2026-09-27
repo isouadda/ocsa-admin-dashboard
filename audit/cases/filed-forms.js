@@ -403,6 +403,68 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     await d.signIn("admin");
   }
 
+  // ---- the form grouped by its sections ----------------------------------
+  // Step 159. With the keys the API sends since Step 157, both halves draw each section's fields
+  // under its title and help; without them, no title. The reviewer's stamp sits in a section the
+  // list does not name and draws flat. Break: the halves drawn flat with the keys sent.
+  {
+    const headings = () => d.page.evaluate(() => {
+      const box = document.querySelector("div[style*='z-index: 500']");
+      return box ? Array.from(box.querySelectorAll("[data-section-title]")).map((el) => el.innerText.trim()) : [];
+    });
+    stubs.reset();
+    stubs.setFiledFormExtras({ rows: true, sections: true });
+    await d.reload();
+    await openLog(d);
+    const text = await d.modalText();
+    const titles = await headings();
+    // Where each thing sits in the window, in document order, since the two half labels are drawn
+    // upper case and the window's text cannot place them.
+    const at = await d.page.evaluate(() => {
+      const box = document.querySelector("div[style*='z-index: 500']");
+      if (!box) return null;
+      const all = Array.from(box.querySelectorAll("*"));
+      const txt = (el) => (el.textContent || "").trim();
+      const find = (pred) => all.findIndex(pred);
+      const title = (w) => find((el) => el.hasAttribute("data-section-title") && txt(el) === w);
+      return {
+        reported: find((el) => el.tagName === "LABEL" && txt(el) === "What was reported"),
+        supervisor: find((el) => el.tagName === "LABEL" && txt(el) === "Supervisor section"),
+        stillNeeded: find((el) => el.tagName === "UL" && el.getAttribute("aria-label") === "Still needed in the supervisor section"),
+        service: title("The service"), review: title("Review at a desk"), closure: title("Closure"),
+        stamp: find((el) => el.tagName === "DIV" && txt(el) === "Reviewed by"),
+      };
+    });
+    const want = ["The service", "Review at a desk", "Closure"];
+    const helps = ["What was done on the day, as the crew filed it.", "Filled in by whoever reviews the log."];
+    check("filed-forms/sections-draw-their-titles-and-help",
+      !!at && want.every((w) => titles.indexOf(w) >= 0) && helps.every((h) => text.indexOf(h) >= 0)
+        && at.service > at.reported && at.service < at.supervisor && at.review > at.stillNeeded && at.closure > at.review,
+      "the window draws the titles " + JSON.stringify(titles) + " where " + JSON.stringify(want) + " were sent, the help lines "
+        + JSON.stringify(helps.map((h) => text.indexOf(h) >= 0)) + ", in the order " + JSON.stringify(at));
+    check("filed-forms/a-field-in-no-listed-section-draws-flat",
+      !!at && at.stamp > at.supervisor && at.stamp < at.review && titles.indexOf("signing") < 0,
+      "the reviewer's stamp, whose section the list does not name, sits at " + JSON.stringify(at) + " and the titles are " + JSON.stringify(titles));
+    await d.page.setViewportSize({ width: 390, height: 844 });
+    await d.settle(400);
+    const g = await windowGeometry(d);
+    check("filed-forms/the-sections-fit-a-phone", g.over <= 1 && g.small.length === 0,
+      "at 390 with the sections drawn the page runs " + g.over + " pixels off the side, controls under 44 by 44: " + JSON.stringify(g.small));
+    await d.page.setViewportSize({ width: 1280, height: 900 });
+    await d.settle(300);
+    await d.closeModal();
+
+    stubs.reset();
+    await d.reload();
+    await openLog(d);
+    const none = await headings();
+    const plain = await d.modalText();
+    check("filed-forms/no-sections-draw-no-titles",
+      none.length === 0 && want.every((w) => plain.indexOf(w) < 0),
+      "without the keys the window draws the titles " + JSON.stringify(none));
+    await d.closeModal();
+  }
+
   // ---- who may open Forms at all ----------------------------------------
   {
     await d.signOutHard();

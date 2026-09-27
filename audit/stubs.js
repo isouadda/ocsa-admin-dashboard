@@ -564,6 +564,25 @@ function createStubs() {
     { key: "reviewed_on", label: "Date reviewed" },
     { key: "checks", label: "Checks at review" },
   ];
+  // sections adds the form's sections and puts each field in one, shaped the way ocsa-api's
+  // reportPayload and fieldViews send them since Step 157: sections is the catalog's list in the
+  // language asked, key and title and help where the definition writes one, and every field carries
+  // section, the key of the section it sits in. The reviewer's stamp is put in a section the list
+  // does not name, so the window is seen to draw such a field flat.
+  const LOG_SECTIONS = {
+    en: [
+      { key: "service", title: "The service", help: "What was done on the day, as the crew filed it." },
+      { key: "review", title: "Review at a desk", help: "Filled in by whoever reviews the log." },
+      { key: "closure", title: "Closure" },
+    ],
+    es: [
+      { key: "service", title: "El servicio", help: "Lo que se hizo ese d\u00eda, tal como lo registr\u00f3 el equipo." },
+      { key: "review", title: "Revisi\u00f3n en el escritorio", help: "Lo llena quien revisa el registro." },
+      { key: "closure", title: "Cierre" },
+    ],
+  };
+  const LOG_SECTION_OF = { service_date: "service", areas: "service", supplies_used: "service", filed_signoff: "service",
+    reviewed_on: "review", review_note: "review", checks: "review", completed: "closure", verified: "closure", review_signoff: "signing" };
   const supervisorRequired = () => SUPERVISOR_REQUIRED_BASE.concat(filedExtras.rows ? [{ key: "completed", label: "What was completed" }] : []);
   const answered = (v) => {
     if (v == null || v === "") return false;
@@ -614,6 +633,7 @@ function createStubs() {
           value: sup.verified || null,
           displayValue: (sup.verified || []).map((r) => r.finding).join(". ") });
     }
+    if (filedExtras.sections) fields.forEach((f) => { f.section = LOG_SECTION_OF[f.key] || null; });
     return fields;
   };
   const FORM_LIST = [
@@ -633,20 +653,20 @@ function createStubs() {
       value: "", displayValue: "" },
   ];
   // What the read answers, and what the sign-off and supervisor routes answer back.
-  const reportPayload = (r) => {
+  const reportPayload = (r, lang) => {
     const isLog = r.id === SERVICE_LOG_ID;
     const fields = isLog ? serviceLogFields() : INCIDENT_FIELDS(r);
     const mine = String(r.userId || "") === String(person().id);
     const signed = !!filedState().signed.review_signoff;
     const sup = filedState().supervisor;
     const canWrite = isLog && r.status === "submitted" && !mine;
-    return {
+    return Object.assign({
       draft: Object.assign({}, r),
       fields: fields,
       canSign: isLog && !mine && !signed ? ["review_signoff"] : [],
       canWriteSupervisor: canWrite,
       supervisorMissing: canWrite ? supervisorRequired().filter((q) => !answered(sup[q.key])) : [],
-    };
+    }, isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
   };
 
   // GET /api/notification-recipients. Every type except the two Speak Up ones takes an outside
@@ -1597,14 +1617,14 @@ function createStubs() {
       const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
       if (!r) return { status: 404, json: { error: "Report not found" } };
       const key = body && body.key;
-      const payload = reportPayload(r);
+      const payload = reportPayload(r, lang);
       const keys = payload.fields.filter((f) => f.type === "signoff").map((f) => f.key);
       if (keys.indexOf(key) < 0) return { status: 400, json: { error: "That is not a sign-off on this form" } };
       if (String(r.userId || "") === String(person().id)) return { status: 403, json: { error: "You cannot sign off on your own report" } };
       if (filedState().signed[key]) return { status: 409, json: { error: "This part is already signed" } };
       if (payload.canSign.indexOf(key) < 0) return { status: 403, json: { error: "You cannot sign this part of the form" } };
       filedState().signed[key] = stampNow();
-      return ok(reportPayload(r));
+      return ok(reportPayload(r, lang));
     }
     if (/^\/api\/forms\/responses\/[^/]+\/supervisor$/.test(path) && method === "PATCH") {
       const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
@@ -1613,7 +1633,7 @@ function createStubs() {
       if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
         return { status: 400, json: { error: "Send answers as an object of key and value" } };
       }
-      const payload = reportPayload(r);
+      const payload = reportPayload(r, lang);
       if (!payload.canWriteSupervisor) return { status: 403, json: { error: "You cannot fill in the supervisor section" } };
       const byKey = {};
       payload.fields.forEach((f) => { byKey[f.key] = f; });
@@ -1622,13 +1642,13 @@ function createStubs() {
       const stamp = Object.keys(answers).find((k) => byKey[k].type === "signoff");
       if (stamp) return { status: 400, json: { error: "A sign-off is made with its own button" } };
       Object.keys(answers).forEach((k) => { filedState().supervisor[k] = answers[k]; });
-      return ok(reportPayload(r));
+      return ok(reportPayload(r, lang));
     }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
       if (method !== "GET") return ok({ message: "Report saved", draft: r });
-      return ok(reportPayload(r));
+      return ok(reportPayload(r, lang));
     }
 
     // --- settings sub-panels ---------------------------------------------

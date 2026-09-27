@@ -178,18 +178,18 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8014] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8025] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8454] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9959] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10012] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10127] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10164] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8474] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9979] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10032] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10147] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10184] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10767] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [10787] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11276] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11298] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11332] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11573] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11296] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11318] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11352] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11593] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -576,6 +576,11 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/an-emptied-table-sends-null", name: "A table left with no filled row is sent as null" },
   { id: "filed-forms/the-saved-rows-are-drawn-after-the-answer", name: "The rows the API answered are drawn in the table after Save" },
   { id: "filed-forms/the-tables-fit-a-phone", name: "At 390 the row controls are 44 by 44 and the tables scroll inside their boxes" },
+  // Step 159: the filed form grouped by its sections when the API sends them.
+  { id: "filed-forms/sections-draw-their-titles-and-help", name: "With sections sent, both halves draw each section's title and help" },
+  { id: "filed-forms/a-field-in-no-listed-section-draws-flat", name: "A field whose section the list does not name draws flat" },
+  { id: "filed-forms/no-sections-draw-no-titles", name: "Without the keys the window draws no section title" },
+  { id: "filed-forms/the-sections-fit-a-phone", name: "At 390 the section titles do not push the window wider than the screen" },
 ];
 
 module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, TRAINING_ROOM, PICKERS };
