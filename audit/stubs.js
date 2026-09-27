@@ -640,6 +640,14 @@ function createStubs() {
     { code: "incident", title: "Incident report" },
     { code: "vehicle", title: "Vehicle report" },
     { code: "service-log", title: "Daily service log" },
+    // The five batch two forms, by the codes the API lists them under, each with an invented title
+    // of the API's own, so a screen that draws the API's title rather than the table's word for the
+    // code is seen to. Step 159.
+    { code: "OCSA-FRM-010", title: "Form 010 as the API titles it" },
+    { code: "OCSA-FRM-015", title: "Form 015 as the API titles it" },
+    { code: "OCSA-FRM-027", title: "Form 027 as the API titles it" },
+    { code: "OCSA-FRM-032", title: "Form 032 as the API titles it" },
+    { code: "OCSA-FRM-036", title: "Form 036 as the API titles it" },
   ];
   const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
   const INCIDENT_FIELDS = (r) => [

@@ -3070,6 +3070,11 @@ const FORM_TITLE_LABELS = {
   "OCSA-FRM-016": "Safety Incident Report",
   "OCSA-FRM-017": "Biohazard Incident and Exposure Report",
   "OCSA-FRM-019": "PPE Compliance Log, monthly check",
+  "OCSA-FRM-010": "Corrective Action Report",
+  "OCSA-FRM-015": "Safety Inspection Checklist",
+  "OCSA-FRM-027": "Environmental Compliance Audit",
+  "OCSA-FRM-032": "PPE Hazard Assessment Written Verification",
+  "OCSA-FRM-036": "Safety Committee Minutes and Attendance",
 };
 const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
 const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (f.title || f.code));
@@ -8605,7 +8610,7 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
   return (<div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
-      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: f.title }))]} /></div>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading reports...")}</div>}

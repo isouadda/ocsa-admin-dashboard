@@ -465,6 +465,24 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     await d.closeModal();
   }
 
+  // ---- the batch two forms in the filter --------------------------------
+  // Step 159. The five codes the API lists draw the table's title, in the language of the screen.
+  // Break: the codes dropped from FORM_TITLE_LABELS.
+  {
+    await d.goto("forms");
+    await d.clickText("Filed forms", { exact: false });
+    const options = await d.page.evaluate(() => {
+      const sel = Array.from(document.querySelectorAll("select")).find((s) => s.getAttribute("aria-label") === "Form");
+      return sel ? Array.from(sel.options).map((o) => o.text) : [];
+    });
+    const five = ["Corrective Action Report", "Safety Inspection Checklist", "Environmental Compliance Audit",
+      "PPE Hazard Assessment Written Verification", "Safety Committee Minutes and Attendance"];
+    const missing = five.filter((w) => options.indexOf(d.say(w)) < 0);
+    const apiTitles = options.filter((o) => /as the API titles it$/.test(o));
+    check("filed-forms/the-filter-names-the-batch-two-forms", missing.length === 0 && apiTitles.length === 0,
+      "the filter does not name " + JSON.stringify(missing) + " and draws the API's own " + JSON.stringify(apiTitles) + "; it offers " + JSON.stringify(options));
+  }
+
   // ---- who may open Forms at all ----------------------------------------
   {
     await d.signOutHard();
