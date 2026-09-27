@@ -8338,6 +8338,108 @@ function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
   </div>);
 }
 
+// ===== SIGNING WITH THE MOUSE (Step 165) =====
+// A sign-off is made in a box a person draws in: a white canvas 420 wide and 160 tall, the whole
+// width under 480, with a baseline to write on. It listens to pointer events, so a mouse, a pen and
+// a finger all draw, and it is scaled to the device's pixels so a line is crisp on a phone. Sign
+// stays off until something is drawn, and the drawing goes to the API as a PNG data URL under
+// 300 KB, drawn again smaller when it is over.
+const SIGNATURE_WIDTH = 420;
+const SIGNATURE_HEIGHT = 160;
+const SIGNATURE_MAX_BYTES = 300 * 1024;
+const dataUrlBytes = (url) => Math.floor((String(url).split(",")[1] || "").length * 3 / 4);
+function SignatureBox({ t, label, busy, refusal, onSign, onCancel }) {
+  const canvasRef = useRef(null);
+  const [drawn, setDrawn] = useState(false);
+  const drawing = useRef(false);
+  const last = useRef(null);
+
+  // The canvas takes the width it has, up to 420, and is backed by the device's pixels. The
+  // baseline sits where a person writes on a paper form. A resize starts the box over.
+  const paint = () => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    c.width = Math.round(w * ratio); c.height = Math.round(h * ratio);
+    const ctx = c.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "#C9D1D9"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(16, Math.round(h * 0.72) + 0.5); ctx.lineTo(w - 16, Math.round(h * 0.72) + 0.5); ctx.stroke();
+    ctx.setLineDash([]);
+    setDrawn(false);
+  };
+  useEffect(() => {
+    paint();
+    window.addEventListener("resize", paint);
+    return () => window.removeEventListener("resize", paint);
+  }, []);
+
+  const at = (e) => { const r = canvasRef.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const pen = () => { const ctx = canvasRef.current.getContext("2d"); ctx.strokeStyle = "#1B1B1B"; ctx.fillStyle = "#1B1B1B"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; return ctx; };
+  const down = (e) => {
+    if (busy) return;
+    e.preventDefault();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* a browser without capture still draws */ }
+    drawing.current = true;
+    const p = at(e); last.current = p;
+    const ctx = pen(); ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); ctx.fill();
+    setDrawn(true);
+  };
+  const move = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const p = at(e);
+    const ctx = pen(); ctx.beginPath(); ctx.moveTo(last.current.x, last.current.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last.current = p;
+  };
+  const up = () => { drawing.current = false; last.current = null; };
+  const exportPng = () => {
+    const c = canvasRef.current;
+    let url = c.toDataURL("image/png");
+    let scale = 1;
+    while (dataUrlBytes(url) > SIGNATURE_MAX_BYTES && scale > 0.25) {
+      scale -= 0.25;
+      const small = document.createElement("canvas");
+      small.width = Math.max(1, Math.round(c.width * scale)); small.height = Math.max(1, Math.round(c.height * scale));
+      small.getContext("2d").drawImage(c, 0, 0, small.width, small.height);
+      url = small.toDataURL("image/png");
+    }
+    return url;
+  };
+
+  return (<div data-signature-box="" style={{ marginTop: 8, padding: 12, borderRadius: 10, border: "1px solid " + t.border, background: t.hover, maxWidth: 480 }}>
+    <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>{label}</div>
+    <canvas ref={canvasRef} aria-label={tr("Sign with your mouse or finger")}
+      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up}
+      style={{ display: "block", width: "100%", maxWidth: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT, borderRadius: 8, border: "1px solid " + t.borderSolid, background: "#FFFFFF", touchAction: "none", cursor: "crosshair" }} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Sign with your mouse or finger")}</div>
+    {refusal && <div data-signature-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy} style={{ minHeight: 44, minWidth: 88 }}>{busy ? tr("Signing...") : tr("Sign")}</Btn>
+      <Btn t={t} v="ghost" onClick={paint} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Clear")}</Btn>
+      <Btn t={t} v="ghost" onClick={onCancel} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Cancel")}</Btn>
+    </div>
+  </div>);
+}
+// The signature a stamp carries, streamed by the API and drawn about 48 pixels high above the line
+// that says who signed. A stamp with no signature draws nothing here.
+function SignatureImage({ t, token, responseId, signKey }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let alive = true;
+    let made = "";
+    apiDownload("/api/forms/responses/" + encodeURIComponent(responseId) + "/signatures/" + encodeURIComponent(signKey), token)
+      .then(f => { made = URL.createObjectURL(f.blob); if (alive) setUrl(made); else URL.revokeObjectURL(made); })
+      .catch(() => { if (alive) setUrl(""); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [responseId, signKey, token]);
+  if (!url) return null;
+  return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
+}
+
 function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -8356,6 +8458,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const fetchedRef = useRef(null);
   const [signing, setSigning] = useState("");
   const signingRef = useRef(false);
+  // The sign-off whose signature box is open, and what the API said when it refused the signature.
+  const [boxFor, setBoxFor] = useState(null);
+  const [signRefusal, setSignRefusal] = useState("");
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -8393,13 +8498,15 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // One press sends one request, and nothing is drawn until the API answers: the window is swapped
   // for the report the API sends back, stamp and all. The ref closes the gap before the disabled
   // button redraws, which is the guard the footer's Send again uses.
-  const sign = async (key) => {
+  // Since Step 165 the request carries the signature drawn in the box, as a PNG data URL, and a
+  // refusal is drawn in the box in the API's own words.
+  const sign = async (key, signature) => {
     if (signingRef.current) return;
-    signingRef.current = true; setSigning(key); setActionError(""); setSentLine("");
+    signingRef.current = true; setSigning(key); setSignRefusal(""); setActionError(""); setSentLine("");
     try {
-      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key } });
-      if (d && d.draft) setData(d);
-    } catch (e) { setActionError(e.message || tr("Request failed")); }
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key, signature } });
+      if (d && d.draft) { setData(d); setBoxFor(null); }
+    } catch (e) { setSignRefusal(e.message || tr("Request failed")); }
     signingRef.current = false; setSigning("");
   };
 
@@ -8552,12 +8659,17 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
   const canWriteSupervisor = !!(data && data.canWriteSupervisor);
   const supervisorMissing = data && Array.isArray(data.supervisorMissing) ? data.supervisorMissing : [];
-  const signoffRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
+  // A stamp draws its signature image above the line that says who signed, when it carries one.
+  // Sign opens the signature box under the row, and the box's own Sign sends the request.
+  const signoffRow = (f) => (<div key={f.key} data-question={f.key} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+    {f.value && f.value.at && f.value.signature && f.value.signature.id && <SignatureImage t={t} token={token} responseId={id} signKey={f.key} />}
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <div style={{ fontSize: 13, color: f.value && f.value.at ? t.text : t.textMut }}>{stampLine(f.value)}</div>
-      {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? tr("Signing...") : tr("Sign")}</Btn>}
+      {canSign.indexOf(f.key) >= 0 && boxFor !== f.key && <Btn t={t} v="ghost" onClick={() => { setBoxFor(f.key); setSignRefusal(""); }} disabled={!!signing} style={{ minHeight: 44 }}>{tr("Sign")}</Btn>}
     </div>
+    {boxFor === f.key && <SignatureBox t={t} label={f.label} busy={signing === f.key} refusal={signRefusal}
+      onSign={(png) => sign(f.key, png)} onCancel={() => { setBoxFor(null); setSignRefusal(""); }} />}
   </div>);
   // What the supervisor section holds right now: what was typed if anything was, and what the API
   // sent if nothing has been.

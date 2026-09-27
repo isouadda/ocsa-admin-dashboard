@@ -1348,6 +1348,7 @@ This sweeps the entire jotform@ocsaco.com inbox and ingests any PDFs that have n
 
 Recorre toda la bandeja de entrada de jotform@ocsaco.com e incorpora los PDF que todavía no se hayan capturado. Puede tardar unos minutos. Ejecútelo de nuevo si el resultado indica que se alcanzó el máximo.","Forms, Submissions, the question before the PDF backfill runs"
 Running...,Ejecutando...,"Forms, Settings, while a full refresh runs"
+Sign with your mouse or finger,Firme con el mouse o el dedo,"Forms, a filed report, the signature box"
 SLA compliance and breaches,Cumplimiento e incumplimientos del SLA,"Reports, adding or editing an issue report"
 SLA compliance by period,Cumplimiento del SLA por periodo,"Reports, the issue report's printed page"
 SLA compliance trend,Tendencia del cumplimiento del SLA,"Reports, the issue report, a chart"

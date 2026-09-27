@@ -178,18 +178,18 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8028] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8039] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8646] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10151] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10204] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10319] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10356] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8758] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10263] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10316] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10431] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10468] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10959] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [11071] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11468] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11490] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11524] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11765] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11580] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11602] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11636] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11877] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -315,6 +315,7 @@ const REFUSALS = [
   { id: "refusals/signoff-not-filed-yet", status: 409, error: "The supervisor section opens once the report is filed" },
   { id: "refusals/signoff-voided", status: 409, error: "This report was voided" },
   { id: "refusals/signoff-already-signed", status: 409, error: "This part is already signed" },
+  { id: "refusals/signoff-signature-required", status: 400, error: "Draw your signature before you sign" },
   { id: "refusals/supervisor-not-found", status: 404, error: "Report not found" },
   { id: "refusals/supervisor-not-filed-yet", status: 409, error: "The supervisor section opens once the report is filed" },
   { id: "refusals/supervisor-voided", status: 409, error: "This report was voided" },
@@ -607,6 +608,14 @@ const FILED_PHOTO_STATES = [
   { id: "filed-photos/refusal/forms.photosForbidden", name: "The refusal forms.photosForbidden is drawn under the question in the table's words" },
   { id: "filed-photos/refusal/forms.photoNotFound", name: "The refusal forms.photoNotFound is drawn under the question in the table's words on a removal" },
   { id: "filed-photos/refusal/unknown-code", name: "A refusal with a code the table does not know is drawn in the API's own words" },
+  { id: "filed-signature/the-box-is-drawn", name: "Sign opens the box: the sign-off's label, a white canvas, the baseline, the hint, Clear and a Sign that is off" },
+  { id: "filed-signature/refused-empty", name: "With nothing drawn Sign cannot be pressed and no request goes" },
+  { id: "filed-signature/a-path-turns-sign-on", name: "A pointer path in the box turns Sign on, and Clear turns it off again" },
+  { id: "filed-signature/accepted-with-a-pointer-path", name: "Sign sends the key and the drawing as a PNG data URL under 300 KB, and the stamp is drawn after the answer" },
+  { id: "filed-signature/the-stamp-image-is-drawn", name: "A stamp that carries a signature draws its image about 48 pixels high above Signed by" },
+  { id: "filed-signature/a-stamp-without-one-draws-nothing", name: "A stamp with no signature draws no image" },
+  { id: "filed-signature/the-api-refusal-is-in-the-box", name: "A refused signature is drawn in the box in the API's own words, with the box still open" },
+  { id: "filed-signature/the-box-fits-a-phone", name: "At 390 the canvas takes the whole width and every control in the box is 44 by 44" },
 ];
 
 module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, FILED_PHOTO_STATES, TRAINING_ROOM, PICKERS };

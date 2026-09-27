@@ -215,6 +215,102 @@ async function run({ d, results, inventory, stubs, lang }) {
     stubs.reset();
   }
 
+  // ---- the signature box --------------------------------------------------
+  // Sign opens the box under the sign-off. Nothing goes until something is drawn, a pointer path
+  // turns Sign on, Clear turns it off, and the request carries the drawing as a PNG data URL. The
+  // filer's stamp on the other half draws its signature image; the reviewer's, made here, draws
+  // its own once the API answers.
+  const box = () => d.page.evaluate((sel) => {
+    const b = document.querySelector(sel + " [data-signature-box]");
+    if (!b) return null;
+    const canvas = b.querySelector("canvas");
+    const r = canvas ? canvas.getBoundingClientRect() : { width: 0, height: 0 };
+    const zoom = parseFloat(getComputedStyle(document.querySelector("#root > div")).zoom) || 1;
+    const white = canvas ? getComputedStyle(canvas).backgroundColor : "";
+    const buttons = Array.from(b.querySelectorAll("button")).map((x) => ({ text: (x.innerText || "").trim(), off: x.disabled }));
+    return { text: b.innerText.replace(/\s+/g, " ").trim(), canvas: !!canvas, width: Math.round(r.width / zoom), height: Math.round(r.height / zoom), white,
+      buttons, refusal: (b.querySelector("[data-signature-refusal]") || { innerText: "" }).innerText.trim(),
+      boxWidth: Math.round(b.getBoundingClientRect().width / zoom) };
+  }, MODAL);
+  const images = () => d.page.evaluate((sel) => Array.from(document.querySelectorAll(sel + " img[data-signature-image]")).map((i) => ({
+    key: i.getAttribute("data-signature-image"), blob: String(i.getAttribute("src") || "").indexOf("blob:") === 0, height: Math.round(i.getBoundingClientRect().height / (parseFloat(getComputedStyle(document.querySelector("#root > div")).zoom) || 1)) })), MODAL);
+  {
+    stubs.reset();
+    await openLog(d);
+    await pause(500);
+    const before = await images();
+    check("filed-signature/the-stamp-image-is-drawn", before.some((i) => i.key === "filed_signoff" && i.blob && i.height >= 40 && i.height <= 56),
+      "the filer's stamp draws " + JSON.stringify(before));
+    check("filed-signature/a-stamp-without-one-draws-nothing", !before.some((i) => i.key === "review_signoff"),
+      "the unsigned part draws an image: " + JSON.stringify(before));
+
+    const mark0 = d.mark();
+    const opened = await press(d, say("Sign"), "[data-question='review_signoff']");
+    await pause(300);
+    const b0 = await box();
+    const sign0 = b0 ? b0.buttons.find((x) => x.text === say("Sign")) : null;
+    check("filed-signature/the-box-is-drawn",
+      opened && !!b0 && b0.canvas && b0.width === 420 && b0.height === 160 && b0.white === "rgb(255, 255, 255)"
+        && b0.text.indexOf("Reviewed by") >= 0 && b0.text.indexOf(say("Sign with your mouse or finger")) >= 0
+        && !!sign0 && sign0.off && b0.buttons.some((x) => x.text === say("Clear") && !x.off),
+      !opened ? "no Sign beside the sign-off" : "the box is " + JSON.stringify(b0));
+    const noneSent = d.callsSince(mark0).filter((c) => c.method === "POST" && /\/signoff$/.test(c.path));
+    check("filed-signature/refused-empty", !!sign0 && sign0.off && noneSent.length === 0,
+      "with nothing drawn Sign is " + (sign0 && sign0.off ? "off" : "on") + " and " + noneSent.length + " requests went");
+
+    await d.drawSignature();
+    const b1 = await box();
+    const sign1 = b1 ? b1.buttons.find((x) => x.text === say("Sign")) : null;
+    await press(d, say("Clear"), "[data-signature-box]");
+    await pause(150);
+    const b2 = await box();
+    const sign2 = b2 ? b2.buttons.find((x) => x.text === say("Sign")) : null;
+    check("filed-signature/a-path-turns-sign-on", !!sign1 && !sign1.off && !!sign2 && sign2.off,
+      "after a path Sign is " + (sign1 && !sign1.off ? "on" : "off") + ", after Clear it is " + (sign2 && sign2.off ? "off" : "on"));
+
+    // A refusal from the API, in its own words, with the box still open.
+    stubs.setRefusal({ method: "POST", path: "/signoff", status: 400, code: "forms.signatureRequired", error: lang === "es" ? "Firme antes de enviar" : "Draw your signature before you sign" });
+    await d.drawSignature();
+    await press(d, say("Sign"), "[data-signature-box]");
+    await pause(700);
+    const b3 = await box();
+    check("filed-signature/the-api-refusal-is-in-the-box", !!b3 && b3.refusal === (lang === "es" ? "Firme antes de enviar" : "Draw your signature before you sign"),
+      "the box reads " + JSON.stringify(b3 ? b3.refusal : null) + (b3 ? "" : ", or is gone"));
+    stubs.clearRefusals();
+
+    const mark = d.mark();
+    await press(d, say("Sign"), "[data-signature-box]");
+    await pause(800);
+    const sent = d.callsSince(mark).filter((c) => c.method === "POST" && /\/signoff$/.test(c.path));
+    const body = sent.length ? sent[0].body : null;
+    const sig = body && typeof body.signature === "string" ? body.signature : "";
+    const bytes = Math.floor((sig.split(",")[1] || "").length * 3 / 4);
+    const after = await images();
+    const text = await d.modalText();
+    check("filed-signature/accepted-with-a-pointer-path",
+      sent.length === 1 && body.key === "review_signoff" && sig.indexOf("data:image/png;base64,") === 0 && bytes > 200 && bytes <= 300 * 1024
+        && text.indexOf(say("Not signed")) < 0 && after.some((i) => i.key === "review_signoff" && i.blob) && (await box()) === null,
+      "Sign sent " + sent.length + " requests, key " + JSON.stringify(body ? body.key : null) + ", a signature of " + bytes + " bytes starting " + JSON.stringify(sig.slice(0, 22))
+        + "; afterwards the images are " + JSON.stringify(after) + " and the box is " + ((await box()) ? "still open" : "gone"));
+    await d.closeModal();
+
+    // The box on a phone.
+    stubs.reset();
+    await d.page.setViewportSize({ width: 390, height: 844 });
+    await openLog(d);
+    await pause(400);
+    await press(d, say("Sign"), "[data-question='review_signoff']");
+    await pause(300);
+    const b4 = await box();
+    const g = await geometry(d);
+    check("filed-signature/the-box-fits-a-phone",
+      !!b4 && b4.canvas && b4.width >= b4.boxWidth - 26 && b4.width < 420 && b4.height === 160 && g.over <= 1 && g.small.length === 0,
+      "at 390 the canvas is " + JSON.stringify(b4 ? [b4.width, b4.height, b4.boxWidth] : null) + ", the page runs " + g.over + " off the side, controls under 44: " + JSON.stringify(g.small));
+    await d.closeModal();
+    await d.page.setViewportSize({ width: 1280, height: 900 });
+    stubs.reset();
+  }
+
   inventory.FILED_PHOTO_STATES.forEach((w) => {
     if (!driven.has(w.id)) results.noCase("window", w.id + suffix, w.name);
   });

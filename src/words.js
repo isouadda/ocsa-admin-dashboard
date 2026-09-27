@@ -1355,6 +1355,7 @@ export const WORDS = {
   "Run PDF backfill?\n\nThis sweeps the entire jotform@ocsaco.com inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached.": { es: "\u00bfEjecutar el relleno de PDF?\n\nRecorre toda la bandeja de entrada de jotform@ocsaco.com e incorpora los PDF que todav\u00eda no se hayan capturado. Puede tardar unos minutos. Ejec\u00fatelo de nuevo si el resultado indica que se alcanz\u00f3 el m\u00e1ximo." },
   "Run": { es: "Ejecutar" },
   "Running...": { es: "Ejecutando..." },
+  "Sign with your mouse or finger": { es: "Firme con el mouse o el dedo" },
   "SLA compliance and breaches": { es: "Cumplimiento e incumplimientos del SLA" },
   "SLA compliance by period": { es: "Cumplimiento del SLA por periodo" },
   "SLA compliance trend": { es: "Tendencia del cumplimiento del SLA" },

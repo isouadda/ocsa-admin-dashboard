@@ -636,7 +636,7 @@ function createStubs() {
         maxPhotos: 6, value: SITE_PHOTOS, displayValue: "" },
       { id: "sf-4", key: "filed_signoff", label: "Filed by", half: "agent", type: "signoff",
         signer: "agent", displayValue: "",
-        value: { userId: FILER.id, name: FILER.name, role: FILER.role, at: seed.shift(-1) + "T22:10:00Z" } },
+        value: { userId: FILER.id, name: FILER.name, role: FILER.role, at: seed.shift(-1) + "T22:10:00Z", signature: { id: "sig-filed_signoff" } } },
       { id: "sf-5", key: "reviewed_on", label: "Date reviewed", half: "supervisor", type: "date",
         value: sup.reviewed_on || "", displayValue: sup.reviewed_on ? "March 17, 2026" : "" },
       { id: "sf-6", key: "review_note", label: "What the supervisor found", half: "supervisor",
@@ -1661,7 +1661,15 @@ function createStubs() {
       if (String(r.userId || "") === String(person().id)) return { status: 403, json: { error: "You cannot sign off on your own report" } };
       if (filedState().signed[key]) return { status: 409, json: { error: "This part is already signed" } };
       if (payload.canSign.indexOf(key) < 0) return { status: 403, json: { error: "You cannot sign this part of the form" } };
-      filedState().signed[key] = stampNow();
+      // Step 165: the request carries the signature drawn in the box, a PNG data URL under 300 KB.
+      const sig = body && body.signature;
+      if (typeof sig !== "string" || sig.indexOf("data:image/png;base64,") !== 0) {
+        return { status: 400, json: { error: lang === "es" ? "Firme antes de enviar" : "Draw your signature before you sign", code: "forms.signatureRequired" } };
+      }
+      if (Math.floor((sig.split(",")[1] || "").length * 3 / 4) > 300 * 1024) {
+        return { status: 413, json: { error: lang === "es" ? "La firma pesa demasiado" : "The signature is too large", code: "forms.signatureTooLarge" } };
+      }
+      filedState().signed[key] = Object.assign(stampNow(), { signature: { id: "sig-" + key } });
       return ok(reportPayload(r, lang));
     }
     if (/^\/api\/forms\/responses\/[^/]+\/supervisor$/.test(path) && method === "PATCH") {
@@ -1686,6 +1694,8 @@ function createStubs() {
     // multipart photos and answers the question's photos; a removal answers them too. An upload or a
     // removal is refused with a code on a question that is not a photos question, on one this person
     // may not write, with no photo in it, past maxPhotos, and for a photo that is not there.
+    // Step 165: a stamp's signature, streamed as a PNG.
+    if (/^\/api\/forms\/responses\/[^/]+\/signatures\/[^/]+$/.test(path) && method === "GET") return imageAnswer();
     if (/^\/api\/forms\/responses\/[^/]+\/photos\/[^/]+\/thumb$/.test(path) && method === "GET") return imageAnswer();
     if (/^\/api\/forms\/responses\/[^/]+\/photos\/[^/]+$/.test(path) && method === "GET") return imageAnswer();
     if (/^\/api\/forms\/responses\/[^/]+\/photos\/[^/]+(\/[^/]+)?$/.test(path) && (method === "POST" || method === "DELETE")) {
