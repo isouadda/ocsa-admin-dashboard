@@ -1613,7 +1613,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 220 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -5555,7 +5555,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
   return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-      <SecT t={t} action={tr("Refresh")} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
+      <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={() => loadCalendar()}>{tr("Schedule")}</SecT>
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={() => setView("week")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "week" ? 700 : 500, background: view === "week" ? t.goldBg : "transparent", color: view === "week" ? t.goldText : t.textMut, border: view === "week" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Week")}</button>
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
@@ -11278,7 +11278,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Score")}</div>
               <Inp t={t} placeholder={tr("e.g. 95% or Pass")} value={form.score || ""} onChange={e => setForm({ ...form, score: e.target.value })} /></div>
             <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Administered By")}</div>
-              <Inp t={t} placeholder={tr("e.g. {0}", "Sameerah")} value={form.administered_by || ""} onChange={e => setForm({ ...form, administered_by: e.target.value })} /></div>
+              <Inp t={t} placeholder={tr("e.g. Site supervisor")} value={form.administered_by || ""} onChange={e => setForm({ ...form, administered_by: e.target.value })} /></div>
           </div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Notes (optional)")}</div>
             <textarea value={form.notes || ""} onChange={e => setForm({ ...form, notes: e.target.value })} rows={3} style={{ width: "100%", padding: "9px 12px", borderRadius: 8, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, resize: "vertical" }} /></div>

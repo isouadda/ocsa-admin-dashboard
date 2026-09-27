@@ -1871,6 +1871,7 @@ export const WORDS = {
   "e.g. Office Cleaning": { es: "p. ej. Limpieza de oficinas" },
   "e.g. Offices": { es: "p. ej. Oficinas" },
   "e.g. Restrooms": { es: "p. ej. Ba\u00f1os" },
+  "e.g. Site supervisor": { es: "p. ej. Supervisor del sitio" },
   "e.g. Standard Office Cleaning": { es: "p. ej. Limpieza est\u00e1ndar de oficinas" },
   "e.g. Toilets scrubbed and sanitized": { es: "p. ej. Inodoros tallados y desinfectados" },
   "e.g. Vacuum carpets": { es: "p. ej. Aspirar las alfombras" },

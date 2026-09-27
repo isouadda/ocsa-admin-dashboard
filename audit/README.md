@@ -203,6 +203,13 @@ and the More menu holds its five items and closes on Escape. Windows at 390 and 
 is collapsed whenever the page's own width is under 1,100, read before anything has touched it and
 again on every page.
 
+**Four small things beside the phone.** The `small-things` suite reads, in English at 1280 and 1024
+and in Spanish at 1024, Schedule's Refresh, whose icon path has to be the circular arrow the
+Dashboard's Refresh draws and never the plus; the Staff page's table, which fits its box at 1280 in
+English and at 1024 scrolls inside its own card while the page never scrolls sideways, with the
+table's width against its box noted on every pass; + Add Training's Administered By example, held to
+"e.g. Site supervisor" and its Spanish written out by hand, with no person's first name in it.
+
 **Every staff picker fills for a supervisor.** The staff list the shell reads, `GET /api/users`, is an
 admin's (`manage_staff`), and the stub refuses it to anyone without that capability, the way
 `routes/users.js` does, so a supervisor's people come the way the dashboard reads them since Step 146:
@@ -230,7 +237,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things` and `house-style`.
 
 ## How much is left in English
 
