@@ -1,7 +1,13 @@
 // Every page, signed in as each of four kinds of person.
 //
 // For each page the suite records what is on screen AND what is absent, so a screen that should be
-// hidden and is not fails here. The narrow pass repeats every page at 1024 wide.
+// hidden and is not fails here. The narrow pass repeats every page at 1024 wide. The phone pass, 390
+// wide, reads the shell and every page's first render as the admin and as the supervisor, in light at
+// Standard in English: the body scrolls no wider than the screen, no control is under 44 by 44, the
+// bar holds the menu button, the title on one line and the More button, the drawer opens and closes,
+// and the More menu holds language, text size, notifications, light and dark, and sign out. Windows
+// and the Spanish pass at 390 wait for a later step. At every width the title draws on one line and
+// the panel is collapsed whenever the page's own width is under 1,100.
 "use strict";
 const { englishLeftOn } = require("../lib/english");
 const SPANISH_TODO = require("../spanish-todo.json");
@@ -51,12 +57,15 @@ async function geometry(d) {
     const bar = document.querySelector("div[style*='z-index: 40']");
     let overlap = null;
     if (bar) {
-      const title = bar.querySelector("div > div");
-      const boxes = Array.from(bar.children).map((c) => c.getBoundingClientRect());
-      if (title && boxes.length > 1) {
+      // The phone bar marks its title; the wider bar's title is the first div nested in a div.
+      const title = bar.querySelector("[data-page-title]") || bar.querySelector("div > div");
+      const kids = Array.from(bar.children);
+      const mine = title ? kids.find((c) => c === title || c.contains(title)) : null;
+      if (title && mine) {
         const t = title.getBoundingClientRect();
-        for (let i = 1; i < boxes.length; i += 1) {
-          const b = boxes[i];
+        for (const c of kids) {
+          if (c === mine) continue;
+          const b = c.getBoundingClientRect();
           if (b.width > 0 && t.right > b.left + 1 && t.left < b.right - 1) {
             overlap = Math.round(t.right - b.left) + " pixels into what sits beside it";
             break;
@@ -95,6 +104,82 @@ async function geometry(d) {
       if (unreachable.length > 3) break;
     }
     return { over, overlap, unreachable };
+  });
+}
+
+// How many lines the page title in the top bar takes. Its text is measured as the browser drew it,
+// one rectangle per line, so a title that wrapped reads two whatever its style says.
+async function titleLines(d) {
+  return d.page.evaluate(() => {
+    const bar = document.querySelector("div[style*='z-index: 40']");
+    // The phone bar marks its title; the wider bar's title is the first line of its first box, above
+    // the line that names the company and the role.
+    const first = bar && bar.firstElementChild;
+    const title = bar ? (bar.querySelector("[data-page-title]") || (first && first.firstElementChild)) : null;
+    if (!title) return { lines: 0, text: "" };
+    const range = document.createRange();
+    range.selectNodeContents(title);
+    const tops = new Set();
+    Array.from(range.getClientRects()).forEach((r) => { if (r.width > 0 && r.height > 0) tops.add(Math.round(r.top)); });
+    return { lines: tops.size, text: (title.innerText || "").trim() };
+  });
+}
+
+// Every control a finger can miss: anything that can be pressed or typed into and is drawn under 44
+// by 44 in the page's own pixels. A checkbox or radio is measured by the label that holds it, the way
+// the training suite measures one. What is inside an <svg> is a picture.
+async function smallControls(d) {
+  return d.page.evaluate(() => {
+    const zoom = parseFloat(getComputedStyle(document.querySelector("#root > div")).zoom) || 1;
+    const out = [];
+    document.querySelectorAll("button, input, select, textarea, a[href]").forEach((el) => {
+      if (el.closest("svg")) return;
+      const target = el.type === "checkbox" || el.type === "radio" ? (el.closest("label") || el) : el;
+      const r = target.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return;
+      const w = Math.round(r.width / zoom), h = Math.round(r.height / zoom);
+      if (w < 44 || h < 44) {
+        out.push((el.getAttribute("aria-label") || el.getAttribute("placeholder") || el.getAttribute("title")
+          || (el.innerText || "").trim().slice(0, 24) || el.tagName.toLowerCase()) + " " + w + "x" + h);
+      }
+    });
+    return out;
+  });
+}
+
+// The phone's top bar, with every menu closed: no wider than the screen, the menu button at its left
+// edge, the More button at its right, the marked title between them, and nothing else that can be
+// pressed. A bar that still holds the search box, the bell or the avatar chip has two more buttons.
+async function phoneBar(d) {
+  return d.page.evaluate((w) => {
+    const bar = document.querySelector("div[style*='z-index: 40']");
+    if (!bar) return ["no top bar"];
+    const vw = document.documentElement.clientWidth;
+    const b = bar.getBoundingClientRect();
+    const why = [];
+    if (Math.round(b.width) > vw + 1 || bar.scrollWidth > bar.clientWidth + 1) why.push("the bar is " + Math.round(Math.max(b.width, bar.scrollWidth)) + " wide on a screen " + vw + " wide");
+    const menu = bar.querySelector("button[title='" + w.menu + "']");
+    const more = bar.querySelector("button[title='" + w.more + "']");
+    const title = bar.querySelector("[data-page-title]");
+    if (!menu) why.push("no " + w.menu + " button"); else if (menu.getBoundingClientRect().left > 24) why.push("the " + w.menu + " button starts " + Math.round(menu.getBoundingClientRect().left) + " pixels in");
+    if (!more) why.push("no " + w.more + " button"); else if (more.getBoundingClientRect().right < vw - 24) why.push("the " + w.more + " button ends " + Math.round(vw - more.getBoundingClientRect().right) + " pixels short of the edge");
+    if (!title) why.push("no title");
+    else if (menu && more) {
+      const t = title.getBoundingClientRect();
+      if (t.left < menu.getBoundingClientRect().right - 1 || t.right > more.getBoundingClientRect().left + 1) why.push("the title is not between the two buttons");
+    }
+    const buttons = bar.querySelectorAll("button, input, select").length;
+    if (buttons !== 2) why.push("the bar holds " + buttons + " controls where it should hold the two buttons");
+    return why;
+  }, { menu: d.say("Menu"), more: d.say("More") });
+}
+
+// What the More menu holds, read off the menu itself: its words and its buttons' titles.
+async function moreMenu(d) {
+  return d.page.evaluate(() => {
+    const m = document.querySelector("[role='menu']");
+    if (!m) return null;
+    return { text: (m.innerText || "").replace(/\s+/g, " "), titles: Array.from(m.querySelectorAll("button")).map((b) => b.getAttribute("title") || "").filter(Boolean) };
   });
 }
 
@@ -167,11 +252,16 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
   const light = theme === "light";
   const size = textSize || "standard";
   const spanish = lang === "es";
-  const suffix = (width === "narrow" ? " @1024" : "") + (light ? " light" : "")
+  const phone = width === "phone";
+  const suffix = (width === "narrow" ? " @1024" : phone ? " @390" : "") + (light ? " light" : "")
     + (size === "standard" ? "" : " " + size) + (spanish ? " es" : "");
-  // The Spanish pass reads the screens a supervisor lives in, as the two people who live in them.
-  // The English passes already cover the other width, the other theme and the larger sizes.
-  const people = spanish ? ["admin", "supervisor"] : seed.PERSONAS;
+  // The Spanish pass and the phone pass read the screens a supervisor lives in, as the two people who
+  // live in them. The English passes already cover the other width, the other theme and the larger sizes.
+  const people = spanish || phone ? ["admin", "supervisor"] : seed.PERSONAS;
+  // The five things the More menu holds on a phone, in the words the wider bar uses for them. Light
+  // and dark is one button that names the mode it would switch to.
+  const moreWords = [d.say("Language"), d.say("Text size"), d.say("Notifications"), d.say("Sign Out")];
+  const modeWords = [d.say("Light mode"), d.say("Dark mode")];
 
   for (const persona of people) {
     const who = seed.PERSONA_LABEL[persona];
@@ -179,8 +269,17 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     await d.signIn(persona);
     const isAdmin = seed.PEOPLE[persona].role === "admin";
 
+    // The panel is collapsed whenever the page's own width is under 1,100, read before anything here
+    // has touched it: at 1024 the app collapses it to its icons on its own, and on a phone it is not
+    // drawn until the menu button opens it. Break: raise the breakpoint below 1024; red at 1024.
+    if (width !== "wide") {
+      results.check("page", "nav/" + persona + suffix + "/panel-collapsed-under-1100", await d.panelCollapsed(),
+        "the side panel is open at a width under 1,100");
+    }
+
     // The sidebar, read once per persona: present and absent together. At 1024 the app starts the
-    // sidebar collapsed to one icon per group, so it is expanded first and the labels read there.
+    // sidebar collapsed to one icon per group, so it is expanded first and the labels read there. On
+    // a phone it is the drawer, opened from the menu button.
     await d.expandSidebar();
     const nav = (await d.visibleNavItems()).join(" | ");
     // The manage permissions capability opens Settings, and a person the forms API lets list filed
@@ -192,7 +291,7 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     const allowed = isAdmin ? adminNav : [].concat(opensSettings ? [d.say("Settings")] : [], opensForms ? [d.say("Forms")] : []);
     // The nav labels are read with the panel open. The app collapses it below 1100 on its own, so it
     // is put back before anything is measured, or the page is measured in a state nobody is in.
-    if (width === "narrow") await d.collapseSidebar();
+    if (width === "narrow" || phone) await d.collapseSidebar();
     const missing = allowed.filter((l) => nav.indexOf(l) < 0);
     const present = adminNav.filter((l) => nav.indexOf(l) >= 0 && allowed.indexOf(l) < 0);
     results.check("page", "nav/" + persona + suffix, missing.length === 0 && present.length === 0,
@@ -219,6 +318,48 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
         "the page title runs " + g.overlap);
       results.check("page", id + "/controls-reachable", g.unreachable.length === 0,
         "a control cannot be hit at its own center: " + g.unreachable.join(", "));
+      // The page title draws on one line at every width. Break: let it wrap and give it more words.
+      const tl = await titleLines(d);
+      results.check("page", id + "/title-on-one-line", tl.lines === 1,
+        tl.lines === 0 ? "no page title in the top bar" : "the title " + JSON.stringify(tl.text) + " takes " + tl.lines + " lines");
+      // Under 1,100 the panel stays out of the way on every page.
+      if (width !== "wide") {
+        results.check("page", id + "/panel-collapsed-under-1100", await d.panelCollapsed(),
+          "the side panel is open at a width under 1,100");
+      }
+
+      // The phone: every control is at least 44 by 44, the bar holds its three things, the drawer
+      // opens and closes, and the More menu holds its five. Break: one table given a fixed width is
+      // red on its page; one control fixed at 30 pixels is red; one item dropped from the menu is red.
+      let paint = null;
+      if (phone) {
+        const small = await smallControls(d);
+        results.check("page", id + "/controls-44-by-44", small.length === 0,
+          small.length + " controls under 44 by 44: " + small.slice(0, 5).join(", "));
+        const barWhy = await phoneBar(d);
+        results.check("page", id + "/phone-bar", barWhy.length === 0, barWhy.join("; "));
+
+        const opened = await d.openDrawer();
+        const box = opened ? await d.panelBox() : null;
+        // The panel's paint is read while the drawer is open, since it is not drawn otherwise.
+        if (light && opened) paint = await painted(d);
+        const closed = opened ? await d.closeDrawer() : false;
+        results.check("page", id + "/drawer-opens-and-closes", opened && closed && box && box.width >= 200 && box.height >= box.windowHeight - 1 && box.buttons > 3,
+          !opened ? "the drawer did not open from the " + d.say("Menu") + " button"
+            : !box || box.width < 200 || box.height < box.windowHeight - 1 ? "the drawer is " + (box ? box.width + " by " + box.height : "not drawn") + " on a screen " + (box ? box.windowHeight : "") + " tall"
+              : !box || box.buttons <= 3 ? "the drawer holds " + (box ? box.buttons : 0) + " controls"
+                : "the drawer did not close on Escape");
+
+        const moreOpened = await d.openMoreMenu();
+        const menu = moreOpened ? await moreMenu(d) : null;
+        const holds = (w) => !!menu && (menu.text.indexOf(w) >= 0 || menu.titles.indexOf(w) >= 0);
+        const lacking = moreWords.filter((w) => !holds(w)).concat(modeWords.some(holds) ? [] : [modeWords.join(" or ")]);
+        if (moreOpened) await d.closeMenus();
+        const moreClosed = !(await d.moreMenuOpen());
+        results.check("page", id + "/more-menu-holds-five", moreOpened && lacking.length === 0 && moreClosed,
+          !moreOpened ? "the More menu did not open from the " + d.say("More") + " button"
+            : lacking.length ? "the More menu lacks " + lacking.join(", ") : "the More menu did not close on Escape");
+      }
 
       // Where everything sits at Standard, which every later commit has to match. The boxes are read
       // with the window at the top, since a page reached with it scrolled draws every box higher.
@@ -316,9 +457,10 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
           bodyLen <= 40 ? "the body is only " + bodyLen + " characters" :
           newErrors.length ? "the page threw: " + newErrors[0] : "");
 
-      // Light mode is a different screen, so every page is read for what it paints.
+      // Light mode is a different screen, so every page is read for what it paints. On a phone the
+      // panel's paint was read with the drawer open.
       if (light) {
-        const paint = await painted(d);
+        if (!paint) paint = await painted(d);
         results.check("page", id + "/panel", paint.panel === "#15558F",
           "the side panel paints " + JSON.stringify(paint.panel) + ", expected #15558F");
         results.check("page", id + "/top-bar", paint.top === "#FFFFFF",
@@ -329,9 +471,32 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
     }
   }
 
+  // On a phone the drawer also closes on a pick and on its backdrop, checked once as the last person.
+  // Break: leave the drawer open after a pick; red.
+  if (phone) {
+    await d.goto("overview");
+    let picked = await d.openDrawer();
+    if (picked) {
+      await d.page.evaluate(({ panel, word }) => {
+        const sb = document.querySelector(panel);
+        const b = sb && Array.from(sb.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === word);
+        if (b) b.click();
+      }, { panel: "div[style*='position: fixed'][style*='border-right']", word: d.say("Live Ops") });
+      await d.settle(300);
+    }
+    const closedOnPick = picked && !(await d.drawerOpen());
+    const landed = await d.has(d.say("Live Operations"));
+    results.check("page", "page/drawer-closes-on-a-pick" + suffix, closedOnPick && landed,
+      !picked ? "the drawer did not open" : !closedOnPick ? "the drawer is still open after a pick" : "the pick did not open Live Ops");
+    const again = await d.openDrawer();
+    if (again) { await d.page.mouse.click(330, 500); await d.settle(300); }
+    results.check("page", "page/drawer-closes-on-the-backdrop" + suffix, again && !(await d.drawerOpen()),
+      !again ? "the drawer did not open" : "the drawer is still open after a press on its backdrop");
+  }
+
   // Where the keyboard is, in both themes. The window on Assigned Tasks is the one screen that
   // carries an input, a select, a text area and buttons together.
-  if (width !== "narrow") {
+  if (width === "wide") {
     await d.signOutHard();
     await d.signIn("admin");
     await d.goto("assigned");
@@ -382,8 +547,9 @@ async function run({ d, results, inventory, app, stubs, width, theme, textSize, 
   results.check("page", "page/hash-survives-reload" + suffix, await d.has(d.say("Issue Tracker")),
     "#issues reopens after a reload, which is " + JSON.stringify(d.say("Issue Tracker")) + " in this pass");
 
-  // The nav search box reaches a page without the sidebar.
+  // The nav search box reaches a page without the sidebar. On a phone it sits in the drawer.
   await d.goto("overview");
+  if (phone) await d.openDrawer();
   // The box is found by its own placeholder, in whichever language it is drawn.
   const navSearch = d.page.getByPlaceholder(d.say("Search pages")).first();
   if (await navSearch.count()) {
