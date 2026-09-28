@@ -391,6 +391,23 @@ select offers 037 beside the two customer forms, and a link made for 037 to what
 QR screen and the new row; and the report's window to Version 1, the version it was filed on. Both
 languages.
 
+**A report about a person is in their folder, and a person is picked by name.** Since Step 186 a form
+may name one person question as `aboutPerson`, with an HR folder category, and
+`GET /api/hr/employee-folder/:user_id` sends every filed report of it that names the person, submitted
+or void, as an item with `source: "form"`, its title in both languages, the category, the day filed, who
+filed it and its status. A person answer is stored as `{ userId, name }`, the name read off the account.
+The stub answers the folder, the start, save and send of a builder form's draft, the review, the PDF and
+`POST /api/forms/responses/:id/void` the way `routes/hr.js` and `routes/forms.js` do, each refusal in
+the API's words. The `folder-reports` suite publishes OCSA-FRM-039, a follow-up talk about an employee
+filed under HR - Ongoing / Annual, with one report filed by the supervisor about Tomasz Wisniewski at
+9:10 PM in New York on March 16. It reads that report in his HR Records folder under its category, with
+FRM, the title in the screen's language, Filed form, Filed by and the day, and in the Filed forms card
+of his HR Files tab on Staff Management, with the day it was filed in New York; opens it from each row;
+downloads its PDF from each; voids it from the card's window and reads the Void badge on both rows and
+the folder row's status as the table's word. It then starts the form from Filed forms, searches the
+person question by name, picks, changes, and holds the save to `{ id, name }` of the person picked last
+and the review step and the filed report's window to that name. Both languages.
+
 ## How to run less of it
 
 ```
@@ -405,7 +422,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports` and `house-style`.
 
 ## How much is left in English
 

@@ -464,8 +464,10 @@ function createStubs() {
   // category. The onboarding steps carry the status the folder draws beside them. A training record's
   // and a finished step's date is the day it was done, a DATE, which routes/hr.js sends as
   // new Date(completed_date).toISOString(): midnight UTC of that day, from a server that runs in UTC.
+  // Since Step 186 the list starts with the filed reports about the person, the way routes/hr.js starts
+  // it from formItems.
   const hrFolder = (p) => {
-    const items = [].concat(
+    const items = folderForms(p).concat(
       HR_DOCUMENTS.filter((x) => x.user_id === p.id).map((x) => ({ source: "document", source_id: x.id, title: x.title, category: x.category,
         raw_category_label: null, date: x.created_at, expiry_date: x.expiry_date })),
       HR_TRAINING.filter((x) => x.user_id === p.id).map((x) => ({ source: "training", source_id: x.id, title: x.training_name, category: "training",
@@ -832,6 +834,9 @@ function createStubs() {
   // a version the one every app offers, and a reset takes them back out. Every value is invented.
   //   OCSA-FRM-037  offered in the dashboard and to customers, so it is a customer's form.
   //   OCSA-FRM-038  offered in the staff app alone.
+  //   OCSA-FRM-039  offered in the staff app and the dashboard, and about a person: its person question
+  //                 names the employee, and aboutPerson files every report in that person's HR folder
+  //                 under hr_ongoing, the way version 2 of OCSA-FRM-012 does in data/formRevisions.js.
   const BUILDER_FORMS = {
     "OCSA-FRM-037": { code: "OCSA-FRM-037", version: 1, customer: true, apps: ["dashboard", "customer"], readers: ["view_reports"],
       title: { en: "Lobby walkthrough with the tenant", es: "Recorrido del vest\u00edbulo con el inquilino" },
@@ -846,6 +851,15 @@ function createStubs() {
         { key: "doors_closed", half: "agent", type: "select", required: true, en: "Every dock door closed", es: "Todas las puertas del muelle cerradas",
           options: [{ value: "yes", en: "Yes", es: "S\u00ed" }, { value: "no", en: "No", es: "No" }] },
         { key: "door_note", half: "agent", type: "textarea", required: false, en: "What was found at the doors", es: "Qu\u00e9 se encontr\u00f3 en las puertas" },
+      ] },
+    "OCSA-FRM-039": { code: "OCSA-FRM-039", version: 1, apps: ["portal", "dashboard"], readers: ["view_reports"],
+      aboutPerson: { key: "employee", category: "hr_ongoing" },
+      title: { en: "Follow-up talk", es: "Charla de seguimiento" },
+      fields: [
+        { key: "employee", half: "agent", type: "person", required: true, en: "Employee", es: "Empleado",
+          help: { en: "Pick the person from the list. The name is read from their account.", es: "Elija a la persona de la lista. El nombre se toma de su cuenta." } },
+        { key: "topic", half: "agent", type: "text", required: true, en: "What was talked about", es: "De qu\u00e9 se habl\u00f3" },
+        { key: "next_steps", half: "agent", type: "textarea", required: false, en: "Next steps", es: "Pr\u00f3ximos pasos" },
       ] },
   };
   // A line in the language asked, and English where it has no Spanish, the way helpers/agentForms.js
@@ -864,18 +878,26 @@ function createStubs() {
   const publishedForms = (lang) => Object.keys(BUILDER_FORMS).filter(isPublished).map((code) => builderCatalogForm(BUILDER_FORMS[code], lang));
   // Reports filed on a builder form, which the list and the review window read once the form is
   // published. Each carries the version it was filed on, which the review's draft sends as version
-  // since Step 186 (helpers/formDrafts.js draftView). fr-b1 was filed from the staff app.
+  // since Step 186 (helpers/formDrafts.js draftView). fr-b1 was filed from the staff app. fr-b2 was filed
+  // from the staff app by the supervisor about Tomasz Wisniewski, at 9:10 PM in New York on March 16,
+  // which is March 17 in UTC; a person answer is stored as { userId, name }, the name read off the account.
   const BUILDER_FILINGS = [
     { id: "fr-b1", formCode: "OCSA-FRM-038", version: 1, status: "submitted", siteId: S[2].id, userId: "u-staff-8", source: "portal",
       createdAt: seed.shift(-2) + "T21:40:00Z", submittedAt: seed.shift(-2) + "T21:55:00Z",
       answers: { doors_closed: "no", door_note: "Door 3 would not seal at the bottom." } },
+    { id: "fr-b2", formCode: "OCSA-FRM-039", version: 1, status: "submitted", siteId: S[0].id, userId: "u-sup-1", source: "portal",
+      createdAt: seed.shift(0) + "T00:52:00Z", submittedAt: seed.shift(0) + "T01:10:00Z",
+      answers: { employee: { userId: "u-staff-5", name: "Tomasz Wisniewski" }, topic: "Closing the dock on nights", next_steps: "Walk the dock together on Friday." } },
   ];
+  let builderSeq = 0;
   const builderReports = () => { if (!state.builderReports) state.builderReports = clone(BUILDER_FILINGS); return state.builderReports; };
   const builderReport = (id) => builderReports().find((r) => r.id === id && isPublished(r.formCode)) || null;
   // What a question's answer reads as, helpers/formCatalog.js displayValueFor: a pick's label in the
-  // language asked, the text as it was typed, and nothing for nothing.
+  // language asked, a person picked as the name stored with the answer, the text as it was typed, and
+  // nothing for nothing.
   const builderDisplay = (f, v, lang) => {
     if (v === null || v === undefined || v === "") return null;
+    if (f.type === "person") return v && typeof v === "object" && typeof v.userId === "string" && v.userId && typeof v.name === "string" && v.name.trim() ? v.name.trim() : null;
     const o = (f.options || []).find((x) => x.value === v);
     return o ? builderSay(o, lang) : String(v);
   };
@@ -917,6 +939,70 @@ function createStubs() {
       canVoid: person().role === "admin" && r.status === "submitted",
       canResend: reads && !mine && r.status === "submitted",
     };
+  };
+  // Who may read a report of a builder form, the rule helpers/formDrafts.js mayReadForm keeps: the person
+  // who filed it, and whoever holds one of the form's readers.
+  const builderReadable = (r) => String(r.userId || "") === String(person().id)
+    || (BUILDER_FORMS[r.formCode].readers || []).some((k) => !!effectiveMap(person(), state.overrides[person().id])[k]);
+  // Since Step 186 a person's folder holds every filed report of a form about a person whose answer names
+  // them, the way helpers/formFolder.js folderItems reads them at ocsa-api 94dbe27: submitted or void,
+  // only those the caller may read, each under the category the form's aboutPerson names, in the item
+  // shape every folder item has, with source form, the report's id, the title in both languages, the day
+  // it was filed, who filed it and its status.
+  const folderForms = (p) => builderReports().filter((r) => {
+    const about = BUILDER_FORMS[r.formCode].aboutPerson;
+    const v = about && r.answers ? r.answers[about.key] : null;
+    return isPublished(r.formCode) && (r.status === "submitted" || r.status === "void") && !!v && v.userId === p.id && builderReadable(r);
+  }).map((r) => {
+    const def = BUILDER_FORMS[r.formCode];
+    const filer = (state.staff.find((x) => x.id === r.userId) || {}).name || null;
+    const title = { en: builderSay(def.title, "en"), es: builderSay(def.title, "es") || builderSay(def.title, "en") };
+    return {
+      source: "form", source_id: r.id, responseId: r.id, formCode: r.formCode, formVersion: String(r.version), formTitle: title, title: title.en || r.formCode,
+      category: def.aboutPerson.category, raw_category_label: null, date: r.submittedAt, filedBy: { id: r.userId || null, name: filer }, status: r.status,
+      file_url: null, expiry_date: null, can_relabel: false, notes: null, jotform_form_id: null, jotform_form_title: null, jotform_submission_id: null,
+      submitter_name: filer, category_override: null, document_type: null, training_name: null, training_type: null, score: null,
+      administered_by: null, step_name: null, step_category: null, is_completed: null,
+    };
+  });
+  // The refusals the draft routes of a builder form and the void route answer with, by code, in the
+  // API's words for each language (helpers/words.js at ocsa-api 94dbe27), each with its status.
+  const FORM_REFUSALS = {
+    "forms.draftNotFound": { status: 404, en: "Draft not found", es: "No se encontr\u00f3 el reporte" },
+    "forms.alreadySubmitted": { status: 409, en: "This report was already submitted", es: "Este reporte ya se hab\u00eda enviado" },
+    "forms.answersShape": { status: 400, en: "Send answers as an object of key and value", es: "Env\u00ede las respuestas como un objeto de clave y valor" },
+    "forms.unanswerable": { status: 400, en: "These fields cannot be answered here", es: "Estos campos no se pueden responder aqu\u00ed" },
+    "forms.invalidAnswers": { status: 400, en: "Some answers are not valid", es: "Algunas respuestas no son v\u00e1lidas" },
+    "forms.badPerson": { status: 400, en: "Pick a staff member from the list", es: "Elija a un empleado de la lista" },
+    "forms.requiredUnanswered": { status: 400, en: "Required fields are unanswered", es: "Faltan campos obligatorios por responder" },
+    "forms.reportNotFound": { status: 404, en: "Report not found", es: "No se encontr\u00f3 el reporte" },
+    "access.insufficientPermissions": { status: 403, en: "Insufficient permissions", es: "No tiene permiso para hacer esto" },
+    "forms.alreadyVoid": { status: 409, en: "This report is already void.", es: "Este reporte ya est\u00e1 anulado." },
+    "forms.voidFiledOnly": { status: 409, en: "Only a filed report can be voided.", es: "Solo se puede anular un reporte ya enviado." },
+    "forms.voidReasonRequired": { status: 400, en: "Write why this report is being voided.", es: "Escriba por qu\u00e9 se anula este reporte." },
+    "forms.voidReasonTooLong": { status: 400, en: "Keep the reason to {max} characters or fewer.", es: "Escriba el motivo en {max} caracteres o menos." },
+  };
+  const formRefusal = (code, lang, vars, extra) => {
+    const r = FORM_REFUSALS[code];
+    const words = (lang === "es" ? r.es : r.en).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] !== undefined ? String(vars[k]) : m));
+    return { status: r.status, json: Object.assign({ error: words, code: code }, extra || {}) };
+  };
+  // A person answer, the way helpers/formAnswers.js personOutcome reads one since Step 186: the id a
+  // picker sends, as userId or as id, names an active member of staff who is no client contact, and the
+  // answer is stored as { userId, name } with the name the account holds. Empty clears it, and anything
+  // else is refused.
+  const personOutcome = (raw) => {
+    if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) return { clear: true };
+    const id = typeof raw === "string" ? raw.trim() : raw && typeof raw === "object" && !Array.isArray(raw) ? String(raw.userId || raw.id || "").trim() : "";
+    const u = id ? state.staff.find((x) => x.id === id && x.status === "active" && x.role !== "client_contact") : null;
+    return u ? { value: { userId: u.id, name: [u.first_name, u.last_name].filter(Boolean).join(" ").trim() } } : { invalid: true, reason: "person" };
+  };
+  // Any other answer, strictValue: a pick one of its values, the text as typed, and empty clears it.
+  const plainOutcome = (f, raw) => {
+    if (raw === null || raw === undefined || (typeof raw === "string" && raw.trim() === "")) return { clear: true };
+    if (f.type === "select") return (f.options || []).some((o) => o.value === String(raw).trim()) ? { value: String(raw).trim() } : { invalid: true };
+    if (typeof raw === "object") return { invalid: true };
+    return { value: String(raw).trim() };
   };
   const INCIDENT_FIELDS = (r) => [
     { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
@@ -2357,6 +2443,56 @@ function createStubs() {
       const all = FORM_LIST.map((f) => Object.assign({ fillers: [] }, f, f.titles ? { title: f.titles[said === "es" ? "es" : "en"], titles: undefined } : {})).concat([deskForm(said)]).concat(publishedForms(said));
       return ok({ forms: all.filter((f) => !app || (f.apps || []).indexOf(app) >= 0) });
     }
+    // Step 186: a report started on a published builder form, the way POST /api/forms/:code/drafts starts
+    // one at ocsa-api 94dbe27: one open draft per person per form, source admin when an admin or a
+    // supervisor says so, and the version's catalog form beside the draft.
+    const startCode = /^\/api\/forms\/[^/]+\/drafts$/.test(path) && method === "POST" ? decodeURIComponent(path.split("/")[3]) : "";
+    if (startCode && isPublished(startCode)) {
+      const form = builderCatalogForm(BUILDER_FORMS[startCode], lang);
+      const open = builderReports().find((r) => r.formCode === startCode && r.status === "draft" && r.userId === person().id);
+      if (open) return ok({ draft: builderView(open, lang), form: form, resumed: true });
+      builderSeq += 1;
+      const row = { id: "fr-bn-" + builderSeq, formCode: startCode, version: BUILDER_FORMS[startCode].version, status: "draft", siteId: null, userId: person().id,
+        source: String((body && body.source) || "").trim().toLowerCase() === "admin" && (person().role === "admin" || person().role === "supervisor") ? "admin" : "portal",
+        createdAt: seed.NOW_ISO, submittedAt: null, answers: {} };
+      builderReports().push(row);
+      return created({ draft: builderView(row, lang), form: form, resumed: false });
+    }
+    // Step 186: the draft routes for a report on a builder form, the way routes/forms.js answers them: the
+    // owner's alone, a save checked whole before anything is written, a person read off the account, and
+    // a Send refused with what is missing until every required question is answered.
+    const builderDraft = /^\/api\/forms\/drafts\/[^/]+(\/submit)?$/.test(path) ? builderReports().find((r) => r.id === decodeURIComponent(path.split("/")[4])) : null;
+    if (builderDraft) {
+      const r = builderDraft;
+      const def = BUILDER_FORMS[r.formCode];
+      if (String(r.userId || "") !== String(person().id)) return formRefusal("forms.draftNotFound", lang);
+      if (method === "GET") return ok({ draft: builderView(r, lang), form: builderCatalogForm(def, lang) });
+      if (r.status !== "draft") return formRefusal("forms.alreadySubmitted", lang);
+      if (method === "PATCH") {
+        const answers = body && body.answers;
+        if (!answers || typeof answers !== "object" || Array.isArray(answers)) return formRefusal("forms.answersShape", lang);
+        const unanswerable = [];
+        const invalid = [];
+        const merge = {};
+        Object.keys(answers).forEach((k) => {
+          const f = def.fields.find((x) => x.key === k && x.half === "agent" && !x.prefill);
+          if (!f) { unanswerable.push(k); return; }
+          const out = f.type === "person" ? personOutcome(answers[k]) : plainOutcome(f, answers[k]);
+          if (out.invalid) { invalid.push({ key: k, reason: out.reason || null }); return; }
+          merge[k] = out.clear ? null : out.value;
+        });
+        if (unanswerable.length) return formRefusal("forms.unanswerable", lang, null, { keys: unanswerable });
+        if (invalid.length) return formRefusal(invalid.some((x) => x.reason === "person") ? "forms.badPerson" : "forms.invalidAnswers", lang, null, { keys: invalid.map((x) => x.key) });
+        Object.keys(merge).forEach((k) => { if (merge[k] === null) delete r.answers[k]; else r.answers[k] = merge[k]; });
+        return ok({ draft: builderView(r, lang) });
+      }
+      if (method === "POST" && /\/submit$/.test(path)) {
+        const view = builderView(r, lang);
+        if (view.missing.length) return formRefusal("forms.requiredUnanswered", lang, null, { missing: view.missing, missingFields: view.missingFields });
+        r.status = "submitted"; r.submittedAt = seed.NOW_ISO;
+        return ok({ id: r.id, formCode: r.formCode, status: r.status, submittedAt: r.submittedAt });
+      }
+    }
     // Step 166: the draft routes the portal calls, for a form started at a desk. Since Step 179 the
     // API reads source admin from the body and stores it when an admin or a supervisor starts the
     // form, and portal otherwise (routes/forms.js at ocsa-api 1c3fb42); a save merges the answers, a
@@ -2439,8 +2575,11 @@ function createStubs() {
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
       const rid = path.split("/")[4];
-      const r = INCIDENT_REPORTS.find((x) => x.id === rid) || INCIDENT_REPORTS[0];
-      const name = NOTIFICATION_FORMS[0].code + "-" + String(r.id).slice(0, 8) + ".pdf";
+      // A report on a builder form is named by its own code, the way helpers/formPdf.js filenameFor
+      // names every report.
+      const built = builderReport(rid);
+      const r = built || INCIDENT_REPORTS.find((x) => x.id === rid) || INCIDENT_REPORTS[0];
+      const name = (built ? built.formCode : NOTIFICATION_FORMS[0].code) + "-" + String(r.id).slice(0, 8) + ".pdf";
       const headers = exposeDisposition
         ? { "Content-Disposition": 'attachment; filename="' + name + '"', "Access-Control-Expose-Headers": "Content-Disposition" }
         : { "Content-Disposition": 'attachment; filename="' + name + '"' };
@@ -2459,9 +2598,12 @@ function createStubs() {
     // ocsa-api 1c3fb42 and at 94dbe27: a report that is not there, a caller who is not an admin, a
     // report already void, one that is not filed, no reason and a reason over 500 characters are each
     // refused in that order with the API's code and words. Otherwise the reason, trimmed, is kept, and
-    // the report answers in the read's shape, status void.
+    // the report answers in the read's shape, status void. A report filed on a builder form (Step 186)
+    // carries its status on itself, which the folder, the list and its payload read.
     if (/^\/api\/forms\/responses\/[^/]+\/void$/.test(path) && method === "POST") {
-      const r = anyReport(decodeURIComponent(path.split("/")[4]));
+      const id = decodeURIComponent(path.split("/")[4]);
+      const built = builderReport(id);
+      const r = built || anyReport(id);
       if (!r) return voidRefusal("forms.reportNotFound", 404, lang);
       if (person().role !== "admin") return voidRefusal("access.insufficientPermissions", 403, lang);
       if (statusOf(r) === "void") return voidRefusal("forms.alreadyVoid", 409, lang, null, { status: "void" });
@@ -2470,7 +2612,8 @@ function createStubs() {
       if (!reason) return voidRefusal("forms.voidReasonRequired", 400, lang);
       if (reason.length > VOID_REASON_MAX) return voidRefusal("forms.voidReasonTooLong", 400, lang, { max: VOID_REASON_MAX });
       voided()[r.id] = { reason: reason, by: person().id, at: seed.NOW_ISO };
-      return ok(reportPayload(r, lang));
+      if (built) r.status = "void";
+      return ok(built ? builderPayload(r, lang) : reportPayload(r, lang));
     }
     if (/^\/api\/forms\/responses\/[^/]+\/signoff$/.test(path) && method === "POST") {
       const r = anyReport(path.split("/")[4]);
@@ -3022,7 +3165,7 @@ function createStubs() {
       // above has taken away.
       state.voided = {}; filedSources = false;
       // No builder form published, and the reports filed on them as they were.
-      state.published = []; state.builderReports = null;
+      state.published = []; state.builderReports = null; builderSeq = 0;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};

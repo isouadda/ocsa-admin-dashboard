@@ -49,6 +49,10 @@ const SUITES = [
   // forms published, and a report's version, in both languages.
   { name: "catalog", mod: "./cases/catalog", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Reports about a person since Step 187: HR Records' folder and Staff Management's HR Files, a report's
+  // PDF and its void mark, and the person picker, in both languages.
+  { name: "folder-reports", mod: "./cases/folder-reports", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },
