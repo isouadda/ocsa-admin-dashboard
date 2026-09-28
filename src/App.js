@@ -1408,6 +1408,22 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // as they are written, so no time zone moves the day.
   const fmtDate = d => { if (!d) return tr("Not set"); const dt = typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0]; const [y, m, dy] = dt.split("-"); return new Date(parseInt(y), parseInt(m) - 1, parseInt(dy)).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }); };
 
+  // The Temporary PIN window. Add New Staff is pressed from the list, so the window is drawn from the
+  // list as well as from a profile, and it is there when the save comes back, wherever that is.
+  const addedWindow = added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
+        <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
+        <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
+        <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
+      </div>
+  </div></Mdl>;
+
   // ============================================================
   // PROFILE VIEW
   // ============================================================
@@ -1691,19 +1707,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div></Mdl>}
 
       {/* Modals that need to work inside profile view */}
-      {added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <div style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
-          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
-          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
-        </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
-          <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
-        </div>
-      </div></Mdl>}
+      {addedWindow}
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
@@ -1768,6 +1772,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
+    {addedWindow}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name *")}</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
