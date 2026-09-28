@@ -281,6 +281,10 @@ const ROUTES = {
   "cases/window": {
     open: async (d) => { await d.goto("cases"); return d.clickRow(0); },
   },
+  // Step 181: My alerts, from the name menu once GET /api/notifications/settings has answered.
+  "shell/my-alerts": {
+    open: async (d) => { await d.goto("overview"); await d.openUserMenu(); return d.clickText("My alerts", { anywhere: true, exact: true }); },
+  },
 
   "hr/document-window": {
     open: async (d) => { await d.goto("hr"); await d.clickText("Documents", { exact: false }); return d.clickText("Add Document", { exact: false }); },

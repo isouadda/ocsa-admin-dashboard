@@ -238,6 +238,24 @@ body `{ reason }` and the report reading Void after and on a later read from the
 again on `canResend` and none on the admin's own filing; and a photo whose thumbnail the API refuses,
 whose square reads Photo could not be loaded. Every word is written out in the suite by hand.
 
+**Messages counts what is unread, and a tag, an announcement and a phone alert go where the API says.**
+Since Step 181 Messages lists the general chat and every site chat `GET /api/chat/channels` answers
+above the private conversations, and the side panel draws their total, summed over that route. The stub
+answers the Step 179 routes the way ocsa-api does: the chats with `unreadCount`, read from counts a case
+sets and put back to 0 when a chat is read, the read route, the members route, a send that checks its
+`mentions`, the announcements list, the preview's counts, the send, and `GET` and `PATCH
+/api/notifications/settings`. The `messages` suite reads, in both languages, each chat's count and the
+total on the side panel open and collapsed, and sees a chat's read route posted and the total drop when
+it opens. It opens Tag someone from its button and from a typed @, holds its rows to the members route
+and a search, holds a send to `{ text, mentions }` written out by hand and each tagged name to bold, sees
+a failed send keep the text and a failed load say so, and stacks the list and a conversation at 390 with
+Back. On Announcements it reads what was sent, holds the line under the audience to the preview's counts
+for everyone, a site, a role and chosen people, worked out by hand, holds a send to its body, and sees a
+refused list draw nothing; a supervisor finds the page only when holding `send_announcements` by an
+override. The bell opens a chat notice and a tag on their chat and an announcement on its page. My
+alerts, from the name menu and the phone's More menu, shows the settings the API sent, sends each change
+as a PATCH of its own, held to a body written out by hand, and says so when a change is refused.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -373,7 +391,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages` and `house-style`.
 
 ## How much is left in English
 

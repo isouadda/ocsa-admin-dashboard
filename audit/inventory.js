@@ -30,6 +30,9 @@ const PAGES = [
   { id: "help", label: "Help", expect: "Help", gated: false },
   // Step 185: for a holder of view_help_insights, whom the API names by default among admins only.
   { id: "help-insights", label: "Help insights", expect: "Everyone who asked", gated: true },
+  // Step 181: for a holder of send_announcements, which the API's defaults give admins alone, so it
+  // opens for the admin and the super admin and tells both supervisors it is for admins.
+  { id: "announcements", label: "Announcements", expect: "New announcement", gated: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -118,6 +121,7 @@ const VIEWS = [
   { id: "chat/single", page: "chat", click: null, expect: "Private conversations" },
   { id: "help/single", page: "help", click: null, expect: "Help" },
   { id: "help-insights/single", page: "help-insights", click: null, expect: "Everyone who asked" },
+  { id: "announcements/single", page: "announcements", click: null, expect: "New announcement" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -203,6 +207,10 @@ const WINDOWS = [
 
   // Step 185: a person's questions, opened from Everyone who asked on Help insights.
   { id: "help-insights/person", page: "help-insights", title: "Their questions", lines: [3614] },
+
+  // Step 181: My alerts, which the shell draws from the name menu, and the phone's More menu, on any
+  // page once GET /api/notifications/settings has answered.
+  { id: "shell/my-alerts", page: "overview", title: "My alerts", lines: [3143] },
 
   { id: "cases/window", page: "cases", title: "Case", lines: [13562] },
 

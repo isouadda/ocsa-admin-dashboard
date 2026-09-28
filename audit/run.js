@@ -99,6 +99,10 @@ const SUITES = [
   // then read again, the lines where nothing is left to show, and two quiet refreshes, in both languages.
   { name: "load-failed", mod: "./cases/load-failed", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Messages, tagging, announcements and My alerts since Step 181: the chats' unread counts and the total,
+  // Tag someone, a send's mentions, the preview line, the bell and each PATCH, in both languages.
+  { name: "messages", mod: "./cases/messages", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
   // holder of what guards it, by role or by override, in both languages.
   { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],

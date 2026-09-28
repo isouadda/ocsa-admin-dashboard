@@ -77,6 +77,13 @@ function createStubs() {
     notifications: null,
     settings: null,
     training: null,
+    // Step 179: each chat's unread count for whoever is signed in, by chat id, which a case sets and
+    // reading the chat puts back to 0; the messages sent since the last reset, by chat id; the
+    // announcements as sent; and each person's phone alert settings as they saved them, by id.
+    chatUnread: {},
+    chatSent: {},
+    announcements: null,
+    alertSettings: {},
   };
 
   const person = () => seed.PEOPLE[signedInAs];
@@ -1166,9 +1173,16 @@ function createStubs() {
   ];
   // hand: 4 rows set, over three kinds. One is an outside address, on one form.
 
+  // Step 179: the general chat and every active site's chat, the way GET /api/chat/channels lists them
+  // (routes/chat.js at ocsa-api 1c3fb42): by name, the general chat under the name the API writes it
+  // with, General, and each site's chat under its site's name. Each is answered with unreadCount, read
+  // from state.chatUnread, which is 0 for every chat until a case sets it, so no other suite's side
+  // panel carries a count.
   const CHAT_CHANNELS = [
-    { id: "ch-1", site_id: S[0].id, name: S[0].name, unread: 2, last_message_at: seed.shift(0) + "T21:00:00Z" },
-    { id: "ch-2", site_id: S[1].id, name: S[1].name, unread: 0, last_message_at: seed.shift(-2) + "T13:00:00Z" },
+    { id: "ch-general", type: "general", name: "General", siteId: null, siteName: null, lastMessageAt: seed.shift(0) + "T22:40:00Z" },
+    { id: "ch-1", type: "site", name: S[0].name, siteId: S[0].id, siteName: S[0].name, lastMessageAt: seed.shift(0) + "T21:05:00Z" },
+    { id: "ch-2", type: "site", name: S[1].name, siteId: S[1].id, siteName: S[1].name, lastMessageAt: seed.shift(-2) + "T13:00:00Z" },
+    { id: "ch-3", type: "site", name: S[2].name, siteId: S[2].id, siteName: S[2].name, lastMessageAt: null },
   ];
   // text is what Messages and a site's chat draw. The last one is a word the word table carries, so a
   // message sent through the table by mistake would come back as another word.
@@ -1177,12 +1191,48 @@ function createStubs() {
     { id: "cm-2", senderId: "u-admin-1", senderName: "Dana Whitlock", senderRole: "admin", body: "Thank you, logged.", text: "Thank you, logged.", sentAt: seed.shift(0) + "T21:00:00Z" },
     { id: "cm-3", senderId: "u-staff-5", senderName: "Tomasz Wisniewski", senderRole: "custodial_lead", body: "Done", text: "Done", sentAt: seed.shift(0) + "T21:05:00Z" },
   ];
+  // What each chat holds. The first site's chat and Tomasz's private chat hold the messages above, the
+  // site's chat because a site's profile reads the same chat. A message that tags somebody carries the
+  // text as typed, @Name in it, and mentions, the people it tags as [{ id, name }], the way GET
+  // /api/chat/channels/:id/messages answers every message since Step 179.
+  const CHAT_THREADS = {
+    "ch-general": [
+      { id: "cm-g1", senderId: "u-sup-1", senderName: "Marcus Ferreira", senderRole: "supervisor", text: "@Yuki Tanabe the south stairwell needs a second pass tonight.", sentAt: seed.shift(0) + "T22:30:00Z", mentions: [{ id: "u-staff-9", name: "Yuki Tanabe" }] },
+      { id: "cm-g2", senderId: "u-staff-9", senderName: "Yuki Tanabe", senderRole: "custodial_lead", text: "On it after the lobby.", sentAt: seed.shift(0) + "T22:40:00Z", mentions: [] },
+    ],
+    "ch-1": CHAT_MESSAGES,
+    "ch-2": [{ id: "cm-l1", senderId: "u-staff-6", senderName: "Ngozi Okonkwo", senderRole: "custodial_laborer", text: "Restrooms restocked.", sentAt: seed.shift(-2) + "T13:00:00Z", mentions: [] }],
+    "ch-3": [],
+    "dm-1": CHAT_MESSAGES,
+    "dm-2": [{ id: "cm-d1", senderId: "u-staff-6", senderName: "Ngozi Okonkwo", senderRole: "custodial_laborer", text: "Restrooms restocked.", sentAt: seed.shift(-2) + "T13:00:00Z", mentions: [] }],
+  };
 
+  // The private chats, in the shape GET /api/chat/dm-inbox answers, each with unreadCount from
+  // state.chatUnread. For an admin or a supervisor GET /api/chat/channels lists them too, as admin_dm.
   const DM_INBOX = [
-    { channelId: "dm-1", staffId: "u-staff-5", staffName: "Tomasz Wisniewski", staffRole: "custodial_lead", lastMessage: "Lobby is done for the night.", lastAt: seed.shift(0) + "T20:45:00Z", unread: 1 },
-    { channelId: "dm-2", staffId: "u-staff-6", staffName: "Ngozi Okonkwo", staffRole: "custodial_laborer", lastMessage: "Restrooms restocked.", lastAt: seed.shift(-2) + "T13:00:00Z", unread: 0 },
+    { channelId: "dm-1", staffUserId: "u-staff-5", staffName: "Tomasz Wisniewski", staffRole: "custodial_lead", lastMessage: "Done", lastMessageAt: seed.shift(0) + "T21:05:00Z", lastSenderId: "u-staff-5" },
+    { channelId: "dm-2", staffUserId: "u-staff-6", staffName: "Ngozi Okonkwo", staffRole: "custodial_laborer", lastMessage: "Restrooms restocked.", lastMessageAt: seed.shift(-2) + "T13:00:00Z", lastSenderId: "u-staff-6" },
   ];
-  // hand: 2 private conversations, 1 unread.
+  // hand: 2 private conversations. With no count set, every chat reads 0 unread.
+
+  // Step 179: the people who have turned phone alerts on, one entry per person holding a subscription,
+  // the way push_subscriptions holds them. An announcement's withPush counts its people found here.
+  const PUSH_ON = ["u-sup-1", "u-staff-5", "u-staff-7", "u-staff-9"];
+  // Two announcements sent before the clock, newest first, in the shape routes/announcements.js
+  // answers: each language's title and body, the audience as it was named, who sent it, when, and the
+  // counts it reached then.
+  // hand: an audience is every active account that is not a test account: the 12 staff rows less the
+  // pending one, the inactive one and the test account, 9 people. Everyone reaches those 9, of whom
+  // Marcus, Tomasz, Elena and Yuki have a phone on, 4. The third site's people are Priya, Ngozi and
+  // Yuki, 3, one of them with a phone on.
+  const ANNOUNCEMENTS = [
+    { id: "an-2", title: { en: "Dock A closed for repairs", es: "Muelle A cerrado por reparaciones" },
+      body: { en: "Use the side door by the break room until Friday.", es: "Use la puerta lateral junto a la sala de descanso hasta el viernes." },
+      audience: { type: "site", siteId: S[2].id }, sentBy: { id: "u-admin-1", name: "Dana Whitlock" }, sentAt: seed.shift(-1) + "T15:00:00Z", recipients: 3, withPush: 1, translated: true },
+    { id: "an-1", title: { en: "New floor pads arrive Monday", es: "Las almohadillas nuevas llegan el lunes" },
+      body: { en: "Pick yours up from the supply room at the start of your shift.", es: "Recoja las suyas en el cuarto de suministros al empezar su turno." },
+      audience: { type: "all" }, sentBy: { id: "u-super-1", name: "Oyelaran Adebayo" }, sentAt: seed.shift(-6) + "T14:00:00Z", recipients: 9, withPush: 4, translated: true },
+  ];
 
   const SHIFT_SESSIONS = {
     date: seed.TODAY,
@@ -1201,6 +1251,110 @@ function createStubs() {
   };
   // hand: 4 people started today, which is OVERVIEW.clockedInNow. Each carries the role
   // routes/shiftSessions.js reads off the person, the seed's role for them.
+
+  // ---- Step 179: chats, announcements and phone alert settings --------------------------------
+  // The API's own words for each refusal these routes make (helpers/words.js at ocsa-api 1c3fb42),
+  // answered in the language the call asked for, the way errorBody answers them.
+  const STEP179_WORDS = {
+    "chat.notFound": { en: "This chat was not found.", es: "No se encontr\u00f3 este chat." },
+    "chat.noAccess": { en: "You do not have access to this chat.", es: "No tiene acceso a este chat." },
+    "chat.textRequired": { en: "Type a message first.", es: "Escriba un mensaje primero." },
+    "chat.textTooLong": { en: "This message is too long. Keep it to {max} characters or fewer.", es: "Este mensaje es demasiado largo. Use {max} caracteres o menos." },
+    "chat.mentionNotMember": { en: "One of the people tagged is not in this chat.", es: "Una de las personas etiquetadas no est\u00e1 en este chat." },
+    "chat.tooManyMentions": { en: "Tag at most {max} people in one message.", es: "Etiquete como m\u00e1ximo {max} personas en un mensaje." },
+    "access.insufficientPermissions": { en: "Insufficient permissions", es: "No tiene permiso para hacer esto" },
+    "announcements.titleRequired": { en: "Write a title.", es: "Escriba un t\u00edtulo." },
+    "announcements.bodyRequired": { en: "Write the announcement.", es: "Escriba el anuncio." },
+    "announcements.titleTooLong": { en: "Keep the title to {max} characters or fewer.", es: "Escriba el t\u00edtulo en {max} caracteres o menos." },
+    "announcements.bodyTooLong": { en: "Keep the announcement to {max} characters or fewer.", es: "Escriba el anuncio en {max} caracteres o menos." },
+    "announcements.audienceInvalid": { en: "Send audience as all, a site, a role or a list of people.", es: "Env\u00ede audience como all, un sitio, un rol o una lista de personas." },
+    "announcements.audienceEmpty": { en: "Nobody would receive this announcement.", es: "Nadie recibir\u00eda este anuncio." },
+    "announcements.siteNotFound": { en: "Site not found", es: "No se encontr\u00f3 el sitio" },
+    "announcements.notFound": { en: "Announcement not found", es: "No se encontr\u00f3 el anuncio" },
+    "notifications.badSetting": { en: "Send chat as all, mentions or off, and schedule, pickups, supplies, issues or forms as true or false",
+      es: "Env\u00ede chat como all, mentions u off, y schedule, pickups, supplies, issues o forms como true o false" },
+  };
+  const refuse179 = (status, key, lang, vars, extra) => ({ status, json: Object.assign({
+    error: STEP179_WORDS[key][lang === "es" ? "es" : "en"].replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? String(vars[k]) : m)), code: key }, extra || {}) });
+  const holds = (who, cap) => !!who.isSuperAdmin || !!effectiveMap(who, state.overrides[who.id])[cap];
+  const manages = (who) => who.role === "admin" || who.role === "supervisor";
+  const fullName = (p) => [p.first_name || p.firstName, p.last_name || p.lastName].filter(Boolean).join(" ");
+  const byName = (a, b) => ((a.first_name || "") + " " + (a.last_name || "") + " " + a.id < (b.first_name || "") + " " + (b.last_name || "") + " " + b.id ? -1 : 1);
+  // Every account a chat's members and an announcement's audience are drawn from: each active account
+  // that is neither a test account nor a client contact.
+  const reachable = () => state.staff.filter((p) => p.status === "active" && !p.isTestAccount && p.role !== "client_contact");
+  const assignedAt = (siteId) => (p) => (p.sites || []).some((x) => x.siteId === siteId);
+  const activeSite = (siteId) => state.sites.some((x) => x.id === siteId && x.status === "active");
+  const chatUnreadOf = (id) => Number(state.chatUnread[id]) || 0;
+  const ownChatId = (who) => "dm-own-" + who.id;
+  // The chat an id names, in the columns helpers/chatAccess.js reads, or null for one there is not.
+  const chatById = (id) => {
+    const c = CHAT_CHANNELS.find((x) => x.id === id);
+    if (c) return c;
+    const dm = DM_INBOX.find((x) => x.channelId === id);
+    if (dm) return { id: dm.channelId, type: "admin_dm", name: dm.staffName, dmUserId: dm.staffUserId };
+    const me = person();
+    return id === ownChatId(me) && me.role !== "admin" ? { id, type: "admin_dm", name: "Admin (Private)", dmUserId: me.id } : null;
+  };
+  // Who may read a chat, canAccessChannel's rule: the general chat anyone; a site's chat while the site
+  // is active, for an admin, a supervisor or someone assigned there; a private chat its owner, and
+  // any admin or supervisor.
+  const canReadChat = (who, ch) => {
+    if (ch.type === "general") return true;
+    if (ch.type === "site") return activeSite(ch.siteId) && (manages(who) || state.staff.some((p) => p.id === who.id && assignedAt(ch.siteId)(p)));
+    return manages(who) || ch.dmUserId === who.id;
+  };
+  // The chat an address names, or the refusal a read of it answers.
+  const chatFor = (path, lang) => {
+    const ch = chatById(decodeURIComponent(path.split("/")[4] || ""));
+    if (!ch) return { refusal: refuse179(404, "chat.notFound", lang) };
+    if (!canReadChat(person(), ch)) return { refusal: refuse179(403, "chat.noAccess", lang) };
+    return { ch };
+  };
+  // Everyone who can read a chat, membersOf's rule, sorted by name: the general chat everyone; a
+  // site's chat the admins and supervisors, the people assigned to the site and anyone with a shift
+  // open there; a private chat its owner and every admin and supervisor.
+  // hand: the first site's chat holds Marcus, Priya and Oyelaran, who manage; Dana, Oyelaran and Elena,
+  // who are assigned there, the test account left out; and Tomasz and Yuki, who have a shift open
+  // there. Six people besides Dana, who is left out of her own list.
+  const chatMembers = (ch) => {
+    const open = (((shiftSessions || SHIFT_SESSIONS).sites || []).find((x) => x.siteId === ch.siteId) || { people: [] }).people.map((p) => p.userId);
+    return reachable().filter((p) => ch.type === "general"
+      || (ch.type === "site" && activeSite(ch.siteId) && (manages(p) || assignedAt(ch.siteId)(p) || open.indexOf(p.id) >= 0))
+      || (ch.type === "admin_dm" && (p.id === ch.dmUserId || manages(p)))).sort(byName);
+  };
+  // A message as GET /api/chat/channels/:id/messages answers it.
+  const chatMessage = (m) => ({ id: m.id, senderId: m.senderId, senderName: m.senderName, senderRole: m.senderRole, text: m.text, sentAt: m.sentAt,
+    isEdited: false, isPinned: false, mentions: Array.isArray(m.mentions) ? m.mentions : [] });
+  let chatSeq = 0;
+  // The people an audience names, the way routes/announcements.js reads it off a body or a query, or
+  // the refusal it answers.
+  const audienceOf = (a, lang) => {
+    const s = a && typeof a === "object" ? a : {};
+    const type = String(s.type || "");
+    if (["all", "site", "role", "users"].indexOf(type) < 0) return { refusal: refuse179(400, "announcements.audienceInvalid", lang) };
+    if (type === "all") return { audience: { type }, people: reachable() };
+    if (type === "site") {
+      const siteId = String(s.siteId || "");
+      if (!state.sites.some((x) => x.id === siteId)) return { refusal: refuse179(404, "announcements.siteNotFound", lang) };
+      return { audience: { type, siteId }, people: reachable().filter(assignedAt(siteId)) };
+    }
+    if (type === "role") {
+      const role = String(s.role || "");
+      if (["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "client_contact", "contractor"].indexOf(role) < 0) return { refusal: refuse179(400, "announcements.audienceEmpty", lang) };
+      return { audience: { type, role }, people: reachable().filter((p) => p.role === role) };
+    }
+    const raw = Array.isArray(s.userIds) ? s.userIds : String(s.userIds || "").split(",");
+    const ids = [];
+    raw.forEach((v) => { const id = String(v == null ? "" : v).trim(); if (id && ids.indexOf(id) < 0) ids.push(id); });
+    if (!ids.length) return { refusal: refuse179(400, "announcements.audienceEmpty", lang) };
+    return { audience: { type, userIds: ids }, people: reachable().filter((p) => ids.indexOf(p.id) >= 0) };
+  };
+  const withPushOf = (people) => people.filter((p) => PUSH_ON.indexOf(p.id) >= 0).length;
+  const announcementList = () => state.announcements || (state.announcements = clone(ANNOUNCEMENTS));
+  let annSeq = 0;
+  // A person's phone alert settings, settingsFromRow's defaults under what they saved (helpers/push.js).
+  const alertSettingsOf = (id) => Object.assign({ chat: "all", schedule: true, pickups: true, supplies: true, issues: true, forms: true }, state.alertSettings[id] || {});
 
   // Keyed on task_id, with resolution_status, which is what the Assigned Tasks page reads.
   const ASSIGNED_TASKS = [
@@ -1444,6 +1598,25 @@ function createStubs() {
     if (path === "/api/reports/overview") return ok(seed.OVERVIEW);
     if (path === "/api/hr-cases/queue-count") return ok(CASE_QUEUE);
     if (path === "/api/notifications/unread-count") return ok({ unread: state.notifications ? state.notifications.filter((n) => !n.readAt).length : UNREAD_COUNT });
+    // Step 179: the caller's phone alert settings, GET and PATCH /api/notifications/settings as
+    // routes/notifications.js answers them. A PATCH writes only the keys it carries, and refuses the
+    // whole body when any key or value is wrong, or when it carries none.
+    if (path === "/api/notifications/settings" && method === "GET") return ok(alertSettingsOf(person().id));
+    if (path === "/api/notifications/settings" && method === "PATCH") {
+      const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+      const patch = {};
+      const bad = [];
+      Object.keys(b).forEach((k) => {
+        if (k === "chat" && ["all", "mentions", "off"].indexOf(b.chat) >= 0) patch.chat = b.chat;
+        else if (["schedule", "pickups", "supplies", "issues", "forms"].indexOf(k) >= 0 && typeof b[k] === "boolean") patch[k] = b[k];
+        else bad.push(k);
+      });
+      if (bad.length || !Object.keys(patch).length) {
+        return refuse179(400, "notifications.badSetting", lang, null, { keys: bad.length ? bad : ["chat", "schedule", "pickups", "supplies", "issues", "forms"] });
+      }
+      state.alertSettings[person().id] = Object.assign({}, state.alertSettings[person().id] || {}, patch);
+      return ok(alertSettingsOf(person().id));
+    }
     if (path === "/api/notifications" && method === "GET") {
       if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
       return ok({ notifications: state.notifications, unread: state.notifications.filter((n) => !n.readAt).length });
@@ -2366,10 +2539,115 @@ function createStubs() {
     if (path.startsWith("/api/notification-recipients")) return ok({ message: "Recipient saved" });
 
     // --- messages ---------------------------------------------------------
-    if (path === "/api/chat/dm-inbox") return ok(DM_INBOX);
-    if (path.startsWith("/api/chat/channels/")) {
-      if (method !== "GET") return ok({ message: "Sent" });
-      return ok(CHAT_MESSAGES);
+    // The private chats, for an admin or a supervisor, managementOnly's rule, each with its unread count.
+    if (path === "/api/chat/dm-inbox" && method === "GET") {
+      if (!manages(person())) return refuse179(403, "access.insufficientPermissions", lang);
+      return ok(DM_INBOX.map((dm) => Object.assign({}, dm, { unreadCount: chatUnreadOf(dm.channelId) })));
+    }
+    // Step 179, GET /api/chat/channels as routes/chat.js answers it: the general chat and each active
+    // site's chat by name; for an admin or a supervisor every other person's private chat, newest
+    // first; then the caller's own private chat, which the API writes for everyone except an admin.
+    // Each with unreadCount.
+    if (path === "/api/chat/channels" && method === "GET") {
+      const me = person();
+      const out = CHAT_CHANNELS.filter((c) => c.type === "general" || activeSite(c.siteId)).slice().sort((a, b) => (a.name < b.name ? -1 : 1))
+        .map((c) => Object.assign({}, c, { unreadCount: chatUnreadOf(c.id) }));
+      if (manages(me)) {
+        DM_INBOX.filter((dm) => dm.staffUserId !== me.id).slice().sort((a, b) => (a.lastMessageAt < b.lastMessageAt ? 1 : -1)).forEach((dm) => out.push({
+          id: dm.channelId, type: "admin_dm", name: dm.staffName, staffUserId: dm.staffUserId, unreadCount: chatUnreadOf(dm.channelId), lastMessage: dm.lastMessage, lastMessageAt: dm.lastMessageAt }));
+      }
+      if (me.role !== "admin") out.push({ id: ownChatId(me), type: "admin_dm", name: "Admin (Private)", unreadCount: chatUnreadOf(ownChatId(me)), lastMessageAt: null });
+      return ok(out);
+    }
+    // POST /api/chat/channels/:id/read: the chat is read up to now for the caller, and the caller's chat
+    // notice for it is marked read. A tag notice stays.
+    if (/^\/api\/chat\/channels\/[^/]+\/read$/.test(path) && method === "POST") {
+      const found = chatFor(path, lang);
+      if (found.refusal) return found.refusal;
+      state.chatUnread[found.ch.id] = 0;
+      (state.notifications || []).forEach((n) => { if (n.subjectType === "chat" && n.subjectId === found.ch.id && !n.readAt) n.readAt = seed.NOW_ISO; });
+      return ok({ ok: true });
+    }
+    // GET /api/chat/channels/:id/members: whom a message here may tag, the caller left out.
+    if (/^\/api\/chat\/channels\/[^/]+\/members$/.test(path) && method === "GET") {
+      const found = chatFor(path, lang);
+      if (found.refusal) return found.refusal;
+      return ok({ members: chatMembers(found.ch).filter((p) => p.id !== person().id).map((p) => ({ id: p.id, name: fullName(p), role: p.role })) });
+    }
+    // GET /api/chat/channels/:id/messages, oldest first, which moves the caller's read receipt to now
+    // the way the API's read of a chat does.
+    if (/^\/api\/chat\/channels\/[^/]+\/messages$/.test(path) && method === "GET") {
+      const found = chatFor(path, lang);
+      if (found.refusal) return found.refusal;
+      state.chatUnread[found.ch.id] = 0;
+      return ok((CHAT_THREADS[found.ch.id] || []).concat(state.chatSent[found.ch.id] || []).map(chatMessage));
+    }
+    // POST /api/chat/channels/:id/messages { text, mentions? }: the text as typed, and the ids it tags,
+    // each an active person who can read the chat other than the sender, ten at most, a repeat counted
+    // once. The answer names each person tagged, by name.
+    if (/^\/api\/chat\/channels\/[^/]+\/messages$/.test(path) && method === "POST") {
+      const b = body || {};
+      if (typeof b.text !== "string" || !b.text.trim()) return refuse179(400, "chat.textRequired", lang);
+      if (b.text.trim().length > 2000) return refuse179(400, "chat.textTooLong", lang, { max: 2000 });
+      const found = chatFor(path, lang);
+      if (found.refusal) return found.refusal;
+      const me = person();
+      const raw = b.mentions == null ? [] : b.mentions;
+      if (!Array.isArray(raw)) return refuse179(400, "chat.mentionNotMember", lang, null, { keys: [] });
+      const ids = [];
+      raw.forEach((v) => { const id = String(v == null ? "" : v); if (ids.indexOf(id) < 0) ids.push(id); });
+      if (ids.length > 10) return refuse179(400, "chat.tooManyMentions", lang, { max: 10 });
+      const inChat = chatMembers(found.ch).map((p) => p.id);
+      const outside = ids.filter((id) => id === me.id || inChat.indexOf(id) < 0);
+      if (outside.length) return refuse179(400, "chat.mentionNotMember", lang, null, { keys: outside });
+      chatSeq += 1;
+      const message = { id: "cm-sent-" + chatSeq, senderId: me.id, senderName: me.firstName + " " + me.lastName, senderRole: me.role, text: b.text.trim(), sentAt: seed.NOW_ISO,
+        mentions: state.staff.filter((p) => ids.indexOf(p.id) >= 0).sort(byName).map((p) => ({ id: p.id, name: fullName(p) })) };
+      state.chatSent[found.ch.id] = (state.chatSent[found.ch.id] || []).concat([message]);
+      return created({ message });
+    }
+    // Step 179, routes/announcements.js, for a holder of send_announcements. Named routes first.
+    if (path.startsWith("/api/announcements")) {
+      const me = person();
+      const one = /^\/api\/announcements\/([^/]+)$/.exec(path);
+      if (one && one[1] !== "preview" && method === "GET") {
+        const row = announcementList().find((a) => a.id === decodeURIComponent(one[1]));
+        const received = (state.notifications || []).some((n) => n.subjectType === "announcement" && row && n.subjectId === row.id);
+        if (!row || (!holds(me, "send_announcements") && !received)) return refuse179(404, "announcements.notFound", lang);
+        return ok({ announcement: row });
+      }
+      if (!holds(me, "send_announcements")) return refuse179(403, "access.insufficientPermissions", lang);
+      // GET /api/announcements/preview?type=&siteId=&role=&userIds=a,b: how many people the audience
+      // reaches and how many of them have a phone on.
+      if (path === "/api/announcements/preview" && method === "GET") {
+        const read = audienceOf({ type: q("type"), siteId: q("siteId"), role: q("role"), userIds: q("userIds") }, lang);
+        if (read.refusal) return read.refusal;
+        return ok({ recipients: read.people.length, withPush: withPushOf(read.people) });
+      }
+      // GET /api/announcements: the last hundred, newest first.
+      if (path === "/api/announcements" && method === "GET") {
+        return ok({ announcements: announcementList().slice().sort((a, b) => (a.sentAt === b.sentAt ? (a.id < b.id ? 1 : -1) : a.sentAt < b.sentAt ? 1 : -1)).slice(0, 100) });
+      }
+      // POST /api/announcements { title, body, audience, locale? }. The API writes the other language
+      // with its translator; the stub has none, so both languages carry the text as written, which is
+      // what the API stores when a translation fails.
+      if (path === "/api/announcements" && method === "POST") {
+        const b = body || {};
+        const title = typeof b.title === "string" ? b.title.replace(/\s+/g, " ").trim() : "";
+        const text = typeof b.body === "string" ? b.body.trim() : "";
+        if (!title) return refuse179(400, "announcements.titleRequired", lang);
+        if (!text) return refuse179(400, "announcements.bodyRequired", lang);
+        if (title.length > 60) return refuse179(400, "announcements.titleTooLong", lang, { max: 60 });
+        if (text.length > 500) return refuse179(400, "announcements.bodyTooLong", lang, { max: 500 });
+        const read = audienceOf(b.audience, lang);
+        if (read.refusal) return read.refusal;
+        if (!read.people.length) return refuse179(400, "announcements.audienceEmpty", lang);
+        annSeq += 1;
+        const row = { id: "an-new-" + annSeq, title: { en: title, es: title }, body: { en: text, es: text }, audience: read.audience,
+          sentBy: { id: me.id, name: me.firstName + " " + me.lastName }, sentAt: seed.NOW_ISO, recipients: read.people.length, withPush: withPushOf(read.people), translated: false };
+        announcementList().push(row);
+        return created({ announcement: row });
+      }
     }
     if (path.startsWith("/api/agent/conversations/")) return ok({ messages: agentConversation(decodeURIComponent(path.slice("/api/agent/conversations/".length))) });
     // The streaming route is written by audit/stream.js, which the harness sends the browser to.
@@ -2617,6 +2895,11 @@ function createStubs() {
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};
       openSessions = {};
+      // Step 179: no chat unread and nothing sent, the announcements as seeded, the alert settings on
+      // their defaults.
+      state.chatUnread = {}; state.chatSent = {}; chatSeq = 0;
+      state.announcements = null; annSeq = 0;
+      state.alertSettings = {};
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
