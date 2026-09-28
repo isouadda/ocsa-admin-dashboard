@@ -1676,7 +1676,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.entry?.metadata && Object.keys(tlDetail.entry.metadata).length > 0 && <div>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6, marginTop: 12 }}>{tr("Available Metadata")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(v)}</span></div>)}
+              {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(valueOf(k, v))}</span></div>)}
             </div>
           </div>}
         </div>}
