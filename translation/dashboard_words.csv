@@ -2343,3 +2343,8 @@ Staff and training,Personal y capacitación,"Service category, HR"
 Issues,Problemas,"Reports, the issue report's group heading"
 e.g. Issues,p. ej. Problemas,"Report editor, Category placeholder"
 {0} (copy),{0} (copia),"Reports, a duplicated report's name"
+This did not load.,Esto no se cargó.,Any card or tab whose read failed
+Could not load staff.,No se pudo cargar el personal.,Staff Management
+No issues in this state.,No hay problemas en este estado.,"Issue Tracker, a chip with no rows"
+No staff to show for this filter.,No hay personal para mostrar con este filtro.,"Schedule, week view"
+Messages did not load.,Los mensajes no se cargaron.,"Messages; Sites, the Chat tab"

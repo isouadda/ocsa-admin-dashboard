@@ -308,6 +308,9 @@ const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) =>
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
 const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
+// A read that failed says so where its rows would have been, with a way to try again, so nothing is
+// blank and nothing spins on. The line is the sheet's for the place when it names one.
+const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec, ...(style || {}) }}>{text || tr("This did not load.")}{onRetry ? <button onClick={onRetry} style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button> : null}</div>;
 const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
@@ -945,13 +948,16 @@ const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? tr("Flo
 function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   const [stats, setStats] = useState(null); const [started, setStarted] = useState([]);
   const [inspSummary, setInspSummary] = useState([]);
+  // Which of the three reads failed last, so each card says so in its own place.
+  const [failed, setFailed] = useState({});
+  const mark = (k, v) => setFailed(f => (f[k] === v ? f : { ...f, [k]: v }));
   const loadDash = () => {
-    af("/api/reports/overview").then(setStats).catch(e => console.warn(e.message));
-    af("/api/shift-sessions/by-site").then(d => setStarted(flattenSessions(d))).catch(e => console.warn(e.message));
-    af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(e => console.warn(e.message));
+    af("/api/reports/overview").then(d => { setStats(d); mark("stats", false); }).catch(e => { mark("stats", true); console.warn(e.message); });
+    af("/api/shift-sessions/by-site").then(d => { setStarted(flattenSessions(d)); mark("started", false); }).catch(e => { mark("started", true); console.warn(e.message); });
+    af("/api/inspections/analytics/dashboard-summary").then(d => { setInspSummary(d); mark("insp", false); }).catch(e => { mark("insp", true); console.warn(e.message); });
   };
   useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
-  if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
+  if (!stats) return failed.stats ? <Crd t={t}><LoadFailed t={t} onRetry={loadDash} /></Crd> : <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
   return (<div>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>{tr("Welcome back, {0}", user?.firstName || tr("Admin"))}</div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>{tr("Operations overview.")}</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> {tr("Refresh")}</button></div>
@@ -962,8 +968,9 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
     </div>
     <SecT t={t}>{tr("Started today")}</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
-      {started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
-      {started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
+      {failed.started && <LoadFailed t={t} onRetry={loadDash} style={{ padding: 0, textAlign: "left" }} />}
+      {!failed.started && started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
+      {!failed.started && started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
         <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
           <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
           <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1}", s.tasksCompleted, s.tasksTotal)}</span></div></div>
@@ -972,7 +979,7 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
       <div style={{ flex: "2 1 340px", minWidth: 0 }}>
         <ChartCard t={t} title={tr("Inspection scores by site")} sub={tr("Most recent inspection per site")} action={tr("View all")} onAction={() => setPage("inspections")}>
-          {inspSummary.length > 0
+          {failed.insp ? <LoadFailed t={t} onRetry={loadDash} style={{ padding: 36 }} /> : inspSummary.length > 0
             ? <BarChartW t={t} name={tr("Score")} categories={inspSummary.map(is => is.site_name)} values={inspSummary.map(is => Math.round(Number(is.score_pct)))} colors={inspSummary.map(is => { const s = Number(is.score_pct); return s >= 80 ? GR : s >= 60 ? OR : RD; })} valueSuffix="%" height={270} />
             : <div style={{ padding: 36, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("No inspections recorded yet.")}</div>}
         </ChartCard>
@@ -1007,7 +1014,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [tlStartDate, setTlStartDate] = useState(""); const [tlEndDate, setTlEndDate] = useState("");
   const [tlDetail, setTlDetail] = useState(null); const [tlDetailLoading, setTlDetailLoading] = useState(false);
 
-  const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
+  // Why the list is empty when it is: the read was refused to this person, or it failed.
+  const [staffFailed, setStaffFailed] = useState(null);
+  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); showToast(e.message, "error"); }); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
   // displayLabel the API sends in that language, a role the list does not hold reads the table's
@@ -1649,6 +1658,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
         { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}<button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
+      if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
@@ -1701,6 +1711,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const [siteChatTotal, setSiteChatTotal] = useState(0);
   const [siteChatChannel, setSiteChatChannel] = useState(null);
   const [siteChatLoading, setSiteChatLoading] = useState(false);
+  const [tlFailed, setTlFailed] = useState(false);
+  const [siteChatFailed, setSiteChatFailed] = useState(false);
   const [showAddSupply, setShowAddSupply] = useState(false);
   const [availableSupplies, setAvailableSupplies] = useState([]);
   const [addSupplyLoading, setAddSupplyLoading] = useState(false);
@@ -1765,7 +1777,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       const d = await af(url);
       setTimeline(append ? prev => [...prev, ...d.entries] : d.entries);
       setTlTotal(d.total);
-    } catch (e) { console.warn("Timeline load error:", e); }
+      setTlFailed(false);
+    } catch (e) { console.warn("Timeline load error:", e); if (!append) setTimeline([]); setTlFailed(true); }
     setTlLoading(false);
   };
 
@@ -1783,7 +1796,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       setSiteChat(d.messages || []);
       setSiteChatTotal(d.total || 0);
       setSiteChatChannel(d.channel);
-    } catch (e) { console.warn("Site chat load error:", e); setSiteChat([]); }
+      setSiteChatFailed(false);
+    } catch (e) { console.warn("Site chat load error:", e); setSiteChat([]); setSiteChatFailed(true); }
     setSiteChatLoading(false);
   };
 
@@ -2271,7 +2285,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>
         </div>
         {siteChatLoading && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("Loading...")}</div>}
-        {!siteChatLoading && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No messages in this site channel")}</div>}
+        {!siteChatLoading && siteChatFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadSiteChat} />}
+        {!siteChatLoading && !siteChatFailed && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No messages in this site channel")}</div>}
         <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{trn("{0} message|count", siteChatTotal)}</div>
         {[...siteChat].reverse().map(m => {
           const dt = new Date(m.sentAt);
@@ -2341,7 +2356,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>);
         })()}
         {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? tr("Loading...") : tr("Load More")}</button>}
-        {!tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No activity recorded for this site")}</div>}
+        {!tlLoading && tlFailed && <LoadFailed t={t} onRetry={() => { setTlOffset(0); loadTimeline(tlCat, 0, false); }} />}
+        {!tlLoading && !tlFailed && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No activity recorded for this site")}</div>}
       </div>}
 
       {/* TIMELINE DETAIL MODAL */}
@@ -2527,7 +2543,8 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
   const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
-  const load = () => af("/api/issues").then(setIssues).catch(e => showToast(e.message, "error"));
+  const [issuesFailed, setIssuesFailed] = useState(false);
+  const load = () => af("/api/issues").then(d => { setIssues(d); setIssuesFailed(false); }).catch(e => { setIssuesFailed(true); showToast(e.message, "error"); });
   useEffect(() => { load(); }, []);
   const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
@@ -2543,7 +2560,9 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}</div>
-    {issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
+    {issuesFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
+    {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
@@ -2628,8 +2647,11 @@ function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkMap, lkHasOth
 
 function ChatPage({ af, user, t }) {
   const [dms, setDms] = useState([]); const [sel, setSel] = useState(null); const [msgs, setMsgs] = useState([]); const [reply, setReply] = useState(""); const [q, setQ] = useState(""); const endRef = useRef(null);
-  useEffect(() => { af("/api/chat/dm-inbox").then(setDms).catch(e => console.warn(e.message)); }, []);
-  const open = async id => { setSel(id); try { const m = await af("/api/chat/channels/" + id + "/messages"); setMsgs(m); } catch (e) { console.error(e); } };
+  const [dmsFailed, setDmsFailed] = useState(false); const [msgsFailed, setMsgsFailed] = useState(false);
+  const loadDms = () => af("/api/chat/dm-inbox").then(d => { setDms(d); setDmsFailed(false); }).catch(e => { setDmsFailed(true); console.warn(e.message); });
+  useEffect(() => { loadDms(); }, []);
+  // A conversation that does not load clears what the last one showed and says so, with a way to try again.
+  const open = async id => { setSel(id); try { const m = await af("/api/chat/channels/" + id + "/messages"); setMsgs(m); setMsgsFailed(false); } catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); } };
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
   useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + sel + "/messages"); setMsgs(m); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const send = async () => { if (!reply.trim() || !sel) return; try { const d = await af("/api/chat/channels/" + sel + "/messages", { method: "POST", body: { text: reply.trim() } }); setMsgs(p => [...p, d.message]); setReply(""); } catch (e) { console.error(e); } };
@@ -2647,7 +2669,8 @@ function ChatPage({ af, user, t }) {
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
-          {filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
+          {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
+          {!dmsFailed && filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" }} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
@@ -2672,7 +2695,8 @@ function ChatPage({ af, user, t }) {
             <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || tr("Conversation")}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-            {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
+            {msgsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={() => open(sel)} style={{ padding: 40 }} />}
+            {!msgsFailed && msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
             {msgs.map((m, i) => { const isMe = m.senderRole === "admin" || m.senderRole === "supervisor"; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
@@ -3560,7 +3584,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   const [sevFilter, setSevFilter] = useState(cfg.filters.severity || "");
   const [bucket, setBucket] = useState(cfg.bucket || "week");
   const [timing, setTiming] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
 
   const slaQuery = () => {
     const s = cfg.sla_targets;
@@ -3576,8 +3600,8 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     if (siteFilter) q += "&site_id=" + siteFilter;
     if (sevFilter) q += "&severity=" + sevFilter;
     af("/api/report-engine/issue-timing" + q)
-      .then(d => { setTiming(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+      .then(d => { setTiming(d); setFailed(false); setLoading(false); })
+      .catch(e => { setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, sevFilter, bucket]);
@@ -3698,6 +3722,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
           </select>
         </div>
         {loading && !timing ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
           !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No issue activity in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
@@ -3770,7 +3795,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
   const [catFilter, setCatFilter] = useState(cfg.filters.category || "");
   const [bucket, setBucket] = useState(cfg.bucket || "week");
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
 
   const load = (range) => {
     const r = range || dateRange;
@@ -3779,8 +3804,8 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
     if (siteFilter) q += "&site_id=" + siteFilter;
     if (catFilter) q += "&category=" + catFilter;
     af("/api/report-engine/supply-usage" + q)
-      .then(d => { setData(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+      .then(d => { setData(d); setFailed(false); setLoading(false); })
+      .catch(e => { setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, catFilter, bucket]);
@@ -3865,6 +3890,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
           </select>
         </div>
         {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
           !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No supply usage in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
@@ -3934,7 +3960,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
   const [scores, setScores] = useState(null);
   const [bySite, setBySite] = useState(null);
   const [lowest, setLowest] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
 
   const load = (range) => {
     const r = range || dateRange;
@@ -3946,8 +3972,8 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
       af("/api/inspections/analytics/site-comparison" + base),
       af("/api/inspections/analytics/lowest-items" + sq + "&limit=10"),
     ]).then(([sc, bs, lw]) => {
-      setScores(sc); setBySite(bs); setLowest(lw); setLoading(false);
-    }).catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+      setScores(sc); setBySite(bs); setLowest(lw); setFailed(false); setLoading(false);
+    }).catch(e => { setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter]);
@@ -4017,6 +4043,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
           </select>
         </div>
         {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
           !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No completed inspections in this range yet.")}</div> :
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
             {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} color={s.color} />)}
@@ -4225,7 +4252,8 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const [issS, setIssS] = useState(null);
   const [exp, setExp] = useState(false);
 
-  const loadDefs = () => af("/api/report-engine/definitions").then(setDefs).catch(e => { setDefs([]); showToast(tr("Could not load reports: {0}", e.message), "error"); });
+  const [defsFailed, setDefsFailed] = useState(false);
+  const loadDefs = () => af("/api/report-engine/definitions").then(d => { setDefs(d); setDefsFailed(false); }).catch(e => { setDefs([]); setDefsFailed(true); showToast(tr("Could not load reports: {0}", e.message), "error"); });
   const loadSnapshots = (range) => {
     const r = range || dateRange;
     const q = "?start_date=" + r.start + "&end_date=" + r.end;
@@ -4285,6 +4313,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
+      defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
       defs.length === 0 ?
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No saved reports yet. Use New report to create one.")}</div></Crd> :
         groupNames.map(cat => (
@@ -4459,7 +4488,8 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const [linkSupply, setLinkSupply] = useState(null);
   const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
 
-  const load = () => af("/api/vendors").then(setVendors).catch(e => showToast(e.message, "error"));
+  const [vendorsFailed, setVendorsFailed] = useState(false);
+  const load = () => af("/api/vendors").then(d => { setVendors(d); setVendorsFailed(false); }).catch(e => { setVendorsFailed(true); showToast(e.message, "error"); });
   useEffect(() => { load(); af("/api/supplies").then(setSupplies).catch(e => console.warn(e.message)); }, []);
 
   const loadDetail = async id => {
@@ -4571,6 +4601,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         { header: tr("Supplies"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => v.linked_supply_count > 0 ? trn("{0} linked|count", v.linked_supply_count) : "-" },
         { header: tr("Actions"), align: "right", render: v => <button title={tr("View vendor")} onClick={e => { e.stopPropagation(); loadDetail(v.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
+      if (vendorsFailed) return <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? tr("No vendors yet. Use Add Vendor to start.") : tr("No vendors match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
@@ -4685,7 +4716,8 @@ function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const [editForm, setEditForm] = useState(null);
   const [linkSite, setLinkSite] = useState(null);
 
-  const load = () => af("/api/services").then(setServices).catch(e => showToast(e.message, "error"));
+  const [servicesFailed, setServicesFailed] = useState(false);
+  const load = () => af("/api/services").then(d => { setServices(d); setServicesFailed(false); }).catch(e => { setServicesFailed(true); showToast(e.message, "error"); });
   useEffect(() => { load(); }, []);
 
   const loadDetail = async id => {
@@ -4775,7 +4807,8 @@ function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
           </div>
         </Crd>
       ))}
-      {services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
+      {servicesFailed && <div style={{ gridColumn: "1 / -1" }}><LoadFailed t={t} onRetry={load} style={{ padding: 40 }} /></div>}
+      {!servicesFailed && services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
     </div>
 
     {detail && <Mdl t={t} onClose={() => setDetail(null)}>
@@ -5335,8 +5368,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     }
   };
 
+  // Loading shows once, before the first calendar arrives. A refresh after that is quiet, and a
+  // read that fails says so in the calendar's place.
+  const calLoaded = useRef(false);
+  const [calFailed, setCalFailed] = useState(false);
   const loadCalendar = async (range) => {
-    setLoading(true);
+    if (!calLoaded.current) setLoading(true);
     const r = range || dateRange;
     loadStarted(r);
     try {
@@ -5348,7 +5385,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       ]);
       setCalData(d);
       setOpenShifts(pk.filter(s => s.status === "open" || s.status === "claimed" || s.status === "requested"));
-    } catch (e) { showToast(e.message, "error"); }
+      calLoaded.current = true;
+      setCalFailed(false);
+    } catch (e) { setCalFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
 
@@ -5517,6 +5556,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 600, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
     </div>
     <div style={{ display: "flex", flexDirection: "column" }}>
+    {pagedStaff.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No staff to show for this filter.")}</div>}
     {pagedStaff.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, alignItems: "stretch", borderBottom: "1px solid " + t.border }}>
       <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, background: t.cardAlt, borderRadius: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={30} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>{staff.role && <div style={{ fontSize: 9, color: t.textMut, textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.role}</div>}</div></div>
       {weekDays.map(d => {
@@ -5611,7 +5651,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>{tr("Show")}</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{tr("{0} staff", nn)}</option>)}</select></div>}
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading schedule...")}</div>}
-    {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+    {!loading && calFailed && <Crd t={t}><LoadFailed t={t} onRetry={() => loadCalendar()} /></Crd>}
+    {!loading && !calFailed && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
       {[{ c: GO, l: tr("Scheduled|shift") }, { c: GR, l: tr("Started") }, { c: t.textMut, l: tr("Open|shift") }, { c: "#F1C40F", l: tr("Drop Req") }, { c: OR, l: tr("Claimed|shift") }, { c: BL, l: tr("Inspection") }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
@@ -5619,8 +5660,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
         </div>
       ))}
     </div>}
-    {!loading && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
-    {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
+    {!loading && !calFailed && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
+    {!loading && !calFailed && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
 
     </>}
 
@@ -5883,8 +5924,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     }
   };
 
+  // Loading shows once, before the first list arrives. A refresh after that is quiet, and a read
+  // that fails says so in the list's place.
+  const pkLoaded = useRef(false);
+  const [pkFailed, setPkFailed] = useState(false);
   const load = async (range) => {
-    setLoading(true);
+    if (!pkLoaded.current) setLoading(true);
     const r = range || dateRange;
     let q = "";
     if (tab === "requested") {
@@ -5920,7 +5965,9 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         setPatternData(pt);
         setReliabilityData(rl);
       }
-    } catch (e) { showToast(e.message, "error"); }
+      pkLoaded.current = true;
+      setPkFailed(false);
+    } catch (e) { setPkFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
 
@@ -6045,9 +6092,10 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     </div>
 
     {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading...")}</div>}
+    {!loading && pkFailed && <Crd t={t}><LoadFailed t={t} onRetry={() => load()} /></Crd>}
 
     {/* SHIFT LIST TABS */}
-    {!loading && tab !== "analytics" && (
+    {!loading && !pkFailed && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
@@ -6074,7 +6122,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     )}
 
     {/* ANALYTICS TAB */}
-    {!loading && tab === "analytics" && analytics && (
+    {!loading && !pkFailed && tab === "analytics" && analytics && (
       <div>
         {/* Analytics sub-tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
@@ -6545,6 +6593,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const [catBreakdown, setCatBreakdown] = useState([]);
   const [lowestItems, setLowestItems] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  // Which read failed last: the templates, the scheduled list, or the analytics.
+  const [inspFailed, setInspFailed] = useState({});
+  const markInsp = (k, v) => setInspFailed(f => (f[k] === v ? f : { ...f, [k]: v }));
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
@@ -6561,7 +6612,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const [inspPerPage, setInspPerPage] = useState(10);
 
   const loadTemplates = useCallback(async () => {
-    try { const d = await af("/api/inspections/templates"); setTemplates(d); } catch (e) { showToast(e.message, "error"); }
+    try { const d = await af("/api/inspections/templates"); setTemplates(d); markInsp("templates", false); } catch (e) { markInsp("templates", true); showToast(e.message, "error"); }
   }, [af]);
 
   const loadScheduled = useCallback(async () => {
@@ -6569,7 +6620,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       const all = await af("/api/inspections/scheduled");
       setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
       setCompleted(all.filter(s => s.status === "completed"));
-    } catch (e) { showToast(e.message, "error"); }
+    markInsp("scheduled", false); } catch (e) { markInsp("scheduled", true); showToast(e.message, "error"); }
   }, [af]);
 
   const loadAnalytics = useCallback(async (range, siteId) => {
@@ -6583,7 +6634,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         af("/api/inspections/analytics/lowest-items" + q),
       ]);
       setScoreTrend(trend); setSiteComp(comp); setCatBreakdown(cats); setLowestItems(low);
-    } catch (e) { showToast(tr("Failed to load analytics: {0}", e.message), "error"); }
+      markInsp("analytics", false);
+    } catch (e) { markInsp("analytics", true); showToast(tr("Failed to load analytics: {0}", e.message), "error"); }
     setAnalyticsLoading(false);
   }, [af]);
 
@@ -6971,7 +7023,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
               ))}
-              {templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>{tr("No templates yet. Create one to get started.")}</div>}
+              {inspFailed.templates && <LoadFailed t={t} onRetry={loadTemplates} />}
+              {!inspFailed.templates && templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>{tr("No templates yet. Create one to get started.")}</div>}
             </div>
           </div>
 
@@ -7057,6 +7110,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
               { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
+            if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
           })()}
         </div>
@@ -7085,6 +7139,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", si.total_score, si.max_possible_score)}</div></div>; } },
               { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
+            if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
         </div>
@@ -7109,8 +7164,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           </div>
 
           {analyticsLoading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading analytics...")}</div>}
+          {!analyticsLoading && inspFailed.analytics && <Crd t={t}><LoadFailed t={t} onRetry={() => loadAnalytics(analyticsRange, analyticsSite)} /></Crd>}
 
-          {!analyticsLoading && (
+          {!analyticsLoading && !inspFailed.analytics && (
             <div>
               {/* SITE COMPARISON BARS */}
               {siteComp.length > 0 && (
@@ -7292,7 +7348,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
 function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [form, setForm] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInput = useRef(null);
@@ -7300,7 +7356,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   const load = async () => {
     setLoading(true);
     try { const d = await af("/api/settings"); setForm(d); }
-    catch (e) { showToast(e.message, "error"); }
+    catch (e) { setFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -7348,6 +7404,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
     setLogoUploading(false);
   };
 
+  if (!loading && failed && !form) return <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>;
   if (loading || !form) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading company settings...")}</div>;
 
   const inp = { padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, width: "100%", boxSizing: "border-box" };
@@ -7793,7 +7850,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   const [editCatForm, setEditCatForm] = useState(null);
   const [addValForm, setAddValForm] = useState(null);
   const [editValForm, setEditValForm] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); const [lkFailed, setLkFailed] = useState(false);
   const [selSite, setSelSite] = useState("");
   const [siteLookups, setSiteLookups] = useState({ zones: [], buildings: [], floors: [] });
   const [siteTab, setSiteTab] = useState("zone");
@@ -7803,7 +7860,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   // with, its displayLabel, under the English it was saved in, which is what Edit changes.
   const showsDisplay = getLang() !== "en";
 
-  const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
+  const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); setLkFailed(false); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { setLkFailed(true); showToast(e.message, "error"); } setLoading(false); };
   useEffect(() => { load(); }, []);
 
   const loadSiteLookups = async (sId) => { if (!sId) return; try { const d = await af("/api/lookups/site/" + sId + "/all"); setSiteLookups(d); } catch (e) { showToast(e.message, "error"); } };
@@ -7907,7 +7964,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
 
       {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
-      {tab === "global" && isAdmin && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+      {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
         <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -9862,6 +9920,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   const [editForm, setEditForm] = useState(null);
   const [detailSub, setDetailSub] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailFailed, setDetailFailed] = useState(false);
+  // Which list's read failed last: forms, submissions or the PDF access log.
+  const [listFailed, setListFailed] = useState({});
+  const markList = (k, v) => setListFailed(f => (f[k] === v ? f : { ...f, [k]: v }));
   const [linkModal, setLinkModal] = useState(null);
   const [fullRefreshModal, setFullRefreshModal] = useState(false);
 
@@ -9949,7 +10011,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (libFilters.search) q.push("search=" + encodeURIComponent(libFilters.search));
       const d = await af("/api/jotform/forms" + (q.length ? "?" + q.join("&") : ""));
       setForms(d);
-    } catch (e) { showToast(tr("Forms load failed: {0}", e.message), "error"); }
+      markList("forms", false);
+    } catch (e) { markList("forms", true); showToast(tr("Forms load failed: {0}", e.message), "error"); }
     setLoading(false);
   }, [af, libFilters, showToast]);
 
@@ -9968,7 +10031,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       setSubmissions(d.submissions || []);
       setSubmissionsTotal(d.total || 0);
       if (resetOffset) setSubOffset(0);
-    } catch (e) { showToast(tr("Submissions load failed: {0}", e.message), "error"); }
+      markList("submissions", false);
+    } catch (e) { markList("submissions", true); showToast(tr("Submissions load failed: {0}", e.message), "error"); }
     setLoading(false);
   }, [af, subFilters, subOffset, showToast]);
 
@@ -9992,7 +10056,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       setPdfAccessLog(d.entries || []);
       setPdfAccessTotal(d.total || 0);
       if (resetOffset) setPdfOffset(0);
-    } catch (e) { showToast(tr("PDF log load failed: {0}", e.message), "error"); }
+      markList("pdfLog", false);
+    } catch (e) { markList("pdfLog", true); showToast(tr("PDF log load failed: {0}", e.message), "error"); }
     setLoading(false);
   }, [af, pdfFilters, pdfOffset, showToast]);
 
@@ -10378,8 +10443,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     setDetailSub(sub); setDetailLoading(true);
     try {
       const d = await af("/api/jotform/submissions/" + sub.id);
-      setDetailSub(d);
-    } catch (e) { showToast(tr("Detail load failed: {0}", e.message), "error"); }
+      setDetailSub(d); setDetailFailed(false);
+    } catch (e) { setDetailFailed(true); showToast(tr("Detail load failed: {0}", e.message), "error"); }
     setDetailLoading(false);
 
     // Load active users for the link-to-user dropdown (one-time, cached for this session)
@@ -10627,7 +10692,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Press Sync Form Catalog under Maintenance to pull your account's forms.")}</div>}
+            {listFailed.forms && <LoadFailed t={t} onRetry={loadForms} style={{ padding: 40 }} />}
+            {!listFailed.forms && forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Press Sync Form Catalog under Maintenance to pull your account's forms.")}</div>}
           </div>
         </div>
       )}
@@ -10672,7 +10738,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Press Sync All Submissions under Maintenance to pull the latest.")}</div>}
+            {listFailed.submissions && <LoadFailed t={t} onRetry={() => loadSubmissions()} style={{ padding: 40 }} />}
+            {!listFailed.submissions && submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Press Sync All Submissions under Maintenance to pull the latest.")}</div>}
           </div>
 
           {submissionsTotal > submissions.length && (
@@ -10722,7 +10789,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {pdfAccessLog.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No PDF access events recorded yet. Events appear here as soon as anyone views, downloads, or prints a submission PDF.")}</div>}
+            {listFailed.pdfLog && <LoadFailed t={t} onRetry={() => loadPdfAccessLog()} style={{ padding: 40 }} />}
+            {!listFailed.pdfLog && pdfAccessLog.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No PDF access events recorded yet. Events appear here as soon as anyone views, downloads, or prints a submission PDF.")}</div>}
           </div>
 
           {pdfAccessTotal > pdfAccessLog.length && (
@@ -11270,7 +11338,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
               <button onClick={() => setDetailSub(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
             </div>
             {detailLoading && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading from Jotform...")}</div>}
-            {!detailLoading && detailSub.meta && (<>
+            {!detailLoading && detailFailed && <LoadFailed t={t} onRetry={() => openSubmissionDetail(detailSub)} style={{ padding: 30 }} />}
+            {!detailLoading && !detailFailed && detailSub.meta && (<>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, fontSize: 12 }}>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Form")}</div><div style={{ color: t.text }}>{detailSub.meta.form_title || detailSub.meta.jotform_form_id}</div></div>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Submitted")}</div><div style={{ color: t.text }}>{fmtDT(detailSub.meta.submitted_at)}</div></div>
@@ -11756,7 +11825,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading folder...")}</div>;
   }
   if (!data) {
-    return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Could not load folder.")}</div>;
+    return <div style={{ padding: 40, textAlign: "center" }}><LoadFailed t={t} text={tr("Could not load folder.")} onRetry={load} style={{ padding: 0 }} /><div style={{ marginTop: 14 }}><Btn t={t} v="ghost" onClick={onBack}>{tr("Back")}</Btn></div></div>;
   }
 
   const e = data.employee;
@@ -12102,7 +12171,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const loadDocs = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/documents" + q); setDocs(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadTraining = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/training" + q); setTraining(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadOnboarding = useCallback(async () => { if (!selUser) { setOnboarding([]); return; } try { const d = await af("/api/hr/onboarding/" + selUser); setOnboarding(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
-  const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); } catch (e) { showToast(e.message, "error"); } }, [af, showToast]);
+  const [complianceFailed, setComplianceFailed] = useState(false);
+  const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); setComplianceFailed(false); } catch (e) { setComplianceFailed(true); showToast(e.message, "error"); } }, [af, showToast]);
 
   useEffect(() => { setDocPage(1); setTrPage(1); setOtPage(1); if (tab === "documents" || tab === "other") loadDocs(); else if (tab === "training") loadTraining(); else if (tab === "onboarding") loadOnboarding(); else if (tab === "compliance") loadCompliance(); }, [tab, selUser]);
 
@@ -12396,7 +12466,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
       {/* COMPLIANCE TAB */}
       {tab === "compliance" && <div>
-        {!compliance ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <>
+        {!compliance && complianceFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadCompliance} /></Crd> : !compliance ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
             {[
               { label: tr("Expired Documents"), val: compliance.expiredDocs.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
