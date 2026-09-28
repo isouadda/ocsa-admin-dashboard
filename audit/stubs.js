@@ -300,6 +300,12 @@ function createStubs() {
     { key: "read_incident_reports", label: "Read filed incident reports", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "export_payroll", label: "ADP payroll export", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "manage_admins", label: "Change admin accounts (role, status, PIN)", group: "Administration", enforced: true, defaults: { admin: false, supervisor: false, staff: false } },
+    // Step 179 and Step 183, as middleware/capabilities.js carries them at ocsa-api 1c3fb42.
+    { key: "send_announcements", label: "Send announcements to phones", group: "Operations", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    { key: "view_help_insights", label: "Help insights: what people ask Help", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    // Step 186, which the API does not carry yet: an admin's by default, the way the contract the
+    // Form builder was built against says (pull request #68, what was wrong, item 1).
+    { key: "build_forms", label: "Build and change forms", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "audit_unknown_capability", label: "A capability the dashboard has no name for", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
   ];
 
@@ -795,6 +801,11 @@ function createStubs() {
       canSign: (isLog || isCustomer) && !mine && !signed && !filedExtras.locked ? stampKeys : [],
       canWriteSupervisor: canWrite,
       supervisorMissing: canWrite ? required.filter((q) => !answered(held(q.key))) : [],
+      // Step 179, the way routes/forms.js answers both at ocsa-api 1c3fb42: an admin may void a filed
+      // report, and a reader of the form who did not file it may send a filed report again. Whoever
+      // may list filed reports here reads every form.
+      canVoid: person().role === "admin" && r.status === "submitted",
+      canResend: canListFiledForms() && !mine && r.status === "submitted",
     }, isCustomer ? { sections: CUSTOMER_SECTIONS[r.formCode](lang) } : isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
   };
 
@@ -1331,6 +1342,16 @@ function createStubs() {
     if (/^\/api\/users\/[^/]+\/assign-site$/.test(path)) return ok({ message: "Assignment saved" });
     if (/^\/api\/users\/[^/]+\/unassign-site\/[^/]+$/.test(path)) return ok({ message: "Assignment removed" });
     if (/^\/api\/users\/[^/]+\/certifications/.test(path)) return ok({ message: "Certification saved" });
+    // The caller's own capabilities, the way routes/users.js answers GET /api/users/me/permissions
+    // since Step 179: the role, and every capability's key with the override the person holds or the
+    // role's default. A super admin holds every one. Declared ahead of the per-person route, the way
+    // the API declares it, so "me" is never read as an id.
+    if (path === "/api/users/me/permissions" && method === "GET") {
+      const me = person();
+      const map = effectiveMap(me, state.overrides[me.id]);
+      if (me.isSuperAdmin) Object.keys(map).forEach((k) => { map[k] = true; });
+      return ok({ role: me.role, capabilities: map });
+    }
     if (/^\/api\/users\/[^/]+\/permissions$/.test(path)) {
       const id = path.split("/")[3];
       const u = state.staff.find((s) => s.id === id) || state.staff[0];
@@ -1838,17 +1859,18 @@ function createStubs() {
       return created({ id: "doc-new-1", user_id: idAfter("/api/jotform/employees/"), category: "uncategorized", created_at: seed.NOW_ISO });
     }
     if (path === "/api/forms") return ok({ forms: FORM_LIST.map((f) => Object.assign({ fillers: [] }, f, f.titles ? { title: f.titles[lang === "es" ? "es" : "en"], titles: undefined } : {})).concat([deskForm(lang)]) });
-    // Step 166: the draft routes the portal calls, for a form started at a desk. The API sets the
-    // source itself, portal, and reads none from the body (routes/forms.js at 9b8f5ed, Step 169);
-    // a save merges the answers, a null taking one off; Send refuses with the missing list until
-    // every required question in play is answered, then files it.
+    // Step 166: the draft routes the portal calls, for a form started at a desk. Since Step 179 the
+    // API reads source admin from the body and stores it when an admin or a supervisor starts the
+    // form, and portal otherwise (routes/forms.js at ocsa-api 1c3fb42); a save merges the answers, a
+    // null taking one off; Send refuses with the missing list until every required question in play
+    // is answered, then files it.
     if (/^\/api\/forms\/[^/]+\/drafts$/.test(path) && method === "POST") {
       const code = decodeURIComponent(path.split("/")[3]);
       if (code !== DESK_CODE || !startable) return { status: 403, json: { error: lang === "es" ? "No puede iniciar este formulario" : "You cannot start this form", code: "forms.cannotStart" } };
       deskSeq += 1;
       const row = { id: "fr-new-" + deskSeq, formCode: DESK_CODE, formName: deskForm(lang).title, status: "draft", siteId: null, siteName: null,
         userId: person().id, userName: person().firstName + " " + person().lastName, createdAt: seed.NOW_ISO, submittedAt: null, dueAt: null,
-        source: "portal", answers: {} };
+        source: String((body && body.source) || "").toLowerCase() === "admin" && (person().role === "admin" || person().role === "supervisor") ? "admin" : "portal", answers: {} };
       INCIDENT_REPORTS.push(row);
       return created({ draft: deskView(row, lang) });
     }
@@ -1903,10 +1925,11 @@ function createStubs() {
       if (!canListFiledForms()) return { status: 403, json: { error: "Insufficient permissions" } };
       const status = q("status") || "submitted";
       const code = q("formCode") || "";
-      // The list carries no source and no answers: the API's list sends neither, and a report's
-      // source is read on the report itself.
+      // The list carries no answers. Since Step 175 it carries each filing's source, as it was stored:
+      // a form started at a desk, admin or portal, and a customer's filing, customer. The seed's own
+      // rows were filed before there was a source to store, and carry none.
       const rows = INCIDENT_REPORTS.concat(CUSTOMER_FILINGS).filter((r) => r.status === status && (!code || r.formCode === code))
-        .map((r) => (customerFiling(r) ? customerListRow(r, lang) : deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined, source: undefined }) : r));
+        .map((r) => (customerFiling(r) ? Object.assign(customerListRow(r, lang), { source: "customer" }) : deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined }) : r));
       return ok({ responses: rows });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
