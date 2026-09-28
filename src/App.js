@@ -1069,8 +1069,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [assignForm, setAssignForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
   // Session 28: inline validation error for the Employee ID field (shared by Add Staff modal and Profile edit form)
-  // The refusal is known by its code. The English match stays only until every API carries codes.
-  const isEmployeeIdTaken = (e) => (e && e.code === "users.employeeIdTaken") || /employee id/i.test((e && e.message) || "");
+  // The refusal is known by its code: users.employeeIdTaken from the create route, and
+  // users.employeeIdTakenByOther from a profile's save. The English match stays only until every API
+  // carries codes.
+  const isEmployeeIdTaken = (e) => (e && (e.code === "users.employeeIdTaken" || e.code === "users.employeeIdTakenByOther")) || /employee id/i.test((e && e.message) || "");
   const [empIdError, setEmpIdError] = useState("");
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
