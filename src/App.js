@@ -1775,6 +1775,37 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
+  // Shown in Spanish as (Step 185): the Spanish the portal draws today for the item being edited,
+  // read from the same list with locale=es so each display field carries it, editable, and saved
+  // through PATCH /api/sites/:siteId/tasks/:taskId/translations as { locale, field, text }, one
+  // call per field the manager changed. A manager's wording stays until a manager changes it.
+  const [taskEs, setTaskEs] = useState(null);
+  const editTaskId = editTask ? editTask.id : null;
+  const editTaskSite = editTask ? editTask.siteId : null;
+  useEffect(() => {
+    if (!editTaskId) { setTaskEs(null); return undefined; }
+    let alive = true;
+    setTaskEs({ id: editTaskId, label: "", description: "", was: null });
+    af("/api/sites/" + editTaskSite + "/tasks" + EVERY_ITEM + "&locale=es").then(rows => {
+      if (!alive) return;
+      const row = (Array.isArray(rows) ? rows : []).find(r => String(r.id) === String(editTaskId));
+      const d = shownItem(row || {});
+      const was = { label: d.label || "", description: d.description || "" };
+      setTaskEs({ id: editTaskId, label: was.label, description: was.description, was });
+    }).catch(e => { if (alive) { console.warn("Spanish wording:", e.message); setTaskEs(null); } });
+    return () => { alive = false; };
+  }, [af, editTaskId, editTaskSite]);
+  const saveTaskSpanish = async () => {
+    if (!editTask || !taskEs || taskEs.id !== editTask.id || !taskEs.was) return false;
+    let fixed = false;
+    for (const field of ["label", "description"]) {
+      const text = String(taskEs[field] || "").trim();
+      if (!text || text === taskEs.was[field]) continue;
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id + "/translations", { method: "PATCH", body: { locale: "es", field, text } });
+      fixed = true;
+    }
+    return fixed;
+  };
   const [editSite, setEditSite] = useState(null);
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [timeline, setTimeline] = useState([]);
@@ -1974,7 +2005,8 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const submitEditTask = async () => {
     try {
       await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } });
-      showToast(tr("Task updated")); setEditTask(null);
+      const fixed = await saveTaskSpanish();
+      showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -2522,6 +2554,13 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
           <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
+        {taskEs && taskEs.id === editTask.id && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: R.sm, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+          <Lbl>{tr("Shown in Spanish as")}</Lbl>
+          {!taskEs.was ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <>
+            <div style={{ marginBottom: 8 }}><Inp t={t} value={taskEs.label} onChange={e => setTaskEs({ ...taskEs, label: e.target.value })} aria-label={tr("Task Name")} placeholder={tr("Task Name")} /></div>
+            <TArea t={t} value={taskEs.description} onChange={e => setTaskEs({ ...taskEs, description: e.target.value })} aria-label={tr("Detailed Instructions")} placeholder={tr("Detailed Instructions")} rows={2} />
+          </>}
+        </div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -7192,6 +7231,18 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
+  // Rename (Step 185): PUT /api/inspections/templates/:id takes { name, description } and writes
+  // both, so the description goes back as it is, or the table would lose it.
+  const [renameTpl, setRenameTpl] = useState(null);
+  const saveRename = async () => {
+    const name = String(renameTpl.name || "").trim();
+    if (!name) { showToast(tr("Name required"), "error"); return; }
+    try {
+      await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body: { name, description: renameTpl.description || "" } });
+      showToast(tr("Saved")); setRenameTpl(null); loadTemplates();
+      if (selectedTemplate && selectedTemplate.id === renameTpl.id) openTemplate(renameTpl.id);
+    } catch (e) { showToast(e.message, "error"); }
+  };
   const [newTplForm, setNewTplForm] = useState({ name: "", description: "" });
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
@@ -7596,6 +7647,11 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
         ))}
       </div>
 
+      {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setRenameTpl(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveRename}>{tr("Save")}</Btn></div>
+      </div></Mdl>}
       {/* TEMPLATES TAB */}
       {tab === "templates" && (
         <div style={{ display: "flex", gap: 20 }}>
@@ -7606,7 +7662,10 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
-                    {canManageInspections && <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
+                    {canManageInspections && <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                      <button onClick={e => { e.stopPropagation(); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "" }); }} style={{ minHeight: 44, padding: "0 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Rename")}</button>
+                      <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={14} c={RD} /></button>
+                    </div>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
@@ -8451,6 +8510,31 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
   const [editCatForm, setEditCatForm] = useState(null);
   const [addValForm, setAddValForm] = useState(null);
   const [editValForm, setEditValForm] = useState(null);
+  // Shown in Spanish as (Step 185): the Spanish the portal draws today for the value being edited,
+  // read from the same list with locale=es so displayLabel carries it, editable, and saved through
+  // PATCH /api/lookups/values/:id/translations as { locale, field, text } with field label.
+  const [valEs, setValEs] = useState(null);
+  const editValId = editValForm ? editValForm.id : null;
+  useEffect(() => {
+    if (!editValId) { setValEs(null); return undefined; }
+    let alive = true;
+    setValEs({ id: editValId, label: "", was: null });
+    af("/api/lookups/all?locale=es").then(cats => {
+      if (!alive) return;
+      let hit = null;
+      (Array.isArray(cats) ? cats : []).forEach(c => (Array.isArray(c.values) ? c.values : []).forEach(v => { if (String(v.id) === String(editValId)) hit = v; }));
+      const was = hit ? String(hit.displayLabel || hit.label || "") : "";
+      setValEs({ id: editValId, label: was, was });
+    }).catch(e => { if (alive) { console.warn("Spanish wording:", e.message); setValEs(null); } });
+    return () => { alive = false; };
+  }, [af, editValId]);
+  const saveValSpanish = async () => {
+    if (!editValForm || !valEs || valEs.id !== editValForm.id || valEs.was === null) return false;
+    const text = String(valEs.label || "").trim();
+    if (!text || text === valEs.was) return false;
+    await af("/api/lookups/values/" + editValForm.id + "/translations", { method: "PATCH", body: { locale: "es", field: "label", text } });
+    return true;
+  };
   const [loading, setLoading] = useState(true); const [lkFailed, setLkFailed] = useState(false);
   const [selSite, setSelSite] = useState("");
   const [siteLookups, setSiteLookups] = useState({ zones: [], buildings: [], floors: [] });
@@ -8491,7 +8575,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast(tr("Value added")); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditVal = async () => {
-    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast(tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); const fixed = await saveValSpanish(); showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
     if (!window.confirm(tr("Remove this value from this list?"))) return;
@@ -8700,6 +8784,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
           <div><Lbl>{tr("Value (stored)")}</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
           <div><Lbl>{tr("Label (displayed)")}</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
         </div>
+        {valEs && valEs.id === editValForm.id && <div style={{ marginBottom: 12 }}><Lbl>{tr("Shown in Spanish as")}</Lbl>{valEs.was === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <Inp t={t} value={valEs.label} onChange={e => setValEs({ ...valEs, label: e.target.value })} />}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Color")}</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><label style={chkWrap}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
