@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { applyCanonicalRedirect } from './canonicalRedirect';
 import App from './App';
+import { tr } from './words';
 import InstallPrompt from './InstallPrompt';
 
 // One address. When the build names a canonical origin and a host to move away from, a page served
@@ -11,7 +12,7 @@ applyCanonicalRedirect();
 // Catches an exception thrown during render anywhere below it, so one bad response or one bad
 // line no longer unmounts the whole application. It imports nothing from App.js on purpose: a
 // boundary that imports from the file that just threw can throw as well. Colors are inline for
-// the same reason. It catches render exceptions only. An error inside an event handler, a promise
+// the same reason. The two words come from the word table, which imports nothing. It catches render exceptions only. An error inside an event handler, a promise
 // or a timer does not reach it.
 class RootErrorBoundary extends React.Component {
   constructor(props) {
@@ -34,8 +35,8 @@ class RootErrorBoundary extends React.Component {
     return (
       <div style={{ minHeight: '100vh', background: '#0A1628', color: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, boxSizing: 'border-box', fontFamily: '-apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' }}>
         <div style={{ width: '100%', maxWidth: 560 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>Something went wrong and the page needs reloading.</div>
-          <button onClick={() => window.location.reload()} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#FFFFFF', color: '#0A1628', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Reload</button>
+          <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 14 }}>{tr('Something went wrong and the page needs reloading.')}</div>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px 18px', borderRadius: 8, border: 'none', background: '#FFFFFF', color: '#0A1628', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{tr('Reload')}</button>
           <pre style={{ marginTop: 18, padding: 12, borderRadius: 8, background: 'rgba(255,255,255,0.08)', color: '#FFFFFF', fontFamily: 'Menlo, Consolas, "Courier New", monospace', fontSize: 11, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 320, overflow: 'auto' }}>{detail}</pre>
         </div>
       </div>

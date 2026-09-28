@@ -14,7 +14,6 @@ ${0}/unit,${0}/unidad,"Vendors, a vendor, a linked supply's cost"
 + Custom Step,+ Paso personalizado,"HR Records, Onboarding"
 ", resolved {0} failure record(s)",", se resolvieron {0} registro(s) de fallo","Forms, Sync Diagnostic, the toast after a retry"
 ", resolved {0} prior failure(s)",", se resolvieron {0} fallo(s) anterior(es)","Forms, Sync Diagnostic, the toast after a forced fetch"
-2150000000 or name@email.com,2150000000 o nombre@correo.com,The sign-in card
 48 hour reminder to the team,Recordatorio de 48 horas al equipo,"Cases, a case's window, the access log"
 72 hour reminder to the team,Recordatorio de 72 horas al equipo,"Cases, a case's window, the access log"
 < Prev,< Anterior,Schedule
@@ -89,7 +88,6 @@ Add row,Agregar fila,"Forms, a filed report, a table in the supervisor section"
 Add {0} to your home screen,Agregue {0} a su pantalla de inicio,"The add to home screen sheet, the title"
 Added,Agregado,"Settings, Site Lookups; Forms, Aliases, a column"
 Added By,Agregado por,"Forms, Aliases, a column"
-Added. Temp PIN: {0},Persona agregada. PIN temporal: {0},"Staff Management, Add New Staff, once the person is added"
 Adding...,Agregando...,"Forms, Aliases, while an alias is added"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
 Address,Dirección,"Sites, editing a site; Vendors, a vendor; Vendors, adding or editing a vendor; Staff Management, the Profile tab; Settings, the Company tab"
@@ -105,7 +103,6 @@ Administrator,Administrador,The shell
 Age,Antigüedad,"Cases, the list, a column"
 Alaska Time (Anchorage),Hora de Alaska (Anchorage),"Settings, the Company tab, a time zone"
 Alias added.,Alias agregado.,"Forms, Aliases, a toast"
-Alias removed.,Alias quitado.,"Forms, Aliases, a toast"
 Alias value is required,El valor del alias es obligatorio,"Forms, Aliases, a toast"
 Aliases,Alias,"HR Records, Compliance; Forms, a tab"
 All ({0}),Todos ({0}),"HR Records, a folder, every record, which agrees with registros"
@@ -260,7 +257,6 @@ Category Breakdown,Desglose por categoría,"Inspections, Reports, the printed re
 Category activated,Categoría activada,"Settings, Dropdown Options"
 Category created,Categoría creada,"Settings, Dropdown Options"
 Category deactivated,Categoría desactivada,"Settings, Dropdown Options"
-Category deleted,Categoría eliminada,"Settings, Dropdown Options"
 Category is required,La categoría es obligatoria,"HR Records, adding a document"
 Category updated,Categoría actualizada,"HR Records, a folder; Settings, Dropdown Options"
 Central Time (Chicago),Hora del Centro (Chicago),"Settings, the Company tab, a time zone"
@@ -380,7 +376,6 @@ Custodial Laborer,Auxiliar de limpieza,"Live Operations, a person's role; Sites,
 Custodial Lead,Líder de limpieza,"Live Operations, a person's role; Sites, General Info, a person's role; HR Records, a person's role; Staff Management, the list"
 Custom,Personalizado,"The shell, the date range; Reports, the library, a custom report's badge"
 Customer Complaint Log,Registro de quejas de clientes,"Settings, Who gets told, a form's title"
-DELETE,ELIMINAR,"Sites, deleting a site, the word a person types"
 DROP REQ,SOL. DE BAJA,Schedule
 Daily,Diario,"Reports, a trend's bucket"
 Daily Checklist,Lista diaria,"Sites, adding or editing a task, Task Type"
@@ -405,20 +400,8 @@ Default range,Rango predeterminado,"Reports, adding or editing a report"
 Default severity,Severidad predeterminada,"Reports, adding or editing an issue report"
 Default site,Sitio predeterminado,"Reports, adding or editing a report"
 Defaults,Valores predeterminados,"Settings, the Company tab"
-Del,Eliminar,"Settings, Dropdown Options; Settings, Site Lookups"
 Delete,Eliminar,"Schedule; Sites, a site's profile; HR Records; Reports, the library; Settings, Dropdown Options"
-"Delete ""{0}""? This cannot be undone.","¿Eliminar ""{0}""? Esta acción no se puede deshacer.","Reports, deleting a report"
-Delete Permanently,Eliminar de forma permanente,"Sites, deleting a site"
 Delete failed: {0},No se pudo eliminar: {0},"Forms, Aliases, a toast"
-Delete this category and all its values?,¿Eliminar esta categoría y todos sus valores?,"Settings, Dropdown Options"
-Delete this document?,¿Eliminar este documento?,"HR Records, Documents"
-Delete this inspection?,¿Eliminar esta inspección?,"Inspections, Scheduled and Completed"
-Delete this scheduled shift? This cannot be undone.,¿Eliminar este turno programado? Esta acción no se puede deshacer.,"Schedule, deleting a shift"
-Delete this step?,¿Eliminar este paso?,"HR Records, Onboarding"
-Delete this template? All scheduled inspections using it will also be removed.,¿Eliminar esta plantilla? También se quitarán todas las inspecciones programadas que la usan.,"Inspections, Templates"
-Delete this training record?,¿Eliminar este registro de capacitación?,"HR Records, Training"
-Delete this value?,¿Eliminar este valor?,"Settings, Dropdown Options; Settings, Site Lookups"
-Deleted,Eliminado,"Settings, Site Lookups"
 Delta,Diferencia,"Forms, Sync Diagnostic, a column"
 Denied,Denegada,"Schedule, Time off"
 Deny,Denegar,"Shift Pickup; Schedule, a time off request; Inventory, a supply request; Settings, Roles and Permissions, by person"
@@ -443,7 +426,6 @@ Display name,Nombre para mostrar,"Settings, the Company tab"
 Do not escalate,No escalar,"Cases, a case's window, Escalate to"
 Document,Documento,"HR Records, a folder, where a record came from"
 Document added,Documento agregado,"HR Records, adding a document"
-Document deleted,Documento eliminado,"HR Records, Documents"
 Document not found,No se encontró el documento,"HR Records, a folder"
 Document the scope of work for this site...,Documente el alcance del trabajo de este sitio...,"Sites, Scope of Work"
 Document updated,Documento actualizado,"HR Records, editing a document"
@@ -627,7 +609,6 @@ Force-fetch failed: {0},La descarga forzada falló: {0},"Forms, Sync Diagnostic,
 Force-fetched {0} ({1}){2},Se forzó la descarga de {0} ({1}){2},"Forms, Sync Diagnostic, a toast"
 Form,Formulario,"Forms, Filed forms, a column and the form filter; Forms, Submissions, a column; Forms, PDF Access Log, a column; Forms, Settings, the sync log; Forms, Sync Diagnostic, the failures; Forms, a submission's window"
 Form Detail,Detalle del formulario,"Forms, Settings, the diagnostic"
-Form Library,Biblioteca de formularios,"Forms, a tab"
 Form sent. The people who handle these forms have been told.,Formulario enviado. Ya se avisó a las personas que atienden estos formularios.,"Forms, the form window, after Send"
 Form Title,Título del formulario,"Forms, Sync Diagnostic, a column"
 "Form catalog sync pulls the list of Jotform forms. Submissions sync pulls only new or updated submissions for enabled forms. Full Refresh bypasses the incremental filter and re-pulls every submission for every enabled form (use sparingly, see warning).","La sincronización del catálogo trae la lista de formularios de Jotform. La sincronización de envíos trae solo los envíos nuevos o actualizados de los formularios habilitados. La actualización completa omite el filtro incremental y vuelve a traer cada envío de cada formulario habilitado (úsela con moderación, vea la advertencia).","Forms, Settings"
@@ -659,7 +640,6 @@ Given in English,Impartida en inglés,"HR Records, logging training for several 
 Given in French,Impartida en francés,"HR Records, logging training for several people, the line a record's notes carry, saved in English; HR Records, Training, a training's session; HR Records, the printed attendance sheet"
 Given in Spanish,Impartida en español,"HR Records, logging training for several people, the line a record's notes carry, saved in English; HR Records, Training, a training's session; HR Records, the printed attendance sheet"
 Green,Ecológico,"Sites, Supplies, a supply with a green certification; Inventory, a supply with a green certification; Reports, the supply report's printed page"
-Green Buildings,Edificios sostenibles,"Sites, Service Details, a service category; Service Catalog, a service's category"
 Green Cert Type,Tipo de certificación ecológica,"Inventory, adding or editing a supply"
 Green Certified Product,Producto con certificación ecológica,"Inventory, adding or editing a supply"
 Green certified,Con certificación ecológica,"Reports, the supply report, a chart's legend"
@@ -678,7 +658,6 @@ Hand to,Entregar a,"Cases, a case's window"
 Has details,Tiene detalles,"Sites, Service Details"
 Has original PDF (show PDF buttons),Tiene PDF original (mostrar los botones de PDF),"Forms, editing a form"
 Hawaii Time (Honolulu),Hora de Hawái (Honolulu),"Settings, the Company tab, a time zone"
-"Health, Safety & Environment","Salud, seguridad y medio ambiente","Sites, Service Details, a service category; Service Catalog, a service's category"
 Held by,A cargo de,"Cases, the list, a column; Cases, a case's window"
 Help,Ayuda,The shell; Help
 Hide,Ocultar,"Live Operations, hiding the people who have not started; Forms, Sync Diagnostic"
@@ -696,7 +675,6 @@ Hours,Horas,"Schedule, Patterns; Schedule, Time off; Schedule, a time off reques
 How aliases work.,Cómo funcionan los alias.,"Forms, Aliases, the note"
 How is this service priced?,¿Cómo se cobra este servicio?,"Service Catalog, adding or editing a service"
 How to read this.,Cómo leer esto.,"Forms, Sync Diagnostic, the note"
-Human Resources,Recursos humanos,"Sites, Service Details, a service category; Service Catalog, a service's category"
 ID {0},ID {0},"Forms, Submissions, the toast after auto-link, how each match was made"
 Inbox,Bandeja de entrada,"Forms, the Jotform tab, the first section, which holds the submissions"
 IP,IP,"Forms, PDF Access Log, a column"
@@ -752,7 +730,6 @@ Item,Elemento,"Inspections, Reports; Inspections, the printed reports; Reports, 
 Item Label *,Nombre del elemento *,"Inspections, a template, adding a line item"
 Item added,Elemento agregado,"Inspections, a template, adding a line item"
 Item label,Nombre del elemento,"Inspections, a template, editing a line item"
-Item removed,Elemento quitado,"Inspections, a template"
 Item saved,Elemento guardado,"Inspections, a template, editing a line item"
 Items Scored,Elementos calificados,"Inspections, Reports, the printed report"
 JOTFORM_API_KEY not configured,JOTFORM_API_KEY no está configurada,"Forms, when the API has no Jotform key"
@@ -765,7 +742,6 @@ Jotform Reference,Referencia de Jotform,"HR Records, editing a document"
 Jotform Submission (optional),Envío de Jotform (opcional),"HR Records, adding a document"
 Jotform Submission ID,ID del envío en Jotform,"Forms, Sync Diagnostic, the missing submissions, a column"
 Jotform Submissions,Envíos en Jotform,"Forms, Sync Diagnostic, a tile"
-Jotform is not configured. Use the manual entry below.,Jotform no está configurado. Use la entrada manual de abajo.,"HR Records, adding a document"
 Jotform submission ID or URL,ID o enlace del envío de Jotform,"HR Records, adding or editing a document"
 Jotform:,Jotform:,"Forms, the Jotform line at the top; Forms, Sync Diagnostic, a form's missing submissions"
 Keep at least one of Email or In app on.,Deje activado al menos Correo o En la aplicación.,"Settings, Who gets told"
@@ -872,7 +848,6 @@ Lowest Scoring Items,Elementos con el puntaje más bajo,"Inspections, Reports"
 Lowest-scoring items,Elementos con el puntaje más bajo,"Reports, adding or editing an inspection report; Reports, the inspection report, a chart and its printed page"
 Maintenance,Mantenimiento,"Forms, the Jotform tab, the third section, which holds Settings, Sync Diagnostic and Aliases"
 Manage roles and permissions,Administrar roles y permisos,"Settings, Roles and Permissions, a capability's name"
-Management Commitment,Compromiso de la dirección,"Sites, Service Details, a service category; Service Catalog, a service's category"
 Manual time entry and shift edits,Registro manual de horas y cambios de turnos,"Settings, Roles and Permissions, the role reference; Settings, Roles and Permissions, a capability's name"
 Manually linking a submission via the Submissions tab automatically records aliases. You can also add them above.,Vincular a mano un envío desde la pestaña Envíos registra alias automáticamente. También puede agregarlos arriba.,"Forms, Aliases"
 Manufacturer,Fabricante,"Inventory, adding or editing a supply"
@@ -969,7 +944,6 @@ No entries yet.,Todavía no hay entradas.,"Cases, a case's window, the access lo
 No evaluations on file,No hay evaluaciones registradas,"Vendors, a vendor"
 No file,Sin archivo,"HR Records, Documents and Other; Staff Management, the HR Files tab"
 No floors defined for this site yet.,Este sitio todavía no tiene pisos.,"Settings, Site Lookups"
-"No forms found. Click ""Sync Forms from Jotform"" to pull your account's forms.","No se encontraron formularios. Presione ""Sincronizar formularios desde Jotform"" para traer los de su cuenta.","Forms, Form Library, with no forms"
 No inspections match these filters.,Ninguna inspección coincide con estos filtros.,"Inspections, Scheduled"
 No inspections match this search.,Ninguna inspección coincide con la búsqueda.,"Inspections, Completed"
 No inspections recorded yet.,Todavía no hay inspecciones registradas.,Dashboard
@@ -1158,7 +1132,6 @@ Per-person permissions,Permisos por persona,"Settings, Roles and Permissions, by
 Per-site breakdown,Desglose por sitio,"Reports, adding or editing an issue report"
 "Performance notes, delivery quality, responsiveness...","Notas de desempeño, calidad de las entregas, capacidad de respuesta...","Vendors, adding an evaluation"
 Period,Periodo,"Reports, a report's printed page, a table column"
-Permanently Delete Site,Eliminar el sitio de forma permanente,"Sites, deleting a site"
 Permissions saved,Permisos guardados,"Settings, Roles and Permissions, by person"
 Person,Persona,"Schedule, Patterns; Schedule, Time off; Schedule, a time off request"
 Phone,Teléfono,"Sites, General Info; Sites, editing a site; Vendors, a vendor; Staff Management, the printed profile report; Staff Management, the list; Staff Management, the Profile tab; Settings, the Company tab"
@@ -1202,7 +1175,6 @@ Priority,Prioridad,"Assigned Tasks, creating a task; Sites, adding or editing a 
 Privacy note.,Nota de privacidad.,"Forms, the note at the top"
 Private conversations,Conversaciones privadas,Messages
 Private message,Mensaje privado,"Messages, under the person's name"
-"Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how we filter the platform to show OCSA Cleaning forms only (separate from OCSA Construction and My Choice for Living).","Consulta la API de Jotform para determinar qué mecanismo de filtrado admite esta cuenta: etiquetas, carpetas o, como alternativa, palabras clave. La recomendación define cómo filtramos la plataforma para mostrar solo los formularios de OCSA Cleaning (aparte de OCSA Construction y My Choice for Living).","Forms, Settings, the diagnostic"
 Probing...,Consultando...,"Forms, Settings, while the diagnostic runs"
 Processed,Procesados,"Forms, Settings, the sync log, a column"
 Processed: {0},Procesados: {0},"Forms, Submissions, the toast after the PDF backfill"
@@ -1215,12 +1187,10 @@ Proof of who opened or was sent each PDF.,Prueba de quién abrió o recibió cad
 Pull,Traer,"Forms, Form Library, a form's submissions"
 Pull new submissions for ALL enabled forms? This may take a minute.,¿Traer los envíos nuevos de TODOS los formularios habilitados? Puede tardar un minuto.,"Forms, the question before every form's submissions are synced"
 Pull new submissions for this form?,¿Traer los envíos nuevos de este formulario?,"Forms, Form Library, the question before one form's submissions are synced"
-Pull the latest forms from Jotform. Only forms whose title starts with 'OCSA Cleaning_' will be imported. Forms in the app that no longer match this prefix (including any Construction or MCFL forms) will be removed along with their submissions. Continue?,Traer los formularios más recientes de Jotform. Solo se importarán los formularios cuyo título empiece por 'OCSA Cleaning_'. Los formularios de la aplicación que ya no coincidan con ese prefijo (incluidos los de Construction o MCFL) se eliminarán junto con sus envíos. ¿Continuar?,"Forms, the question before the forms are synced"
 "Pulls every submission from Jotform for every enabled form, ignoring the incremental filter. Existing cached submissions are re-fetched and their metadata is refreshed (submitter name, email, matched employee, expiry). Admin-set fields (status, notes, manual expiry, entity links) are preserved.","Trae cada envío de Jotform de cada formulario habilitado, sin el filtro incremental. Los envíos ya guardados se vuelven a obtener y se actualizan sus metadatos (nombre del remitente, correo, persona asociada, vencimiento). Los campos fijados por un administrador (estado, notas, vencimiento manual, vínculos a registros) se conservan.","Forms, Settings, the full refresh window"
 QR,QR,"Inventory, a supply's QR code picture"
 QR: {0},QR: {0},"Inventory, a supply's QR code"
 Quality,Calidad,The shell
-Quality System,Sistema de calidad,"Sites, Service Details, a service category; Service Catalog, a service's category"
 Quantity,Cantidad,"Reports, the supply report's printed page"
 Quarterly,Trimestral,"Sites, editing a site, Billing"
 Queued retry: {0},Reintentos en cola: {0},"Forms, Submissions, the toast after the PDF backfill"
@@ -1231,17 +1201,7 @@ Rate limit note,Nota sobre el límite de llamadas,"Forms, Settings, the full ref
 Rating,Calificación,"Vendors, the list"
 Rating *,Calificación *,"Vendors, adding an evaluation"
 Rating required,La calificación es obligatoria,"Vendors, adding an evaluation"
-Raw JSON (paste this back to Claude for Step 2 implementation),JSON sin procesar (péguelo de vuelta a Claude para la implementación del paso 2),"Forms, Settings, the diagnostic"
 Re-run Auto-Link,Volver a vincular automáticamente,"Forms, Submissions"
-"Re-run Auto-Link?
-
-This scans every unlinked submission and matches it against the OCSA users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.
-
-This action is safe to run any number of times.","¿Volver a ejecutar la vinculación automática?
-
-Revisa cada envío sin vincular y lo compara con la tabla de usuarios de OCSA por ID de empleado, correo o nombre completo exacto. Las coincidencias ambiguas (varias personas) se dejan sin vincular para revisarlas a mano. Quienes no existan en la tabla de usuarios también quedan sin vincular.
-
-Se puede ejecutar cuantas veces haga falta.","Forms, Submissions, the question before auto-link runs again"
 Reactivate,Reactivar,"Sites, a site's profile; Staff Management, a person's profile"
 Read filed incident reports,Leer los informes de incidentes presentados,"Settings, Roles and Permissions, a capability's name"
 Read the case,Leyó el caso,"Cases, a case's window, the access log"
@@ -1276,17 +1236,13 @@ Release this shift back to the open pool?,¿Liberar este turno y devolverlo a lo
 Released,Liberado,Shift Pickup
 Reliability,Cumplimiento,Shift Pickup
 Remove,Quitar,"Sites; HR Records, Onboarding; Staff Management, the Assignments tab; Staff Management, the Certifications tab; Settings, the Company tab; Settings, Who gets told; Forms, Aliases"
-Remove alias {0}?,¿Quitar el alias {0}?,"Forms, Aliases, the question before an alias is removed"
 Remove photo,Quitar la foto,"Help, a photo waiting to be sent, for a screen reader"
 Remove photo,Quitar foto,"Forms, a filed report, a photos question in the supervisor section, under each photo"
 Remove row,Quitar fila,"Forms, a filed report, a table in the supervisor section"
 Remove the link for this submission?,¿Quitar el vínculo de este envío?,"Forms, a submission's window, the question before its record link is removed"
 Remove this certification?,¿Quitar esta certificación?,"Staff Management, the Certifications tab"
-Remove this floor plan?,¿Quitar este plano?,"Sites, General Info"
-Remove this line item?,¿Quitar este elemento?,"Inspections, a template"
 Remove this service?,¿Quitar este servicio?,"Service Catalog, a service"
 Remove this site assignment?,¿Quitar esta asignación de sitio?,"Staff Management, the Assignments tab"
-Remove this supply from the site?,¿Quitar este suministro del sitio?,"Sites, Supplies"
 Remove this vendor?,¿Quitar este proveedor?,"Vendors, a vendor"
 Remove {0},Quitar a {0},"Settings, Who gets told, for a screen reader"
 Removing...,Quitando...,"Forms, a filed report, a photos question, while a photo is being removed"
@@ -1296,7 +1252,6 @@ Repeats,Se repite,Schedule
 Replaces an earlier pattern,Reemplaza a un patrón anterior,"Schedule, a pattern"
 Report,Informe,"Help, an unfinished report the API sent without a name; Forms, a filed report with no form name"
 Report created,Informe creado,"Reports, adding a report"
-Report deleted,Informe eliminado,"Reports, deleting a report"
 Report in progress,Informe en curso,Help
 Report submitted.,Informe enviado.,Help
 Report updated,Informe actualizado,"Reports, editing a report"
@@ -1370,11 +1325,6 @@ Run,Ejecutar,"Reports, the library"
 Run Diagnostic,Ejecutar el diagnóstico,"Forms, Settings"
 Run Full Refresh,Ejecutar la actualización completa,"Forms, Settings, the full refresh window"
 Run PDF Backfill,Ejecutar el relleno de PDF,"Forms, Submissions"
-"Run PDF backfill?
-
-This sweeps the entire jotform@ocsaco.com inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached.","¿Ejecutar el relleno de PDF?
-
-Recorre toda la bandeja de entrada de jotform@ocsaco.com e incorpora los PDF que todavía no se hayan capturado. Puede tardar unos minutos. Ejecútelo de nuevo si el resultado indica que se alcanzó el máximo.","Forms, Submissions, the question before the PDF backfill runs"
 Running...,Ejecutando...,"Forms, Settings, while a full refresh runs"
 Section {0},Sección {0},"Forms, the form window, the review"
 Section {0} of {1},Sección {0} de {1},"Forms, the form window, the step line"
@@ -1471,7 +1421,6 @@ Sending...,Enviando...,"Forms, a filed report, while it is sent again"
 Service,Servicio,Shift Pickup
 Service Catalog,Catálogo de servicios,"The shell; Service Catalog, the page's title"
 Service Category,Categoría de servicio,"Schedule; Shift Pickup; Sites, adding or editing a task; Service Catalog, adding or editing a service"
-Service Delivery,Prestación del servicio,"Sites, Service Details, a service category; Service Catalog, a service's category; Reports, adding or editing a report, the category's example"
 Service Details,Detalles del servicio,"Sites, a site's profile"
 Service Name *,Nombre del servicio *,"Service Catalog, adding or editing a service"
 Service added,Servicio agregado,"Service Catalog, adding a service"
@@ -1499,7 +1448,6 @@ Shift cancelled,Turno cancelado,Schedule; Shift Pickup
 Shift converted to open pickup,Turno convertido en turno abierto,Schedule; Shift Pickup
 Shift reassigned,Turno reasignado,Schedule
 Shift released,Turno liberado,Schedule; Shift Pickup
-Shift removed,Turno eliminado,Schedule
 Shift scheduled,Turno programado,Schedule
 Shift updated,Turno actualizado,Shift Pickup
 Shifts,Turnos,"Schedule, Time off"
@@ -1539,7 +1487,6 @@ Site Record,Registro del sitio,"Sites, the printed timeline, its footer"
 Site created,Sitio creado,"Sites, adding a site"
 Site deactivated,Sitio desactivado,"Sites, a site's profile"
 Site linked,Sitio vinculado,"Service Catalog, linking a site"
-Site permanently deleted,Sitio eliminado de forma permanente,"Sites, deleting a site"
 Site reactivated,Sitio reactivado,"Sites, a site's profile"
 Site records and floor plans,Registros de sitios y planos,"Settings, Roles and Permissions, the role reference; Settings, Roles and Permissions, a capability's name"
 Site unlinked,Sitio desvinculado,"Service Catalog, a service"
@@ -1599,7 +1546,6 @@ Status updated,Estado actualizado,"Forms, a submission's window, a toast"
 Status: {0}.,Estado: {0}.,"Forms, a filed report, a refusal that names the report's status"
 Step Name,Nombre del paso,"HR Records, adding an onboarding step"
 Step added,Paso agregado,"HR Records, adding an onboarding step"
-Step deleted,Paso eliminado,"HR Records, Onboarding"
 Step-by-step instructions or notes...,Instrucciones paso a paso o notas...,"Assigned Tasks, creating a task"
 "Step-by-step instructions, tips, or notes for the cleaner...","Instrucciones paso a paso, consejos o notas para quien limpia...","Sites, adding a task"
 "Step-by-step instructions, tips, or notes...","Instrucciones paso a paso, consejos o notas...","Sites, editing a task"
@@ -1612,7 +1558,6 @@ Street address,Calle y número,"Vendors, adding or editing a vendor; Staff Manag
 Subject named,Persona mencionada,"Cases, the list, a column; Cases, a case's window"
 Submission Detail,Detalle del envío,"Forms, a submission's window"
 Submission ID,ID del envío,"Forms, Sync Diagnostic, the failures, a column"
-"Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.","El contenido de los envíos (SSN, datos bancarios, fechas de nacimiento) se guarda solo en Jotform. OCSA solo conserva metadatos. Al abrir el detalle de un envío se obtienen las respuestas completas de Jotform en tiempo real. Cierre la ventana al terminar.","Forms, the note at the top"
 Submissions,Envíos,"Forms, a tab; Forms, Form Library, a column"
 Submissions load failed: {0},No se pudieron cargar los envíos: {0},"Forms, a toast"
 Submissions:,Envíos:,"Forms, the Jotform line at the top"
@@ -1650,9 +1595,7 @@ Sync Actions,Acciones de sincronización,"Forms, Settings"
 Sync All Submissions,Sincronizar todos los envíos,"Forms, Submissions; Forms, Settings"
 Sync Diagnostic,Diagnóstico de sincronización,"Forms, a tab"
 Sync Form Catalog,Sincronizar el catálogo de formularios,"Forms, Settings"
-Sync Forms from Jotform,Sincronizar formularios desde Jotform,"Forms, Form Library"
 Sync failed: {0},La sincronización falló: {0},"Forms, a toast"
-Synced {0} OCSA Cleaning forms. {1}.,Se sincronizaron {0} formularios de OCSA Cleaning. {1}.,"Forms, the toast after the forms are synced"
 "Synced {0} submissions ({1} new, {2} updated) across {3} form(s)","Se sincronizaron {0} envíos ({1} nuevos, {2} actualizados) en {3} formulario(s)","Forms, the toast after the submissions are synced"
 Syncing...,Sincronizando...,"Forms, while forms or submissions sync"
 System,Sistema,"Issue Tracker and Assigned Tasks, the activity, when no person made the change; Sites, the record window; Sites, the printed timeline; Staff Management, the printed timeline"
@@ -1690,7 +1633,6 @@ Template,Plantilla,"Reports, the library, a template's badge"
 Template *,Plantilla *,"Inspections, scheduling or editing an inspection"
 Template Name *,Nombre de la plantilla *,"Inspections, adding a template"
 Template created,Plantilla creada,"Inspections, adding a template"
-Template deleted,Plantilla eliminada,"Inspections, Templates"
 "Template, site, and date are required","La plantilla, el sitio y la fecha son obligatorios","Inspections, scheduling or editing an inspection"
 Templates,Plantillas,"Inspections, a tab"
 Text size,Tamaño del texto,The shell
@@ -1726,7 +1668,6 @@ This shift is open in the marketplace and available for staff to claim.,Este tur
 This shift runs past midnight. Pick the day it starts.,Este turno pasa de la medianoche. Elija el día en que comienza.,"Schedule, adding a shift, the note about an overnight shift"
 "This source arrives with the report templates workstream. You can save the report now, and it will run once its data source ships.",Esta fuente llegará con las plantillas de informes. Puede guardar el informe ahora y se ejecutará cuando su fuente de datos esté disponible.,"Reports, adding or editing a report whose source is not live yet"
 This table is full.,Esta tabla está llena.,"Forms, a filed report, a table in the supervisor section"
-"This will permanently remove {0} and all associated tasks, assignments, and data. This action cannot be undone.","Esto eliminará de forma permanente {0} y todas sus tareas, asignaciones y datos. Esta acción no se puede deshacer.","Sites, deleting a site"
 Thu,Jue,Schedule; Shift Pickup
 Thursday,Jueves,"Settings, the Company tab, the day a pay period starts"
 Tick at least one person,Marque al menos a una persona,"HR Records, logging training for several people, a save with nobody ticked"
@@ -1756,7 +1697,6 @@ Training Name,Nombre de la capacitación,"HR Records, Training; HR Records, addi
 Training Records ({0}),Registros de capacitación ({0}),"Staff Management, the HR Files tab"
 Training Type,Tipo de capacitación,"HR Records, adding a training record; HR Records, logging training for several people; HR Records, the printed attendance sheet"
 Training record added,Registro de capacitación agregado,"HR Records, adding a training record"
-Training record deleted,Registro de capacitación eliminado,"HR Records, Training"
 Training record not found,No se encontró el registro de capacitación,"HR Records, a folder"
 Training record updated,Registro de capacitación actualizado,"HR Records, editing a training record"
 Trend bucket,Agrupación de la tendencia,"Reports, adding or editing a report"
@@ -1768,8 +1708,6 @@ Tue,Mar,Schedule; Shift Pickup
 Tuesday,Martes,"Settings, the Company tab, the day a pay period starts"
 Type,Tipo,"Schedule, Time off; Schedule, a time off request; HR Records, Training; Staff Management, the printed profile report; Staff Management, Add Certification; Settings, Site Lookups; Forms, Settings, the sync log, a column; Forms, Aliases, adding an alias and a column"
 Type a message,Escriba un mensaje,"Messages, the box a message is written in"
-Type {0} here,Escriba {0} aquí,"Sites, deleting a site"
-Type {0} to confirm,Escriba {0} para confirmar,"Sites, deleting a site"
 Type {0} to confirm.,Escriba {0} para confirmar.,"Sites, deleting a site"
 Typical run time is 1 to 5 minutes depending on volume. Do not close this page while it runs. You can monitor progress in the Sync Log table below after it completes.,Suele tardar de 1 a 5 minutos según el volumen. No cierre esta página mientras se ejecuta. Puede seguir el avance en la tabla del registro de sincronizaciones cuando termine.,"Forms, Settings, the full refresh window"
 Untitled form,Formulario sin título,"Forms, the form window, a draft with no name"
@@ -1826,7 +1764,6 @@ Value (stored) *,Valor (se guarda) *,"Settings, Dropdown Options"
 Value *,Valor *,"Settings, Site Lookups"
 Value added,Valor agregado,"Settings, Dropdown Options"
 Value and label required,El valor y el nombre son obligatorios,"Settings, Dropdown Options; Settings, Site Lookups"
-Value deleted,Valor eliminado,"Settings, Dropdown Options"
 Value updated,Valor actualizado,"Settings, Dropdown Options"
 Vendor,Proveedor,"Vendors, the list"
 Vendor / W-9,Proveedor / W-9,"HR Records, a record's category"
@@ -1914,8 +1851,6 @@ e.g. Gymnasium,p. ej. Gimnasio,"Settings, Site Lookups"
 e.g. High severity weekly,"p. ej. Severidad alta, semanal","Reports, adding or editing a report, the name"
 "e.g. ISSA, OSHA","p. ej. ISSA, OSHA","Staff Management, Add Certification, an example of who issues one"
 e.g. Main,p. ej. Principal,"Assigned Tasks, creating a task, the building; Sites, adding or editing a task"
-e.g. Marcus called out,p. ej. una persona se reportó ausente,Schedule
-e.g. Marcus called out sick,p. ej. una persona se reportó enferma,Shift Pickup
 e.g. Office Cleaning,p. ej. Limpieza de oficinas,"Service Catalog, adding or editing a service"
 e.g. Offices,p. ej. Oficinas,"Assigned Tasks, creating a task, the zone"
 e.g. Restrooms,p. ej. Baños,"Sites, adding a task"
@@ -2076,7 +2011,6 @@ Completed,Completado,"Schedule, a turno that is finished"
 Completed,Completadas,"Inspections, a tab, which agrees with inspecciones"
 DOC,DOC,"HR Records, a folder, the short name for a document"
 Default,Predeterminado,"Settings, Roles and Permissions, by person, a capability that follows the role"
-Deleted,Inspección eliminada,"Inspections, deleting an inspection"
 Denied,Denegada,"Schedule, Time off, a solicitud that was denied"
 Due soon,Vence pronto,"Cases, the response clock"
 Ended,Terminado,"Schedule, Patterns, a patron that has stopped"
@@ -2205,7 +2139,6 @@ resolved,resuelta,"Assigned Tasks, a tarea that was done"
 schedule,horario,"Staff Management, the printed timeline, a record's kind"
 scheduled,programada,"Inspections, an inspection's status, which agrees with inspección"
 service,servicio,"Staff Management, the printed timeline, a record's kind"
-service delivery,prestación del servicio,"Reports, the library, a category heading"
 severity,gravedad,"Sites, the record window, a field; Staff Management, a record's printed page"
 shift,turno,"Sites, the printed timeline, a record's kind; Staff Management, the printed timeline"
 site,sitio,"Staff Management, a record's window, a field"
@@ -2341,3 +2274,127 @@ Customer,Cliente,"Forms, Filed forms, a customer's filing, the filed-by column a
 Section averages,Promedios por sección,"Forms, a filed survey, under the answers"
 Overall,General,"Forms, a filed survey, the overall average"
 Save signature,Guardar firma,"Forms, the form window, the customer's signature card"
+Cleaning,Limpieza,"Service category, in place of the framework word for SD; Service Catalog, Inspections, Record Detail, Sites"
+Quality checks,Controles de calidad,"Service category, QS"
+Management,Gestión,"Service category, MC"
+Green cleaning,Limpieza ecológica,"Service category, GB"
+Safety,Seguridad,"Service category, HSE"
+Staff and training,Personal y capacitación,"Service category, HR"
+Issues,Problemas,"Reports, the issue report's group heading"
+e.g. Issues,p. ej. Problemas,"Report editor, Category placeholder"
+{0} (copy),{0} (copia),"Reports, a duplicated report's name"
+This did not load.,Esto no se cargó.,Any card or tab whose read failed
+Could not load staff.,No se pudo cargar el personal.,Staff Management
+No issues in this state.,No hay problemas en este estado.,"Issue Tracker, a chip with no rows"
+No staff to show for this filter.,No hay personal para mostrar con este filtro.,"Schedule, week view"
+Messages did not load.,Los mensajes no se cargaron.,"Messages; Sites, the Chat tab"
+PIN reset for {0},PIN restablecido para {0},"Staff profile, after Reset PIN"
+Temporary PIN,PIN temporal,"Add New Staff, the window after saving"
+Send activation invite,Enviar invitación de activación,Add New Staff and the staff profile
+Invite sent.,Invitación enviada.,After the invite
+Send a PIN reset link,Enviar un enlace para restablecer el PIN,Staff profile
+Reset link sent.,Enlace enviado.,After the reset link
+Generate badge number,Generar número de empleado,"Staff profile, when the badge is not set"
+Change photo,Cambiar foto,"Staff profile, the photo control"
+That employee ID is already in use.,Ese número de identificación de empleado ya está en uso.,Add New Staff and Contact Information
+An admin account holds these by role. There is nothing to change here.,Una cuenta de administrador los tiene por su rol. Aquí no hay nada que cambiar.,"Settings, Roles and Permissions, an admin picked"
+Your own capabilities are set by another admin.,Sus propias capacidades las define otro administrador.,"Settings, Roles and Permissions, the signed-in person picked"
+Only someone who holds this can grant it.,Solo quien la tiene puede otorgarla.,"Settings, Roles and Permissions, the manage admins row"
+Cancel shift,Cancelar turno,"Edit Scheduled Shift, in place of Delete"
+Cancel this scheduled shift?,¿Cancelar este turno programado?,"Edit Scheduled Shift, the question"
+Remove from this list,Quitar de esta lista,"Every Delete that now keeps the row, where the row is hidden from a list"
+Removed from this list,Quitado de esta lista,After a row is hidden from a list
+Deactivate this template?,¿Desactivar esta plantilla?,"Inspections, a template's question"
+Template deactivated,Plantilla desactivada,"Inspections, after a template is deactivated"
+Deactivate this line item?,¿Desactivar este elemento?,"Inspections, a line item's question"
+Item deactivated,Elemento desactivado,"Inspections, after a line item is deactivated"
+Remove this list and its values from the lists shown?,¿Quitar esta lista y sus valores de las listas que se muestran?,"Settings, Dropdown Options, a list's question"
+Remove this value from this list?,¿Quitar este valor de esta lista?,"Settings, Dropdown Options and Site Lookups, a value's question"
+Deactivate alias {0}?,¿Desactivar el alias {0}?,"Forms, Jotform, an alias's question"
+Alias deactivated.,Alias desactivado.,"Forms, Jotform, after an alias is deactivated"
+"Deactivate ""{0}""?","¿Desactivar ""{0}""?","Reports, a saved report's question"
+Report deactivated,Informe desactivado,"Reports, after a saved report is deactivated"
+Remove this document from this list?,¿Quitar este documento de esta lista?,"HR Records, a document's question"
+Remove this training record from this list?,¿Quitar este registro de capacitación de esta lista?,"HR Records, a training record's question"
+Remove this step from this list?,¿Quitar este paso de esta lista?,"HR Records, an onboarding step's question"
+Remove this floor plan from this list?,¿Quitar este plano de esta lista?,"Sites, a floor plan's question"
+Remove this supply from this list?,¿Quitar este suministro de esta lista?,"Sites, a site supply's question"
+From a customer,De un cliente,"Filed forms, under a customer's filing"
+Role,Puesto,"The customer or employee signature card, the second box"
+Void,Anular,"Review window, for an admin"
+Why is this report being voided?,¿Por qué se anula este reporte?,The Void window
+Void report,Anular reporte,The Void window's button
+Void,Anulado,"A void report's status; Filed forms, the status switch"
+Photo could not be loaded,No se pudo cargar la foto,A photo on a filed form
+Your message did not send.,Su mensaje no se envió.,Messages
+Announcements,Anuncios,Side panel and the page
+New announcement,Nuevo anuncio,Announcements
+Message,Mensaje,Announcements
+Send to,Enviar a,Announcements
+One site's people,El personal de un sitio,"Announcements, audience"
+A role,Un rol,"Announcements, audience"
+Chosen people,Personas elegidas,"Announcements, audience"
+"Reaches {0} people, {1} with phone alerts on.","Llega a {0} personas, {1} con alertas en el teléfono.","Announcements, before Send and under each sent one"
+Send announcement,Enviar anuncio,Announcements
+Written once; each person gets it in their language.,Se escribe una vez; cada persona lo recibe en su idioma.,"Announcements, under the message box"
+Sent,Enviados,"Announcements, the history heading"
+No announcements yet.,Todavía no hay anuncios.,Announcements
+Announcement sent.,Anuncio enviado.,"Announcements, after Send announcement"
+Tag someone,Etiquetar a alguien,"Messages, the tag picker"
+No one else can read this chat.,Nadie más puede leer este chat.,"Messages, the empty picker"
+Channels,Canales,"Messages, the list's first heading"
+Site channel,Canal del sitio,"Messages, under a site chat's name"
+General chat,Chat general,"Messages, under the general chat's name"
+{0} unread messages,{0} mensajes sin leer,"Side panel, the Messages badge's name"
+My alerts,Mis alertas,The name menu and its window
+Chat messages,Mensajes del chat,My alerts
+Every message,Cada mensaje,My alerts
+Only when I'm tagged,Solo cuando me etiquetan,My alerts
+Off,Apagado,My alerts
+Schedule and time off,Horario y tiempo libre,My alerts
+Shift pickups and drops,Turnos libres y turnos soltados,My alerts
+Supply requests,Pedidos de suministros,My alerts
+Problems reported,Problemas reportados,My alerts
+Forms filed,Formularios presentados,My alerts
+These decide what buzzes your phone in the staff app. The bell here keeps everything.,Esto decide lo que suena en su teléfono en la aplicación del personal. La campana aquí guarda todo.,My alerts
+Your settings did not save.,Sus ajustes no se guardaron.,My alerts
+{0} shifts scheduled,{0} turnos programados,"Schedule, after Schedule Shift"
+No time off is waiting for a decision.,No hay tiempo libre pendiente de decisión.,"Schedule, Time off tab"
+No time off requests to show.,No hay solicitudes de tiempo libre para mostrar.,"Schedule, Time off tab"
+Something went wrong and the page needs reloading.,Algo salió mal y hay que volver a cargar la página.,The crash screen
+Reload,Volver a cargar,The crash screen
+No records found.,No se encontraron registros.,The table default
+Raw result,Resultado sin procesar,Jotform diagnostic card
+The forms connection is not set up. Ask your administrator.,La conexión de formularios no está configurada. Pídale ayuda a su administrador.,"Jotform, key missing"
+Phone or email address,Teléfono o correo electrónico,"Sign in, the example in the box"
+10 digits,10 dígitos,"Vendors, the contact phone's example"
+e.g. Called out sick,p. ej. se reportó enfermo,"Shift Pickup, Convert Callout, the notes example"
+e.g. Called out,p. ej. se reportó ausente,"Schedule, Convert Callout, the notes example"
+Failed retry,Reintento de fallos,"Forms, Jotform, the sync log's type"
+Forced fetch,Descarga forzada,"Forms, Jotform, the sync log's type"
+running,en curso,"Forms, Jotform, the sync log's status"
+fetch,descarga,"Forms, Jotform, a failure's stage"
+parse,lectura,"Forms, Jotform, a failure's stage"
+store,guardado,"Forms, Jotform, a failure's stage"
+changed by hand,cambiado a mano,"Schedule, a pattern's kept date"
+posted as an open shift,publicado como turno abierto,"Schedule, a pattern's kept date"
+started,iniciado,"Schedule, a pattern's kept date"
+already scheduled at that time,ya programado a esa hora,"Schedule, a pattern's skipped date"
+"Pull the latest forms from Jotform. Only forms whose title starts with {0} are imported. Forms in the app that no longer match are switched off and kept, with their submissions. Continue?","Descargar los formularios más recientes de Jotform. Solo se importan los formularios cuyo título empieza con {0}. Los formularios de la aplicación que ya no coinciden se apagan y se conservan, con sus envíos. ¿Continuar?","Forms, Jotform, Sync Form Catalog"
+"Run PDF backfill?
+
+This sweeps the entire {0} inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached.","¿Ejecutar el relleno de PDF?
+
+Recorre toda la bandeja {0} e incorpora los PDF que aún no se hayan capturado. Puede tardar unos minutos. Ejecútelo de nuevo si el resultado muestra que se alcanzó el máximo.","Forms, Jotform, PDF backfill"
+"Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how this business's forms are told apart from the other businesses' forms on the same account.","Consulta la API de Jotform para determinar qué mecanismo de filtrado admite esta cuenta: etiquetas, carpetas o palabras clave como alternativa. La recomendación decide cómo se distinguen los formularios de este negocio de los de los otros negocios en la misma cuenta.","Forms, Jotform, the diagnostic card"
+"Re-run Auto-Link?
+
+This scans every unlinked submission and matches it against the users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.
+
+This action is safe to run any number of times.","¿Volver a ejecutar la vinculación automática?
+
+Revisa cada envío sin vincular y lo compara con la tabla de usuarios por número de empleado, correo o nombre completo exacto. Las coincidencias ambiguas (varios usuarios) se dejan sin vincular para revisarlas a mano. Quienes no existen en la tabla de usuarios también quedan sin vincular.
+
+Esta acción se puede ejecutar las veces que haga falta.","Forms, Jotform, Re-run Auto-Link"
+Synced {0} forms. {1}.,Se sincronizaron {0} formularios. {1}.,"Forms, Jotform, after Sync Form Catalog"
+"Submission content (SSN, bank info, dates of birth) is stored only in Jotform. The dashboard caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.","El contenido de los envíos (SSN, datos bancarios, fechas de nacimiento) se guarda solo en Jotform. El panel guarda solo metadatos. Al abrir el detalle de un envío se traen las respuestas completas de Jotform en tiempo real. Cierre la ventana al terminar.","Forms, Jotform, the privacy note"

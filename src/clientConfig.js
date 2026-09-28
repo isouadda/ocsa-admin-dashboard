@@ -8,6 +8,8 @@ const clientConfig = {
     shortName: 'OCSA Cleaning',
     brandTag: 'OCSA',
     location: COMPANY_LOCATION,
+    city: 'Philadelphia',
+    state: 'PA',
     // What a stamp means by a date: the company's own day, wherever the computer is set.
     timeZone: 'America/New_York',
     confidentialLabel: CONFIDENTIAL_LABEL,
@@ -22,6 +24,12 @@ const clientConfig = {
   },
   employee: {
     idPrefix: 'OCSA',
+  },
+  // The forms mailbox the PDF backfill sweeps, and the title prefix that marks this business's forms
+  // on a Jotform account shared with sister businesses.
+  forms: {
+    mailbox: 'jotform@ocsaco.com',
+    titlePrefix: 'OCSA Cleaning_',
   },
 };
 

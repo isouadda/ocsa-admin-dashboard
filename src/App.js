@@ -112,10 +112,19 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
-const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings"];
+const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
+// What each role holds when the API has not said: GET /api/users/me/permissions (Step 179) answers
+// this person's own capabilities, and until it does the API's own defaults table decides. Every
+// control the API guards with a capability draws only for a holder, so nothing is drawn that the
+// API will refuse.
+const CAP_ROLE_DEFAULTS = {
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
+  supervisor: { manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true },
+  staff: {},
+};
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
 // What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
@@ -198,7 +207,8 @@ const GOLD = clientConfig.brand.gold;
 const NAVY_DARK = clientConfig.brand.navyDark;
 const PANEL_LIGHT = clientConfig.brand.panelLight;
 const GO = GOLD, GL = "#FCEA4A", GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#24A4F4", TL = "#1ABC9C";
-const CIMS_LABELS = { SD: "Service Delivery", HSE: "Health, Safety & Environment", GB: "Green Buildings", QS: "Quality System", HR: "Human Resources", MC: "Management Commitment" };
+// A service category is a plain word, never the framework's own name for it. Keyed by the codes the API stores.
+const CIMS_LABELS = { SD: "Cleaning", HSE: "Safety", GB: "Green cleaning", QS: "Quality checks", HR: "Staff and training", MC: "Management" };
 const LOGO_SM = process.env.PUBLIC_URL + "/ocsa-logo-sm.png";
 const LOGO_LG = process.env.PUBLIC_URL + "/ocsa-logo.png";
 const DARK = {
@@ -233,6 +243,12 @@ const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
 const ft = d => new Date(d).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true });
 const fd = d => new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+// A DATE the API sends names a day, not an instant: its first ten characters, built from parts, so it
+// is that day in every time zone. Read as an instant, a date at UTC midnight is the evening before
+// anywhere west of Greenwich. fd and ft stay for a time stamp, which is an instant.
+const localDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d); };
+const fdDay = d => localDate(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+const fdLong = d => localDate(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
 const ff = d => new Date(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const Ic = ({ d, sz = 18, c = "currentColor", style: s, ...p }) => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} {...p}><path d={d} /></svg>;
 const HmI = p => <Ic d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" {...p} />;
@@ -242,6 +258,7 @@ const ClI = p => <Ic d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6
 const ChI = p => <Ic d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...p} />;
 const BrI = p => <Ic d="M18 20V10 M12 20V4 M6 20v-6" {...p} />;
 const AlI = p => <Ic d="M12 2L2 22h20L12 2zm0 7v5m0 3h.01" {...p} />;
+const AnnI = p => <Ic d="M3 11l18-6v14L3 13v-2z M7 13v5a2 2 0 0 0 4 0v-4" {...p} />;
 const PlI = p => <Ic d="M12 5v14M5 12h14" {...p} />;
 const CkI = p => <Ic d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0v10l4 4" {...p} />;
 const XI = p => <Ic d="M18 6L6 18M6 6l12 12" {...p} />;
@@ -288,19 +305,25 @@ const trWith = (key, piece) => { const [before, after] = tr(key, "\u0000").split
 const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
 const Crd = ({ children, style, onClick: oc, t }) => <div onClick={oc} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, cursor: oc ? "pointer" : "default", boxShadow: t.shadow, transition: "transform .15s ease, box-shadow .15s ease", ...style }}>{children}</div>;
 const Bdg = ({ l, c }) => { const t = useT(); return <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px", padding: "3px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c) }}>{l}</span>; };
-const SecT = ({ children, action, onAction, icon: I = PlI, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><I sz={13} c={NAVY} /> {action}</button>}</div>;
-const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, transition: "border-color .15s ease", ...p.style }} />;
-const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
-const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
+const SecT = ({ children, action, onAction, icon: I = PlI, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><I sz={13} c={NAVY} /> {action}</button>}</div>;
+const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, transition: "border-color .15s ease", ...p.style }} />;
+const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
+const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
 const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>; };
 // A tall window is the full height of the screen and scrolls inside itself, which is what a form
 // filled section by section needs; every other window is the card it has always been.
+// A close X is 44 by 44 and named Close. A checkbox sits inside a 44 by 44 label so it can be pressed.
+const xBtn = { minWidth: 44, minHeight: 44, padding: 0, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" };
+const chkWrap = { display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: 44, minHeight: 44, cursor: "pointer", flexShrink: 0 };
 const Mdl = ({ children, onClose: oc, t, tall }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: tall ? "hidden" : "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
 const OCSA_LOGO_URL = (PUBLIC_BASE.indexOf("http") === 0 ? PUBLIC_BASE : window.location.origin + PUBLIC_BASE) + "/ocsa-logo.png";
-const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
+const TArea = ({ t, ...p }) => <textarea {...p} style={{ width: "100%", minHeight: 44, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, resize: "vertical", fontFamily: FONT_BODY, ...p.style }} />;
+// A read that failed says so where its rows would have been, with a way to try again, so nothing is
+// blank and nothing spins on. The line is the sheet's for the place when it names one.
+const LoadFailed = ({ t, onRetry, text, style }) => <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec, ...(style || {}) }}>{text || tr("This did not load.")}{onRetry ? <button onClick={onRetry} style={{ minHeight: 44, marginLeft: 6, padding: "0 10px", background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button> : null}</div>;
 const AdminOnlyNotice = ({ t, onBack }) => <Crd t={t} style={{ padding: 30, textAlign: "center" }}><div style={{ fontSize: 14, color: t.text, marginBottom: 16 }}>{tr("This page is for admins.")}</div><Btn t={t} v="ghost" onClick={onBack}>{tr("Back to Dashboard")}</Btn></Crd>;
 
 // ===== BRANDED CHART TOOLKIT (ApexCharts) =====
@@ -315,7 +338,7 @@ const chartBase = (t, extra) => ({
   states: { hover: { filter: { type: "lighten", value: 0.06 } } },
   ...extra,
 });
-const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
+const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ minHeight: 44, fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
 const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } })} />;
 const LineChartW = ({ categories, series, height = 260, t, colors }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } } })} />;
 const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
@@ -329,7 +352,8 @@ function fmtRange(s, e) {
   const em = ed.toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
   return sm + " - " + em;
 }
-function toISO(d) { return d.toISOString().split("T")[0]; }
+// The day a Date names where the person is, never the UTC day, which is tomorrow every evening.
+function toISO(d) { return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-"); }
 
 const PRESETS = {
   thisWeek: () => { const m = getMonday(new Date()); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
@@ -363,16 +387,16 @@ function DateRangePicker({ value, onChange, t, presets }) {
           <span style={{ fontSize: 10, color: t.goldText, marginLeft: 6 }}>&#9662;</span>
         </div>
         {pills.map(p => (
-          <button key={p.key} onClick={() => pickPreset(p.key)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: activePreset === p.key ? 700 : 500, cursor: "pointer", background: activePreset === p.key ? t.goldBg : "transparent", color: activePreset === p.key ? t.goldText : t.textMut, border: activePreset === p.key ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{p.label}</button>
+          <button key={p.key} onClick={() => pickPreset(p.key)} style={{ minHeight: 44, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: activePreset === p.key ? 700 : 500, cursor: "pointer", background: activePreset === p.key ? t.goldBg : "transparent", color: activePreset === p.key ? t.goldText : t.textMut, border: activePreset === p.key ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{p.label}</button>
         ))}
-        <button onClick={() => setShowCustom(!showCustom)} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? t.goldText : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Custom")}</button>
-        <button onClick={() => { const r = PRESETS.thisWeek(); onChange(r); setActivePreset("thisWeek"); setShowCustom(false); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 500, cursor: "pointer", background: "transparent", color: BL, border: "1px solid " + t.border }}>{tr("Today")}</button>
+        <button onClick={() => setShowCustom(!showCustom)} style={{ minHeight: 44, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: showCustom ? 700 : 500, cursor: "pointer", background: showCustom ? t.goldBg : "transparent", color: showCustom ? t.goldText : t.textMut, border: showCustom ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Custom")}</button>
+        <button onClick={() => { const r = PRESETS.thisWeek(); onChange(r); setActivePreset("thisWeek"); setShowCustom(false); }} style={{ minHeight: 44, padding: "4px 10px", borderRadius: 6, fontSize: 10, fontWeight: 500, cursor: "pointer", background: "transparent", color: BL, border: "1px solid " + t.border }}>{tr("Today")}</button>
       </div>
       {showCustom && (
         <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-          <input type="date" value={value.start} onChange={e => { onChange({ ...value, start: e.target.value }); setActivePreset(null); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: FONT_BODY }} />
+          <input type="date" value={value.start} onChange={e => { onChange({ ...value, start: e.target.value }); setActivePreset(null); }} style={{ minHeight: 44, padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: FONT_BODY }} />
           <span style={{ fontSize: 11, color: t.textMut }}>{tr("to|between two dates")}</span>
-          <input type="date" value={value.end} onChange={e => { onChange({ ...value, end: e.target.value }); setActivePreset(null); }} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: FONT_BODY }} />
+          <input type="date" value={value.end} onChange={e => { onChange({ ...value, end: e.target.value }); setActivePreset(null); }} style={{ minHeight: 44, padding: "6px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 12, fontFamily: FONT_BODY }} />
         </div>
       )}
     </div>
@@ -408,6 +432,8 @@ export default function AdminDashboard() {
     return want;
   });
   const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
+  // The browser tab's title, in the language of the screen.
+  useEffect(() => { try { document.title = clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang]);
   useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
   const zoom = textSizeFactor(textSize);
   // At Standard the property is left off the root altogether, so the page is what it always was.
@@ -484,13 +510,20 @@ export default function AdminDashboard() {
   const sf = useCallback((path, opts = {}, onEvent) => apiStream(path, { ...opts, token }, onEvent), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
   const isAdmin = user?.role === "admin";
-  // The manage permissions capability opens the Roles and Permissions screen, which is the screen it
-  // names. One quiet call when the session starts asks the API for this person's own effective
-  // capabilities: a 200 answers it, and any other answer leaves them with what their role gives.
-  const [canManagePermissions, setCanManagePermissions] = useState(false);
-  // The manage settings capability opens the customer links on Filed forms (Step 169). An admin
-  // holds it by default; anyone else holds it when the same call says so.
-  const [canManageSettings, setCanManageSettings] = useState(false);
+  // This person's own capabilities, as the API answered them, or null until it has. hasCap reads a
+  // capability from that answer, and from the role's defaults for one the answer does not name.
+  const [caps, setCaps] = useState(null);
+  const hasCap = useCallback((name) => {
+    if (caps && Object.prototype.hasOwnProperty.call(caps, name)) return !!caps[name];
+    const tier = isAdmin ? "admin" : (user && user.role === "supervisor" ? "supervisor" : "staff");
+    return !!(CAP_ROLE_DEFAULTS[tier] && CAP_ROLE_DEFAULTS[tier][name]);
+  }, [caps, isAdmin, user]);
+  // The manage permissions capability opens the Roles and Permissions screen; manage settings opens
+  // Company settings and the customer links on Filed forms; manage admins lets a person change an
+  // admin's account, which nobody holds by default.
+  const canManagePermissions = hasCap("manage_permissions");
+  const canManageSettings = hasCap("manage_settings");
+  const canManageAdmins = hasCap("manage_admins");
   // Forms holds every filed report now, and the API already decides who may read them. One quiet
   // call when the session starts asks for the list: a 200 opens the page, and any other answer
   // leaves this person with what their role gives, which is the line Forms has shown all along.
@@ -498,10 +531,12 @@ export default function AdminDashboard() {
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
-    if (id === "settings") return isAdmin || canManagePermissions;
-    if (id === "forms") return isAdmin || canReadFiledForms;
+    if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups");
+    if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
+    if (id === "staff") return hasCap("manage_staff");
+    if (id === "announcements") return hasCap("send_announcements");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canReadFiledForms]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -521,11 +556,13 @@ export default function AdminDashboard() {
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
-    if (!token || !id || isAdmin) { setCanManagePermissions(false); setCanManageSettings(false); return; }
+    if (!token || !id) { setCaps(null); return; }
     let alive = true;
-    af("/api/users/" + encodeURIComponent(id) + "/permissions")
-      .then(d => { if (alive) { setCanManagePermissions(!!(d && d.effective && d.effective.manage_permissions)); setCanManageSettings(!!(d && d.effective && d.effective.manage_settings)); } })
-      .catch(e => { if (alive) { setCanManagePermissions(false); setCanManageSettings(false); } console.warn("Own capabilities:", e.message); });
+    const done = (map) => { if (alive) setCaps(map && typeof map === "object" ? map : null); };
+    // Until Step 179 answers the me route, the per-person route says the same for whoever may read it.
+    af("/api/users/me/permissions")
+      .then(d => done(d && d.capabilities))
+      .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => { done(null); console.warn("Own capabilities:", e.message); }); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
@@ -547,20 +584,34 @@ export default function AdminDashboard() {
   const [unread, setUnread] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
   const loadUnread = useCallback(async () => { try { const d = await af("/api/notifications/unread-count"); setUnread(Number(d && d.unread) || 0); } catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); } }, [af]);
-  // One timer drives the bell and the Cases badge together, so the two polls never stack.
+  // Unread messages, summed over every chat this person can read, from the unreadCount each channel
+  // carries (Step 179). A channel that carries none counts nothing, so the badge is quiet until then.
+  const [chatUnread, setChatUnread] = useState(0);
+  const loadChatUnread = useCallback(async () => { try { const d = await af("/api/chat/channels"); setChatUnread((Array.isArray(d) ? d : []).reduce((n, c) => n + (Number(c && c.unreadCount) || 0), 0)); } catch (e) { setChatUnread(0); console.warn("Unread messages:", e.message); } }, [af]);
+  // This person's phone alert settings (Step 179). The My alerts entry draws once the API answers.
+  const [alertSettings, setAlertSettings] = useState(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   useEffect(() => {
-    if (!token) { setCaseQueue(null); setUnread(0); setBellOpen(false); return; }
-    const tick = () => { loadUnread(); if (isAdmin) loadCaseQueue(); };
+    if (!token) { setAlertSettings(null); setAlertsOpen(false); return; }
+    let alive = true;
+    af("/api/notifications/settings").then(d => { if (alive) setAlertSettings(d && typeof d === "object" && typeof d.chat === "string" ? d : null); }).catch(() => { if (alive) setAlertSettings(null); });
+    return () => { alive = false; };
+  }, [token, af]);
+  // One timer drives the bell, the Messages badge and the Cases badge together, so the polls never stack.
+  useEffect(() => {
+    if (!token) { setCaseQueue(null); setUnread(0); setChatUnread(0); setBellOpen(false); return; }
+    const tick = () => { loadUnread(); loadChatUnread(); if (isAdmin) loadCaseQueue(); };
     tick();
     const iv = setInterval(() => { if (!document.hidden) tick(); }, 60000);
     return () => clearInterval(iv);
-  }, [token, isAdmin, loadUnread, loadCaseQueue]);
+  }, [token, isAdmin, loadUnread, loadChatUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
   // What a badge on the side panel is made of. The light arm is the only thing that changed.
   const badgeRed = themeMode === "light" ? "#C62828" : RD;
   const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
   const badgeRing = themeMode === "light" ? { boxShadow: "0 0 0 2px #FFFFFF" } : {};
   const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
+  const MessagesBadge = ({ style }) => chatUnread > 0 ? <span aria-label={tr("{0} unread messages", chatUnread)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", ...badgeRing, ...style }}>{chatUnread}</span> : null;
   const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={tr("{0} open issues", openIssuesCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
   const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={tr("{0} cases need attention", caseQueueCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   // A pick list's choices. `shown` is for a screen that only shows them: each choice reads its
@@ -626,7 +677,7 @@ export default function AdminDashboard() {
       <div style={{ textAlign: "center", marginTop: 18 }}><button onClick={toggleTheme} style={{ background: "none", border: "1px solid " + t.border, borderRadius: 8, padding: "7px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6, color: t.textMut, fontSize: 11, fontFamily: FONT_BODY }}>{themeMode === "dark" ? <SunI sz={14} c={t.textMut} /> : <MoonI sz={14} c={t.textMut} />}{themeMode === "dark" ? tr("Light Mode") : tr("Dark Mode")}</button></div>
     </div>
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);  const BxI = p => <Ic d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" {...p} />;
   const VnI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" {...p} />;
   const SvI = p => <Ic d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 3H8a2 2 0 0 0-2 2v2h12V5a2 2 0 0 0-2-2z" {...p} />;
@@ -644,7 +695,7 @@ export default function AdminDashboard() {
       { id: "sites", l: tr("Sites"), i: MpI },
     ]},
     { label: tr("Staff"), items: [
-      ...(isAdmin ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
+      ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
@@ -658,11 +709,12 @@ export default function AdminDashboard() {
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }] },
     ...(canOpenPage("forms") ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
+    ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -734,6 +786,7 @@ export default function AdminDashboard() {
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
                     {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                     {group.items.some(item => item.id === "issues") && <OpenIssuesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
+                    {group.items.some(item => item.id === "chat") && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                   </button>
                 </div>
               );
@@ -774,6 +827,7 @@ export default function AdminDashboard() {
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
                     {item.id === "issues" && <OpenIssuesBadge style={{ marginLeft: "auto" }} />}
+                    {item.id === "chat" && <MessagesBadge style={{ marginLeft: "auto" }} />}
                   </button>
                 );
               })}
@@ -837,6 +891,7 @@ export default function AdminDashboard() {
                   <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("Notifications")}
                   {unread > 0 && <span style={{ marginLeft: "auto", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#fff", fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread > 9 ? "9+" : unread}</span>}
                 </button>
+                {alertSettings && <button onClick={() => { setMoreOpen(false); setAlertsOpen(true); }} style={menuRow}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={menuRow}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />} {themeMode === "dark" ? tr("Light mode") : tr("Dark mode")}</button>
                 <button onClick={signOut} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
@@ -871,6 +926,7 @@ export default function AdminDashboard() {
               <div style={{ position: "absolute", top: 48, right: 0, width: 210, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? tr("Administrator") : tr("Supervisor")}</div></div>
                 {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> {tr("Settings")}</button>}
+                {alertSettings && <button onClick={() => { setAlertsOpen(true); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{languageChoice(true)}</div>
                 <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
@@ -882,47 +938,49 @@ export default function AdminDashboard() {
       </div>
       )}
       {(navOpen || userMenuOpen || moreOpen) && <div onClick={() => { setNavOpen(false); setUserMenuOpen(false); setMoreOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 38 }} />}
+      {alertsOpen && alertSettings && <MyAlertsWindow af={af} t={t} settings={alertSettings} onChange={setAlertSettings} onClose={() => setAlertsOpen(false)} showToast={showToast} />}
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
-        {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
-        {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
+        {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
-        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
-        {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
-        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
+        {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
+        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
+        {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "chat" && <ChatPage af={af} user={user} t={t} />}
+        {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} />}
+        {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={isAdmin || canManageSettings} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
     {toast && <Tst t={toast} />}
-    <style>{`*{box-sizing:border-box}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
 }
 
 function LoginForm({ onLogin, loading, t }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
-  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("2150000000 or name@email.com")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
+  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
 
-const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
+const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
-const DataTable = ({ columns, rows, rowKey, onRowClick, empty = "No records found.", footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
+const DataTable = ({ columns, rows, rowKey, onRowClick, empty = tr("No records found."), footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
-const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Showing {0} to {1} of {2}", from, to, total)}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>{tr("Prev")}</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>{tr("Page {0} / {1}", cur, totalPages)}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>{tr("Next")}</button></div></div>; };
+const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Showing {0} to {1} of {2}", from, to, total)}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>{tr("Prev")}</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>{tr("Page {0} / {1}", cur, totalPages)}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>{tr("Next")}</button></div></div>; };
 
 const ProfileBanner = ({ t, avatar, name, idCode, subtitle, badges, actions }) => <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}><div style={{ height: 92, background: "linear-gradient(120deg, " + GO + " 0%, " + GL + " 55%, " + GO + " 100%)" }} /><div style={{ padding: "0 20px 18px", display: "flex", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}><div style={{ marginTop: -42, flexShrink: 0, borderRadius: "50%", border: "3px solid " + t.card, background: t.card, lineHeight: 0 }}>{avatar}</div><div style={{ flex: 1, minWidth: 200, paddingTop: 12 }}><div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{name}</span>{idCode && <span style={{ fontSize: 11, fontFamily: "monospace", color: t.goldText, padding: "2px 8px", borderRadius: 6, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{idCode}</span>}</div>{subtitle && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{subtitle}</div>}{badges && <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>{badges}</div>}</div>{actions && <div style={{ display: "flex", flexDirection: "column", gap: 6, paddingTop: 12 }}>{actions}</div>}</div></Crd>;
 
@@ -934,28 +992,32 @@ const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.peop
 const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "";
 const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", ");
 
-function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
+function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t }) {
   const [stats, setStats] = useState(null); const [started, setStarted] = useState([]);
   const [inspSummary, setInspSummary] = useState([]);
+  // Which of the three reads failed last, so each card says so in its own place.
+  const [failed, setFailed] = useState({});
+  const mark = (k, v) => setFailed(f => (f[k] === v ? f : { ...f, [k]: v }));
   const loadDash = () => {
-    af("/api/reports/overview").then(setStats).catch(e => console.warn(e.message));
-    af("/api/shift-sessions/by-site").then(d => setStarted(flattenSessions(d))).catch(e => console.warn(e.message));
-    af("/api/inspections/analytics/dashboard-summary").then(setInspSummary).catch(e => console.warn(e.message));
+    af("/api/reports/overview").then(d => { setStats(d); mark("stats", false); }).catch(e => { mark("stats", true); console.warn(e.message); });
+    af("/api/shift-sessions/by-site").then(d => { setStarted(flattenSessions(d)); mark("started", false); }).catch(e => { mark("started", true); console.warn(e.message); });
+    af("/api/inspections/analytics/dashboard-summary").then(d => { setInspSummary(d); mark("insp", false); }).catch(e => { mark("insp", true); console.warn(e.message); });
   };
   useEffect(() => { loadDash(); const iv = setInterval(loadDash, 45000); return () => clearInterval(iv); }, []);
-  if (!stats) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
+  if (!stats) return failed.stats ? <Crd t={t}><LoadFailed t={t} onRetry={loadDash} /></Crd> : <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
   return (<div>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, marginBottom: 2, color: t.text }}>{tr("Welcome back, {0}", user?.firstName || tr("Admin"))}</div>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><div style={{ fontSize: 13, color: t.textSec }}>{tr("Operations overview.")}</div><button onClick={loadDash} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textMut, fontSize: 11, cursor: "pointer" }}><Ic d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" sz={12} c={t.textMut} /> {tr("Refresh")}</button></div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
       <SC t={t} label={tr("Started today")} value={stats.clockedInNow} sub={tr("of {0} active", stats.activeStaff)} color={GR} icon={CkI} />
       <SC t={t} label={tr("Open Issues")} value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
-      {isAdmin && <SC t={t} label={tr("Pending")} value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
+      {canManageStaff && <SC t={t} label={tr("Pending")} value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
     </div>
     <SecT t={t}>{tr("Started today")}</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
-      {started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
-      {started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
+      {failed.started && <LoadFailed t={t} onRetry={loadDash} style={{ padding: 0, textAlign: "left" }} />}
+      {!failed.started && started.length === 0 && <div style={{ fontSize: 13, color: t.textMut }}>{tr("No shifts started yet today.")}</div>}
+      {!failed.started && started.map(s => { const pct = s.tasksTotal > 0 ? Math.round(s.tasksCompleted / s.tasksTotal * 100) : 0; return (
         <div key={s.sessionId} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid " + t.border }}>
           <Ini name={s.name} /><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec }}>{sessionPlace(s)}</div></div>
           <div style={{ textAlign: "right" }}><div style={{ fontSize: 12, fontWeight: 600, color: GR }}>{tr("Started")} {fmtSessionStart(s.startedAt)}</div><div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6, marginTop: 3 }}><div style={{ width: 60, height: 4, borderRadius: 2, background: t.cardAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: pct === 100 ? GR : GO, width: pct + "%" }} /></div><span style={{ fontSize: 10, color: t.textMut }}>{tr("{0} of {1}", s.tasksCompleted, s.tasksTotal)}</span></div></div>
@@ -964,7 +1026,7 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
     <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
       <div style={{ flex: "2 1 340px", minWidth: 0 }}>
         <ChartCard t={t} title={tr("Inspection scores by site")} sub={tr("Most recent inspection per site")} action={tr("View all")} onAction={() => setPage("inspections")}>
-          {inspSummary.length > 0
+          {failed.insp ? <LoadFailed t={t} onRetry={loadDash} style={{ padding: 36 }} /> : inspSummary.length > 0
             ? <BarChartW t={t} name={tr("Score")} categories={inspSummary.map(is => is.site_name)} values={inspSummary.map(is => Math.round(Number(is.score_pct)))} colors={inspSummary.map(is => { const s = Number(is.score_pct); return s >= 80 ? GR : s >= 60 ? OR : RD; })} valueSuffix="%" height={270} />
             : <div style={{ padding: 36, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("No inspections recorded yet.")}</div>}
         </ChartCard>
@@ -974,19 +1036,27 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
           <RadialW t={t} value={stats.activeStaff > 0 ? (stats.clockedInNow / stats.activeStaff) * 100 : 0} valueText={stats.clockedInNow + " / " + stats.activeStaff} label={tr("Started")} color={GR} height={270} />
         </ChartCard>
       </div>
-    </div>    {((isAdmin && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      {isAdmin && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{tr("{0} pending", stats.pendingStaff)}</button>}
+    </div>    {((canManageStaff && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {canManageStaff && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{tr("{0} pending", stats.pendingStaff)}</button>}
       {stats.openIssues > 0 && <button onClick={() => setPage("issues")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.redSubtle, border: "1px solid " + t.redBorder, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><AlI sz={16} c={RD} />{tr("{0} open issues", stats.openIssues)}</button>}
     </div>}
   </div>);
 }
 
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf }) {
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false }) {
+  // An admin's account is changed only by a holder of manage_admins, which the API enforces; the
+  // controls it would refuse are not drawn.
+  const canChange = (person) => !(person && person.role === "admin") || canManageAdmins;
+  // The window Add New Staff leaves open after saving, with the temporary PIN.
+  const [added, setAdded] = useState(null);
+  const [addedBusy, setAddedBusy] = useState(false);
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [q, setQ] = useState(""); const [roleF, setRoleF] = useState("all"); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [assignForm, setAssignForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
   // Session 28: inline validation error for the Employee ID field (shared by Add Staff modal and Profile edit form)
+  // The refusal is known by its code. The English match stays only until every API carries codes.
+  const isEmployeeIdTaken = (e) => (e && e.code === "users.employeeIdTaken") || /employee id/i.test((e && e.message) || "");
   const [empIdError, setEmpIdError] = useState("");
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
@@ -999,7 +1069,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [tlStartDate, setTlStartDate] = useState(""); const [tlEndDate, setTlEndDate] = useState("");
   const [tlDetail, setTlDetail] = useState(null); const [tlDetailLoading, setTlDetailLoading] = useState(false);
 
-  const load = () => { af("/api/users").then(setStaff).catch(e => showToast(e.message, "error")); };
+  // Why the list is empty when it is: the read was refused to this person, or it failed.
+  const [staffFailed, setStaffFailed] = useState(null);
+  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); showToast(e.message, "error"); }); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
   // displayLabel the API sends in that language, a role the list does not hold reads the table's
@@ -1017,10 +1089,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // other as the name with its underscores as spaces, which is what the page has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
   const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // A field's value where it is a code: a service category is drawn as its plain word.
+  const catShown = lkMap ? lkMap("cims_categories", true) : {};
+  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), catShown) : v);
   // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
   const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
   const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
@@ -1032,7 +1107,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(tr("Approved")); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast(tr("Added. Temp PIN: {0}", d.tempPin)); setAddForm(null); load(); loadStaff(); } catch (e) { if (/employee id/i.test(e.message || "")) { setEmpIdError(e.message); } else { showToast(e.message, "error"); } } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
   const openProfile = async (id) => {
@@ -1062,13 +1137,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Same pattern used in HRRecordsPage.
   const viewDoc = async (docId) => {
     try {
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -1104,7 +1179,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
+    a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + todayISO() + ".csv").replace(/ /g, "_");
     a.click(); URL.revokeObjectURL(a.href);
     showToast(tr("CSV exported"));
   };
@@ -1148,7 +1223,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
           const label = fieldOf(k);
-          let val = String(v);
+          let val = String(valueOf(k, v));
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
@@ -1255,7 +1330,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); closeProfile(); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const assignSite = async () => { if (!assignForm.siteId) { showToast(tr("Select a site"), "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast(tr("Assigned")); setAssignForm(null); openProfile(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const unassign = async (uid, sid) => { if (!window.confirm(tr("Remove this site assignment?"))) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast(tr("Removed|assignment")); openProfile(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast(tr("PIN must be 4 digits"), "error"); return; } try { const d = await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(d.message); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
+  const nameOf = (userId) => { const row = staff.find(x => x.id === userId); if (row && row.name) return row.name; if (profile && profile.user && profile.user.id === userId) return (profile.user.firstName || "") + " " + (profile.user.lastName || ""); return ""; };
+  const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast(tr("PIN must be 4 digits"), "error"); return; } try { await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(tr("PIN reset for {0}", nameOf(userId).trim())); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
+  // The invite, the reset link and the badge number the API hands out (Step 176 routes).
+  const sendInvite = async (userId) => { setAddedBusy(true); try { await af("/api/users/" + userId + "/invite", { method: "POST" }); showToast(tr("Invite sent.")); } catch (e) { showToast(e.message, "error"); } setAddedBusy(false); };
+  const sendResetLink = async (userId) => { try { await af("/api/users/" + userId + "/send-reset", { method: "POST" }); showToast(tr("Reset link sent.")); } catch (e) { showToast(e.message, "error"); } };
+  const generateBadge = async (userId) => { try { await af("/api/users/" + userId + "/badge/generate", { method: "POST" }); openProfile(userId); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const copyText = async (text) => { try { await navigator.clipboard.writeText(text); showToast(tr("Copied")); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
 
   // Photo upload
@@ -1283,7 +1364,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
     } catch (e) {
-      if (/employee id/i.test(e.message || "")) { setEmpIdError(e.message); }
+      if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); }
       else { showToast(e.message, "error"); }
     }
   };
@@ -1323,8 +1404,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <ProfileBanner t={t}
         avatar={<div style={{ position: "relative" }}>
             <Avatar user={u} sz={84} />
-            <label style={{ position: "absolute", bottom: -2, right: -2, width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "2px solid " + t.card }}>
-              <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c={NAVY} />
+            <label aria-label={tr("Change photo")} title={tr("Change photo")} style={{ position: "absolute", bottom: -10, right: -10, width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <span style={{ width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}><Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c={NAVY} /></span>
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
             </label>
             {photoUploading && <div style={{ position: "absolute", top: 0, left: 0, width: 84, height: 84, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#F8F7F4" }}>...</div>}
@@ -1335,9 +1416,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         badges={<Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />}
         actions={<>
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
-          <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>
-          {u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
-          {u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
+          {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
+          {canChange(u) && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
+          {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
+          {canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
+          {canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
           {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
@@ -1352,7 +1436,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1528,7 +1612,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6 }}>
             <button onClick={printTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
-            <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+            <button onClick={() => setTlDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>
         {/* Activity summary */}
@@ -1554,8 +1638,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const isObj = typeof v === "object" && !Array.isArray(v);
               return <div key={k} style={{ fontSize: 11 }}>
                 <div style={{ color: t.textMut, fontSize: 9, textTransform: "uppercase", marginBottom: 1 }}>{fieldOf(k)}</div>
-                {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
-                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(v)}</div>}
+                {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
+                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(valueOf(k, v))}</div>}
               </div>;
             })}
           </div>
@@ -1577,10 +1661,23 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div></Mdl>}
 
       {/* Modals that need to work inside profile view */}
+      {added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
+          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
+          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
+          <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
+        </div>
+      </div></Mdl>}
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
-        <div style={{ marginBottom: 16 }}><Lbl>{tr("New PIN (4 digits)")}</Lbl><Inp t={t} value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("New PIN (4 digits)")}</Lbl><Inp t={t} type="password" inputMode="numeric" autoComplete="off" value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setResetPin(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={() => submitResetPin(resetPin)}>{tr("Reset PIN")}</Btn></div>
       </div></Mdl>}
       {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
@@ -1591,7 +1688,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Start")}</Lbl><Inp t={t} type="time" value={assignForm.start} onChange={e => setAssignForm({ ...assignForm, start: e.target.value })} /></div><div><Lbl>{tr("End")}</Lbl><Inp t={t} type="time" value={assignForm.end} onChange={e => setAssignForm({ ...assignForm, end: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={assignSite}>{tr("Assign")}</Btn></div></div></Mdl>}
       {addCert && <Mdl t={t} onClose={() => setAddCert(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAddCert(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Certification")}</div><button onClick={() => setAddCert(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Certification Name *")}</Lbl><Inp t={t} value={addCert.certName} onChange={e => setAddCert({ ...addCert, certName: e.target.value })} placeholder={tr("e.g. Green Cleaning Fundamentals")} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Type")}</Lbl><Sel t={t} value={addCert.certType} onChange={e => setAddCert({ ...addCert, certType: e.target.value })} options={getOpts("certification_types", null, true)} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Issuing Body")}</Lbl><Inp t={t} value={addCert.issuingBody} onChange={e => setAddCert({ ...addCert, issuingBody: e.target.value })} placeholder={tr("e.g. ISSA, OSHA")} /></div>
@@ -1636,11 +1733,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
-        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}<button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
+      if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name *")}</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone *")}</Lbl><Inp t={t} value={addForm.phone} onChange={e => setAddForm({ ...addForm, phone: e.target.value })} placeholder={tr("{0} (no dashes needed)", "2155550000")} /></div>
@@ -1650,7 +1748,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Employment Type")}</Lbl><Sel t={t} value={addForm.employmentType || ""} onChange={e => setAddForm({ ...addForm, employmentType: e.target.value || null })} options={employmentOpts} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Staff")}</Btn></div></div></Mdl>}
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Staff Info")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Staff Info")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name")}</Lbl><Inp t={t} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /></div>
@@ -1665,7 +1763,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 }
 
 
-function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
+function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
   const [siteProfile, setSiteProfile] = useState(null);
   const [siteTab, setSiteTab] = useState("general");
@@ -1675,8 +1773,6 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const [editTask, setEditTask] = useState(null);
   const [editSite, setEditSite] = useState(null);
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [deleteText, setDeleteText] = useState("");
   const [timeline, setTimeline] = useState([]);
   const [tlTotal, setTlTotal] = useState(0);
   const [tlCat, setTlCat] = useState("all");
@@ -1690,9 +1786,12 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const [siteChatTotal, setSiteChatTotal] = useState(0);
   const [siteChatChannel, setSiteChatChannel] = useState(null);
   const [siteChatLoading, setSiteChatLoading] = useState(false);
+  const [tlFailed, setTlFailed] = useState(false);
+  const [siteChatFailed, setSiteChatFailed] = useState(false);
   const [showAddSupply, setShowAddSupply] = useState(false);
   const [availableSupplies, setAvailableSupplies] = useState([]);
   const [addSupplyLoading, setAddSupplyLoading] = useState(false);
+  const shiftNameShown = lkMap("shift_names", true);
   const cimsLabels = lkMap("cims_categories", true);
   // The words for the codes a site and its tasks carry. The code is what the API sent and what is
   // sent back; these are only what the screen says. A code with no word here is drawn as it arrives.
@@ -1716,9 +1815,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // a word here is drawn as that word, and any other as the name with its underscores as spaces,
   // which is what the window has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // A field's value where it is a code: a service category is drawn as its plain word.
+  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), cimsLabels) : v);
   // The kind of record a timeline entry points at, which the printed timeline shows as its category.
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage") };
   const entityOf = (k) => k ? (entityWord[k] || k.replace(/_/g, " ")) : "";
@@ -1752,7 +1853,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       const d = await af(url);
       setTimeline(append ? prev => [...prev, ...d.entries] : d.entries);
       setTlTotal(d.total);
-    } catch (e) { console.warn("Timeline load error:", e); }
+      setTlFailed(false);
+    } catch (e) { console.warn("Timeline load error:", e); if (!append) setTimeline([]); setTlFailed(true); }
     setTlLoading(false);
   };
 
@@ -1770,7 +1872,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       setSiteChat(d.messages || []);
       setSiteChatTotal(d.total || 0);
       setSiteChatChannel(d.channel);
-    } catch (e) { console.warn("Site chat load error:", e); setSiteChat([]); }
+      setSiteChatFailed(false);
+    } catch (e) { console.warn("Site chat load error:", e); setSiteChat([]); setSiteChatFailed(true); }
     setSiteChatLoading(false);
   };
 
@@ -1796,7 +1899,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   };
 
   const removeSupplyFromSite = async (supplyId) => {
-    if (!window.confirm(tr("Remove this supply from the site?"))) return;
+    if (!window.confirm(tr("Remove this supply from this list?"))) return;
     try {
       await af("/api/sites/" + selectedSite + "/supplies/" + supplyId, { method: "DELETE" });
       showToast(tr("Supply removed"));
@@ -1849,7 +1952,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   const submitSite = async () => {
     if (!addSite.name || !addSite.address) { showToast(tr("Name and address required"), "error"); return; }
     try {
-      await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || "Philadelphia", state: addSite.state || "PA", zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } });
+      await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || clientConfig.company.city, state: addSite.state || clientConfig.company.state, zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } });
       showToast(tr("Site created")); setAddSite(null); load();
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -1878,7 +1981,6 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
   const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast(tr("Site deactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
 
-  const deleteSite = async (id) => { try { await af("/api/sites/" + id, { method: "DELETE" }); showToast(tr("Site permanently deleted")); setDeleteConfirm(null); setDeleteText(""); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
 
   const uploadFloorPlan = async (file) => {
     if (!file || !selectedSite) return;
@@ -1894,11 +1996,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   };
 
   const deleteFloorPlan = async (planId) => {
-    if (!window.confirm(tr("Remove this floor plan?"))) return;
+    if (!window.confirm(tr("Remove this floor plan from this list?"))) return;
     try { await af("/api/sites/" + selectedSite + "/floor-plans/" + planId, { method: "DELETE" }); showToast(tr("Floor plan removed")); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const visibleSites = isAdmin ? sites : sites.filter(s => s.status === "active");
+  const visibleSites = canManageSites ? sites : sites.filter(s => s.status === "active");
   const inactiveCount = sites.filter(s => s.status !== "active").length;
 
   const tlCats = [
@@ -1956,7 +2058,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = (siteName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
+    a.download = (siteName + "_Timeline_" + todayISO() + ".csv").replace(/ /g, "_");
     a.click(); URL.revokeObjectURL(a.href);
     showToast(tr("CSV exported"));
   };
@@ -2004,7 +2106,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
           const label = fieldOf(k);
-          let val = String(v);
+          let val = String(valueOf(k, v));
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
@@ -2046,7 +2148,6 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const zoneWord = {}; st.forEach(tk => { if (tk.zone && tk.display && tk.display.zone) zoneWord[tk.zone] = tk.display.zone; });
     const zoneShown = lkMap("zones", true);
     // The word a person types to delete the site, in the language they read.
-    const deleteWord = tr("DELETE");
     const tabs = [
       { k: "general", l: tr("General Info") }, { k: "tasks", l: tr("Service Details") },
       { k: "shifts", l: tr("Shifts & Schedule") }, { k: "supplies", l: tr("Supplies") },
@@ -2068,10 +2169,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
           </div>
-          {isAdmin && <div style={{ display: "flex", gap: 6 }}>
+          {canManageSites && <div style={{ display: "flex", gap: 6 }}>
             {s.status === "active" && <button onClick={() => { if (window.confirm(tr("Deactivate this site?"))) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>{tr("Deactivate")}</button>}
             {s.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + s.id, { method: "PATCH", body: { status: "active" } }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
-            <button onClick={() => { setDeleteConfirm(s); setDeleteText(""); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>{tr("Delete")}</button>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
@@ -2096,9 +2196,9 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Client")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_name || tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Monthly Value")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Billing")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{billingOf(s.billing_frequency || "monthly")}</div></div>
-            <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fd(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fd(s.contract_end_date)) : ""}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fdDay(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fdDay(s.contract_end_date)) : ""}</div></div>
           </div>
-          {isAdmin && <button onClick={() => setEditSite({
+          {canManageSites && <button onClick={() => setEditSite({
             clientName: s.client_name || "", contractType: s.contract_type || "", primeContractor: s.prime_contractor || "",
             contractValueMonthly: s.contract_value_monthly || "", billingFrequency: s.billing_frequency || "monthly",
             contractStartDate: s.contract_start_date ? (typeof s.contract_start_date === "object" ? s.contract_start_date.toISOString().split("T")[0] : String(s.contract_start_date).split("T")[0]) : "",
@@ -2126,7 +2226,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
               {st2.profile_photo_url ? <img src={st2.profile_photo_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : <Ini name={st2.first_name + " " + st2.last_name} sz={32} />}
               <div><div style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{st2.first_name} {st2.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{roleOf(st2)}</div></div>
             </div>
-            {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
+            {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{shiftNameShown[st2.shift_name] || st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
           </div>)}
           {sp.staff.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No staff assigned")}</div>}
         </Crd>
@@ -2146,11 +2246,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
               <div><div style={{ fontSize: 12, color: t.text }}>{fp.label}</div><div style={{ fontSize: 10, color: t.textMut }}>{fd(fp.uploaded_at)}</div></div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
-              {isAdmin && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove")}</button>}
+              <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
+              {canManageSites && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
             </div>
           </div>)}
-          {isAdmin && <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {canManageSites && <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Inp t={t} value={floorPlanLabel} onChange={e => setFloorPlanLabel(e.target.value)} placeholder={tr("Label")} style={{ width: 160, fontSize: 11 }} />
             <input type="file" accept="image/*,.pdf" onChange={e => { if (e.target.files?.[0]) uploadFloorPlan(e.target.files[0]); }} style={{ fontSize: 11, color: t.textSec }} />
           </div>}
@@ -2166,18 +2266,18 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {siteTab === "tasks" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Tasks ({0})", st.length)}</div>
-          <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>
+          {canManageTasks && <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>}
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}>
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fd(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
-            <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+            {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
               <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
-            </div>
+            </div>}
           </div>
         </Crd>)}
         {st.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No tasks configured for this site")}</div>}
@@ -2206,7 +2306,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Upcoming Shifts (Next 7 Days)")}</div>
           {sp.upcomingShifts.length > 0 ? sp.upcomingShifts.map((sh, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.scheduled_date ? fd(sh.scheduled_date) : ""}</div></div>
+            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.scheduled_date ? fdDay(sh.scheduled_date) : ""}</div></div>
             <div style={{ fontSize: 11, color: t.textSec }}>{sh.start_time || ""} {sh.end_time ? " - " + sh.end_time : ""}</div>
           </div>) : <div style={{ fontSize: 12, color: t.textMut }}>{tr("No upcoming shifts")}</div>}
         </Crd>
@@ -2217,7 +2317,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Supplies at This Site ({0})", sp.supplies.length)}</div>
-            {isAdmin && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Supply")}</button>}
+            {canManageSites && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Supply")}</button>}
           </div>
           {sp.supplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div>
@@ -2229,14 +2329,14 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
                 <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.low_threshold ? RD : t.text }}>{sup.current_stock}</div>
                 <div style={{ fontSize: 9, color: t.textMut }}>{tr("Min: {0}", sup.low_threshold)}</div>
               </div>
-              {isAdmin && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>}
+              {canManageSites && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
             </div>
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supplies assigned to this site")}</div>}
         </Crd>
 
         {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply to Site")}</div><button onClick={() => setShowAddSupply(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply to Site")}</div><button onClick={() => setShowAddSupply(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           {addSupplyLoading && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("Loading...")}</div>}
           {!addSupplyLoading && availableSupplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("All supplies are already assigned to this site")}</div>}
           {availableSupplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
@@ -2258,7 +2358,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>
         </div>
         {siteChatLoading && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("Loading...")}</div>}
-        {!siteChatLoading && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No messages in this site channel")}</div>}
+        {!siteChatLoading && siteChatFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadSiteChat} />}
+        {!siteChatLoading && !siteChatFailed && siteChat.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No messages in this site channel")}</div>}
         <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{trn("{0} message|count", siteChatTotal)}</div>
         {[...siteChat].reverse().map(m => {
           const dt = new Date(m.sentAt);
@@ -2280,7 +2381,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Scope of Work")}</div>
           {s.scope_of_work ? <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{s.scope_of_work}</div> : <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>{tr("No scope of work documented yet.")}</div>}
-          {isAdmin && <div style={{ marginTop: 12 }}>
+          {canManageSites && <div style={{ marginTop: 12 }}>
             <TArea t={t} rows={10} defaultValue={s.scope_of_work || ""} id="scopeEdit" placeholder={tr("Document the scope of work for this site...")} />
             <Btn t={t} style={{ marginTop: 8 }} onClick={() => { const v = document.getElementById("scopeEdit").value; saveSiteField({ scopeOfWork: v }); }}>{tr("Save Scope")}</Btn>
           </div>}
@@ -2328,7 +2429,8 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           </div>);
         })()}
         {timeline.length < tlTotal && <button onClick={loadMoreTl} style={{ display: "block", margin: "10px auto", padding: "8px 20px", borderRadius: 8, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tlLoading ? tr("Loading...") : tr("Load More")}</button>}
-        {!tlLoading && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No activity recorded for this site")}</div>}
+        {!tlLoading && tlFailed && <LoadFailed t={t} onRetry={() => { setTlOffset(0); loadTimeline(tlCat, 0, false); }} />}
+        {!tlLoading && !tlFailed && timeline.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No activity recorded for this site")}</div>}
       </div>}
 
       {/* TIMELINE DETAIL MODAL */}
@@ -2337,7 +2439,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Record Detail")}</div>
           <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             <button onClick={printSiteTimelineDetail} style={{ padding: "4px 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Print")}</button>
-            <button onClick={() => setTlDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+            <button onClick={() => setTlDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
           </div>
         </div>
         <div style={{ marginBottom: 12, padding: "10px 12px", background: t.hover, borderRadius: 8 }}>
@@ -2351,7 +2453,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
               if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
-              let val = typeof v === "object" ? JSON.stringify(v) : String(v);
+              let val = typeof v === "object" ? JSON.stringify(v) : String(valueOf(k, v));
               if (val.length > 200) val = val.substring(0, 200) + "...";
               return <div key={k}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><div style={{ fontSize: 12, color: t.text, marginTop: 2 }}>{val}</div></div>;
             })}
@@ -2370,7 +2472,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
       {/* EDIT SITE MODAL */}
       {editSite && <Mdl t={t} onClose={() => setEditSite(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Site Details")}</div><button onClick={() => setEditSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Site Details")}</div><button onClick={() => setEditSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Site Name")}</Lbl><Inp t={t} value={editSite.name} onChange={e => setEditSite({ ...editSite, name: e.target.value })} /></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Address")}</Lbl><Inp t={t} value={editSite.addressLine1} onChange={e => setEditSite({ ...editSite, addressLine1: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("City")}</Lbl><Inp t={t} value={editSite.city} onChange={e => setEditSite({ ...editSite, city: e.target.value })} /></div><div><Lbl>{tr("State")}</Lbl><Inp t={t} value={editSite.state} onChange={e => setEditSite({ ...editSite, state: e.target.value })} /></div><div><Lbl>{tr("Zip")}</Lbl><Inp t={t} value={editSite.zipCode} onChange={e => setEditSite({ ...editSite, zipCode: e.target.value })} /></div></div>
@@ -2391,7 +2493,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       </div></Mdl>}
 
       {/* ADD TASK MODAL */}
-      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      {addTask && <Mdl t={t} onClose={() => setAddTask(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Task")}</div><button onClick={() => setAddTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Description *")}</Lbl><Inp t={t} value={addTask.label} onChange={e => setAddTask({ ...addTask, label: e.target.value })} placeholder={tr("e.g. Vacuum carpets")} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={addTask.building} onChange={e => setAddTask({ ...addTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={addTask.floor} onChange={e => setAddTask({ ...addTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={addTask.zone} onChange={e => setAddTask({ ...addTask, zone: e.target.value })} placeholder={tr("e.g. Restrooms")} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={addTask.cims} onChange={e => setAddTask({ ...addTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={addTask.pri} onChange={e => setAddTask({ ...addTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} value={addTask.taskType} onChange={e => setAddTask({ ...addTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} /></div></div>
@@ -2406,7 +2508,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
       {/* EDIT TASK MODAL */}
       {editTask && <Mdl t={t} onClose={() => setEditTask(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Task")}</div><button onClick={() => setEditTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Task")}</div><button onClick={() => setEditTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Name")}</Lbl><Inp t={t} value={editTask.label} onChange={e => setEditTask({ ...editTask, label: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={editTask.building} onChange={e => setEditTask({ ...editTask, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={editTask.floor} onChange={e => setEditTask({ ...editTask, floor: e.target.value })} placeholder={tr("e.g. 1, 2, B")} /></div><div><Lbl>{tr("Zone")}</Lbl><Inp t={t} value={editTask.zone} onChange={e => setEditTask({ ...editTask, zone: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Service Category")}</Lbl><Sel t={t} value={editTask.cims} onChange={e => setEditTask({ ...editTask, cims: e.target.value })} options={getOpts("cims_categories", null, true)} /></div><div><Lbl>{tr("Priority")}</Lbl><Sel t={t} value={editTask.pri} onChange={e => setEditTask({ ...editTask, pri: e.target.value })} options={getOpts("task_priorities", null, true)} /></div><div><Lbl>{tr("Task Type")}</Lbl><Sel t={t} value={editTask.taskType} onChange={e => setEditTask({ ...editTask, taskType: e.target.value })} options={[{ v: "standard", l: tr("Daily Checklist") }, { v: "assigned", l: tr("One-Off Assigned") }]} /></div></div>
@@ -2421,29 +2523,19 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       </div></Mdl>}
 
       {/* DELETE SITE MODAL */}
-      {deleteConfirm && <Mdl t={t} onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD, marginBottom: 12 }}>{tr("Permanently Delete Site")}</div>
-        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{trWith("This will permanently remove {0} and all associated tasks, assignments, and data. This action cannot be undone.", <span style={{ fontWeight: 600, color: t.text }}>{deleteConfirm.name}</span>)}</div>
-        <div style={{ padding: "10px 12px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14 }}>{trWith("Type {0} to confirm.", <span style={{ fontWeight: 600 }}>{deleteWord}</span>)}</div>
-        <div style={{ marginBottom: 16 }}><Inp t={t} value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder={tr("Type {0} here", deleteWord)} style={{ textTransform: "uppercase", textAlign: "center", fontSize: 16, letterSpacing: "4px", border: deleteText === deleteWord ? "1px solid " + RD : "1px solid " + t.inputBorder }} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn t={t} v="ghost" onClick={() => { setDeleteConfirm(null); setDeleteText(""); }}>{tr("Cancel")}</Btn>
-          <Btn t={t} v="danger" onClick={() => { if (deleteText === deleteWord) deleteSite(deleteConfirm.id); else showToast(tr("Type {0} to confirm", deleteWord), "error"); }}>{tr("Delete Permanently")}</Btn>
-        </div>
-      </div></Mdl>}
     </div>);
   }
 
   // ---- LIST VIEW ----
   return (<div>
-    <SecT t={t} action={isAdmin ? tr("Add Site") : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
-    {isAdmin && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
+    <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
+    {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
-      const base = isAdmin ? (statusF === "all" ? visibleSites : statusF === "inactive" ? visibleSites.filter(s => s.status !== "active") : visibleSites.filter(s => s.status === "active")) : visibleSites;
+      const base = canManageSites ? (statusF === "all" ? visibleSites : statusF === "inactive" ? visibleSites.filter(s => s.status !== "active") : visibleSites.filter(s => s.status === "active")) : visibleSites;
       const searched = base.filter(s => {
         if (!q.trim()) return true;
         const hay = (s.name + " " + (s.address_line1 || "") + " " + (s.contract_type || "")).toLowerCase();
@@ -2463,7 +2555,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No sites found.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
-    {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Site")}</div><button onClick={() => setAddSite(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+    {addSite && <Mdl t={t} onClose={() => setAddSite(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Site")}</div><button onClick={() => setAddSite(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addSite.name} onChange={e => setAddSite({ ...addSite, name: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Address *")}</Lbl><Inp t={t} value={addSite.address} onChange={e => setAddSite({ ...addSite, address: e.target.value })} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("City")}</Lbl><Inp t={t} value={addSite.city} onChange={e => setAddSite({ ...addSite, city: e.target.value })} /></div><div><Lbl>{tr("State")}</Lbl><Inp t={t} value={addSite.state} onChange={e => setAddSite({ ...addSite, state: e.target.value })} /></div><div><Lbl>{tr("Zip")}</Lbl><Inp t={t} value={addSite.zip} onChange={e => setAddSite({ ...addSite, zip: e.target.value })} /></div></div>
@@ -2514,7 +2606,8 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
   const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
-  const load = () => af("/api/issues").then(setIssues).catch(e => showToast(e.message, "error"));
+  const [issuesFailed, setIssuesFailed] = useState(false);
+  const load = () => af("/api/issues").then(d => { setIssues(d); setIssuesFailed(false); }).catch(e => { setIssuesFailed(true); showToast(e.message, "error"); });
   useEffect(() => { load(); }, []);
   const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
@@ -2530,7 +2623,9 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}</div>
-    {issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
+    {issuesFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
+    {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6 }}><Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{iss.reported_by_name} | {ff(iss.reported_at)}</div>
@@ -2539,7 +2634,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => setSel(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.title}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(sel.severity)} c={sC[sel.severity]} /><Bdg l={stateOf(sel.status)} c={stC[sel.status] || t.textMut} /></div>
       {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
@@ -2564,7 +2659,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
       </div></div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{assignTask.isReassign ? tr("Reassign Issue") : tr("Assign Issue as Task")}</div><button onClick={() => setAssignTask(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {assignTask.isReassign && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{tr("This issue is currently assigned to someone. Selecting a new person will remove the previous assignment.")}</div>}
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("The task will appear in the staff member's \"Assigned Tasks\" tab where they can mark it as in progress, resolved, or unable to resolve.")}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Assign To *")}</Lbl><Sel t={t} value={assignTask.userId} onChange={e => setAssignTask({ ...assignTask, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -2574,7 +2669,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   </div>);
 }
 
-function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkMap, lkHasOther }) {
+function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
@@ -2598,55 +2693,174 @@ function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkMap, lkHasOth
   const reqTypeWord = { refill: tr("Refill Request"), damage_report: tr("Damage Report"), new_gear: tr("New Gear Request") };
   const pendingCount = requests.filter(r => r.status === "pending").length;
   return (<div>
-    <SecT t={t} action={isAdmin ? tr("Add Supply") : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
+    <SecT t={t} action={canManageSupplies ? tr("Add Supply") : undefined} onAction={canManageSupplies ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
       <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
       <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
     </div>
-    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
-    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{isAdmin ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
+    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{canManageSupplies ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
-    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
+    {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
 
-function ChatPage({ af, user, t }) {
-  const [dms, setDms] = useState([]); const [sel, setSel] = useState(null); const [msgs, setMsgs] = useState([]); const [reply, setReply] = useState(""); const [q, setQ] = useState(""); const endRef = useRef(null);
-  useEffect(() => { af("/api/chat/dm-inbox").then(setDms).catch(e => console.warn(e.message)); }, []);
-  const open = async id => { setSel(id); try { const m = await af("/api/chat/channels/" + id + "/messages"); setMsgs(m); } catch (e) { console.error(e); } };
+// A message's text with each tagged name drawn as a chip. The API keeps the ids in `mentions` and the
+// text as typed, with @Name in it, so the names are found in the text and everything else is drawn
+// as it was typed.
+const mentionParts = (text, mentions) => {
+  const names = (Array.isArray(mentions) ? mentions : []).map(m => m && m.name).filter(Boolean).sort((a, b) => b.length - a.length);
+  const out = []; let rest = String(text || ""); let k = 0;
+  while (rest.length) {
+    let at = -1; let hit = "";
+    names.forEach(n => { const i = rest.indexOf("@" + n); if (i >= 0 && (at < 0 || i < at)) { at = i; hit = n; } });
+    if (at < 0) { out.push({ k: k++, text: rest }); break; }
+    if (at > 0) out.push({ k: k++, text: rest.slice(0, at) });
+    out.push({ k: k++, text: "@" + hit, tag: true });
+    rest = rest.slice(at + hit.length + 1);
+  }
+  return out;
+};
+const MentionText = ({ text, mentions, color }) => <>{mentionParts(text, mentions).map(p => p.tag ? <span key={p.k} style={{ fontWeight: 700, color: color || GO }}>{p.text}</span> : <Fragment key={p.k}>{p.text}</Fragment>)}</>;
+
+// Tag someone: the active people who can read the chat, the caller left out, from the members route
+// (Step 179). A search narrows them, each row is 44 pixels, and a pick puts @Name in the text.
+function TagPicker({ af, t, channelId, onPick, onClose }) {
+  const [members, setMembers] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [q, setQ] = useState("");
+  const load = useCallback(() => {
+    setFailed(false); setMembers(null);
+    af("/api/chat/channels/" + encodeURIComponent(channelId) + "/members")
+      .then(d => setMembers(d && Array.isArray(d.members) ? d.members : []))
+      .catch(e => { setFailed(true); console.warn("Members:", e.message); });
+  }, [af, channelId]);
+  useEffect(() => { load(); }, [load]);
+  const shown = (members || []).filter(m => !q.trim() || String(m.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  return (<div role="dialog" aria-label={tr("Tag someone")} data-tag-picker style={{ position: "absolute", left: 16, right: 16, bottom: 64, maxWidth: 360, maxHeight: 320, display: "flex", flexDirection: "column", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 20 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 8px 14px", borderBottom: "1px solid " + t.border }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, flex: 1 }}>{tr("Tag someone")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={16} c={t.textMut} /></button>
+    </div>
+    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
+    <div style={{ overflowY: "auto", padding: "0 6px 6px" }}>
+      {failed && <LoadFailed t={t} onRetry={load} />}
+      {!failed && members === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {!failed && members !== null && members.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No one else can read this chat.")}</div>}
+      {!failed && members !== null && members.length > 0 && shown.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No staff match that search")}</div>}
+      {shown.map(m => (<button key={m.id} onClick={() => onPick(m)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+        <Ini name={m.name} sz={30} color={t.textSec} />
+        <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+        {m.role && <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{roleWord(m.role)}</span>}
+      </button>))}
+    </div>
+  </div>);
+}
+
+// Messages: the general chat and every site chat on top, private conversations under them. Under
+// 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
+// Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
+// (Step 179; the read route arriving with it, its refusal is quiet until then).
+function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false }) {
+  const [channels, setChannels] = useState([]);
+  const [dms, setDms] = useState([]);
+  const [dmsFailed, setDmsFailed] = useState(false);
+  const [sel, setSel] = useState(null);
+  const [msgs, setMsgs] = useState([]);
+  const [msgsFailed, setMsgsFailed] = useState(false);
+  const [reply, setReply] = useState("");
+  const [q, setQ] = useState("");
+  const [mentions, setMentions] = useState([]);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+  const loadDms = () => af("/api/chat/dm-inbox").then(d => { setDms(Array.isArray(d) ? d : []); setDmsFailed(false); }).catch(e => { setDmsFailed(true); console.warn(e.message); });
+  const loadChannels = () => af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.type !== "admin_dm"))).catch(e => console.warn("Channels:", e.message));
+  useEffect(() => { loadDms(); loadChannels(); }, []);
+  const markRead = async (id) => {
+    try { await af("/api/chat/channels/" + encodeURIComponent(id) + "/read", { method: "POST" }); } catch (e) { return; }
+    setDms(p => p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d));
+    setChannels(p => p.map(c => c.id === id ? { ...c, unreadCount: 0 } : c));
+    if (onRead) onRead();
+  };
+  // A conversation that does not load clears what the last one showed and says so, with a way to try again.
+  const open = async id => {
+    setSel(id); setTagOpen(false); setMentions([]);
+    try { const m = await af("/api/chat/channels/" + encodeURIComponent(id) + "/messages"); setMsgs(Array.isArray(m) ? m : []); setMsgsFailed(false); markRead(id); }
+    catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); }
+  };
+  useEffect(() => { const id = route[0]; if (id && id !== sel) open(id); }, [route[0]]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
-  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + sel + "/messages"); setMsgs(m); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
-  const send = async () => { if (!reply.trim() || !sel) return; try { const d = await af("/api/chat/channels/" + sel + "/messages", { method: "POST", body: { text: reply.trim() } }); setMsgs(p => [...p, d.message]); setReply(""); } catch (e) { console.error(e); } };
-  const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); setMsgs(Array.isArray(m) ? m : []); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
+  const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
+  const canTag = !!activeChannel;
+  // The tags still in the text are the ones sent, at most ten and no repeats.
+  const liveMentions = () => { const ids = []; mentions.forEach(m => { if (reply.indexOf("@" + m.name) >= 0 && ids.indexOf(m.id) < 0) ids.push(m.id); }); return ids.slice(0, 10); };
+  const send = async () => {
+    const text = reply.trim();
+    if (!text || !sel || sending) return;
+    setSending(true);
+    const ids = liveMentions();
+    const body = ids.length ? { text, mentions: ids } : { text };
+    try { const d = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages", { method: "POST", body }); if (d && d.message) setMsgs(p => [...p, d.message]); setReply(""); setMentions([]); }
+    catch (e) { if (showToast) showToast(e && e.code && e.message ? e.message : tr("Your message did not send."), "error"); }
+    setSending(false);
+  };
+  const onReplyChange = (v) => { setReply(v); if (canTag && v.length > reply.length && v.endsWith("@")) setTagOpen(true); };
+  const pickMember = (m) => {
+    const name = String(m.name || "");
+    setReply(r => (r.endsWith("@") ? r.slice(0, -1) : (r && !r.endsWith(" ") ? r + " " : r)) + "@" + name + " ");
+    setMentions(p => (p.some(x => x.id === m.id) ? p : [...p, { id: m.id, name }]));
+    setTagOpen(false);
+    if (inputRef.current) inputRef.current.focus();
+  };
+  const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : tr("General chat"));
+  const unreadPill = (n) => (n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{n}</span> : null);
+  const showList = !phone || !sel;
+  const showTalk = !phone || !!sel;
+  const rowStyle = (active) => ({ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" });
   return (<div>
     <SecT t={t}>{tr("Messages")}</SecT>
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 420 }}>
-      <div style={{ width: 300, borderRight: "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      {showList && <div style={{ width: phone ? "100%" : 300, borderRight: phone ? "none" : "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Private conversations")}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 22, padding: "7px 12px", minHeight: 44 }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
-          {filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
+          {shownChannels.length > 0 && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Channels")}</div>}
+          {shownChannels.map(c => { const active = c.id === sel; return (
+            <button key={c.id} onClick={() => open(c.id)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ChI sz={18} c={active ? GO : t.textSec} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: c.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>{c.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(c.lastMessageAt)}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: t.textMut }}>{channelKind(c)}</span>{unreadPill(Number(c.unreadCount) || 0)}</div>
+              </div>
+            </button>); })}
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>
+          {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
+          {!dmsFailed && filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
-            <button key={dm.channelId} onClick={() => open(dm.channelId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" }} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+            <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.staffName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
               </div>
             </button>
           ); })}
         </div>
-      </div>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      </div>}
+      {showTalk && <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative" }}>
         {!sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
@@ -2654,27 +2868,182 @@ function ChatPage({ af, user, t }) {
             <div style={{ fontSize: 12, marginTop: 4 }}>{tr("Pick a conversation on the left to start.")}</div>
           </div>
         ) : (<>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + t.border }}>
-            <Ini name={activeDm?.staffName} sz={34} />
-            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || tr("Conversation")}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
+            {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
+            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : <Ini name={activeDm?.staffName} sz={34} />}
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
-            {msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
-            {msgs.map((m, i) => { const isMe = m.senderRole === "admin" || m.senderRole === "supervisor"; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
+            {msgsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={() => open(sel)} style={{ padding: 40 }} />}
+            {!msgsFailed && msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
+            {msgs.map((m, i) => { const isMe = user && m.senderId === user.id ? true : (m.senderRole === "admin" || m.senderRole === "supervisor") && !activeChannel; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
-                <div style={{ maxWidth: "75%" }}>{!isMe && showN && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec }}>{m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45 }}>{m.text}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
+                <div style={{ maxWidth: "75%" }}>{!isMe && showN && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec }}>{m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={m.text} mentions={m.mentions} color={isMe ? "#F8F7F4" : t.goldText} /></div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
               </div>); })}
             <div ref={endRef} />
           </div>
-          <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border }}>
-            <Inp t={t} value={reply} onChange={e => setReply(e.target.value)} placeholder={tr("Type a message")} style={{ borderRadius: 20 }} onKeyDown={e => e.key === "Enter" && send()} />
-            <button onClick={send} style={{ width: 40, height: 40, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
+          {tagOpen && canTag && <TagPicker af={af} t={t} channelId={sel} onPick={pickMember} onClose={() => setTagOpen(false)} />}
+          <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border, alignItems: "center" }}>
+            {canTag && <button onClick={() => setTagOpen(o => !o)} aria-label={tr("Tag someone")} title={tr("Tag someone")} aria-pressed={tagOpen} style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid " + (tagOpen ? GO : t.inputBorder), background: tagOpen ? t.goldBg : t.inputBg, color: tagOpen ? t.goldText : t.textSec, fontSize: 18, fontWeight: 700, cursor: "pointer", flexShrink: 0, fontFamily: FONT_BODY }}>@</button>}
+            <input ref={inputRef} value={reply} onChange={e => onReplyChange(e.target.value)} placeholder={tr("Type a message")} aria-label={tr("Type a message")} onKeyDown={e => { if (e.key === "Enter" && !tagOpen) send(); if (e.key === "Escape") setTagOpen(false); }} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: "10px 13px", borderRadius: 22, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <button onClick={send} disabled={sending} aria-label={tr("Send")} title={tr("Send")} style={{ width: 44, height: 44, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
           </div>
         </>)}
-      </div>
+      </div>}
     </Crd>
   </div>);
+}
+
+// Announcements from the office (Step 179), for holders of send_announcements. Written once; the API
+// puts it in each person's language. The page draws nothing until the API lists announcements: a 404
+// hides the form, and any other failure says so.
+const announcementCodes = { "announcements.titleRequired": "title", "announcements.titleTooLong": "title", "announcements.bodyRequired": "body", "announcements.bodyTooLong": "body", "announcements.audienceEmpty": "audience", "announcements.siteNotFound": "audience" };
+function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpts, lkMap, route = [] }) {
+  const [list, setList] = useState([]);
+  const [listState, setListState] = useState("loading");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [aud, setAud] = useState("all");
+  const [siteId, setSiteId] = useState("");
+  const [role, setRole] = useState("");
+  const [userIds, setUserIds] = useState([]);
+  const [pq, setPq] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [sending, setSending] = useState(false);
+  const [openOne, setOpenOne] = useState(null);
+  const sendingRef = useRef(false);
+  const lang = getLang();
+  const load = useCallback(() => {
+    setListState(s => (s === "ready" ? s : "loading"));
+    af("/api/announcements").then(d => { setList(d && Array.isArray(d.announcements) ? d.announcements : []); setListState("ready"); })
+      .catch(e => { setListState(e && e.status === 404 ? "hidden" : "failed"); console.warn("Announcements:", e.message); });
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  // The one the bell opened: in the list when it is there, read on its own when it is not.
+  useEffect(() => {
+    const id = route[0]; if (!id) { setOpenOne(null); return; }
+    const row = list.find(a => String(a.id) === String(id));
+    if (row) { setOpenOne(row); return; }
+    let alive = true;
+    af("/api/announcements/" + encodeURIComponent(id)).then(d => { if (alive) setOpenOne(d && d.announcement ? d.announcement : null); }).catch(() => { if (alive) setOpenOne(null); });
+    return () => { alive = false; };
+  }, [route[0], list, af]);
+  const audienceReady = aud === "all" || (aud === "site" && siteId) || (aud === "role" && role) || (aud === "users" && userIds.length > 0);
+  const previewQuery = () => "?type=" + aud + (aud === "site" ? "&siteId=" + encodeURIComponent(siteId) : aud === "role" ? "&role=" + encodeURIComponent(role) : aud === "users" ? "&userIds=" + userIds.map(encodeURIComponent).join(",") : "");
+  useEffect(() => {
+    if (listState !== "ready" || !audienceReady) { setPreview(null); return; }
+    let alive = true;
+    const h = setTimeout(() => { af("/api/announcements/preview" + previewQuery()).then(d => { if (alive) setPreview(d && typeof d === "object" ? d : null); }).catch(() => { if (alive) setPreview(null); }); }, 300);
+    return () => { alive = false; clearTimeout(h); };
+  }, [listState, aud, siteId, role, userIds.join(",")]);
+  const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
+  const send = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setErrors({});
+    try {
+      await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody() } });
+      showToast(tr("Announcement sent."));
+      setTitle(""); setBody(""); setUserIds([]); load();
+    } catch (e) {
+      const field = (e && e.code && announcementCodes[e.code]) || "form";
+      setErrors({ [field]: (e && e.message) || tr("Request failed") });
+    }
+    sendingRef.current = false; setSending(false);
+  };
+  const roleOpts = getOpts ? getOpts("staff_roles", null, true) : [];
+  const roleShown = lkMap ? lkMap("staff_roles", true) : {};
+  const roleOf = (r) => roleShown[r] || roleWord(r);
+  const textOf = (v) => (v && typeof v === "object" ? (v[lang] || v.en || "") : (v || ""));
+  const audienceWord = (a) => {
+    if (!a) return "";
+    if (a.type === "site") { const s = sites.find(x => String(x.id) === String(a.siteId)); return s ? s.name : tr("One site's people"); }
+    if (a.type === "role") return roleOf(a.role);
+    if (a.type === "users") return tr("Chosen people") + " (" + (Array.isArray(a.userIds) ? a.userIds.length : 0) + ")";
+    return tr("Everyone");
+  };
+  const people = allStaff.filter(p => { const n = ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || ""; return !pq.trim() || n.toLowerCase().includes(pq.trim().toLowerCase()); });
+  const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+  const errLine = (k) => (errors[k] ? <div style={{ fontSize: 12, color: RD, marginTop: 4 }}>{errors[k]}</div> : null);
+  const choice = (v, l) => (<button key={v} onClick={() => setAud(v)} aria-pressed={aud === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (aud === v ? GO : t.border), background: aud === v ? t.goldBg : "transparent", color: aud === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
+  const row = (a, open) => (<div key={a.id} data-announcement={a.id} style={{ padding: "12px 0", borderBottom: "1px solid " + t.border, borderLeft: open ? "3px solid " + GO : "none", paddingLeft: open ? 10 : 0 }}>
+    <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{textOf(a.title)}</div>
+    {open && <div style={{ fontSize: 13, color: t.text, marginTop: 6, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{textOf(a.body)}</div>}
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <span>{audienceWord(a.audience)}</span>
+      {a.sentBy && a.sentBy.name && <span>{tr("By: {0}", a.sentBy.name)}</span>}
+      {a.sentAt && <span>{irWhen(a.sentAt)}</span>}
+    </div>
+    <div style={{ fontSize: 12, color: t.textMut, marginTop: 2 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(a.recipients) || 0, Number(a.withPush) || 0)}</div>
+  </div>);
+  return (<div>
+    <SecT t={t}>{tr("Announcements")}</SecT>
+    {listState === "loading" && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {listState === "failed" && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {listState === "ready" && <>
+      {openOne && <Crd t={t} style={{ marginBottom: 16 }}>{row(openOne, true)}</Crd>}
+      <Crd t={t} style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("New announcement")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Title")}</Lbl><Inp t={t} value={title} maxLength={60} onChange={e => setTitle(e.target.value)} aria-label={tr("Title")} style={{ minHeight: 44 }} />{errLine("title")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Message")}</Lbl><TArea t={t} rows={4} value={body} maxLength={500} onChange={e => setBody(e.target.value)} aria-label={tr("Message")} />
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Written once; each person gets it in their language.")}</div>{errLine("body")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Send to")}</Lbl>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>
+          {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ minHeight: 44 }} />}
+          {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
+          {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
+            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
+            <div style={{ maxHeight: 220, overflowY: "auto" }}>
+              {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
+                <input type="checkbox" checked={on} onChange={() => setUserIds(ids => (on ? ids.filter(x => x !== p.id) : [...ids, p.id]))} style={{ width: 18, height: 18 }} />
+                <span style={{ flex: 1 }}>{nameOf(p)}</span>{p.role && <span style={{ fontSize: 11, color: t.textMut }}>{roleOf(p.role)}</span>}
+              </label>); })}
+              {people.length === 0 && <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("No staff match that search")}</div>}
+            </div>
+          </div>}
+          {errLine("audience")}
+        </div>
+        {preview && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(preview.recipients) || 0, Number(preview.withPush) || 0)}</div>}
+        {errLine("form")}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || !audienceReady} style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
+      </Crd>
+      <Crd t={t}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Sent")}</div>
+        {list.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No announcements yet.")}</div>}
+        {list.map(a => row(a, openOne && String(openOne.id) === String(a.id)))}
+      </Crd>
+    </>}
+  </div>);
+}
+
+// My alerts: the same settings as the staff app's Phone alerts (Step 179). They decide what is pushed
+// to a person's phones; the bell keeps every notice whatever they say. Each change is saved at once.
+const ALERT_SWITCHES = [["schedule", "Schedule and time off"], ["pickups", "Shift pickups and drops"], ["supplies", "Supply requests"], ["issues", "Problems reported"], ["forms", "Forms filed"]];
+function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
+  const busyRef = useRef(false);
+  const save = async (patch) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const before = settings;
+    onChange({ ...settings, ...patch });
+    try { const d = await af("/api/notifications/settings", { method: "PATCH", body: patch }); if (d && typeof d === "object" && typeof d.chat === "string") onChange({ ...settings, ...patch, ...d }); }
+    catch (e) { onChange(before); showToast(tr("Your settings did not save."), "error"); }
+    busyRef.current = false;
+  };
+  const chatChoice = (v, l) => (<button key={v} onClick={() => save({ chat: v })} aria-pressed={settings.chat === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (settings.chat === v ? GO : t.border), background: settings.chat === v ? t.goldBg : "transparent", color: settings.chat === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("My alerts")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("These decide what buzzes your phone in the staff app. The bell here keeps everything.")}</div>
+    <div style={{ marginBottom: 16 }}><Lbl>{tr("Chat messages")}</Lbl><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{chatChoice("all", tr("Every message"))}{chatChoice("mentions", tr("Only when I'm tagged"))}{chatChoice("off", tr("Off|alerts"))}</div></div>
+    {ALERT_SWITCHES.map(([k, l]) => (<label key={k} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, cursor: "pointer", borderTop: "1px solid " + t.border }}>
+      <input type="checkbox" role="switch" checked={settings[k] !== false} aria-checked={settings[k] !== false} onChange={e => save({ [k]: e.target.checked })} style={{ width: 20, height: 20 }} />
+      <span style={{ fontSize: 13, color: t.text }}>{tr(l)}</span>
+    </label>))}
+  </div></Mdl>);
 }
 // ===== HELP: the assistant the staff portal's Help tab talks to. Same four requests, same screen. =====
 // AGENT_HELPERS_START (pure helpers, no React, so they can run as a script against fixtures)
@@ -3290,6 +3659,9 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
     setBusy(false);
     // A form notice carries the report it is about, so it opens that report rather than the page.
     if (n.subjectType === "form" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
+    // A chat notice and a tag carry their chat, and an announcement carries itself (Step 179).
+    if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
+    if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { refuse(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -3338,7 +3710,7 @@ const fmtDurMin = (m) => {
 };
 const fmtPctVal = (p) => (p === null || p === undefined) ? tr("n/a") : (p + "%");
 const hrsFromMin = (m) => m === null || m === undefined ? null : Math.round(m / 60 * 10) / 10;
-const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(localeTag(), { month: "short", day: "numeric" }); } catch (e) { return s; } };
+const fmtBucketDate = (s) => { try { return fdDay(s); } catch (e) { return s; } };
 // A trend's bucket is a code the report saves and sends. Where a screen or a print names it, it is
 // drawn as its word, whose English is the code.
 const bucketWord = (b) => tr((b || "week") + "|bucket");
@@ -3357,7 +3729,7 @@ const ISSUE_SOURCE_KEY = "issues_timing";
 const ISSUE_SOURCE_ALIASES = ["issues_timing", "issues"];
 const isIssueSource = (key) => ISSUE_SOURCE_ALIASES.includes(key);
 const REPORT_SOURCES = [
-  { key: ISSUE_SOURCE_KEY, label: "Issue Response and Resolution", category: "Service Delivery", available: true },
+  { key: ISSUE_SOURCE_KEY, label: "Issue Response and Resolution", category: "Issues", available: true },
   { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
   { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
 ];
@@ -3367,8 +3739,8 @@ const sourceAvailable = (key) => { if (isIssueSource(key)) return true; const s 
 const prettyCat = (c) => String(c || "Other").replace(/_/g, " ");
 // A category heading on the Reports page: the words the dashboard and the report templates use are
 // drawn from the table, and any other category is drawn as it was typed. The English is the heading
-// as it has always read.
-const reportCategoryWord = (c) => { const p = prettyCat(c); const k = p.toLowerCase(); const w = tr(k + "|report category"); return w === k ? p : w; };
+// as it has always read. A report saved under the framework's old category name reads Issues.
+const reportCategoryWord = (c) => { const p = prettyCat(c); const k = p.toLowerCase(); if (k === "issues" || k === "service delivery") return tr("Issues|report category"); const w = tr(k + "|report category"); return w === k ? p : w; };
 
 const defaultIssueConfig = () => ({
   date_range: { preset: "last30" },
@@ -3547,7 +3919,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
   const [sevFilter, setSevFilter] = useState(cfg.filters.severity || "");
   const [bucket, setBucket] = useState(cfg.bucket || "week");
   const [timing, setTiming] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
 
   const slaQuery = () => {
     const s = cfg.sla_targets;
@@ -3563,8 +3935,8 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     if (siteFilter) q += "&site_id=" + siteFilter;
     if (sevFilter) q += "&severity=" + sevFilter;
     af("/api/report-engine/issue-timing" + q)
-      .then(d => { setTiming(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+      .then(d => { setTiming(d); setFailed(false); setLoading(false); })
+      .catch(e => { setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, sevFilter, bucket]);
@@ -3685,6 +4057,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
           </select>
         </div>
         {loading && !timing ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
           !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 2px" }}>{tr("No issue activity in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
@@ -3757,7 +4130,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
   const [catFilter, setCatFilter] = useState(cfg.filters.category || "");
   const [bucket, setBucket] = useState(cfg.bucket || "week");
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
 
   const load = (range) => {
     const r = range || dateRange;
@@ -3766,8 +4139,8 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
     if (siteFilter) q += "&site_id=" + siteFilter;
     if (catFilter) q += "&category=" + catFilter;
     af("/api/report-engine/supply-usage" + q)
-      .then(d => { setData(d); setLoading(false); })
-      .catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+      .then(d => { setData(d); setFailed(false); setLoading(false); })
+      .catch(e => { setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter, catFilter, bucket]);
@@ -3852,6 +4225,7 @@ function SupplyUsageReport({ af, t, sites, settings, config, showToast, lkMap })
           </select>
         </div>
         {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
           !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No supply usage in this range yet.")}</div> :
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginBottom: 8 }}>
@@ -3921,7 +4295,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
   const [scores, setScores] = useState(null);
   const [bySite, setBySite] = useState(null);
   const [lowest, setLowest] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
 
   const load = (range) => {
     const r = range || dateRange;
@@ -3933,8 +4307,8 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
       af("/api/inspections/analytics/site-comparison" + base),
       af("/api/inspections/analytics/lowest-items" + sq + "&limit=10"),
     ]).then(([sc, bs, lw]) => {
-      setScores(sc); setBySite(bs); setLowest(lw); setLoading(false);
-    }).catch(e => { setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+      setScores(sc); setBySite(bs); setLowest(lw); setFailed(false); setLoading(false);
+    }).catch(e => { setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
   };
 
   useEffect(() => { load(); }, [dateRange, siteFilter]);
@@ -4004,6 +4378,7 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
           </select>
         </div>
         {loading && !scores ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
           !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No completed inspections in this range yet.")}</div> :
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
             {tiles.map((s, i) => <MetricTile key={i} t={t} label={s.label} value={s.value} color={s.color} />)}
@@ -4029,7 +4404,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const toH = (m) => Math.round((m / 60) * 100) / 100;
   const [name, setName] = useState(initial ? (initial.name || "") : "");
   const [description, setDescription] = useState(initial && initial.description ? initial.description : "");
-  const [category, setCategory] = useState(initial && initial.category ? initial.category : "Service Delivery");
+  const [category, setCategory] = useState(initial && initial.category ? initial.category : "");
   const [source, setSource] = useState(initial && initial.source ? initial.source : ISSUE_SOURCE_KEY);
   const [preset, setPreset] = useState(c0.date_range.preset || "last30");
   const [bucket, setBucket] = useState(c0.bucket || "week");
@@ -4130,7 +4505,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder={tr("e.g. High severity weekly")} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder={tr("What this report covers")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("Service Delivery")} /></div>
+        <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("e.g. Issues")} /></div>
         <div><Lbl>{tr("Source")}</Lbl>
           <select value={source} onChange={e => setSource(e.target.value)} style={selStyle}>
             {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{tr(s.label)}{s.available ? "" : " " + tr("(arriving with templates)")}</option>)}
@@ -4212,7 +4587,8 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const [issS, setIssS] = useState(null);
   const [exp, setExp] = useState(false);
 
-  const loadDefs = () => af("/api/report-engine/definitions").then(setDefs).catch(e => { setDefs([]); showToast(tr("Could not load reports: {0}", e.message), "error"); });
+  const [defsFailed, setDefsFailed] = useState(false);
+  const loadDefs = () => af("/api/report-engine/definitions").then(d => { setDefs(d); setDefsFailed(false); }).catch(e => { setDefs([]); setDefsFailed(true); showToast(tr("Could not load reports: {0}", e.message), "error"); });
   const loadSnapshots = (range) => {
     const r = range || dateRange;
     const q = "?start_date=" + r.start + "&end_date=" + r.end;
@@ -4230,10 +4606,10 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const runReport = (d) => { setActive(d); setView("run"); };
   const newReport = () => { setEditing(null); setView("edit"); };
   const editReport = (d) => { setEditing(d); setView("edit"); };
-  const duplicateReport = (d) => { setEditing({ name: (d.name || "Report") + " (copy)", description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
+  const duplicateReport = (d) => { setEditing({ name: tr("{0} (copy)", d.name || tr("Report")), description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
   const deleteReport = async (d) => {
-    if (!window.confirm(tr("Delete \"{0}\"? This cannot be undone.", d.name))) return;
-    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deleted")); loadDefs(); }
+    if (!window.confirm(tr("Deactivate \"{0}\"?", d.name))) return;
+    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deactivated")); loadDefs(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -4272,6 +4648,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
+      defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
       defs.length === 0 ?
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No saved reports yet. Use New report to create one.")}</div></Crd> :
         groupNames.map(cat => (
@@ -4293,7 +4670,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
                     <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Run")}</Btn>
                     <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Duplicate")}</Btn>
                     {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Edit")}</Btn> : null}
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Delete")}</Btn> : null}
+                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Deactivate")}</Btn> : null}
                   </div>
                 </Crd>
               ))}
@@ -4337,7 +4714,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   </div>);
 }
 
-function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf, getOpts }) {
+function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, sites, allStaff, uf, getOpts }) {
   const [tasks, setTasks] = useState([]);
   const [filters, setFilters] = useState({ site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" });
   const staffList = allStaff;
@@ -4368,7 +4745,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
   const selShown = sel ? shownItem(sel) : null;
   const hasFilters = Object.values(filters).some(v => v);
   return (<div>
-    <SecT t={t} action={tr("Create Task")} onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" })}>{tr("Assigned Tasks")}</SecT>
+    <SecT t={t} action={canManageTasks ? tr("Create Task") : undefined} onAction={canManageTasks ? () => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" }) : undefined}>{tr("Assigned Tasks")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
       <Sel t={t} value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
       <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: tr("All Buildings") }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
@@ -4383,10 +4760,10 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
     {!loading && tasks.map(task => { const isIssue = !!task.source_issue_id; const shown = shownItem(task); const title = isIssue ? (task.issue_title || shown.label) : shown.label; const borderColor = isIssue ? (stC[task.resolution_status] || OR) : (priC[task.priority] || GO); const locParts = [task.site_name]; if (task.building_name) locParts.push(task.building_name); if (task.floor_number) locParts.push(tr("Fl {0}", task.floor_number)); if (shown.zone) locParts.push(shown.zone); return (
       <Crd key={task.task_id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + borderColor }} onClick={() => openDetail(task)}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div><div style={{ fontSize: 10, color: t.textSec, marginTop: 3 }}>{locParts.join(" > ")}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>{isIssue && <Bdg l={tr("Issue")} c={RD} />}{task.priority && task.priority !== "standard" && <Bdg l={priOf(task.priority)} c={priC[task.priority] || GO} />}<Bdg l={stateOf(task.resolution_status)} c={stC[task.resolution_status] || OR} /></div></div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fd(task.due_date))}</span>}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fdDay(task.due_date))}</span>}</div>
       </Crd>); })}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Task Detail")}</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Task Detail")}</div><button onClick={() => setSel(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.source_issue_id ? (sel.issue_title || selShown.label) : selShown.label}</div>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>{sel.source_issue_id && <Bdg l={tr("Issue")} c={RD} />}{sel.priority && sel.priority !== "standard" && <Bdg l={priOf(sel.priority)} c={priC[sel.priority] || GO} />}<Bdg l={stateOf(sel.resolution_status)} c={stC[sel.resolution_status] || OR} /></div>
       {selShown.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{selShown.description}</div>}
@@ -4398,7 +4775,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name || tr("Unassigned")}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Created By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.created_by_name}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Created")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.task_created_at)}</div></div>
-        {sel.due_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due Date")}<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fd(sel.due_date)}{sel.due_time ? " " + sel.due_time : ""}</div></div>}
+        {sel.due_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due Date")}<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fdDay(sel.due_date)}{sel.due_time ? " " + patternTime(sel.due_time) : ""}</div></div>}
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>{tr("Resolution: {0}", sel.resolution_note)}</div>}
@@ -4411,14 +4788,14 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
         <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
       </div></div></Mdl>}
     {reassignForm && <Mdl t={t} onClose={() => setReassignForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Reassign Task")}</div><button onClick={() => setReassignForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {reassignForm.currentAssignee && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 12 }}>{trWith("Currently assigned to: {0}. They will be notified of the change.", <span style={{ fontWeight: 600 }}>{reassignForm.currentAssignee}</span>)}</div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Reassign To *")}</Lbl><Sel t={t} value={reassignForm.userId} onChange={e => setReassignForm({ ...reassignForm, userId: e.target.value })} options={[{ v: "", l: tr("Select a staff member...") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 16 }}><Lbl>{tr("Reason for Reassignment *")}</Lbl><TArea t={t} value={reassignForm.note} onChange={e => setReassignForm({ ...reassignForm, note: e.target.value })} placeholder={tr("Explain why this task is being reassigned...")} rows={3} /></div>
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setReassignForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitReassign}>{tr("Reassign")}</Btn></div>
     </div></Mdl>}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Create Assigned Task")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.siteId} onChange={e => setCreateForm({ ...createForm, siteId: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Task Description *")}</Lbl><Inp t={t} value={createForm.label} onChange={e => setCreateForm({ ...createForm, label: e.target.value })} placeholder={tr("e.g. Clean window blinds in conference room")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Building")}</Lbl><Inp t={t} value={createForm.building} onChange={e => setCreateForm({ ...createForm, building: e.target.value })} placeholder={tr("e.g. Main")} /></div><div><Lbl>{tr("Floor")}</Lbl><Inp t={t} value={createForm.floor} onChange={e => setCreateForm({ ...createForm, floor: e.target.value })} placeholder={tr("e.g. 1")} /></div><div><Lbl>{tr("Zone *")}</Lbl><Inp t={t} value={createForm.zone} onChange={e => setCreateForm({ ...createForm, zone: e.target.value })} placeholder={tr("e.g. Offices")} /></div></div>
@@ -4435,7 +4812,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
   </div>);
 }
 
-function VendorsPage({ af, showToast, isAdmin, t }) {
+function VendorsPage({ af, showToast, canManageVendors = false, t }) {
   const [vendors, setVendors] = useState([]);
   const [supplies, setSupplies] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -4446,7 +4823,8 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const [linkSupply, setLinkSupply] = useState(null);
   const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
 
-  const load = () => af("/api/vendors").then(setVendors).catch(e => showToast(e.message, "error"));
+  const [vendorsFailed, setVendorsFailed] = useState(false);
+  const load = () => af("/api/vendors").then(d => { setVendors(d); setVendorsFailed(false); }).catch(e => { setVendorsFailed(true); showToast(e.message, "error"); });
   useEffect(() => { load(); af("/api/supplies").then(setSupplies).catch(e => console.warn(e.message)); }, []);
 
   const loadDetail = async id => {
@@ -4485,12 +4863,12 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const exportAVL = () => {
     const approved = vendors.filter(v => v.approval_status === "approved");
     if (approved.length === 0) { showToast(tr("No approved vendors to export"), "error"); return; }
-    dlCSV("OCSA_Approved_Vendor_List_" + new Date().toISOString().slice(0, 10) + ".csv",
+    dlCSV("OCSA_Approved_Vendor_List_" + todayISO() + ".csv",
       ["Vendor Name", "Contact Name", "Phone", "Email", "Address", "Products / Services", "Certification Status", "Contract Terms", "Last Review Date", "Approval Status"],
       approved.map(v => [v.name, v.contact_name || "", v.contact_phone || "", v.contact_email || "",
         [v.address_line1, v.city, v.state, v.zip_code].filter(Boolean).join(", "),
         v.products_services || "", v.certification_status || "", v.contract_terms || "",
-        v.last_review_date ? fd(v.last_review_date) : "", v.approval_status])
+        v.last_review_date ? fdDay(v.last_review_date) : "", v.approval_status])
     );
     showToast(tr("Approved Vendor List exported"));
   };
@@ -4502,10 +4880,10 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const emptyForm = { name: "", contactName: "", contactPhone: "", contactEmail: "", website: "", addressLine1: "", city: "", state: "", zipCode: "", productsServices: "", certificationStatus: "", contractTerms: "", approvalStatus: "pending", lastReviewDate: "" };
 
   const renderFormFields = (form, setForm) => (<>
-    <div style={{ marginBottom: 12 }}><Lbl>{tr("Vendor Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. {0}", "Spartan Chemical Company")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Vendor Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. {0}", "Supply Co")} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></div>
-      <div><Lbl>{tr("Contact Phone")}</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder="2155550000" /></div>
+      <div><Lbl>{tr("Contact Phone")}</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder={tr("10 digits")} /></div>
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("Contact Email")}</Lbl><Inp t={t} value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} type="email" /></div>
@@ -4531,7 +4909,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Vendor Registry")}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export AVL")}</button>
-        {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Vendor")}</button>}
+        {canManageVendors && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Vendor")}</button>}
       </div>
     </div>
 
@@ -4551,19 +4929,20 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Vendor"), render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Reviewed {0}", fd(v.last_review_date))}</div>}</div></div> },
+        { header: tr("Vendor"), render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Reviewed {0}", fdDay(v.last_review_date))}</div>}</div></div> },
         { header: tr("Contact"), tdStyle: { maxWidth: 220 }, render: v => <div style={{ minWidth: 0 }}>{v.contact_name && <div style={{ fontSize: 12, color: t.textSec, fontWeight: 500 }}>{v.contact_name}</div>}{v.contact_phone && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1 }}>{v.contact_phone}</div>}{v.contact_email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.contact_email}</div>}{!v.contact_name && !v.contact_phone && !v.contact_email && <span style={{ color: t.textMut }}>-</span>}</div> },
         { header: tr("Status"), render: v => <Bdg l={statusWord[v.approval_status] || v.approval_status} c={statusColor[v.approval_status] || t.textMut} /> },
         { header: tr("Rating"), tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: t.goldText, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>-</span> },
         { header: tr("Supplies"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => v.linked_supply_count > 0 ? trn("{0} linked|count", v.linked_supply_count) : "-" },
         { header: tr("Actions"), align: "right", render: v => <button title={tr("View vendor")} onClick={e => { e.stopPropagation(); loadDetail(v.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button> }
       ];
+      if (vendorsFailed) return <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={v => v.id} onRowClick={v => loadDetail(v.id)} empty={vendors.length === 0 ? tr("No vendors yet. Use Add Vendor to start.") : tr("No vendors match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
 
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Vendor")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Vendor")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(addForm, setAddForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Vendor")}</Btn></div>
       </div>
@@ -4573,13 +4952,13 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       <div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
           <div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.vendor.name}</div><div style={{ marginTop: 4 }}><Bdg l={statusWord[detail.vendor.approval_status] || detail.vendor.approval_status} c={statusColor[detail.vendor.approval_status] || t.textMut} /></div></div>
-          <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+          <button onClick={() => setDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
           {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Contact")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
           {detail.vendor.contact_phone && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_phone}</div></div>}
           {detail.vendor.contact_email && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_email}</div></div>}
-          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
+          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
           {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>{tr("Address")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
         </div>
         {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Products and Services")}</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
@@ -4589,13 +4968,13 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Linked Supplies")}</div>
-            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Supply")}</button>}
+            {canManageVendors && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Supply")}</button>}
           </div>
           {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No supplies linked yet")}</div>}
           {detail.linkedSupplies?.map((ls, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
               <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? tr("${0}/unit", parseFloat(ls.unit_cost).toFixed(2)) : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + tr("{0}d lead", ls.lead_time_days) : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>{tr("Preferred")}</span> : null}</div></div>
-              {isAdmin && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
+              {canManageVendors && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
         </div>
@@ -4610,7 +4989,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
             <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"\u2605".repeat(ev.rating)}{"\u2606".repeat(5 - ev.rating)}</span>
-                <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
+                <span style={{ fontSize: 10, color: t.textMut }}>{fdDay(ev.evaluation_date)}</span>
               </div>
               {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
               {ev.evaluator_name && <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tr("By {0}", ev.evaluator_name)}</div>}
@@ -4618,7 +4997,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
           ))}
         </div>
 
-        {isAdmin && <div style={{ display: "flex", gap: 8 }}>
+        {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
           <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.vendor.id, name: detail.vendor.name, contactName: detail.vendor.contact_name || "", contactPhone: detail.vendor.contact_phone || "", contactEmail: detail.vendor.contact_email || "", website: detail.vendor.website || "", addressLine1: detail.vendor.address_line1 || "", city: detail.vendor.city || "", state: detail.vendor.state || "", zipCode: detail.vendor.zip_code || "", productsServices: detail.vendor.products_services || "", certificationStatus: detail.vendor.certification_status || "", contractTerms: detail.vendor.contract_terms || "", approvalStatus: detail.vendor.approval_status, lastReviewDate: detail.vendor.last_review_date ? detail.vendor.last_review_date.slice(0, 10) : "" })}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this vendor?"))) deactivate(detail.vendor.id); }}>{tr("Remove")}</Btn>
         </div>}
@@ -4627,7 +5006,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
 
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Vendor")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Vendor")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {renderFormFields(editForm, setEditForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save Changes")}</Btn></div>
       </div>
@@ -4657,20 +5036,23 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
           <div><Lbl>{tr("Lead Time (days)")}</Lbl><Inp t={t} type="number" value={linkSupply.leadTime} onChange={e => setLinkSupply({ ...linkSupply, leadTime: e.target.value })} /></div>
         </div>
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={linkSupply.notes} onChange={e => setLinkSupply({ ...linkSupply, notes: e.target.value })} placeholder={tr("Min order, availability notes...")} /></div>
-        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={linkSupply.isPreferred} onChange={e => setLinkSupply({ ...linkSupply, isPreferred: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Mark as preferred vendor for this supply")}</span></div>
+        <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={linkSupply.isPreferred} onChange={e => setLinkSupply({ ...linkSupply, isPreferred: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Mark as preferred vendor for this supply")}</span></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setLinkSupply(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitLinkSupply}>{tr("Link Supply")}</Btn></div>
       </div>
     </Mdl>}
   </div>);
 }
-function ServicesPage({ af, showToast, isAdmin, t, sites }) {
+function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap }) {
+  // A category on this page is the cims_categories lookup's shown label, then the plain word.
+  const catShown = lkMap ? lkMap("cims_categories", true) : {};
   const [services, setServices] = useState([]);
   const [detail, setDetail] = useState(null);
   const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [linkSite, setLinkSite] = useState(null);
 
-  const load = () => af("/api/services").then(setServices).catch(e => showToast(e.message, "error"));
+  const [servicesFailed, setServicesFailed] = useState(false);
+  const load = () => af("/api/services").then(d => { setServices(d); setServicesFailed(false); }).catch(e => { setServicesFailed(true); showToast(e.message, "error"); });
   useEffect(() => { load(); }, []);
 
   const loadDetail = async id => {
@@ -4701,9 +5083,9 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
   const exportCatalog = () => {
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
-    dlCSV("OCSA_Service_Catalog_" + new Date().toISOString().slice(0, 10) + ".csv",
+    dlCSV("OCSA_Service_Catalog_" + todayISO() + ".csv",
       ["Service Name", "Description", "Rate Structure", "Required Certifications", "Service Category", "Active Sites"],
-      services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", s.cims_category || "", s.linked_site_count || 0])
+      services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", CIMS_LABELS[s.cims_category] || s.cims_category || "", s.linked_site_count || 0])
     );
     showToast(tr("Service catalog exported"));
   };
@@ -4728,7 +5110,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Required Certifications")}</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder={tr("Certifications staff must hold...")} /></div>
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Service Category")}</Lbl>
       <Sel t={t} value={form.cimsCategory || form.cims_category || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
-        options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: c + " - " + serviceCategoryWord(c) }))} />
+        options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: serviceCategoryWord(c, catShown) }))} />
     </div>
   </>);
 
@@ -4737,7 +5119,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Service Catalog")}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export")}</button>
-        {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
+        {canManageVendors && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
       </div>
     </div>
 
@@ -4751,16 +5133,17 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
               </div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
-            <Bdg l={serviceCategoryWord(s.cims_category)} c={cimsColor[s.cims_category] || GO} />
+            <Bdg l={serviceCategoryWord(s.cims_category, catShown)} c={cimsColor[s.cims_category] || GO} />
           </div>
           {s.description && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.description}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid " + t.border }}>
-            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category)}</span>
+            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category, catShown)}</span>
             {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{trn("{0} site|count", s.linked_site_count)}</span>}
           </div>
         </Crd>
       ))}
-      {services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
+      {servicesFailed && <div style={{ gridColumn: "1 / -1" }}><LoadFailed t={t} onRetry={load} style={{ padding: 40 }} /></div>}
+      {!servicesFailed && services.length === 0 && <div style={{ gridColumn: "1 / -1", padding: 40, textAlign: "center", color: t.textMut }}>{tr("No services yet.")}</div>}
     </div>
 
     {detail && <Mdl t={t} onClose={() => setDetail(null)}>
@@ -4768,9 +5151,9 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.service.name}</div>
-            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category)} c={cimsColor[detail.service.cims_category] || GO} /><span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{CIMS_LABELS[detail.service.cims_category] ? serviceCategoryWord(detail.service.cims_category) : null}</span></div>
+            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category, catShown)} c={cimsColor[detail.service.cims_category] || GO} /></div>
           </div>
-          <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+          <button onClick={() => setDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
         </div>
 
         {detail.service.description && <div style={{ marginBottom: 14 }}>
@@ -4795,7 +5178,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Active Sites")}</div>
-            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Site")}</button>}
+            {canManageVendors && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Site")}</button>}
           </div>
           {(!detail.linkedSites || detail.linkedSites.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No sites linked yet")}</div>}
           {detail.linkedSites?.map((ls, i) => (
@@ -4805,12 +5188,12 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
                 {ls.city && <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.city}, {ls.state}</div>}
                 {ls.notes && <div style={{ fontSize: 10, color: t.textSec, marginTop: 2 }}>{ls.notes}</div>}
               </div>
-              {isAdmin && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
+              {canManageVendors && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
         </div>
 
-        {isAdmin && <div style={{ display: "flex", gap: 8 }}>
+        {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
           <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this service?"))) deactivate(detail.service.id); }}>{tr("Remove")}</Btn>
         </div>}
@@ -4819,7 +5202,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Service")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Service")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(addForm, setAddForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Service")}</Btn></div>
       </div>
@@ -4827,7 +5210,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
 
     {editForm && <Mdl t={t} onClose={() => setEditForm(null)}>
       <div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Service")}</div><button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Service")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         {formFields(editForm, setEditForm)}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save Changes")}</Btn></div>
       </div>
@@ -4986,8 +5369,8 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
     {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
     {result && <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{tr("{0} added, {1} removed, {2} kept", result.created, result.removed, result.keptCount)}</div>
-      {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
-      {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
+      {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {patternReasonWord(k)}</div>)}
+      {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {patternReasonWord(k)}</div>)}
     </div>}
     <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
   </div></Mdl>);
@@ -5192,7 +5575,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
     { header: tr("Asked"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
   ];
   const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{tr(l)}</button>;
-  const empty = status === "requested" ? "No time off is waiting for a decision." : "No time off requests to show.";
+  const empty = status === "requested" ? tr("No time off is waiting for a decision.") : tr("No time off requests to show.");
 
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
@@ -5219,7 +5602,19 @@ const serviceWordOf = (lkMap) => {
   return (v) => (v == null || v === "" ? v : (shown[v] || byLabel[v] || v));
 };
 
-function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
+// A pattern's kept and skipped reasons, as the API says them today. A code the API adds later is
+// drawn through the table under its code, and anything else as it was sent.
+const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand": "changed by hand", "posted as an open shift": "posted as an open shift", "referenced by site_sessions": "started|pattern", "already scheduled at that time": "already scheduled at that time" };
+const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
+function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
+  // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
+  // label, then the table's word; a pickup's and an inspection's status read the table's word.
+  const staffRoleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => (r ? (staffRoleShown[r] || roleWord(r)) : "");
+  const originShown = lkMap("shift_origins", true);
+  const originWordS = (o) => (o ? (originShown[o] || ({ callout: tr("Callout"), no_show: tr("No-Show"), extra_coverage: tr("Extra Coverage"), voluntary_drop: tr("Voluntary Drop"), new_shift: tr("New Shift") })[o] || o) : "");
+  const pickupStatusWord = { open: tr("Open|shift"), claimed: tr("Claimed|shift"), approved: tr("Approved|shift"), filled: tr("Filled|shift"), expired: tr("Expired|shift"), cancelled: tr("Cancelled|shift"), requested: tr("Drop Request") };
+  const inspStatusWord = { scheduled: tr("scheduled|inspection"), in_progress: tr("in progress"), completed: tr("completed|inspection"), cancelled: tr("cancelled|inspection") };
   // The service list shows each choice's shown label and sends its code, the way it always has, and a
   // shift's saved service is drawn by its shown word.
   const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories", undefined, true)];
@@ -5320,8 +5715,12 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     }
   };
 
+  // Loading shows once, before the first calendar arrives. A refresh after that is quiet, and a
+  // read that fails says so in the calendar's place.
+  const calLoaded = useRef(false);
+  const [calFailed, setCalFailed] = useState(false);
   const loadCalendar = async (range) => {
-    setLoading(true);
+    if (!calLoaded.current) setLoading(true);
     const r = range || dateRange;
     loadStarted(r);
     try {
@@ -5333,7 +5732,9 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       ]);
       setCalData(d);
       setOpenShifts(pk.filter(s => s.status === "open" || s.status === "claimed" || s.status === "requested"));
-    } catch (e) { showToast(e.message, "error"); }
+      calLoaded.current = true;
+      setCalFailed(false);
+    } catch (e) { setCalFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
 
@@ -5440,7 +5841,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       if (createForm.repeat && createForm.repeatDays.length > 0) {
         const body = { user_id: createForm.userId, site_id: createForm.siteId, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined, repeat_days: createForm.repeatDays, start_date: createModal.date };
         if (createForm.repeatMode === "until" && createForm.repeatUntil) body.repeat_until = createForm.repeatUntil; else body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
-        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(d.message);
+        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(tr("{0} shifts scheduled", Number(d && d.count) || 0));
       } else {
         await af("/api/schedule", { method: "POST", body: { user_id: createForm.userId, site_id: createForm.siteId, scheduled_date: createModal.date, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined }});
         showToast(tr("Shift scheduled"));
@@ -5461,7 +5862,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   };
   // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
   const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
-  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? tr("Cancel this shift? The pattern will not add it again.") : tr("Delete this scheduled shift? This cannot be undone."))) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? tr("Shift cancelled") : tr("Shift removed")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? tr("Cancel this shift? The pattern will not add it again.") : tr("Cancel this scheduled shift?"))) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(tr("Shift cancelled")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
@@ -5496,15 +5897,11 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   const statusColors = { scheduled: GO, completed: GR, cancelled: "#7A8A9A", no_show: RD };
   const startedLbl = { fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 };
 
-  const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
-    <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid " + t.border }}>
-      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>{tr("Staff")}</div>
-      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 600, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
-    </div>
-    <div style={{ display: "flex", flexDirection: "column" }}>
-    {pagedStaff.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, alignItems: "stretch", borderBottom: "1px solid " + t.border }}>
-      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, background: t.cardAlt, borderRadius: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={30} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>{staff.role && <div style={{ fontSize: 9, color: t.textMut, textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.role}</div>}</div></div>
-      {weekDays.map(d => {
+  // What one person has on one day: scheduled shifts, started shifts, open pickups, drop requests and
+  // claims, each a button at least 44 pixels tall. The week grid and the phone's stacked list draw
+  // the same items.
+  const chipBtn = { display: "block", width: "100%", textAlign: "left", minHeight: 44, padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY };
+  const dayItems = (staff, d) => {
         const sched = getShiftsForDay(d).filter(s => s.user_id === staff.id);
         const startedHere = getStartedForDay(d).filter(p => String(p.userId) === String(staff.id));
         const dayPickups = getPickupsForDay(d);
@@ -5512,36 +5909,52 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
         const claimedByMe = dayPickups.filter(p => p.status === "claimed" && String(p.claimed_by) === String(staff.id));
         const dropReqs = dayPickups.filter(p => p.status === "requested" && String(p.original_user_id) === String(staff.id));
         const hasAny = sched.length > 0 || startedHere.length > 0 || openHere.length > 0 || claimedByMe.length > 0 || dropReqs.length > 0;
-        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.onRoster ? staff.id : "")} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
-          {sched.map(s => (<div key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
+        const items = (<>
+          {sched.map(s => (<button type="button" key={s.id} onClick={e => { e.stopPropagation(); openEdit(s); }} style={{ ...chipBtn, background: (statusColors[s.status] || GO) + "18", color: goldToText(t, statusColors[s.status] || GO), border: "1px solid " + (statusColors[s.status] || GO) + "30" }}>
             {s.start_time?.slice(0, 5)}-{s.end_time?.slice(0, 5)}
             {s.building_name && <span style={{ marginLeft: 3, opacity: 0.8 }}>{s.building_name}{s.floor_number ? " " + tr("F{0}", s.floor_number) : ""}</span>}
             {s.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{s.site_name}</div>}
             {s.service_category && <div style={{ fontSize: 8, opacity: 0.7, fontStyle: "italic" }}>{serviceWord(s.service_category)}</div>}
             {(s.shiftPatternId || s.shift_pattern_id) && <div style={{ fontSize: 8, opacity: 0.75, fontWeight: 500 }}>{tr("Repeats")}</div>}
-          </div>))}
-          {startedHere.map(p => (<div key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
+          </button>))}
+          {startedHere.map(p => (<button type="button" key={p.sessionId} onClick={e => { e.stopPropagation(); setStartedDetail(p); }} style={{ ...chipBtn, background: GR + "18", color: GR, border: "1px solid " + GR + "30" }}>
             {tr("Started")} {fmtSessionStart(p.startedAt)}
             {p.buildingName && <span style={{ marginLeft: 3, opacity: 0.8 }}>{p.buildingName}{p.floorNumber ? " " + tr("F{0}", p.floorNumber) : ""}</span>}
             {p.siteName && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.siteName}</div>}
             {p.tasksTotal > 0 && <div style={{ fontSize: 8, opacity: 0.7 }}>{tr("{0} of {1} tasks", p.tasksCompleted, p.tasksTotal)}</div>}
-          </div>))}
-          {openHere.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
+          </button>))}
+          {openHere.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ ...chipBtn, background: t.cardAlt, color: t.textMut, border: "1px dashed " + t.textMut + "50", opacity: 0.7 }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: t.hover }}>{tr("OPEN")}</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
-          </div>))}
-          {dropReqs.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail({ ...p, isDropRequest: true }); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: "#F1C40F22", color: "#F1C40F", border: "1px dashed #F1C40F60" }}>
+          </button>))}
+          {dropReqs.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail({ ...p, isDropRequest: true }); }} style={{ ...chipBtn, background: "#F1C40F22", color: "#F1C40F", border: "1px dashed #F1C40F60" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: "#F1C40F30" }}>{tr("DROP REQ")}</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
-          </div>))}
-          {claimedByMe.map(p => (<div key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ padding: "3px 5px", marginBottom: 2, borderRadius: 4, fontSize: 10, fontWeight: 600, cursor: "pointer", background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
+          </button>))}
+          {claimedByMe.map(p => (<button type="button" key={p.id} onClick={e => { e.stopPropagation(); setPickupDetail(p); }} style={{ ...chipBtn, background: OR + "18", color: OR, border: "1px solid " + OR + "30" }}>
             {String(p.start_time).slice(0, 5)}-{String(p.end_time).slice(0, 5)}
             <span style={{ marginLeft: 3, fontSize: 7, textTransform: "uppercase", padding: "1px 4px", borderRadius: 3, background: OR + "25" }}>{tr("CLAIMED")}</span>
             {p.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{p.site_name}</div>}
             {p.claimed_by_name && p.claimed_by_name.trim() && <div style={{ fontSize: 8, opacity: 0.7 }}>{p.claimed_by_name}</div>}
-          </div>))}
+          </button>))}
+        </>);
+        return { hasAny, items };
+  };
+  const renderWeekView = () => (<div style={{ overflowX: "auto", display: "flex", flexDirection: "column", flex: 1 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, borderBottom: "1px solid " + t.border }}>
+      <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>{tr("Staff")}</div>
+      {weekDays.map(d => (<div key={d} style={{ padding: "8px 6px", textAlign: "center", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}><div style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut }}>{fmtDayLabel(d)}</div><div style={{ fontSize: 12, fontWeight: 600, color: isToday(d) ? t.goldText : t.text }}>{new Date(d + "T00:00:00").getDate()}</div></div>))}
+    </div>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+    {pagedStaff.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No staff to show for this filter.")}</div>}
+    {pagedStaff.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, alignItems: "stretch", borderBottom: "1px solid " + t.border }}>
+      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, background: t.cardAlt, borderRadius: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={30} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>{staff.role && <div style={{ fontSize: 9, color: t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roleOf(staff.role)}</div>}</div></div>
+      {weekDays.map(d => {
+        const { hasAny, items } = dayItems(staff, d);
+        return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.onRoster ? staff.id : "")} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
+          {items}
           {!hasAny && <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, color: t.textMut, opacity: 0.3 }}>+</div>}
         </div>);
       })}
@@ -5549,11 +5962,28 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
     </div>
     {(calData.inspections || []).length > 0 && (<div style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginTop: 8, borderTop: "1px solid " + t.border, paddingTop: 8 }}>
       <div style={{ padding: "8px 10px", fontSize: 10, fontWeight: 600, color: BL, textTransform: "uppercase" }}>{tr("Inspections")}</div>
-      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<div key={i.id} onClick={() => openInspModal(i)} style={{ padding: "3px 5px", borderRadius: 4, fontSize: 10, fontWeight: 600, background: BL + "18", color: BL, marginBottom: 2, cursor: "pointer", border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</div>))}</div>); })}
+      {weekDays.map(d => { const insp = getInspForDay(d); return (<div key={d} style={{ padding: 4 }}>{insp.map(i => (<button type="button" key={i.id} onClick={() => openInspModal(i)} style={{ ...chipBtn, background: BL + "18", color: BL, border: "1px solid " + BL + "30" }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</button>))}</div>); })}
     </div>)}
     {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
   </div>);
 
+  // Under 700 pixels the week is a stacked list of days: each day's heading, then each person who has
+  // something that day with their items, then the day's inspections.
+  const renderWeekStacked = () => (<div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    {pagedStaff.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No staff to show for this filter.")}</div>}
+    {weekDays.map(d => (<div key={d} data-week-day={d} style={{ borderBottom: "1px solid " + t.border, paddingBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "4px 6px", background: isToday(d) ? t.goldBg : "transparent", borderRadius: 6 }}>
+        <div><span style={{ fontSize: 10, fontWeight: 600, color: isToday(d) ? t.goldText : t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>{fmtDayLabel(d)}</span> <span style={{ fontSize: 13, fontWeight: 600, color: isToday(d) ? t.goldText : t.text, marginLeft: 6 }}>{new Date(d + "T00:00:00").getDate()}</span></div>
+        <button type="button" onClick={() => openCreate(d, "")} aria-label={tr("Schedule Shift")} title={tr("Schedule Shift")} style={{ minWidth: 44, minHeight: 44, borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textMut, cursor: "pointer", fontSize: 18, fontFamily: FONT_BODY }}>+</button>
+      </div>
+      {pagedStaff.map(staff => { const { hasAny, items } = dayItems(staff, d); if (!hasAny) return null; return (<div key={staff.id} style={{ padding: "6px 6px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={24} /><div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div></div>
+        {items}
+      </div>); })}
+      {getInspForDay(d).map(i => (<button type="button" key={i.id} onClick={() => openInspModal(i)} style={{ ...chipBtn, background: BL + "18", color: BL, border: "1px solid " + BL + "30", marginTop: 4 }}>{i.template_name}{i.site_name && <div style={{ fontSize: 9, opacity: 0.8 }}>{i.site_name}</div>}{i.assigned_name && <div style={{ fontSize: 8, opacity: 0.7 }}>{i.assigned_name}</div>}</button>))}
+    </div>))}
+    {weekRows.length > 0 && <Pagination t={t} page={schedCur} perPage={schedRows} total={weekRows.length} onPage={setSchedPage} />}
+  </div>);
   const renderMonthView = () => { const monthDays = getMonthDays(); const startMonth = new Date(dateRange.start + "T00:00:00").getMonth(); const startYear = new Date(dateRange.start + "T00:00:00").getFullYear(); return (<div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
       <button onClick={() => { const d = new Date(dateRange.start + "T00:00:00"); d.setMonth(d.getMonth() - 1); const first = new Date(d.getFullYear(), d.getMonth(), 1); const last = new Date(d.getFullYear(), d.getMonth() + 1, 0); setDateRange({ start: toISO(first), end: toISO(last) }); }} style={{ padding: "4px 10px", borderRadius: 6, fontSize: 12, cursor: "pointer", background: "transparent", color: t.textMut, border: "1px solid " + t.border }}>{tr("< Prev")}</button>
@@ -5596,7 +6026,8 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
       {view === "week" && <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: "auto" }}><span style={{ fontSize: 11, color: t.textMut }}>{tr("Show")}</span><select value={schedRows} onChange={e => { setSchedRows(Number(e.target.value)); setSchedPage(1); }} style={{ padding: "7px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 12, cursor: "pointer" }}>{[10, 20, 30, 40, 50].map(nn => <option key={nn} value={nn}>{tr("{0} staff", nn)}</option>)}</select></div>}
     </div>
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading schedule...")}</div>}
-    {!loading && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
+    {!loading && calFailed && <Crd t={t}><LoadFailed t={t} onRetry={() => loadCalendar()} /></Crd>}
+    {!loading && !calFailed && <div style={{ display: "flex", gap: 12, marginBottom: 10, flexWrap: "wrap" }}>
       {[{ c: GO, l: tr("Scheduled|shift") }, { c: GR, l: tr("Started") }, { c: t.textMut, l: tr("Open|shift") }, { c: "#F1C40F", l: tr("Drop Req") }, { c: OR, l: tr("Claimed|shift") }, { c: BL, l: tr("Inspection") }].map(lg => (
         <div key={lg.l} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <div style={{ width: 10, height: 10, borderRadius: 2, background: lg.c + "30", border: "1px solid " + lg.c }} />
@@ -5604,14 +6035,14 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
         </div>
       ))}
     </div>}
-    {!loading && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderWeekView()}</Crd>}
-    {!loading && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
+    {!loading && !calFailed && view === "week" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{phone ? renderWeekStacked() : renderWeekView()}</Crd>}
+    {!loading && !calFailed && view === "month" && <Crd t={t} style={{ padding: 12, flex: 1, display: "flex", flexDirection: "column" }}>{renderMonthView()}</Crd>}
 
     </>}
 
     {/* CREATE SHIFT MODAL */}
     {createModal && <Mdl t={t} onClose={() => setCreateModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Shift")}</div><button onClick={() => setCreateModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.goldSubtle, border: "1px solid " + t.goldSubtleBorder, fontSize: 11, color: t.goldText, marginBottom: 14 }}>{tr("Scheduling for")} {fmtShortDate(createModal.date)}</div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff Member *")}</Lbl>
         <Inp t={t} value={pickerSearch} onChange={e => setPickerSearch(e.target.value)} placeholder={tr("Search staff")} style={{ marginBottom: 6, fontSize: 12 }} />
@@ -5670,7 +6101,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* EDIT SCHEDULED SHIFT MODAL */}
     {editModal && <Mdl t={t} onClose={() => setEditModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Shift")}</div><button onClick={() => setEditModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {editPatternId && <div style={{ marginBottom: 12, fontSize: 12, color: t.textSec }}>{tr("Part of a weekly pattern. Changes here apply to this date only.")} <button onClick={() => { setEditModal(null); setView("patterns"); setPatternOpenId(editPatternId); }} style={{ background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", padding: "4px 6px" }}>{tr("Open the pattern")}</button></div>}
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Staff")}</Lbl><Sel t={t} value={editModal.user_id} onChange={e => setEditModal({ ...editModal, user_id: e.target.value })} options={[{ v: "", l: tr("Select staff...") }, ...staffList.filter(s => s.role !== "admin").map(s => ({ v: s.id, l: s.name || (s.firstName + " " + s.lastName) }))]} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} value={editModal.site_id} onChange={e => { const sid = e.target.value; setEditModal({ ...editModal, site_id: sid, buildingName: "", floorNumber: "" }); if (sid) loadSiteLocations(sid); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
@@ -5692,7 +6123,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
           <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>{tr("The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
             <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins", undefined, true)} /></div>
-            <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder={tr("e.g. Marcus called out")} /></div>
+            <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder={tr("e.g. Called out")} /></div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Btn t={t} v="ghost" onClick={() => setConvertPickup(null)} style={{ fontSize: 11, padding: "6px 12px" }}>{tr("Cancel")}</Btn>
@@ -5703,7 +6134,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? tr("Cancel this date") : tr("Delete")}</Btn>
+          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? tr("Cancel this date") : tr("Cancel shift")}</Btn>
           {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />{tr("Pickup")}</button>}
         </div>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div>
@@ -5712,7 +6143,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
     {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={startedLbl}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
@@ -5728,11 +6159,11 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* INSPECTION RESCHEDULE MODAL */}
     {inspModal && <Mdl t={t} onClose={() => setInspModal(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Inspection Details")}</div><button onClick={() => setInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Inspection Details")}</div><button onClick={() => setInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
-        <Bdg l={inspModal.status || "scheduled"} c={inspModal.status === "completed" ? GR : BL} />
+        <Bdg l={inspStatusWord[inspModal.status || "scheduled"] || inspModal.status} c={inspModal.status === "completed" ? GR : BL} />
       </div>
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
       <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
@@ -5744,17 +6175,17 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
     {/* PICKUP DETAIL MODAL */}
     {pickupDetail && <Mdl t={t} onClose={() => setPickupDetail(null)}><div style={{ padding: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{pickupDetail.status === "requested" ? tr("Shift Drop Request") : pickupDetail.status === "open" ? tr("Open Marketplace Shift") : pickupDetail.status === "claimed" ? tr("Claimed Pickup Shift") : pickupDetail.status === "approved" ? tr("Approved Shift") : tr("Pickup Shift")}</div><button onClick={() => setPickupDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       {pickupDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift. Approve to open it for pickup, deny to keep the original assignment, or reassign directly.")}</div>}
       {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>{tr("This shift is open in the marketplace and available for staff to claim.")}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{pickupStatusWord[pickupDetail.status] || pickupDetail.status || ""}</div></div>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Time")}</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
         {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Requested By")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
         {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Claimed By")}</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{originWordS(pickupDetail.origin)}</div></div>
         {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Originally Assigned")}</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
       </div>
       {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>{tr("Overtime risk: claiming this shift may push the worker past 40 weekly hours.")}</div>}
@@ -5868,8 +6299,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     }
   };
 
+  // Loading shows once, before the first list arrives. A refresh after that is quiet, and a read
+  // that fails says so in the list's place.
+  const pkLoaded = useRef(false);
+  const [pkFailed, setPkFailed] = useState(false);
   const load = async (range) => {
-    setLoading(true);
+    if (!pkLoaded.current) setLoading(true);
     const r = range || dateRange;
     let q = "";
     if (tab === "requested") {
@@ -5905,7 +6340,9 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
         setPatternData(pt);
         setReliabilityData(rl);
       }
-    } catch (e) { showToast(e.message, "error"); }
+      pkLoaded.current = true;
+      setPkFailed(false);
+    } catch (e) { setPkFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
 
@@ -5964,8 +6401,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const openConvertModal = async () => {
     setConvertModal(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const future = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+      const today = todayISO();
+      const future = toISO(new Date(Date.now() + 30 * 86400000));
       const r = await af("/api/schedule?start_date=" + today + "&end_date=" + future);
       setSchedShifts(r.filter(s => s.status === "scheduled"));
     } catch { setSchedShifts([]); }
@@ -6030,9 +6467,10 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     </div>
 
     {loading && <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading...")}</div>}
+    {!loading && pkFailed && <Crd t={t}><LoadFailed t={t} onRetry={() => load()} /></Crd>}
 
     {/* SHIFT LIST TABS */}
-    {!loading && tab !== "analytics" && (
+    {!loading && !pkFailed && tab !== "analytics" && (
       <div>
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={pkQ} onChange={e => { setPkQ(e.target.value); setPkPage(1); }} placeholder={tr("Search site, service, staff, notes")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
@@ -6059,7 +6497,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     )}
 
     {/* ANALYTICS TAB */}
-    {!loading && tab === "analytics" && analytics && (
+    {!loading && !pkFailed && tab === "analytics" && analytics && (
       <div>
         {/* Analytics sub-tabs */}
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
@@ -6293,7 +6731,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                 {patternData.by_month.map((m, i) => {
                   const maxM = Math.max(...patternData.by_month.map(x => x.total));
                   const h = maxM > 0 ? (m.total / maxM * 80) : 0;
-                  const mDate = new Date(m.month_start + "T00:00:00");
+                  const mDate = localDate(m.month_start);
                   return (
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{m.total}</div>
@@ -6351,7 +6789,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
     {/* POST OPEN SHIFT MODAL */}
     {createForm && <Mdl t={t} onClose={() => setCreateForm(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post Open Shift")}</div><button onClick={() => setCreateForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Post Open Shift")}</div><button onClick={() => setCreateForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={createForm.site_id} onChange={e => { setCreateForm({ ...createForm, site_id: e.target.value, building_name: "", floor_number: "" }); if (e.target.value) loadSiteLocations(e.target.value); }} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
 
@@ -6382,7 +6820,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
     {/* CONVERT CALLOUT MODAL */}
     {convertModal && <Mdl t={t} onClose={() => setConvertModal(false)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Convert Scheduled Shift to Open Pickup")}</div><button onClick={() => setConvertModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Convert Scheduled Shift to Open Pickup")}</div><button onClick={() => setConvertModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
 
       <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14 }}>
         {tr("Select a scheduled shift below. The original shift will be cancelled and replaced with an open pickup that eligible staff can claim.")}
@@ -6390,7 +6828,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertOrigin} onChange={e => setConvertOrigin(e.target.value)} options={[{ v: "callout", l: tr("Callout") }, { v: "no_show", l: tr("No-Show") }, { v: "voluntary_drop", l: tr("Voluntary Drop") }, { v: "extra_coverage", l: tr("Extra Coverage") }]} /></div>
-        <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder={tr("e.g. Marcus called out sick")} /></div>
+        <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder={tr("e.g. Called out sick")} /></div>
       </div>
 
       <div style={{ maxHeight: 300, overflow: "auto" }}>
@@ -6416,7 +6854,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
     {shiftDetail && <Mdl t={t} onClose={() => setShiftDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{shiftDetail.status === "requested" ? tr("Shift Drop Request") : tr("Shift Details")}</div>
-        <button onClick={() => setShiftDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+        <button onClick={() => setShiftDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
       </div>
       {shiftDetail.status === "requested" && <div style={{ padding: "8px 12px", borderRadius: 6, background: "#F1C40F18", border: "1px solid #F1C40F40", fontSize: 11, color: "#F1C40F", fontWeight: 600, marginBottom: 14 }}>{tr("A staff member is requesting to drop this shift.")}</div>}
 
@@ -6494,7 +6932,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   </div>);
 }
 
-function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
+function InspectionsPage({ af, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
   const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
@@ -6530,6 +6968,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const [catBreakdown, setCatBreakdown] = useState([]);
   const [lowestItems, setLowestItems] = useState([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  // Which read failed last: the templates, the scheduled list, or the analytics.
+  const [inspFailed, setInspFailed] = useState({});
+  const markInsp = (k, v) => setInspFailed(f => (f[k] === v ? f : { ...f, [k]: v }));
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
@@ -6546,7 +6987,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   const [inspPerPage, setInspPerPage] = useState(10);
 
   const loadTemplates = useCallback(async () => {
-    try { const d = await af("/api/inspections/templates"); setTemplates(d); } catch (e) { showToast(e.message, "error"); }
+    try { const d = await af("/api/inspections/templates"); setTemplates(d); markInsp("templates", false); } catch (e) { markInsp("templates", true); showToast(e.message, "error"); }
   }, [af]);
 
   const loadScheduled = useCallback(async () => {
@@ -6554,7 +6995,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
       const all = await af("/api/inspections/scheduled");
       setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
       setCompleted(all.filter(s => s.status === "completed"));
-    } catch (e) { showToast(e.message, "error"); }
+    markInsp("scheduled", false); } catch (e) { markInsp("scheduled", true); showToast(e.message, "error"); }
   }, [af]);
 
   const loadAnalytics = useCallback(async (range, siteId) => {
@@ -6568,7 +7009,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         af("/api/inspections/analytics/lowest-items" + q),
       ]);
       setScoreTrend(trend); setSiteComp(comp); setCatBreakdown(cats); setLowestItems(low);
-    } catch (e) { showToast(tr("Failed to load analytics: {0}", e.message), "error"); }
+      markInsp("analytics", false);
+    } catch (e) { markInsp("analytics", true); showToast(tr("Failed to load analytics: {0}", e.message), "error"); }
     setAnalyticsLoading(false);
   }, [af]);
 
@@ -6604,8 +7046,8 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   };
 
   const deleteItem = async (itemId) => {
-    if (!window.confirm(tr("Remove this line item?"))) return;
-    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast(tr("Item removed")); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Deactivate this line item?"))) return;
+    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast(tr("Item deactivated")); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
   };
 
   const [editItemId, setEditItemId] = useState(null);
@@ -6625,10 +7067,10 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
   };
 
   const deleteTemplate = async (id) => {
-    if (!window.confirm(tr("Delete this template? All scheduled inspections using it will also be removed."))) return;
+    if (!window.confirm(tr("Deactivate this template?"))) return;
     try {
       await af("/api/inspections/templates/" + id, { method: "DELETE" });
-      showToast(tr("Template deleted")); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
+      showToast(tr("Template deactivated")); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -6644,10 +7086,6 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteScheduled = async (id) => {
-    if (!window.confirm(tr("Delete this inspection?"))) return;
-    try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast(tr("Deleted|inspection")); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
-  };
 
   const openEditInspection = (si) => {
     setEditInspForm({ template_id: si.template_id, site_id: si.site_id, assigned_to: si.assigned_to || "", scheduled_date: si.scheduled_date ? si.scheduled_date.slice(0, 10) : "" });
@@ -6680,7 +7118,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, cimsLabels[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
+      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -6770,7 +7208,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     af("/api/inspections/analytics/export" + q).then(rows => {
       if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
       const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || CIMS_LABELS[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -6814,7 +7252,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               </button>
             </div>
           )}
-          {!isComplete && isAdmin && (
+          {!isComplete && canManageInspections && (
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => openEditInspection(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
                 <EdI sz={12} c={t.textSec} /> {tr("Edit")}
@@ -6854,7 +7292,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             return (
               <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                 <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={catWord(item.cims_category)}>{item.cims_category}</div>
+                  <div style={{ padding: "4px 8px", borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{shownItem(item).label}</div>
                     <div style={{ fontSize: 11, color: t.textMut }}>{zoneWord(item)}</div>
@@ -6917,7 +7355,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
@@ -6950,13 +7388,14 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
-                    {isAdmin && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
+                    {canManageInspections && <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
               ))}
-              {templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>{tr("No templates yet. Create one to get started.")}</div>}
+              {inspFailed.templates && <LoadFailed t={t} onRetry={loadTemplates} />}
+              {!inspFailed.templates && templates.length === 0 && <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0" }}>{tr("No templates yet. Create one to get started.")}</div>}
             </div>
           </div>
 
@@ -6964,7 +7403,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             <div style={{ width: 380, flexShrink: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                 <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{selectedTemplate.name}</div>
-                <button onClick={() => setSelectedTemplate(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={16} c={t.textMut} /></button>
+                <button onClick={() => setSelectedTemplate(null)} aria-label={tr("Close")} style={xBtn}><XI sz={16} c={t.textMut} /></button>
               </div>
               <div style={{ marginBottom: 14 }}>
                 {(selectedTemplate.items || []).map(item => (
@@ -6984,13 +7423,13 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={catWord(item.cims_category)}>{item.cims_category}</div>
+                        <div style={{ padding: "3px 7px", borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
                           <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - {tr("max {0} pts", item.max_score)}</div>
                         </div>
                         <button onClick={() => startEditItem(item)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, color: t.textSec, fontSize: 10 }}>{tr("Edit")}</button>
-                        <button onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
+                        <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
                       </div>
                     )}
                   </div>
@@ -7040,8 +7479,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{canManageInspections && <button title={tr("Cancel")} aria-label={tr("Cancel")} onClick={e => { e.stopPropagation(); cancelInspection(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
+            if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
           })()}
         </div>
@@ -7068,8 +7508,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
               { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", si.total_score, si.max_possible_score)}</div></div>; } },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
             ];
+            if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
         </div>
@@ -7094,8 +7535,9 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
           </div>
 
           {analyticsLoading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading analytics...")}</div>}
+          {!analyticsLoading && inspFailed.analytics && <Crd t={t}><LoadFailed t={t} onRetry={() => loadAnalytics(analyticsRange, analyticsSite)} /></Crd>}
 
-          {!analyticsLoading && (
+          {!analyticsLoading && !inspFailed.analytics && (
             <div>
               {/* SITE COMPARISON BARS */}
               {siteComp.length > 0 && (
@@ -7245,7 +7687,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
       {/* NEW TEMPLATE MODAL */}
       {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template Name *")}</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder={tr("e.g. Standard Office Cleaning")} /></div>
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder={tr("Optional: describe what this template covers")} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={createTemplate}>{tr("Create Template")}</Btn></div>
@@ -7253,7 +7695,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
       {/* SCHEDULE MODAL */}
       {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={editInspForm.site_id} onChange={e => setEditInspForm({ ...editInspForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={editInspForm.assigned_to} onChange={e => setEditInspForm({ ...editInspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
@@ -7264,7 +7706,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
         </div>
       </div></Mdl>}
       {scheduleModal && <Mdl t={t} onClose={() => setScheduleModal(false)}><div style={{ padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Schedule Inspection")}</div><button onClick={() => setScheduleModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={scheduleForm.template_id} onChange={e => setScheduleForm({ ...scheduleForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Site *")}</Lbl><Sel t={t} value={scheduleForm.site_id} onChange={e => setScheduleForm({ ...scheduleForm, site_id: e.target.value })} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={scheduleForm.assigned_to} onChange={e => setScheduleForm({ ...scheduleForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...supervisors.map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
@@ -7277,7 +7719,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
 
 function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [form, setForm] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const logoInput = useRef(null);
@@ -7285,7 +7727,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   const load = async () => {
     setLoading(true);
     try { const d = await af("/api/settings"); setForm(d); }
-    catch (e) { showToast(e.message, "error"); }
+    catch (e) { setFailed(true); showToast(e.message, "error"); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
@@ -7333,6 +7775,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
     setLogoUploading(false);
   };
 
+  if (!loading && failed && !form) return <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>;
   if (loading || !form) return <div style={{ textAlign: "center", padding: 40, color: t.textMut }}>{tr("Loading company settings...")}</div>;
 
   const inp = { padding: "8px 10px", borderRadius: 6, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, width: "100%", boxSizing: "border-box" };
@@ -7602,7 +8045,7 @@ function PermissionsMatrixPanel({ t }) {
   );
 }
 
-function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
+function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canManageAdmins = false }) {
   const [staff, setStaff] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [selId, setSelId] = useState("");
@@ -7643,6 +8086,11 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   const caps = (detail && Array.isArray(detail.capabilities)) ? detail.capabilities : [];
   const role = detail && detail.role;
   const isAdminTarget = role === "admin";
+  // Allow and Deny are not offered on an admin's account, which holds its capabilities by role, or on
+  // the signed-in person's own account, and manage admins is offered only by someone who holds it.
+  const isSelf = !!selId && String(selId) === String(selfId);
+  const fixedNote = isAdminTarget ? tr("An admin account holds these by role. There is nothing to change here.") : isSelf ? tr("Your own capabilities are set by another admin.") : null;
+  const rowNote = (c) => (c.key === "manage_admins" && !canManageAdmins && overrides.manage_admins !== true ? tr("Only someone who holds this can grant it.") : null);
   const tierOf = (r) => (r === "admin" ? "admin" : r === "supervisor" ? "supervisor" : "staff");
   const roleDefault = (c) => !!(c.defaults && c.defaults[tierOf(role)]);
 
@@ -7661,7 +8109,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   const setAllow = (key) => setOverrides(Object.assign({}, overrides, { [key]: true }));
   const setDeny = (key) => setOverrides(Object.assign({}, overrides, { [key]: false }));
 
-  const dirty = detail && JSON.stringify(overrides) !== JSON.stringify(detail.overrides || {});
+  const dirty = !fixedNote && detail && JSON.stringify(overrides) !== JSON.stringify(detail.overrides || {});
 
   const save = () => {
     if (!selId) return;
@@ -7717,6 +8165,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>{detail.name}</div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Role: {0}. Default follows this role until you override it.", roleOf(role))}</div>
+              {fixedNote && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{fixedNote}</div>}
             </div>
             <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? tr("Saving...") : tr("Save changes")}</button>
           </div>
@@ -7735,8 +8184,10 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
                       {c.enforced ? tag(tr("Enforced"), GR) : tag(tr("Rolling out"), OR)}
                       <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{currentlyLine(eff, st)}</div>
                     </div>
-                    {locked ? (
+                    {fixedNote ? null : locked ? (
                       <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("Locked on")}</div>
+                    ) : rowNote(c) ? (
+                      <div style={{ fontSize: 11, color: t.textMut }}>{rowNote(c)}</div>
                     ) : (
                       <div style={{ display: "flex", gap: 6 }}>
                         <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>{tr("Default|permission")}</button>
@@ -7758,27 +8209,29 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false, lkMap }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, selfId = "", lkMap }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
-  // Every tab here is an admin tab but one: the manage permissions capability opens Roles and
-  // Permissions and nothing else, so that is the tab it draws and the tab it starts on.
+  // Each tab is a capability's: Company and Who gets told are manage settings, the two lookups
+  // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
+  // tabs this person holds and starts on the first of them.
   const TABS = [
-    { id: "company", label: tr("Company"), adminOnly: true },
-    { id: "global", label: tr("Dropdown Options"), adminOnly: true },
-    { id: "site", label: tr("Site Lookups"), adminOnly: true },
-    { id: "permissions", label: tr("Roles and Permissions"), adminOnly: false },
-    { id: "recipients", label: tr("Who gets told"), adminOnly: true, style: { fontFamily: FONT_BODY } },
+    { id: "company", label: tr("Company"), open: canManageSettings },
+    { id: "global", label: tr("Dropdown Options"), open: canManageLookups },
+    { id: "site", label: tr("Site Lookups"), open: canManageLookups },
+    { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
+    { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
   ];
-  const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
-  const [tab, setTab] = useState(isAdmin ? "company" : "permissions");
+  const tabs = TABS.filter(x => x.open);
+  const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
+  const isAdmin = canManageLookups;
   // The Roles and Permissions tab holds two views: what one person can do, and what each role can do.
   const [permView, setPermView] = useState("editor");
   const [addCatForm, setAddCatForm] = useState(null);
   const [editCatForm, setEditCatForm] = useState(null);
   const [addValForm, setAddValForm] = useState(null);
   const [editValForm, setEditValForm] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); const [lkFailed, setLkFailed] = useState(false);
   const [selSite, setSelSite] = useState("");
   const [siteLookups, setSiteLookups] = useState({ zones: [], buildings: [], floors: [] });
   const [siteTab, setSiteTab] = useState("zone");
@@ -7788,7 +8241,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
   // with, its displayLabel, under the English it was saved in, which is what Edit changes.
   const showsDisplay = getLang() !== "en";
 
-  const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { showToast(e.message, "error"); } setLoading(false); };
+  const load = async () => { if (!isAdmin) { setLoading(false); return; } try { const d = await af("/api/lookups/all"); setCats(d); setLkFailed(false); if (!selCat && d.length > 0) setSelCat(d[0].id); } catch (e) { setLkFailed(true); showToast(e.message, "error"); } setLoading(false); };
   useEffect(() => { load(); }, []);
 
   const loadSiteLookups = async (sId) => { if (!sId) return; try { const d = await af("/api/lookups/site/" + sId + "/all"); setSiteLookups(d); } catch (e) { showToast(e.message, "error"); } };
@@ -7805,8 +8258,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
     try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteCat = async (id) => {
-    if (!window.confirm(tr("Delete this category and all its values?"))) return;
-    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Category deleted")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this list and its values from the lists shown?"))) return;
+    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleCatActive = async (cat) => {
     try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
@@ -7821,8 +8274,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
     try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast(tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
-    if (!window.confirm(tr("Delete this value?"))) return;
-    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Value deleted")); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this value from this list?"))) return;
+    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleValActive = async (val) => {
     try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
@@ -7847,8 +8300,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
     try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast(tr("Updated")); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteSiteVal = async (id) => {
-    if (!window.confirm(tr("Delete this value?"))) return;
-    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast(tr("Deleted")); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this value from this list?"))) return;
+    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleSiteValActive = async (val) => {
     try { await af("/api/lookups/site/" + selSite + "/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
@@ -7880,19 +8333,20 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
         {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
-      {tab === "company" && isAdmin && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
+      {tab === "company" && canManageSettings && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
-      {tab === "permissions" && <div>
+      {tab === "permissions" && canManagePermissions && <div>
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           {[{ id: "editor", label: tr("By person") }, { id: "matrix", label: tr("Role reference") }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
         </div>
-        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} lkMap={lkMap} />}
+        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} lkMap={lkMap} selfId={selfId} canManageAdmins={canManageAdmins} />}
         {permView === "matrix" && <PermissionsMatrixPanel t={t} />}
       </div>}
 
-      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
+      {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
-      {tab === "global" && isAdmin && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+      {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         {/* Category List */}
         <Crd t={t} style={{ width: 260, flexShrink: 0, padding: 0 }}>
           <div style={{ padding: "12px 14px", borderBottom: "1px solid " + t.border, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -7922,7 +8376,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
             <div style={{ display: "flex", gap: 4 }}>
               <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? tr("Deactivate") : tr("Activate")}</button>
-              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Delete")}</button>}
+              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
               <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add Value")}</button>
             </div>
           </div>
@@ -7937,12 +8391,13 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{v.label}</div>
                   {showsDisplay && <div style={{ fontSize: 11, color: t.textSec }}>{tr("Shown as: {0}", v.displayLabel || v.label)}</div>}
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | " + tr("prompts text input") : ""}</div>
+                  {!activeCat.is_system && <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | " + tr("prompts text input") : ""}</div>}
+                  {activeCat.is_system && v.show_other_input && <div style={{ fontSize: 9, color: t.textMut }}>{tr("prompts text input")}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
                   <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
-                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
+                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Remove from this list")}</button>
                 </div>
               </div>
             ))}
@@ -7979,7 +8434,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
                   <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
-                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
+                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Remove from this list")}</button>
                 </div>
               </div>
             ))}
@@ -8013,7 +8468,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Color (optional)")}</Lbl><Inp t={t} value={addValForm.color} onChange={e => setAddValForm({ ...addValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><label style={chkWrap}><input type="checkbox" checked={addValForm.show_other_input} onChange={e => setAddValForm({ ...addValForm, show_other_input: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddValForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAddVal}>{tr("Add Value")}</Btn></div>
       </div></Mdl>}
@@ -8027,7 +8482,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Color")}</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><label style={chkWrap}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
         </div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditValForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditVal}>{tr("Save")}</Btn></div>
       </div></Mdl>}
@@ -8112,7 +8567,7 @@ function JotformPickerField({ af, form, setForm, t }) {
       .then(res => { if (!cancelled) { setPickerOptions(res.submissions || []); setNoKey(false); } })
       .catch(err => {
         if (cancelled) return;
-        if (err.message && err.message.toLowerCase().includes("api key")) setNoKey(true);
+        if (err.code === "NO_API_KEY" || (err.message && /api key/i.test(err.message))) setNoKey(true);
         setPickerOptions([]);
       })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -8156,7 +8611,7 @@ function JotformPickerField({ af, form, setForm, t }) {
         <div style={{ padding: "8px 12px", fontSize: 11, color: t.textMut }}>{tr("Loading submissions...")}</div>
       )}
       {form.user_id && noKey && (
-        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("Jotform is not configured. Use the manual entry below.")}</div>
+        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("The forms connection is not set up. Ask your administrator.")}</div>
       )}
       {form.user_id && !loading && !noKey && pickerOptions.length === 0 && (
         <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("No unlinked Jotform submissions for this employee. Sync the Forms page if needed, or use manual entry.")}</div>
@@ -8319,7 +8774,7 @@ function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
     {photos.length > 0 && <div data-photos={field.key} style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
       {photos.map(p => (<div key={p.id} style={{ width: 96 }}>
         <button type="button" aria-label={tr("Open photo {0}", p.name || "")} onClick={() => openPhoto(p)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", minWidth: 44, minHeight: 44, display: "block" }}>
-          {photoBlobUrl(thumbs[p.id]) ? <img src={thumbs[p.id]} alt={p.name || ""} style={thumbBox} /> : <div style={thumbBox} />}
+          {photoBlobUrl(thumbs[p.id]) ? <img src={thumbs[p.id]} alt={p.name || ""} style={thumbBox} /> : thumbs[p.id] === "failed" ? <div style={Object.assign({}, thumbBox, { display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 6, fontSize: 10, color: t.textMut, lineHeight: 1.3 })}>{tr("Photo could not be loaded")}</div> : <div style={thumbBox} />}
         </button>
         <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, wordBreak: "break-word", lineHeight: 1.3 }}>{p.name || ""}</div>
         {canWrite && <Btn t={t} v="ghost" onClick={() => remove(p)} disabled={!!busy} aria-label={tr("Remove photo|form") + ": " + (p.name || "")} style={Object.assign({}, smallBtn, { marginTop: 4, width: "100%", padding: "10px 6px" })}>{busy === "remove:" + p.id ? tr("Removing...") : tr("Remove photo|form")}</Btn>}
@@ -8461,6 +8916,11 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [asking, setAsking] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentLine, setSentLine] = useState("");
+  // The Void window: its reason, and one request at a time (Step 179).
+  const [voiding, setVoiding] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidBusy, setVoidBusy] = useState(false);
+  const voidRef = useRef(false);
   // One send at a time. The ref closes the gap before the disabled button redraws, so a double click
   // is one request. This is the guard the Time off window uses.
   const sendingRef = useRef(false);
@@ -8556,8 +9016,24 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     sendingRef.current = false; setSending(false);
   };
 
+  const doVoid = async () => {
+    if (voidRef.current) return;
+    voidRef.current = true; setVoidBusy(true); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/void", { method: "POST", body: { reason: voidReason.trim() } });
+      if (d && d.draft) setData(d);
+      setVoiding(false); setVoidReason("");
+    } catch (e) { setActionError(e.message || tr("Request failed")); }
+    voidRef.current = false; setVoidBusy(false);
+  };
+
   const draft = data && data.draft;
   draftRef.current = draft;
+  // What the payload says this person may do to the report (Step 179). Until the API says, neither
+  // control draws.
+  const canVoid = !!(data && data.canVoid);
+  const canResend = !!(data && data.canResend);
+  const isVoid = !!(draft && draft.status === "void");
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
   // Everything that is not the supervisor's half was answered by whoever filed the report. The two
   // words this platform uses for that half are read the same way, so the answers show either way.
@@ -8800,7 +9276,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
         {draft && <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Bdg l={submitted ? tr("Submitted") : tr("Unfinished")} c={submitted ? GR : OR} />
+          <Bdg l={isVoid ? tr("Void|status") : submitted ? tr("Submitted") : tr("Unfinished")} c={isVoid ? RD : submitted ? GR : OR} />
           <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || tr("No site")}</span>
           <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? tr("Filed {0}", irWhen(draft.submittedAt)) : tr("Started {0}", irWhen(draft.createdAt))}</span>
           {draft.source === "customer"
@@ -8851,11 +9327,20 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
         <Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={sending} style={{ minHeight: 44 }}>{tr("Not yet")}</Btn>
       </div>
     </div>}
+    {voiding && <div data-void-window style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <div style={{ fontSize: 12, color: t.text, marginBottom: 8 }}>{tr("Why is this report being voided?")}</div>
+      <TArea t={t} rows={2} value={voidReason} onChange={e => setVoidReason(e.target.value)} aria-label={tr("Why is this report being voided?")} style={{ marginBottom: 10 }} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="danger" onClick={doVoid} disabled={voidBusy} style={{ minHeight: 44 }}>{tr("Void report")}</Btn>
+        <Btn t={t} v="ghost" onClick={() => { setVoiding(false); setActionError(""); }} disabled={voidBusy} style={{ minHeight: 44 }}>{tr("Not yet")}</Btn>
+      </div>
+    </div>}
     {sentLine && <div style={{ fontSize: 12, color: GR, marginTop: 14 }}>{sentLine}</div>}
     {actionError && <div style={{ fontSize: 12, color: RD, marginTop: 14 }}>{actionError}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
       {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? tr("Downloading...") : tr("Download PDF")}</Btn>}
-      {!loading && !error && submitted && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
+      {!loading && !error && canVoid && !isVoid && <Btn t={t} v="ghost" onClick={() => { setVoiding(true); setVoidReason(""); setAsking(false); setSentLine(""); setActionError(""); }} disabled={voidBusy} style={{ minHeight: 44, color: RD }}>{tr("Void")}</Btn>}
+      {!loading && !error && canResend && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setVoiding(false); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
     </div>
   </div></Mdl>);
@@ -8931,7 +9416,8 @@ const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date
 // What the API clips a stored answer to, so a long answer is stopped in the box rather than after.
 const FORM_VALUE_MAX = 4000;
 // Where a filing came from, as the table's word for the source the API stores.
-const formSourceWord = (code) => (code === "admin" ? tr("From the dashboard") : code ? tr("From the app") : "");
+// Where a filing came from: the dashboard, the staff app (portal or the Help assistant), or a customer's link.
+const formSourceWord = (code) => (code === "admin" ? tr("From the dashboard") : code === "portal" || code === "agent" ? tr("From the app") : code === "customer" ? tr("From a customer") : "");
 // A form's questions the picker and the window read: a form the API lists with nobody in its
 // fillers is not one anyone here may start.
 const formStartable = (f) => !!f && (!Array.isArray(f.fillers) || f.fillers.length > 0);
@@ -9055,7 +9541,7 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
     setSigningKey(null);
   };
 
-  // Step 169: a customer's signature on a form OCSA fills, made on this device with the customer
+  // Step 169: a customer's signature on a form the company fills, made on this device with the customer
   // present: a typed name, an optional role and the drawing from the signature box, sent to its own
   // route, which answers with the whole report. It is never part of a save. Clear opens the pad
   // again while the draft is open, and the next Save signature replaces the drawing on the draft.
@@ -9103,8 +9589,8 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
           <Inp t={t} aria-label={f.label + ": " + tr("Name")} maxLength={FORM_VALUE_MAX} value={c.name || ""} onChange={e => setCustOf(f.key, { name: e.target.value })} style={{ minHeight: 44 }} />
         </div>
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{tr("Role")}</div>
-          <Inp t={t} aria-label={f.label + ": " + tr("Role")} maxLength={FORM_VALUE_MAX} value={c.role || ""} onChange={e => setCustOf(f.key, { role: e.target.value })} style={{ minHeight: 44 }} />
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{tr("Role|customer")}</div>
+          <Inp t={t} aria-label={f.label + ": " + tr("Role|customer")} maxLength={FORM_VALUE_MAX} value={c.role || ""} onChange={e => setCustOf(f.key, { role: e.target.value })} style={{ minHeight: 44 }} />
         </div>
         <SignatureBox t={t} label={f.label} busy={!!c.busy} signWord={tr("Save signature")} busyWord={tr("Saving...")} onSign={(png) => saveCustomerSignature(f, png)} />
       </>)}
@@ -9628,6 +10114,16 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
 
 function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
+  // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
+  // and a refusal or a 404 leaves the switch undrawn.
+  const isAdmin = !!(user && user.role === "admin");
+  const [voidListed, setVoidListed] = useState(false);
+  useEffect(() => {
+    if (!isAdmin) { setVoidListed(false); return; }
+    let alive = true;
+    af("/api/forms/responses?status=void&limit=1").then(() => { if (alive) setVoidListed(true); }).catch(() => { if (alive) setVoidListed(false); });
+    return () => { alive = false; };
+  }, [af, isAdmin]);
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
   const [rows, setRows] = useState([]);
@@ -9704,13 +10200,12 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
     try { setPicker({ loading: false, forms: (await readCatalog()).filter(formStartable), error: "" }); }
     catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
   };
-  // The API sets a draft's source itself, portal, and reads none from the body (routes/forms.js,
-  // Step 169), so the start sends nothing for it.
+  // A form started here is filed from the dashboard, and the start says so (Step 175).
   const startForm = async (f) => {
     if (starting) return;
     setStarting(f.code);
     try {
-      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: {} });
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
       setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
     } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
     setStarting("");
@@ -9766,7 +10261,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
 
   return (<div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
+      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}{voidListed && sw("void", tr("Void|status"))}</div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -9812,11 +10307,12 @@ const GAP_COLS = ["Form Title", "Last Synced", "Jotform", "Ours", "Delta", "Fail
 const MISSING_COLS = ["Jotform Submission ID", "Submitted", "Submitter Name", "Email", ""];
 const FAILURE_COLS = ["Submission ID", "Form", "Stage", "Reason", "Attempted", "Already Synced?", ""];
 const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added", "Added By", "Notes", ""];
-function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false }) {
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
-  const isAdmin = user?.role === "admin";
+  // The Jotform and PDF access log tabs are the integrations capability's, which an admin holds by default.
+  const isAdmin = canManageIntegrations;
   const [tab, setTab] = useState("incident_reports");
   const [jotSection, setJotSection] = useState("inbox");
   // How many filings are unfinished, read by the Filed forms tab from the list it loads.
@@ -9846,6 +10342,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   const [editForm, setEditForm] = useState(null);
   const [detailSub, setDetailSub] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailFailed, setDetailFailed] = useState(false);
+  // Which list's read failed last: forms, submissions or the PDF access log.
+  const [listFailed, setListFailed] = useState({});
+  const markList = (k, v) => setListFailed(f => (f[k] === v ? f : { ...f, [k]: v }));
   const [linkModal, setLinkModal] = useState(null);
   const [fullRefreshModal, setFullRefreshModal] = useState(false);
 
@@ -9933,7 +10433,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (libFilters.search) q.push("search=" + encodeURIComponent(libFilters.search));
       const d = await af("/api/jotform/forms" + (q.length ? "?" + q.join("&") : ""));
       setForms(d);
-    } catch (e) { showToast(tr("Forms load failed: {0}", e.message), "error"); }
+      markList("forms", false);
+    } catch (e) { markList("forms", true); showToast(tr("Forms load failed: {0}", e.message), "error"); }
     setLoading(false);
   }, [af, libFilters, showToast]);
 
@@ -9952,7 +10453,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       setSubmissions(d.submissions || []);
       setSubmissionsTotal(d.total || 0);
       if (resetOffset) setSubOffset(0);
-    } catch (e) { showToast(tr("Submissions load failed: {0}", e.message), "error"); }
+      markList("submissions", false);
+    } catch (e) { markList("submissions", true); showToast(tr("Submissions load failed: {0}", e.message), "error"); }
     setLoading(false);
   }, [af, subFilters, subOffset, showToast]);
 
@@ -9976,7 +10478,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       setPdfAccessLog(d.entries || []);
       setPdfAccessTotal(d.total || 0);
       if (resetOffset) setPdfOffset(0);
-    } catch (e) { showToast(tr("PDF log load failed: {0}", e.message), "error"); }
+      markList("pdfLog", false);
+    } catch (e) { markList("pdfLog", true); showToast(tr("PDF log load failed: {0}", e.message), "error"); }
     setLoading(false);
   }, [af, pdfFilters, pdfOffset, showToast]);
 
@@ -10146,11 +10649,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   }, [af, showToast, aliasAddForm, loadAliases]);
 
   const deleteAlias = useCallback(async (aliasId, label) => {
-    if (!window.confirm(tr("Remove alias {0}?", label ? "\"" + label + "\"" : "") + "\n\n" + tr("This affects future auto-matching. Existing linked submissions are not changed."))) return;
+    if (!window.confirm(tr("Deactivate alias {0}?", label ? "\"" + label + "\"" : "") + "\n\n" + tr("This affects future auto-matching. Existing linked submissions are not changed."))) return;
     setAliasDeletingId(aliasId);
     try {
       await af("/api/jotform/user-aliases/" + aliasId, { method: "DELETE" });
-      showToast(tr("Alias removed."));
+      showToast(tr("Alias deactivated."));
       loadAliases();
     } catch (e) { showToast(tr("Delete failed: {0}", e.message), "error"); }
     setAliasDeletingId(null);
@@ -10179,7 +10682,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   }, [maintenance]);
 
   const syncForms = async () => {
-    if (!window.confirm(tr("Pull the latest forms from Jotform. Only forms whose title starts with 'OCSA Cleaning_' will be imported. Forms in the app that no longer match this prefix (including any Construction or MCFL forms) will be removed along with their submissions. Continue?"))) return;
+    if (!window.confirm(tr("Pull the latest forms from Jotform. Only forms whose title starts with {0} are imported. Forms in the app that no longer match are switched off and kept, with their submissions. Continue?", "'" + clientConfig.forms.titlePrefix + "'"))) return;
     setSyncingForms(true);
     try {
       const d = await af("/api/jotform/forms/sync", { method: "POST" });
@@ -10189,7 +10692,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       ];
       if (d.purgedForms > 0) parts.push(tr("{0} purged ({1} submissions removed)", d.purgedForms, d.purgedSubmissions));
       if (d.skippedWrongPrefix > 0) parts.push(tr("{0} skipped (wrong prefix)", d.skippedWrongPrefix));
-      showToast(tr("Synced {0} OCSA Cleaning forms. {1}.", d.total, parts.join(", ")));
+      showToast(tr("Synced {0} forms. {1}.", d.total, parts.join(", ")));
       loadForms(); loadConfig();
     } catch (e) {
       showToast(tr("Sync failed: {0}", e.message), "error");
@@ -10224,11 +10727,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   };
 
   // Session 24, Step 6: trigger the PDF backfill that sweeps the
-  // jotform@ocsaco.com inbox for all PDF emails (not just unread).
+  // the forms mailbox for all PDF emails (not just unread).
   // This may take several minutes. Run multiple times if the result
   // shows processed === maxMessages (more emails remain).
   const runPdfBackfill = async () => {
-    if (!window.confirm(tr("Run PDF backfill?\n\nThis sweeps the entire jotform@ocsaco.com inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached."))) return;
+    if (!window.confirm(tr("Run PDF backfill?\n\nThis sweeps the entire {0} inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached.", clientConfig.forms.mailbox))) return;
     setBackfillingPdfs(true);
     try {
       const d = await af("/api/jotform/pdf-backfill", { method: "POST", body: { maxMessages: 500 } });
@@ -10257,7 +10760,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     try {
       const fd = new FormData();
       for (const f of files) fd.append("pdfs", f);
-      const apiBase = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app");
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/pdf-bulk-upload", {
         method: "POST",
         headers: { "Authorization": "Bearer " + token },
@@ -10306,12 +10809,12 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   };
 
   // Session 24, end-of-session: re-run the auto-link pass that ties
-  // unlinked submissions to existing OCSA users by email or exact name.
+  // unlinked submissions to existing users by email or exact name.
   // Original auto-link ran once during Session 21 migration and never
   // again, so submissions from existing users (e.g., Sadon Powell)
   // accumulate as "Unmatched" until this button is clicked.
   const runAutoLink = async () => {
-    if (!window.confirm(tr("Re-run Auto-Link?\n\nThis scans every unlinked submission and matches it against the OCSA users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.\n\nThis action is safe to run any number of times."))) return;
+    if (!window.confirm(tr("Re-run Auto-Link?\n\nThis scans every unlinked submission and matches it against the users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.\n\nThis action is safe to run any number of times."))) return;
     setAutoLinking(true);
     try {
       const d = await af("/api/jotform/auto-link", { method: "POST" });
@@ -10362,8 +10865,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     setDetailSub(sub); setDetailLoading(true);
     try {
       const d = await af("/api/jotform/submissions/" + sub.id);
-      setDetailSub(d);
-    } catch (e) { showToast(tr("Detail load failed: {0}", e.message), "error"); }
+      setDetailSub(d); setDetailFailed(false);
+    } catch (e) { setDetailFailed(true); showToast(tr("Detail load failed: {0}", e.message), "error"); }
     setDetailLoading(false);
 
     // Load active users for the link-to-user dropdown (one-time, cached for this session)
@@ -10429,7 +10932,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
   // Session 21: fetch PDF as blob (binary payload, bypasses af which expects JSON)
   const fetchPdfBlob = async (submissionId, action) => {
-    const url = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app") +
+    const url = API +
       "/api/jotform/submissions/" + submissionId + "/pdf?action=" + action;
     const r = await apiRequest(url, { headers: { "Authorization": "Bearer " + token } });
     if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
@@ -10536,7 +11039,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {tab === "jotform" && (<>
         {/* PII WARNING BANNER */}
         <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
-          <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
+          <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. The dashboard caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
         </div>
 
         {/* THE SECTION SWITCH, with the buttons of the section that is open beside it */}
@@ -10611,7 +11114,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Press Sync Form Catalog under Maintenance to pull your account's forms.")}</div>}
+            {listFailed.forms && <LoadFailed t={t} onRetry={loadForms} style={{ padding: 40 }} />}
+            {!listFailed.forms && forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Press Sync Form Catalog under Maintenance to pull your account's forms.")}</div>}
           </div>
         </div>
       )}
@@ -10649,14 +11153,15 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{s.user_id ? <span>{s.first_name + " " + s.last_name}{s.user_employee_id ? <div style={{ fontSize: 10, color: t.textMut, fontFamily: "monospace" }}>{s.user_employee_id}</div> : null}</span> : <span style={{ color: OR, fontStyle: "italic" }}>{tr("Unmatched")}</span>}</td>
                   <td style={{ padding: "10px 12px" }}>{statusBadge(s.status)}</td>
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.linked_entity_type ? <span>{entityWord(s.linked_entity_type)}</span> : <span style={{ color: t.textMut }}>--</span>}</td>
-                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.expiry_date ? fmtDate(s.expiry_date) : "--"}</td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.expiry_date ? fdLong(s.expiry_date) : "--"}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <button onClick={() => openSubmissionDetail(s)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", fontSize: 12 }}>{tr("View")}</button>
                   </td>
                 </tr>
               ))}</tbody>
             </table>
-            {submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Press Sync All Submissions under Maintenance to pull the latest.")}</div>}
+            {listFailed.submissions && <LoadFailed t={t} onRetry={() => loadSubmissions()} style={{ padding: 40 }} />}
+            {!listFailed.submissions && submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Press Sync All Submissions under Maintenance to pull the latest.")}</div>}
           </div>
 
           {submissionsTotal > submissions.length && (
@@ -10706,7 +11211,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {pdfAccessLog.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No PDF access events recorded yet. Events appear here as soon as anyone views, downloads, or prints a submission PDF.")}</div>}
+            {listFailed.pdfLog && <LoadFailed t={t} onRetry={() => loadPdfAccessLog()} style={{ padding: 40 }} />}
+            {!listFailed.pdfLog && pdfAccessLog.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No PDF access events recorded yet. Events appear here as soon as anyone views, downloads, or prints a submission PDF.")}</div>}
           </div>
 
           {pdfAccessTotal > pdfAccessLog.length && (
@@ -10754,7 +11260,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
               <Btn t={t} v="ghost" onClick={runDiagnostic} disabled={runningDiagnostic} style={{ fontSize: 12, padding: "6px 14px" }}>{runningDiagnostic ? tr("Probing...") : tr("Run Diagnostic")}</Btn>
             </div>
             <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10, lineHeight: 1.5 }}>
-              {tr("Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how we filter the platform to show OCSA Cleaning forms only (separate from OCSA Construction and My Choice for Living).")}
+              {tr("Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how this business's forms are told apart from the other businesses' forms on the same account.")}
             </div>
 
             {diagnosticResult && (
@@ -10802,7 +11308,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 )}
 
                 <details style={{ marginTop: 10 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 11, color: t.textMut }}>{tr("Raw JSON (paste this back to Claude for Step 2 implementation)")}</summary>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: t.textMut }}>{tr("Raw result")}</summary>
                   <pre style={{ marginTop: 8, padding: 12, borderRadius: 8, background: t.bg, border: "1px solid " + t.border, fontSize: 10, color: t.textSec, overflow: "auto", maxHeight: 400, fontFamily: "monospace" }}>{JSON.stringify(diagnosticResult, null, 2)}</pre>
                 </details>
               </div>
@@ -10819,9 +11325,9 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 <tbody>{syncLog.map(l => (
                   <tr key={l.id} style={{ borderBottom: "1px solid " + t.border }}>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{fmtDT(l.started_at)}</td>
-                    <td style={{ padding: "8px 10px", color: t.text, fontSize: 11 }}>{l.sync_type}</td>
+                    <td style={{ padding: "8px 10px", color: t.text, fontSize: 11 }}>{({ forms: tr("Forms"), submissions: tr("Submissions"), failure_retry: tr("Failed retry"), force_fetch: tr("Forced fetch") })[l.sync_type] || l.sync_type}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.form_title || "--"}</td>
-                    <td style={{ padding: "8px 10px" }}><Bdg l={l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
+                    <td style={{ padding: "8px 10px" }}><Bdg l={({ success: tr("success"), failed: tr("failed"), running: tr("running|sync") })[l.status] || l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_processed}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_created}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_updated}</td>
@@ -11015,7 +11521,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       <tr key={fl.id} style={{ borderBottom: "1px solid " + t.border }}>
                         <td style={{ padding: "10px 12px", color: t.text, fontFamily: "monospace", fontSize: 10 }}>{fl.jotform_submission_id}</td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fl.form_title || "--"}</td>
-                        <td style={{ padding: "10px 12px" }}><Bdg l={fl.failure_stage} c={fl.failure_stage === "fetch" ? OR : RD} /></td>
+                        <td style={{ padding: "10px 12px" }}><Bdg l={({ fetch: tr("fetch|stage"), parse: tr("parse|stage"), store: tr("store|stage") })[fl.failure_stage] || fl.failure_stage} c={fl.failure_stage === "fetch" ? OR : RD} /></td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fl.failure_reason}>{fl.failure_reason}</td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fmtDT(fl.attempted_at)}</td>
                         <td style={{ padding: "10px 12px" }}>{fl.exists_in_submissions ? <Bdg l={tr("Yes")} c={GR} /> : <Bdg l={tr("No")} c={RD} />}</td>
@@ -11150,7 +11656,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                         <span style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{g.first_name} {g.last_name}</span>
                         {g.employee_id && <span style={{ marginLeft: 8, fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{g.employee_id}</span>}
                         {g.email && <span style={{ marginLeft: 10, fontSize: 11, color: t.textMut }}>{g.email}</span>}
-                        {g.user_status !== "active" && <Bdg l={g.user_status} c={OR} />}
+                        {g.user_status !== "active" && <Bdg l={g.user_status === "terminated" ? tr("terminated|person") : personStateOf(g.user_status)} c={OR} />}
                       </div>
                       <span style={{ fontSize: 11, color: t.textMut }}>{trn("{0} alias|count", g.rows.length)}</span>
                     </div>
@@ -11177,7 +11683,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                                 disabled={aliasDeletingId === a.id}
                                 style={{ background: "none", border: "none", color: RD, cursor: aliasDeletingId === a.id ? "wait" : "pointer", fontSize: 12 }}
                               >
-                                {aliasDeletingId === a.id ? "..." : tr("Remove")}
+                                {aliasDeletingId === a.id ? "..." : tr("Deactivate")}
                               </button>
                             </td>
                           </tr>
@@ -11198,7 +11704,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Form")}</div>
-              <button onClick={() => setEditForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+              <button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>{tr("Title")}</Lbl><div style={{ fontSize: 13, color: t.text, padding: "8px 0" }}>{editForm.title}</div></div>
             <div style={{ marginBottom: 12 }}><Lbl>{tr("Jotform Form ID")}</Lbl><div style={{ fontSize: 12, color: t.textMut, fontFamily: "monospace", padding: "4px 0" }}>{editForm.jotform_form_id}</div></div>
@@ -11251,10 +11757,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Submission Detail")}</div>
-              <button onClick={() => setDetailSub(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+              <button onClick={() => setDetailSub(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
             </div>
             {detailLoading && <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading from Jotform...")}</div>}
-            {!detailLoading && detailSub.meta && (<>
+            {!detailLoading && detailFailed && <LoadFailed t={t} onRetry={() => openSubmissionDetail(detailSub)} style={{ padding: 30 }} />}
+            {!detailLoading && !detailFailed && detailSub.meta && (<>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, fontSize: 12 }}>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Form")}</div><div style={{ color: t.text }}>{detailSub.meta.form_title || detailSub.meta.jotform_form_id}</div></div>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Submitted")}</div><div style={{ color: t.text }}>{fmtDT(detailSub.meta.submitted_at)}</div></div>
@@ -11285,7 +11792,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   )}
                 </div>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Status")}</div><div>{statusBadge(detailSub.meta.status)}</div></div>
-                {detailSub.meta.expiry_date && <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Expiry")}</div><div style={{ color: t.text }}>{fmtDate(detailSub.meta.expiry_date)}</div></div>}
+                {detailSub.meta.expiry_date && <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Expiry")}</div><div style={{ color: t.text }}>{fdLong(detailSub.meta.expiry_date)}</div></div>}
               </div>
 
               {detailSub.meta.linked_entity_type && (
@@ -11351,7 +11858,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} disabled={pdfBusy} onClick={() => printPdf(detailSub.meta.id)}>{tr("Print")}</Btn>
                     </>
                   )}
-                  {detailSub.meta.jotform_view_url && <a href={detailSub.meta.jotform_view_url} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: BL, textDecoration: "none", padding: "8px 12px", border: "1px solid " + t.border, borderRadius: 6 }}>{tr("Open in Jotform")}</a>}
+                  {detailSub.meta.jotform_view_url && <a href={detailSub.meta.jotform_view_url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontSize: 11, color: BL, textDecoration: "none", padding: "8px 12px", border: "1px solid " + t.border, borderRadius: 6 }}>{tr("Open in Jotform")}</a>}
                   <Btn t={t} onClick={() => setDetailSub(null)}>{tr("Close")}</Btn>
                 </div>
               </div>
@@ -11366,7 +11873,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD }}>{tr("Full Refresh. Read Before Running.")}</div>
-              <button onClick={() => setFullRefreshModal(false)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+              <button onClick={() => setFullRefreshModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
             </div>
 
             <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 12, color: OR, marginBottom: 14, lineHeight: 1.6 }}>
@@ -11403,7 +11910,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
           <div style={{ padding: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Link Submission to Record")}</div>
-              <button onClick={() => setLinkModal(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+              <button onClick={() => setLinkModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
             </div>
             <div style={{ marginBottom: 12 }}><Lbl>{tr("Entity Type")}</Lbl>
               <Sel options={ENTITY_TYPE_OPTS} value={linkModal.entity_type} onChange={e => setLinkModal({ ...linkModal, entity_type: e.target.value, entity_id: "" })} t={t} />
@@ -11652,8 +12159,10 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   // What a row's status code says. A code with no word here is drawn as it arrives.
   const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item") })[s] || s;
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtDate = (d) => d ? fdLong(d) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  // A training record and an onboarding step carry a day, so their line shows the day and no clock.
+  const fmtWhen = (it) => (it.source === "training" || it.source === "onboarding" ? fmtDate(it.date) : fmtTime(it.date));
 
   const updateSubCategory = async (submissionUuid, newOverride) => {
     try {
@@ -11668,7 +12177,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     try {
       // Use raw fetch because apiFetch assumes JSON. PDF endpoint streams a binary blob.
       // The token comes from the App-level React state via props, matching how FormsPage handles its binary fetches.
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/submissions/" + submissionUuid + "/pdf", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
@@ -11679,8 +12188,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         return;
       }
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("PDF fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("PDF fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -11695,13 +12204,13 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   // Mirrors viewPdf above but for employee_documents rows in the folder timeline.
   const viewDoc = async (docId) => {
     try {
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -11738,7 +12247,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading folder...")}</div>;
   }
   if (!data) {
-    return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Could not load folder.")}</div>;
+    return <div style={{ padding: 40, textAlign: "center" }}><LoadFailed t={t} text={tr("Could not load folder.")} onRetry={load} style={{ padding: 0 }} /><div style={{ marginTop: 14 }}><Btn t={t} v="ghost" onClick={onBack}>{tr("Back")}</Btn></div></div>;
   }
 
   const e = data.employee;
@@ -11828,7 +12337,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                       </div>
                     </div>
                     <div style={{ fontSize: 11, color: t.textSec, whiteSpace: "nowrap", flexShrink: 0 }}>
-                      {fmtTime(it.date)}
+                      {fmtWhen(it)}
                     </div>
                   </div>
 
@@ -11861,7 +12370,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                       <button onClick={() => onEditDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Edit")}</button>
                     )}
                     {it.source === "document" && (
-                      <button onClick={() => onDeleteDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Delete")}</button>
+                      <button onClick={() => onDeleteDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Remove from this list")}</button>
                     )}
                     {it.source === "training" && (
                       <button onClick={() => onEditTraining(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Edit")}</button>
@@ -12005,7 +12514,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
     {detail && <Mdl t={t} onClose={closeCase}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Case")}</div><div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><Bdg l={statusLabel[detail.status] || detail.status} c={statusColor[detail.status] || t.textMut} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Received {0}", ff(detail.createdAt))}</span></div></div>
-        <button onClick={closeCase} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
+        <button onClick={closeCase} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
       </div>
       {(() => { const k = clockInfo(detail); return (
       <div style={{ marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
@@ -12084,7 +12593,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const loadDocs = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/documents" + q); setDocs(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadTraining = useCallback(async () => { try { const q = selUser ? "?user_id=" + selUser : ""; const d = await af("/api/hr/training" + q); setTraining(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
   const loadOnboarding = useCallback(async () => { if (!selUser) { setOnboarding([]); return; } try { const d = await af("/api/hr/onboarding/" + selUser); setOnboarding(d); } catch (e) { showToast(e.message, "error"); } }, [af, selUser, showToast]);
-  const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); } catch (e) { showToast(e.message, "error"); } }, [af, showToast]);
+  const [complianceFailed, setComplianceFailed] = useState(false);
+  const loadCompliance = useCallback(async () => { try { const d = await af("/api/hr/compliance"); setCompliance(d); setComplianceFailed(false); } catch (e) { setComplianceFailed(true); showToast(e.message, "error"); } }, [af, showToast]);
 
   useEffect(() => { setDocPage(1); setTrPage(1); setOtPage(1); if (tab === "documents" || tab === "other") loadDocs(); else if (tab === "training") loadTraining(); else if (tab === "onboarding") loadOnboarding(); else if (tab === "compliance") loadCompliance(); }, [tab, selUser]);
 
@@ -12094,13 +12604,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // Uses raw fetch (not af) because the response is a binary blob, not JSON.
   const viewDoc = async (docId) => {
     try {
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -12132,7 +12642,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       } else {
         // Create new document: requires a file upload via multipart
         if (!file) { showToast(tr("Please choose a file to upload"), "error"); return; }
-        const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+        const apiBase = API;
         const fd = new FormData();
         fd.append("file", file);
         fd.append("category", form.category);
@@ -12144,8 +12654,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           body: fd
         });
         if (!resp.ok) {
-          const errText = await resp.text().catch(() => "");
-          throw new Error(tr("Upload failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+          const errBody = await resp.json().catch(() => ({}));
+          throw new Error(tr("Upload failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
         }
         docResult = await resp.json();
         showToast(tr("Document added"));
@@ -12170,7 +12680,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteDoc = async (id) => { if (!window.confirm(tr("Delete this document?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Document deleted")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const submitTraining = async () => {
     try {
@@ -12183,7 +12693,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteTraining = async (id) => { if (!window.confirm(tr("Delete this training record?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Training record deleted")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const initOnboarding = async () => {
     if (!selUser) { showToast(tr("Select an employee first"), "error"); return; }
@@ -12199,7 +12709,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     try { await af("/api/hr/onboarding/step", { method: "POST", body: { user_id: selUser, ...form } }); showToast(tr("Step added")); setShowModal(null); setForm({}); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteStep = async (id) => { if (!window.confirm(tr("Delete this step?"))) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast(tr("Step deleted")); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteStep = async (id) => { if (!window.confirm(tr("Remove this step from this list?"))) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
 
   const tabs = [
     { id: "employees", l: tr("Employees") },
@@ -12302,7 +12812,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
             { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
             { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
-            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
+            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={docs.length === 0 ? tr("No documents found. Use Add Document to upload.") : tr("No documents match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setDocPage} />} />;
         })()}
@@ -12335,7 +12845,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
             { header: tr("Score"), tdStyle: { color: t.textSec }, render: r => r.score || "" },
             { header: tr("Administered By"), tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
-            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
+            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
@@ -12361,12 +12871,12 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
                 <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
                   {onboarding.filter(s => s.step_category === cat).map(step => (
                     <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: "1px solid " + t.border }}>
-                      <input type="checkbox" checked={step.is_completed} onChange={() => toggleStep(step)} style={{ width: 18, height: 18, cursor: "pointer", accentColor: GO }} />
+                      <label style={chkWrap}><input type="checkbox" checked={step.is_completed} onChange={() => toggleStep(step)} style={{ width: 18, height: 18, cursor: "pointer", accentColor: GO }} /></label>
                       <div style={{ flex: 1 }}>
                         <div style={{ color: step.is_completed ? t.textMut : t.text, textDecoration: step.is_completed ? "line-through" : "none", fontSize: 13 }}>{step.step_name}</div>
                         {step.is_completed && step.completed_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}{step.completed_by_name ? " " + tr("by {0}", step.completed_by_name) : ""}</div>}
                       </div>
-                      <button onClick={() => deleteStep(step.id)} style={{ background: "none", border: "none", color: t.textMut, cursor: "pointer", fontSize: 11 }}>{tr("Remove")}</button>
+                      <button onClick={() => deleteStep(step.id)} style={{ background: "none", border: "none", color: t.textMut, cursor: "pointer", fontSize: 11 }}>{tr("Remove from this list")}</button>
                     </div>
                   ))}
                 </div>
@@ -12378,7 +12888,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
       {/* COMPLIANCE TAB */}
       {tab === "compliance" && <div>
-        {!compliance ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <>
+        {!compliance && complianceFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadCompliance} /></Crd> : !compliance ? <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
             {[
               { label: tr("Expired Documents"), val: compliance.expiredDocs.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
@@ -12496,7 +13006,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
             { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
             { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
-            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
+            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ]; return (<>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}</div>
