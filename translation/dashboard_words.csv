@@ -2345,3 +2345,10 @@ Remove this training record from this list?,¿Quitar este registro de capacitaci
 Remove this step from this list?,¿Quitar este paso de esta lista?,"HR Records, an onboarding step's question"
 Remove this floor plan from this list?,¿Quitar este plano de esta lista?,"Sites, a floor plan's question"
 Remove this supply from this list?,¿Quitar este suministro de esta lista?,"Sites, a site supply's question"
+From a customer,De un cliente,"Filed forms, under a customer's filing"
+Role,Puesto,"The customer or employee signature card, the second box"
+Void,Anular,"Review window, for an admin"
+Why is this report being voided?,¿Por qué se anula este reporte?,The Void window
+Void report,Anular reporte,The Void window's button
+Void,Anulado,"A void report's status; Filed forms, the status switch"
+Photo could not be loaded,No se pudo cargar la foto,A photo on a filed form

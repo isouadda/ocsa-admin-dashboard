@@ -8434,7 +8434,7 @@ function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
     {photos.length > 0 && <div data-photos={field.key} style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
       {photos.map(p => (<div key={p.id} style={{ width: 96 }}>
         <button type="button" aria-label={tr("Open photo {0}", p.name || "")} onClick={() => openPhoto(p)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", minWidth: 44, minHeight: 44, display: "block" }}>
-          {photoBlobUrl(thumbs[p.id]) ? <img src={thumbs[p.id]} alt={p.name || ""} style={thumbBox} /> : <div style={thumbBox} />}
+          {photoBlobUrl(thumbs[p.id]) ? <img src={thumbs[p.id]} alt={p.name || ""} style={thumbBox} /> : thumbs[p.id] === "failed" ? <div style={Object.assign({}, thumbBox, { display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", padding: 6, fontSize: 10, color: t.textMut, lineHeight: 1.3 })}>{tr("Photo could not be loaded")}</div> : <div style={thumbBox} />}
         </button>
         <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, wordBreak: "break-word", lineHeight: 1.3 }}>{p.name || ""}</div>
         {canWrite && <Btn t={t} v="ghost" onClick={() => remove(p)} disabled={!!busy} aria-label={tr("Remove photo|form") + ": " + (p.name || "")} style={Object.assign({}, smallBtn, { marginTop: 4, width: "100%", padding: "10px 6px" })}>{busy === "remove:" + p.id ? tr("Removing...") : tr("Remove photo|form")}</Btn>}
@@ -8576,6 +8576,11 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [asking, setAsking] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentLine, setSentLine] = useState("");
+  // The Void window: its reason, and one request at a time (Step 179).
+  const [voiding, setVoiding] = useState(false);
+  const [voidReason, setVoidReason] = useState("");
+  const [voidBusy, setVoidBusy] = useState(false);
+  const voidRef = useRef(false);
   // One send at a time. The ref closes the gap before the disabled button redraws, so a double click
   // is one request. This is the guard the Time off window uses.
   const sendingRef = useRef(false);
@@ -8671,8 +8676,24 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     sendingRef.current = false; setSending(false);
   };
 
+  const doVoid = async () => {
+    if (voidRef.current) return;
+    voidRef.current = true; setVoidBusy(true); setActionError(""); setSentLine("");
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/void", { method: "POST", body: { reason: voidReason.trim() } });
+      if (d && d.draft) setData(d);
+      setVoiding(false); setVoidReason("");
+    } catch (e) { setActionError(e.message || tr("Request failed")); }
+    voidRef.current = false; setVoidBusy(false);
+  };
+
   const draft = data && data.draft;
   draftRef.current = draft;
+  // What the payload says this person may do to the report (Step 179). Until the API says, neither
+  // control draws.
+  const canVoid = !!(data && data.canVoid);
+  const canResend = !!(data && data.canResend);
+  const isVoid = !!(draft && draft.status === "void");
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
   // Everything that is not the supervisor's half was answered by whoever filed the report. The two
   // words this platform uses for that half are read the same way, so the answers show either way.
@@ -8915,7 +8936,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{(draft && draft.formName) || tr("Report")}</div>
         {draft && <div style={{ marginTop: 6, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <Bdg l={submitted ? tr("Submitted") : tr("Unfinished")} c={submitted ? GR : OR} />
+          <Bdg l={isVoid ? tr("Void|status") : submitted ? tr("Submitted") : tr("Unfinished")} c={isVoid ? RD : submitted ? GR : OR} />
           <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || tr("No site")}</span>
           <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? tr("Filed {0}", irWhen(draft.submittedAt)) : tr("Started {0}", irWhen(draft.createdAt))}</span>
           {draft.source === "customer"
@@ -8966,11 +8987,20 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
         <Btn t={t} v="ghost" onClick={() => setAsking(false)} disabled={sending} style={{ minHeight: 44 }}>{tr("Not yet")}</Btn>
       </div>
     </div>}
+    {voiding && <div data-void-window style={{ marginTop: 16, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <div style={{ fontSize: 12, color: t.text, marginBottom: 8 }}>{tr("Why is this report being voided?")}</div>
+      <TArea t={t} rows={2} value={voidReason} onChange={e => setVoidReason(e.target.value)} aria-label={tr("Why is this report being voided?")} style={{ marginBottom: 10 }} />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="danger" onClick={doVoid} disabled={voidBusy} style={{ minHeight: 44 }}>{tr("Void report")}</Btn>
+        <Btn t={t} v="ghost" onClick={() => { setVoiding(false); setActionError(""); }} disabled={voidBusy} style={{ minHeight: 44 }}>{tr("Not yet")}</Btn>
+      </div>
+    </div>}
     {sentLine && <div style={{ fontSize: 12, color: GR, marginTop: 14 }}>{sentLine}</div>}
     {actionError && <div style={{ fontSize: 12, color: RD, marginTop: 14 }}>{actionError}</div>}
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
       {!loading && !error && draft && <Btn t={t} v="ghost" onClick={download} disabled={downloading} style={{ minHeight: 44 }}>{downloading ? tr("Downloading...") : tr("Download PDF")}</Btn>}
-      {!loading && !error && submitted && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
+      {!loading && !error && canVoid && !isVoid && <Btn t={t} v="ghost" onClick={() => { setVoiding(true); setVoidReason(""); setAsking(false); setSentLine(""); setActionError(""); }} disabled={voidBusy} style={{ minHeight: 44, color: RD }}>{tr("Void")}</Btn>}
+      {!loading && !error && canResend && <Btn t={t} v="ghost" onClick={() => { setAsking(true); setVoiding(false); setSentLine(""); setActionError(""); }} disabled={sending} style={{ minHeight: 44 }}>{tr("Send again")}</Btn>}
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
     </div>
   </div></Mdl>);
@@ -9046,7 +9076,8 @@ const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date
 // What the API clips a stored answer to, so a long answer is stopped in the box rather than after.
 const FORM_VALUE_MAX = 4000;
 // Where a filing came from, as the table's word for the source the API stores.
-const formSourceWord = (code) => (code === "admin" ? tr("From the dashboard") : code ? tr("From the app") : "");
+// Where a filing came from: the dashboard, the staff app (portal or the Help assistant), or a customer's link.
+const formSourceWord = (code) => (code === "admin" ? tr("From the dashboard") : code === "portal" || code === "agent" ? tr("From the app") : code === "customer" ? tr("From a customer") : "");
 // A form's questions the picker and the window read: a form the API lists with nobody in its
 // fillers is not one anyone here may start.
 const formStartable = (f) => !!f && (!Array.isArray(f.fillers) || f.fillers.length > 0);
@@ -9218,8 +9249,8 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
           <Inp t={t} aria-label={f.label + ": " + tr("Name")} maxLength={FORM_VALUE_MAX} value={c.name || ""} onChange={e => setCustOf(f.key, { name: e.target.value })} style={{ minHeight: 44 }} />
         </div>
         <div style={{ marginBottom: 4 }}>
-          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{tr("Role")}</div>
-          <Inp t={t} aria-label={f.label + ": " + tr("Role")} maxLength={FORM_VALUE_MAX} value={c.role || ""} onChange={e => setCustOf(f.key, { role: e.target.value })} style={{ minHeight: 44 }} />
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{tr("Role|customer")}</div>
+          <Inp t={t} aria-label={f.label + ": " + tr("Role|customer")} maxLength={FORM_VALUE_MAX} value={c.role || ""} onChange={e => setCustOf(f.key, { role: e.target.value })} style={{ minHeight: 44 }} />
         </div>
         <SignatureBox t={t} label={f.label} busy={!!c.busy} signWord={tr("Save signature")} busyWord={tr("Saving...")} onSign={(png) => saveCustomerSignature(f, png)} />
       </>)}
@@ -9743,6 +9774,16 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
 
 function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
+  // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
+  // and a refusal or a 404 leaves the switch undrawn.
+  const isAdmin = !!(user && user.role === "admin");
+  const [voidListed, setVoidListed] = useState(false);
+  useEffect(() => {
+    if (!isAdmin) { setVoidListed(false); return; }
+    let alive = true;
+    af("/api/forms/responses?status=void&limit=1").then(() => { if (alive) setVoidListed(true); }).catch(() => { if (alive) setVoidListed(false); });
+    return () => { alive = false; };
+  }, [af, isAdmin]);
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
   const [rows, setRows] = useState([]);
@@ -9819,13 +9860,12 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
     try { setPicker({ loading: false, forms: (await readCatalog()).filter(formStartable), error: "" }); }
     catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
   };
-  // The API sets a draft's source itself, portal, and reads none from the body (routes/forms.js,
-  // Step 169), so the start sends nothing for it.
+  // A form started here is filed from the dashboard, and the start says so (Step 175).
   const startForm = async (f) => {
     if (starting) return;
     setStarting(f.code);
     try {
-      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: {} });
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
       setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
     } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
     setStarting("");
@@ -9881,7 +9921,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
 
   return (<div>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
+      <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}{voidListed && sw("void", tr("Void|status"))}</div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
