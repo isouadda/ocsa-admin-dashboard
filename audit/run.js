@@ -112,6 +112,10 @@ const SUITES = [
   // day the API sent, and every today is March 17 at 9:30 PM in New York, in both languages.
   { name: "dates", mod: "./cases/dates", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Void since Step 179: where a filing came from, Void with its reason and its refusal, the Void switch,
+  // Send again on canResend and a photo the API refuses, in both languages.
+  { name: "void", mod: "./cases/void", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Settings shows each list value's English and, in another language, its words there, and saves
   // exactly what it saves in English, in both languages at 1024.
   { name: "settings", mod: "./cases/settings", widths: ["narrow"],

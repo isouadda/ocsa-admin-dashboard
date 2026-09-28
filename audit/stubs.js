@@ -794,7 +794,7 @@ function createStubs() {
     const inPlay = form.fields.filter((f) => ruleHolds(f.appliesWhen, answers) && String(f.signer || "") !== "supervisor");
     const missing = inPlay.filter((f) => f.required && !hasAnswer(answers[f.key]));
     return {
-      id: r.id, formCode: r.formCode, formName: form.title, status: r.status, source: r.source, siteId: r.siteId, siteName: r.siteName,
+      id: r.id, formCode: r.formCode, formName: form.title, status: statusOf(r), source: r.source, siteId: r.siteId, siteName: r.siteName,
       userId: r.userId, userName: r.userName, createdAt: r.createdAt, submittedAt: r.submittedAt || null, answers: answers,
       answered: inPlay.filter((f) => hasAnswer(answers[f.key])).length, remaining: missing.length,
       missing: missing.map((f) => f.key), missingFields: missing.map((f) => ({ key: f.key, label: f.label })),
@@ -814,6 +814,34 @@ function createStubs() {
     { id: "f-3", key: "action", label: "Corrective action", half: "supervisor", type: "textarea",
       value: "", displayValue: "" },
   ];
+  // Step 179: a filed report an admin voids keeps its row, set void, the way routes/forms.js keeps it.
+  // The reason, who voided it and when are kept here by report, where the API writes them on its audit
+  // and activity rows, and the report reads as void from then on, in its read, in the list and in every
+  // flag, until a reset.
+  const voided = () => state.voided || (state.voided = {});
+  const statusOf = (r) => (voided()[r.id] ? "void" : r.status);
+  // Step 175: where a filing came from. The seed's own filings were filed before there was a source to
+  // store, and carry none. With filedSources on, each carries the source the API stores today, as if
+  // filed now: the incident report and the vehicle report in the staff portal, and the service log and
+  // the unfinished incident report through Help, which the API stores as agent. The admin also has a
+  // complaint log of their own, filed from the dashboard, which a reset takes away with every other
+  // desk filing.
+  let filedSources = false;
+  const SEED_SOURCES = { "ir-1": "portal", "ir-2": "agent", "ir-3": "portal", "fr-9": "agent" };
+  const sourceOf = (r) => r.source || (filedSources ? SEED_SOURCES[r.id] : undefined);
+  // A seed filing as the list and the read send it: its status, and its source when it has one.
+  const asFiled = (r) => Object.assign({}, r, { status: statusOf(r) }, sourceOf(r) ? { source: sourceOf(r) } : {});
+  const ADMIN_FILING_ID = "fr-desk-1";
+  const adminFiling = () => {
+    const a = seed.PEOPLE.admin;
+    const name = a.firstName + " " + a.lastName;
+    return { id: ADMIN_FILING_ID, formCode: DESK_CODE, status: "submitted", source: "admin", siteId: S[0].id, siteName: S[0].name,
+      userId: a.id, userName: name, createdAt: seed.shift(-2) + "T15:00:00Z", submittedAt: seed.shift(-2) + "T15:25:00Z", dueAt: null,
+      answers: { site: S[0].name, received_on: seed.shift(-2), received_at: "10:40", channel: "phone",
+        summary: "The caller asked for the lobby mats to be changed before the weekend.",
+        actions: [{ what: "Mats changed at the north entry", when: seed.shift(-2) }],
+        filer_signoff: { userId: a.id, name: name, role: a.role, at: seed.shift(-2) + "T15:24:00Z", signature: { id: "sig-filer_signoff" } } } };
+  };
   // What the read answers, and what the sign-off and supervisor routes answer back.
   const reportPayload = (r, lang) => {
     const isLog = r.id === SERVICE_LOG_ID;
@@ -826,26 +854,43 @@ function createStubs() {
     // and signed the same way, by whoever reviews it at a desk; its supervisor sign-off is its own.
     const stampKeys = fields.filter((f) => f.type === "signoff" && f.half === "supervisor").map((f) => f.key);
     const signed = stampKeys.some((k) => !!filedState().signed[k]);
-    const canWrite = (isLog || isCustomer) && r.status === "submitted" && !mine && !filedExtras.locked;
+    const canWrite = (isLog || isCustomer) && statusOf(r) === "submitted" && !mine && !filedExtras.locked;
     const required = isCustomer
       ? fields.filter((f) => f.half === "supervisor" && f.type === "number").map((f) => ({ key: f.key, label: f.label }))
       : supervisorRequired();
     const held = (key) => (isCustomer && !Object.prototype.hasOwnProperty.call(sup, key) ? (r.answers || {})[key] : sup[key]);
     const draft = isCustomer
       ? Object.assign(customerListRow(r, lang), { source: "customer", customer: r.customer, answers: r.answers })
-      : Object.assign({}, r);
+      : asFiled(r);
     return Object.assign({
       draft: draft,
       fields: fields,
-      canSign: (isLog || isCustomer) && !mine && !signed && !filedExtras.locked ? stampKeys : [],
+      // A void report takes no sign-off, the way maySign in helpers/formDrafts.js reads only a filed one.
+      canSign: (isLog || isCustomer) && statusOf(r) === "submitted" && !mine && !signed && !filedExtras.locked ? stampKeys : [],
       canWriteSupervisor: canWrite,
       supervisorMissing: canWrite ? required.filter((q) => !answered(held(q.key))) : [],
       // Step 179, the way routes/forms.js answers both at ocsa-api 1c3fb42: an admin may void a filed
       // report, and a reader of the form who did not file it may send a filed report again. Whoever
       // may list filed reports here reads every form.
-      canVoid: person().role === "admin" && r.status === "submitted",
-      canResend: canListFiledForms() && !mine && r.status === "submitted",
+      canVoid: person().role === "admin" && statusOf(r) === "submitted",
+      canResend: canListFiledForms() && !mine && statusOf(r) === "submitted",
     }, isCustomer ? { sections: CUSTOMER_SECTIONS[r.formCode](lang) } : isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
+  };
+  // Step 179: what POST /api/forms/responses/:id/void refuses with, each the key of its words in the
+  // API's helpers/words.js at 1c3fb42, answered in the language the call asked for with the key as its
+  // code, the way errorBody answers. A reason is at most 500 characters.
+  const VOID_WORDS = {
+    "forms.reportNotFound": { en: "Report not found", es: "No se encontr\u00f3 el reporte" },
+    "access.insufficientPermissions": { en: "Insufficient permissions", es: "No tiene permiso para hacer esto" },
+    "forms.alreadyVoid": { en: "This report is already void.", es: "Este reporte ya est\u00e1 anulado." },
+    "forms.voidFiledOnly": { en: "Only a filed report can be voided.", es: "Solo se puede anular un reporte ya enviado." },
+    "forms.voidReasonRequired": { en: "Write why this report is being voided.", es: "Escriba por qu\u00e9 se anula este reporte." },
+    "forms.voidReasonTooLong": { en: "Keep the reason to {max} characters or fewer.", es: "Escriba el motivo en {max} caracteres o menos." },
+  };
+  const VOID_REASON_MAX = 500;
+  const voidRefusal = (code, status, lang, vars, extra) => {
+    const words = VOID_WORDS[code][lang === "es" ? "es" : "en"].replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] !== undefined ? String(vars[k]) : m));
+    return { status: status, json: Object.assign({ error: words, code: code }, extra || {}) };
   };
 
   // ---- Step 169: customer links, and a customer's filings -------------------------------------
@@ -855,8 +900,8 @@ function createStubs() {
   // the one routes/customerLinks.js sends, the title in the language asked. Every value here is
   // invented, the portal's address included.
   const CUSTOMER_TITLES = {
-    "OCSA-FRM-006": { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluación de limpieza del edificio" },
-    "OCSA-FRM-007": { en: "Client Satisfaction Survey", es: "Encuesta de satisfacción del cliente" },
+    "OCSA-FRM-006": { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluaci\u00f3n de limpieza del edificio" },
+    "OCSA-FRM-007": { en: "Client Satisfaction Survey", es: "Encuesta de satisfacci\u00f3n del cliente" },
   };
   const PORTAL_BASE = "https://portal.example.invalid";
   const customerLinkRows = () => [
@@ -878,9 +923,9 @@ function createStubs() {
   const linkRefusal = (code, status, lang, extra) => ({ status, json: Object.assign({
     error: {
       "customer.formNotCustomer": lang === "es" ? "Ese formulario no lo llenan los clientes" : "That form is not filled by customers",
-      "customer.siteNotFound": lang === "es" ? "No se encontró el sitio" : "Site not found",
-      "customer.linkNotFound": lang === "es" ? "No se encontró el enlace" : "Link not found",
-      "customer.anotherLinkLive": lang === "es" ? "Otro enlace para este sitio y formulario está activo" : "Another link for this site and form is live",
+      "customer.siteNotFound": lang === "es" ? "No se encontr\u00f3 el sitio" : "Site not found",
+      "customer.linkNotFound": lang === "es" ? "No se encontr\u00f3 el enlace" : "Link not found",
+      "customer.anotherLinkLive": lang === "es" ? "Otro enlace para este sitio y formulario est\u00e1 activo" : "Another link for this site and form is live",
     }[code], code }, extra || {}) });
   const newestFirst = (rows) => rows.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
 
@@ -908,21 +953,21 @@ function createStubs() {
   const cw = (en, es, lang) => (lang === "es" ? es : en);
   const CUSTOMER_SECTIONS = {
     "OCSA-FRM-006": (lang) => [
-      { key: "1", title: cw("Building and review details", "Datos del edificio y de la revisión", lang) },
-      { key: "2", title: cw("Morning readiness", "Condición por la mañana", lang) },
+      { key: "1", title: cw("Building and review details", "Datos del edificio y de la revisi\u00f3n", lang) },
+      { key: "2", title: cw("Morning readiness", "Condici\u00f3n por la ma\u00f1ana", lang) },
       { key: "8", title: cw("Your feedback", "Sus comentarios", lang) },
       { key: "9", title: cw("For OCSA use", "Para uso de OCSA", lang) },
     ],
     "OCSA-FRM-007": (lang) => [
       { key: "1", title: cw("About you", "Sobre usted", lang) },
       { key: "2", title: cw("Service quality", "Calidad del servicio", lang) },
-      { key: "3", title: cw("Communication", "Comunicación", lang) },
+      { key: "3", title: cw("Communication", "Comunicaci\u00f3n", lang) },
       { key: "7", title: cw("Your comments", "Sus comentarios", lang) },
       { key: "8", title: cw("For OCSA use", "Para uso de OCSA", lang) },
     ],
   };
   const RATING_OPTIONS = ["1", "2", "3", "4", "5"].map((v) => ({ value: v, label: v }));
-  const YES_NO = (lang) => [{ value: "yes", label: cw("Yes", "Sí", lang) }, { value: "no", label: cw("No", "No", lang) }];
+  const YES_NO = (lang) => [{ value: "yes", label: cw("Yes", "S\u00ed", lang) }, { value: "no", label: cw("No", "No", lang) }];
   const customerFields = (r, lang) => {
     const a = r.answers || {};
     const sup = filedState().supervisor;
@@ -932,10 +977,10 @@ function createStubs() {
     if (r.formCode === "OCSA-FRM-006") {
       return [
         { id: "cf1-1", key: "completed_by", label: cw("Completed by", "Completado por", lang), half: "agent", type: "text", section: "1", value: a.completed_by, displayValue: a.completed_by },
-        { id: "cf1-2", key: "completed", label: cw("How this checklist was completed", "Cómo se completó esta lista", lang), half: "agent", type: "select", section: "1",
+        { id: "cf1-2", key: "completed", label: cw("How this checklist was completed", "C\u00f3mo se complet\u00f3 esta lista", lang), half: "agent", type: "select", section: "1",
           options: [{ value: "independently", label: cw("Independently by the customer", "Por el cliente de forma independiente", lang) }, { value: "together", label: cw("Together with OCSA", "Junto con OCSA", lang) }],
           value: a.completed, displayValue: cw("Independently by the customer", "Por el cliente de forma independiente", lang) },
-        { id: "cf1-3", key: "first_impression", label: cw("First impression on arrival", "Primera impresión al llegar", lang), half: "agent", type: "select", section: "2",
+        { id: "cf1-3", key: "first_impression", label: cw("First impression on arrival", "Primera impresi\u00f3n al llegar", lang), half: "agent", type: "select", section: "2",
           options: [{ value: "acceptable", label: cw("Acceptable", "Aceptable", lang) }, { value: "deficient", label: cw("Deficient", "Deficiente", lang) }],
           value: a.first_impression, displayValue: cw("Acceptable", "Aceptable", lang) },
         { id: "cf1-4", key: "deficient_comments", label: cw("Comments on anything deficient", "Comentarios sobre lo deficiente", lang), half: "agent", type: "textarea", section: "8", value: a.deficient_comments, displayValue: a.deficient_comments },
@@ -943,29 +988,29 @@ function createStubs() {
         { id: "cf1-6", key: "customer_signed", label: cw("Signed by the customer representative", "Firmado por el representante del cliente", lang), half: "agent", type: "customer_signature", section: "8",
           value: a.customer_signed, signature: { id: a.customer_signed.signatureId },
           displayValue: cw("Signed by Rosalind Achterberg, Facilities manager on March 16, 2026 at 4:12 PM", "Firmado por Rosalind Achterberg, Facilities manager el 16 de marzo de 2026 a las 4:12 PM", lang) },
-        { id: "cf1-7", key: "acceptable_count", label: cw("Acceptable lines", "Líneas aceptables", lang), half: "supervisor", type: "number", section: "9", value: supValue("acceptable_count"), displayValue: numberText(supValue("acceptable_count")) },
-        { id: "cf1-8", key: "deficient_count", label: cw("Deficient lines", "Líneas deficientes", lang), half: "supervisor", type: "number", section: "9", value: supValue("deficient_count"), displayValue: numberText(supValue("deficient_count")) },
+        { id: "cf1-7", key: "acceptable_count", label: cw("Acceptable lines", "L\u00edneas aceptables", lang), half: "supervisor", type: "number", section: "9", value: supValue("acceptable_count"), displayValue: numberText(supValue("acceptable_count")) },
+        { id: "cf1-8", key: "deficient_count", label: cw("Deficient lines", "L\u00edneas deficientes", lang), half: "supervisor", type: "number", section: "9", value: supValue("deficient_count"), displayValue: numberText(supValue("deficient_count")) },
         { id: "cf1-9", key: "score", label: cw("Score", "Puntaje", lang), half: "supervisor", type: "number", section: "9", value: supValue("score"), displayValue: numberText(supValue("score")) },
-        { id: "cf1-10", key: "lowest_area", label: cw("Lowest scoring area", "Área con el puntaje más bajo", lang), half: "supervisor", type: "text", section: "9", value: supValue("lowest_area") || "", displayValue: supValue("lowest_area") || "" },
+        { id: "cf1-10", key: "lowest_area", label: cw("Lowest scoring area", "\u00c1rea con el puntaje m\u00e1s bajo", lang), half: "supervisor", type: "text", section: "9", value: supValue("lowest_area") || "", displayValue: supValue("lowest_area") || "" },
         { id: "cf1-11", key: "received_by", label: cw("Received by", "Recibido por", lang), half: "supervisor", type: "signoff", signer: "supervisor", section: "9", value: stamp, displayValue: "" },
       ];
     }
     return [
-      { id: "cf2-1", key: "organization", label: cw("Organization", "Organización", lang), half: "agent", type: "text", section: "1", value: a.organization, displayValue: a.organization },
+      { id: "cf2-1", key: "organization", label: cw("Organization", "Organizaci\u00f3n", lang), half: "agent", type: "text", section: "1", value: a.organization, displayValue: a.organization },
       { id: "cf2-2", key: "your_name", label: cw("Your name", "Su nombre", lang), half: "agent", type: "text", section: "1", value: a.your_name, displayValue: a.your_name },
       { id: "cf2-3", key: "your_role", label: cw("Your role", "Su cargo", lang), half: "agent", type: "text", section: "1", value: a.your_role, displayValue: a.your_role },
       { id: "cf2-4", key: "overall_quality", label: cw("Overall quality of the cleaning", "Calidad general de la limpieza", lang), half: "agent", type: "select", section: "2", options: RATING_OPTIONS, value: a.overall_quality, displayValue: "4" },
       { id: "cf2-5", key: "service_consistency", label: cw("Consistency of the service", "Consistencia del servicio", lang), half: "agent", type: "select", section: "2", options: RATING_OPTIONS, value: a.service_consistency, displayValue: "4" },
       { id: "cf2-6", key: "response_speed", label: cw("Speed of the response", "Rapidez de la respuesta", lang), half: "agent", type: "select", section: "3", options: RATING_OPTIONS, value: a.response_speed, displayValue: "2" },
-      { id: "cf2-7", key: "recommend", label: cw("Would you recommend OCSA", "Recomendaría a OCSA", lang), half: "agent", type: "select", section: "7", options: YES_NO(lang), value: a.recommend, displayValue: cw("Yes", "Sí", lang) },
+      { id: "cf2-7", key: "recommend", label: cw("Would you recommend OCSA", "Recomendar\u00eda a OCSA", lang), half: "agent", type: "select", section: "7", options: YES_NO(lang), value: a.recommend, displayValue: cw("Yes", "S\u00ed", lang) },
       { id: "cf2-8", key: "follow_up", label: cw("Would you like a follow-up call", "Quiere una llamada de seguimiento", lang), half: "agent", type: "select", section: "7", options: YES_NO(lang), value: a.follow_up, displayValue: cw("No", "No", lang) },
-      { id: "cf2-9", key: "low_scores_followed_up", label: cw("How the low scores were followed up", "Cómo se dio seguimiento a los puntajes bajos", lang), half: "supervisor", type: "textarea", section: "8", value: supValue("low_scores_followed_up") || "", displayValue: supValue("low_scores_followed_up") || "" },
+      { id: "cf2-9", key: "low_scores_followed_up", label: cw("How the low scores were followed up", "C\u00f3mo se dio seguimiento a los puntajes bajos", lang), half: "supervisor", type: "textarea", section: "8", value: supValue("low_scores_followed_up") || "", displayValue: supValue("low_scores_followed_up") || "" },
       { id: "cf2-10", key: "reviewed_by", label: cw("Reviewed by", "Revisado por", lang), half: "supervisor", type: "signoff", signer: "supervisor", section: "8", value: stamp, displayValue: "" },
     ];
   };
   // What the list sends for a customer's filing: the name and role where an account's name goes.
   const customerListRow = (r, lang) => ({
-    id: r.id, formCode: r.formCode, formName: CUSTOMER_TITLES[r.formCode][lang === "es" ? "es" : "en"], status: r.status, userId: null,
+    id: r.id, formCode: r.formCode, formName: CUSTOMER_TITLES[r.formCode][lang === "es" ? "es" : "en"], status: statusOf(r), userId: null,
     userName: [r.customer.name, r.customer.role].filter(Boolean).join(", "),
     siteId: r.siteId, siteName: (state.sites.find((s) => s.id === r.siteId) || {}).name || null,
     answered: r.answered, remaining: r.remaining, dueAt: r.dueAt, createdAt: r.createdAt, submittedAt: r.submittedAt,
@@ -2082,13 +2127,18 @@ function createStubs() {
       // Who may list decides who may open Forms at all. An admin always may; anyone else may when
       // a form names a capability they hold in its readers, which the seed marks on the person.
       if (!canListFiledForms()) return { status: 403, json: { error: "Insufficient permissions" } };
-      const status = q("status") || "submitted";
+      // Since Step 179 the list reads submitted, draft or void, and void is an admin's alone: anyone
+      // else asking for it is refused the way the list refuses a caller it does not admit, in the API's
+      // words. Anything else reads as submitted, as it always did (routes/forms.js at 1c3fb42).
+      const asked = String(q("status") || "submitted");
+      if (asked === "void" && person().role !== "admin") return voidRefusal("access.insufficientPermissions", 403, lang);
+      const status = asked === "draft" || asked === "void" ? asked : "submitted";
       const code = q("formCode") || "";
       // The list carries no answers. Since Step 175 it carries each filing's source, as it was stored:
       // a form started at a desk, admin or portal, and a customer's filing, customer. The seed's own
-      // rows were filed before there was a source to store, and carry none.
-      const rows = INCIDENT_REPORTS.concat(CUSTOMER_FILINGS).filter((r) => r.status === status && (!code || r.formCode === code))
-        .map((r) => (customerFiling(r) ? Object.assign(customerListRow(r, lang), { source: "customer" }) : deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined }) : r));
+      // rows were filed before there was a source to store, and carry none unless filedSources is on.
+      const rows = INCIDENT_REPORTS.concat(CUSTOMER_FILINGS).filter((r) => statusOf(r) === status && (!code || r.formCode === code))
+        .map((r) => (customerFiling(r) ? Object.assign(customerListRow(r, lang), { source: "customer" }) : deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined }) : asFiled(r)));
       return ok({ responses: rows });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
@@ -2104,10 +2154,27 @@ function createStubs() {
     if (/^\/api\/forms\/responses\/[^/]+\/resend$/.test(path) && method === "POST") {
       const rid = path.split("/")[4];
       const r = INCIDENT_REPORTS.find((x) => x.id === rid) || INCIDENT_REPORTS[0];
-      if (r.status !== "submitted") return { status: 409, json: { error: "Only a filed report can be sent again", status: r.status } };
+      if (statusOf(r) !== "submitted") return { status: 409, json: { error: "Only a filed report can be sent again", status: statusOf(r) } };
       const code = NOTIFICATION_FORMS[0].code;
       // hand: 3 emails and 2 app notices, and the PDF rides along only when the form is set to pdf.
       return ok({ id: r.id, formCode: code, inApp: 2, email: 3, attached: (state.formDelivery[code] || "app_link") === "pdf" });
+    }
+    // Step 179: POST /api/forms/responses/:id/void { reason }, the way routes/forms.js answers it at
+    // ocsa-api 1c3fb42 and at 94dbe27: a report that is not there, a caller who is not an admin, a
+    // report already void, one that is not filed, no reason and a reason over 500 characters are each
+    // refused in that order with the API's code and words. Otherwise the reason, trimmed, is kept, and
+    // the report answers in the read's shape, status void.
+    if (/^\/api\/forms\/responses\/[^/]+\/void$/.test(path) && method === "POST") {
+      const r = anyReport(decodeURIComponent(path.split("/")[4]));
+      if (!r) return voidRefusal("forms.reportNotFound", 404, lang);
+      if (person().role !== "admin") return voidRefusal("access.insufficientPermissions", 403, lang);
+      if (statusOf(r) === "void") return voidRefusal("forms.alreadyVoid", 409, lang, null, { status: "void" });
+      if (statusOf(r) !== "submitted") return voidRefusal("forms.voidFiledOnly", 409, lang, null, { status: statusOf(r) });
+      const reason = body && typeof body.reason === "string" ? body.reason.trim() : "";
+      if (!reason) return voidRefusal("forms.voidReasonRequired", 400, lang);
+      if (reason.length > VOID_REASON_MAX) return voidRefusal("forms.voidReasonTooLong", 400, lang, { max: VOID_REASON_MAX });
+      voided()[r.id] = { reason: reason, by: person().id, at: seed.NOW_ISO };
+      return ok(reportPayload(r, lang));
     }
     if (/^\/api\/forms\/responses\/[^/]+\/signoff$/.test(path) && method === "POST") {
       const r = anyReport(path.split("/")[4]);
@@ -2514,6 +2581,14 @@ function createStubs() {
     setFiledFormExtras: (x) => { filedExtras = Object.assign({ rows: false, sections: false }, x || {}); },
     // Whether the API lists a form this person may start. Off, every form's fillers are empty.
     setStartable: (v) => { startable = v !== false; },
+    // The seed's filings with the source the API stores since Step 175, and the admin's own complaint
+    // log filed from the dashboard, or neither with false.
+    setFiledSources: (v) => {
+      filedSources = v !== false;
+      const at = INCIDENT_REPORTS.findIndex((x) => x.id === ADMIN_FILING_ID);
+      if (at >= 0) INCIDENT_REPORTS.splice(at, 1);
+      if (filedSources) INCIDENT_REPORTS.push(adminFiling());
+    },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -2535,6 +2610,9 @@ function createStubs() {
       // The forms started at a desk since the last reset, and the switch that lets one be started.
       for (let i = INCIDENT_REPORTS.length - 1; i >= 0; i -= 1) { if (deskDraft(INCIDENT_REPORTS[i])) INCIDENT_REPORTS.splice(i, 1); }
       deskSeq = 0; customerSigSeq = 0; startable = true;
+      // Every void made in a case, and the seed's sources with the admin's own filing, which the loop
+      // above has taken away.
+      state.voided = {}; filedSources = false;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};

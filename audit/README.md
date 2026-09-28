@@ -225,6 +225,19 @@ has no rows to No issues in this state., Schedule's week with nobody matching th
 show for this filter., and a Refresh on Schedule and on Shift Pickup, while the stub holds the read open,
 to the week and the list still drawn with no Loading line. Both languages, every word written out by hand.
 
+**An admin voids a filed report with a reason, and a filing says where it came from.** Since Step 179
+a report's payload carries `canVoid` and `canResend`, and the stub answers `POST
+/api/forms/responses/:id/void` the way `routes/forms.js` does: each refusal in the API's code and
+words, the reason kept, and the report read as void after, by its read, the list and every flag, until
+a reset. `setFiledSources` gives the seed's filings the source the API stores and the admin a
+complaint log of their own. The `void` suite reads, in both languages, the line under each form's name
+on Filed forms, held to the word for the source the list sent; the admin's status switch, which gains
+Void once `?status=void&limit=1` answers 200, and the supervisor's, which does not; Void on a payload
+with `canVoid` and none without it; the window that asks why, a refusal drawn in the API's words, the
+body `{ reason }` and the report reading Void after and on a later read from the Void switch; Send
+again on `canResend` and none on the admin's own filing; and a photo whose thumbnail the API refuses,
+whose square reads Photo could not be loaded. Every word is written out in the suite by hand.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -360,7 +373,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void` and `house-style`.
 
 ## How much is left in English
 
