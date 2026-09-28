@@ -502,6 +502,9 @@ export default function AdminDashboard() {
   // The manage settings capability opens the customer links on Filed forms (Step 169). An admin
   // holds it by default; anyone else holds it when the same call says so.
   const [canManageSettings, setCanManageSettings] = useState(false);
+  // The manage admins capability lets a person change an admin's account: Reset PIN, Deactivate
+  // and Edit on an admin's row draw only for a holder. Nobody holds it by default.
+  const [canManageAdmins, setCanManageAdmins] = useState(false);
   // Forms holds every filed report now, and the API already decides who may read them. One quiet
   // call when the session starts asks for the list: a 200 opens the page, and any other answer
   // leaves this person with what their role gives, which is the line Forms has shown all along.
@@ -532,11 +535,11 @@ export default function AdminDashboard() {
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
-    if (!token || !id || isAdmin) { setCanManagePermissions(false); setCanManageSettings(false); return; }
+    if (!token || !id) { setCanManagePermissions(false); setCanManageSettings(false); setCanManageAdmins(false); return; }
     let alive = true;
     af("/api/users/" + encodeURIComponent(id) + "/permissions")
-      .then(d => { if (alive) { setCanManagePermissions(!!(d && d.effective && d.effective.manage_permissions)); setCanManageSettings(!!(d && d.effective && d.effective.manage_settings)); } })
-      .catch(e => { if (alive) { setCanManagePermissions(false); setCanManageSettings(false); } console.warn("Own capabilities:", e.message); });
+      .then(d => { if (alive) { const eff = (d && d.effective) || {}; setCanManagePermissions(!!eff.manage_permissions); setCanManageSettings(!!eff.manage_settings); setCanManageAdmins(!!eff.manage_admins); } })
+      .catch(e => { if (alive) { setCanManagePermissions(false); setCanManageSettings(false); setCanManageAdmins(false); } console.warn("Own capabilities:", e.message); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
@@ -896,7 +899,7 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -996,12 +999,20 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
   </div>);
 }
 
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf }) {
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false }) {
+  // An admin's account is changed only by a holder of manage_admins, which the API enforces; the
+  // controls it would refuse are not drawn.
+  const canChange = (person) => !(person && person.role === "admin") || canManageAdmins;
+  // The window Add New Staff leaves open after saving, with the temporary PIN.
+  const [added, setAdded] = useState(null);
+  const [addedBusy, setAddedBusy] = useState(false);
   const [staff, setStaff] = useState([]); const [filter, setFilter] = useState("all"); const [addForm, setAddForm] = useState(null);
   const [q, setQ] = useState(""); const [roleF, setRoleF] = useState("all"); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [assignForm, setAssignForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
   // Session 28: inline validation error for the Employee ID field (shared by Add Staff modal and Profile edit form)
+  // The refusal is known by its code. The English match stays only until every API carries codes.
+  const isEmployeeIdTaken = (e) => (e && e.code === "users.employeeIdTaken") || /employee id/i.test((e && e.message) || "");
   const [empIdError, setEmpIdError] = useState("");
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
@@ -1052,7 +1063,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const employmentOpts = [{ v: "", l: tr("Unspecified") }, { v: "full_time", l: tr("Full Time") }, { v: "part_time", l: tr("Part Time") }, { v: "supplemental", l: tr("Supplemental") }];
   const filtered = filter === "all" ? staff : staff.filter(s => filter === "inactive" ? (s.status === "inactive" || s.status === "terminated") : s.status === filter);
   const approve = async id => { try { await af("/api/users/" + id + "/approve", { method: "POST" }); showToast(tr("Approved")); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); showToast(tr("Added. Temp PIN: {0}", d.tempPin)); setAddForm(null); load(); loadStaff(); } catch (e) { if (/employee id/i.test(e.message || "")) { setEmpIdError(e.message); } else { showToast(e.message, "error"); } } };
+  const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
   const openProfile = async (id) => {
@@ -1275,7 +1286,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const updateStatus = async (id, s) => { try { await af("/api/users/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); closeProfile(); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const assignSite = async () => { if (!assignForm.siteId) { showToast(tr("Select a site"), "error"); return; } try { await af("/api/users/" + assignForm.userId + "/assign-site", { method: "POST", body: { siteId: assignForm.siteId, roleAtSite: assignForm.role, shiftName: assignForm.shift, shiftStart: assignForm.start, shiftEnd: assignForm.end } }); showToast(tr("Assigned")); setAssignForm(null); openProfile(assignForm.userId); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
   const unassign = async (uid, sid) => { if (!window.confirm(tr("Remove this site assignment?"))) return; try { await af("/api/users/" + uid + "/unassign-site/" + sid, { method: "DELETE" }); showToast(tr("Removed|assignment")); openProfile(uid); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
-  const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast(tr("PIN must be 4 digits"), "error"); return; } try { const d = await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(d.message); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
+  const nameOf = (userId) => { const row = staff.find(x => x.id === userId); if (row && row.name) return row.name; if (profile && profile.user && profile.user.id === userId) return (profile.user.firstName || "") + " " + (profile.user.lastName || ""); return ""; };
+  const submitResetPin = async (userId) => { if (!newPin || newPin.length !== 4) { showToast(tr("PIN must be 4 digits"), "error"); return; } try { await af("/api/users/" + userId + "/reset-pin", { method: "POST", body: { newPin } }); showToast(tr("PIN reset for {0}", nameOf(userId).trim())); setResetPin(null); setNewPin(""); } catch (e) { showToast(e.message, "error"); } };
+  // The invite, the reset link and the badge number the API hands out (Step 176 routes).
+  const sendInvite = async (userId) => { setAddedBusy(true); try { await af("/api/users/" + userId + "/invite", { method: "POST" }); showToast(tr("Invite sent.")); } catch (e) { showToast(e.message, "error"); } setAddedBusy(false); };
+  const sendResetLink = async (userId) => { try { await af("/api/users/" + userId + "/send-reset", { method: "POST" }); showToast(tr("Reset link sent.")); } catch (e) { showToast(e.message, "error"); } };
+  const generateBadge = async (userId) => { try { await af("/api/users/" + userId + "/badge/generate", { method: "POST" }); openProfile(userId); load(); loadStaff(); } catch (e) { showToast(e.message, "error"); } };
+  const copyText = async (text) => { try { await navigator.clipboard.writeText(text); showToast(tr("Copied")); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/users/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Updated")); setEditForm(null); load(); loadStaff(); if (profile) openProfile(editForm.id); } catch (e) { showToast(e.message, "error"); } };
 
   // Photo upload
@@ -1303,7 +1320,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
     } catch (e) {
-      if (/employee id/i.test(e.message || "")) { setEmpIdError(e.message); }
+      if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); }
       else { showToast(e.message, "error"); }
     }
   };
@@ -1343,8 +1360,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       <ProfileBanner t={t}
         avatar={<div style={{ position: "relative" }}>
             <Avatar user={u} sz={84} />
-            <label style={{ position: "absolute", bottom: -2, right: -2, width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", border: "2px solid " + t.card }}>
-              <Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c={NAVY} />
+            <label aria-label={tr("Change photo")} title={tr("Change photo")} style={{ position: "absolute", bottom: -10, right: -10, width: 44, height: 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <span style={{ width: 28, height: 28, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}><Ic d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" sz={14} c={NAVY} /></span>
               <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f, u.id); }} />
             </label>
             {photoUploading && <div style={{ position: "absolute", top: 0, left: 0, width: 84, height: 84, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#F8F7F4" }}>...</div>}
@@ -1355,9 +1372,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         badges={<Bdg l={stateOf(u.status)} c={u.status === "active" ? GR : u.status === "pending" ? OR : RD} />}
         actions={<>
           <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={printProfileReport}>{tr("Print Report")}</Btn>
-          <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>
-          {u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
-          {u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { setResetPin(u.id); setNewPin(""); }}>{tr("Reset PIN")}</Btn>}
+          {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
+          {canChange(u) && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
+          {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
+          {canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
+          {canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
           {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
@@ -1372,7 +1392,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
-            {!isEditing && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
+            {!isEditing && canChange(u) && <button onClick={() => { setEmpIdError(""); setProfileEdit({ firstName: u.firstName, lastName: u.lastName, phone: u.phone, email: u.email, role: u.role, employmentType: u.employmentType || null, employeeId: u.employeeId || "", hourlyRate: u.hourlyRate || "", birthday: u.birthday ? (typeof u.birthday === "string" ? u.birthday.split("T")[0] : "") : "", addressLine1: u.addressLine1 || "", addressLine2: u.addressLine2 || "", city: u.city || "", state: u.state || "", zipCode: u.zipCode || "", emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "", preferredLanguage: langCode(u.preferredLanguage), personalNotes: u.personalNotes || "" }); }} style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><EdI sz={10} c={t.goldText} /> {tr("Edit")}</button>}
           </div>
           {!isEditing ? <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -1597,10 +1617,23 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div></Mdl>}
 
       {/* Modals that need to work inside profile view */}
+      {added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
+          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
+          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+          {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
+          <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
+        </div>
+      </div></Mdl>}
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
-        <div style={{ marginBottom: 16 }}><Lbl>{tr("New PIN (4 digits)")}</Lbl><Inp t={t} value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("New PIN (4 digits)")}</Lbl><Inp t={t} type="password" inputMode="numeric" autoComplete="off" value={newPin} onChange={e => setNewPin(e.target.value)} maxLength={4} placeholder="0000" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setResetPin(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={() => submitResetPin(resetPin)}>{tr("Reset PIN")}</Btn></div>
       </div></Mdl>}
       {assignForm && <Mdl t={t} onClose={() => setAssignForm(null)}><div style={{ padding: 20 }}>
@@ -1656,7 +1689,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
-        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}<button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button><button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
+        { header: tr("Actions"), align: "right", render: s => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}>{s.status === "pending" && <button onClick={e => { e.stopPropagation(); approve(s.id); }} style={{ padding: "5px 12px", borderRadius: 6, border: "none", background: GR, color: "#F8F7F4", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{tr("Approve")}</button>}{canChange(s) && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); setEditForm({ id: s.id, firstName: (s.name || "").split(" ")[0] || "", lastName: (s.name || "").split(" ").slice(1).join(" "), phone: s.phone || "", email: s.email || "", role: s.role, employeeId: s.employeeId || "", hourlyRate: s.hourlyRate || "", employmentType: s.employmentType || null }); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.blueBorder, background: t.blueSubtle, cursor: "pointer" }}><Ic d="M12 20h9 M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" sz={15} c={BL} /></button>}<button title={tr("View profile")} onClick={e => { e.stopPropagation(); openProfile(s.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
       ];
       if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
@@ -8186,7 +8219,7 @@ function JotformPickerField({ af, form, setForm, t }) {
       .then(res => { if (!cancelled) { setPickerOptions(res.submissions || []); setNoKey(false); } })
       .catch(err => {
         if (cancelled) return;
-        if (err.message && err.message.toLowerCase().includes("api key")) setNoKey(true);
+        if (err.code === "NO_API_KEY" || (err.message && /api key/i.test(err.message))) setNoKey(true);
         setPickerOptions([]);
       })
       .finally(() => { if (!cancelled) setLoading(false); });

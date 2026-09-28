@@ -89,7 +89,6 @@ Add row,Agregar fila,"Forms, a filed report, a table in the supervisor section"
 Add {0} to your home screen,Agregue {0} a su pantalla de inicio,"The add to home screen sheet, the title"
 Added,Agregado,"Settings, Site Lookups; Forms, Aliases, a column"
 Added By,Agregado por,"Forms, Aliases, a column"
-Added. Temp PIN: {0},Persona agregada. PIN temporal: {0},"Staff Management, Add New Staff, once the person is added"
 Adding...,Agregando...,"Forms, Aliases, while an alias is added"
 Additional details about this shift...,Detalles adicionales sobre este turno...,Shift Pickup
 Address,Dirección,"Sites, editing a site; Vendors, a vendor; Vendors, adding or editing a vendor; Staff Management, the Profile tab; Settings, the Company tab"
@@ -2348,3 +2347,12 @@ Could not load staff.,No se pudo cargar el personal.,Staff Management
 No issues in this state.,No hay problemas en este estado.,"Issue Tracker, a chip with no rows"
 No staff to show for this filter.,No hay personal para mostrar con este filtro.,"Schedule, week view"
 Messages did not load.,Los mensajes no se cargaron.,"Messages; Sites, the Chat tab"
+PIN reset for {0},PIN restablecido para {0},"Staff profile, after Reset PIN"
+Temporary PIN,PIN temporal,"Add New Staff, the window after saving"
+Send activation invite,Enviar invitación de activación,Add New Staff and the staff profile
+Invite sent.,Invitación enviada.,After the invite
+Send a PIN reset link,Enviar un enlace para restablecer el PIN,Staff profile
+Reset link sent.,Enlace enviado.,After the reset link
+Generate badge number,Generar número de empleado,"Staff profile, when the badge is not set"
+Change photo,Cambiar foto,"Staff profile, the photo control"
+That employee ID is already in use.,Ese número de identificación de empleado ya está en uso.,Add New Staff and Contact Information
