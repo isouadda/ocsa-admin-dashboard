@@ -112,7 +112,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -540,6 +540,9 @@ export default function AdminDashboard() {
     // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
     // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
     if (id === "help-insights") return hasCap("view_help_insights");
+    // The Form builder opens the same way (Step 187): build_forms is an admin's on the API's own
+    // defaults table, and the dashboard waits for the API to say so rather than assuming it.
+    if (id === "form-builder") return hasCap("build_forms");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
   const [sites, setSites] = useState([]);
@@ -692,6 +695,7 @@ export default function AdminDashboard() {
   const CalI = p => <Ic d="M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM16 2v4M8 2v4M3 10h18" {...p} />;
   const FmI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" {...p} />;
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
+  const BldI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 18v-6 M9 15h6" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }] },
@@ -713,13 +717,16 @@ export default function AdminDashboard() {
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }, ...(canOpenPage("help-insights") ? [{ id: "help-insights", l: tr("Help insights"), i: HlpI }] : [])] },
-    ...(canOpenPage("forms") ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
+    { label: tr("Integrations"), items: [
+      ...(canOpenPage("forms") ? [{ id: "forms", l: tr("Forms"), i: FmI }] : []),
+      ...(canOpenPage("form-builder") ? [{ id: "form-builder", l: tr("Form builder"), i: BldI }] : []),
+    ]},
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -966,6 +973,7 @@ export default function AdminDashboard() {
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
@@ -8241,6 +8249,8 @@ const CAPABILITY_LABELS = {
   manage_admins: "Change admin accounts (role, status, PIN)",
   // Step 185: the Help insights page, routes/help-insights (STEP183_CONTRACT.md, section 4).
   view_help_insights: "See Help insights",
+  // Step 187: the Form builder page, routes/form-builder (STEP186_CONTRACT.md, section 4).
+  build_forms: "Make and change forms",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -10232,6 +10242,166 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
       </>)}
     </div>
   </Mdl>);
+}
+
+// ===== THE FORM BUILDER (Step 187) =====
+// Forms live in the database as versions since the API's Step 186 (STEP186_CONTRACT.md): every form
+// is a code with published versions, an open draft or neither, and where it came from, the code or
+// the builder. This page, for a holder of build_forms, lists them, opens a form's version history,
+// starts or resumes a draft in the builder, and lets an admin retire a form. The role defaults do
+// not hold build_forms, so nothing draws until GET /api/users/me/permissions names it, and the
+// list draws This did not load until GET /api/form-builder/forms answers.
+// A line the API sends in both languages, { en, es }, read in the screen's language and in English
+// where there is no Spanish; a plain string is drawn as it is.
+const builderText = (v) => (typeof v === "string" ? v : v && typeof v === "object" ? String(v[getLang()] || v.en || v.es || "") : "");
+// A form's status as the row says it: retired, a draft in progress, or published. A published form
+// with an open draft says both.
+const builderStatusWord = (s) => (s === "retired" ? tr("Retired") : s === "draft" ? tr("Draft in progress") : tr("Published"));
+const builderStatusColor = (s) => (s === "retired" ? RD : s === "draft" ? OR : GR);
+const builderSourceWord = (s) => (s === "builder" ? tr("Made with the builder") : tr("From the code"));
+const builderWhen = (d) => (d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+// Who did something, as the API names them: a name, or an object carrying one.
+const builderWho = (w) => (w && typeof w === "object" ? String(w.name || w.userName || "") : w == null ? "" : String(w));
+const builderTitle = (f) => builderText(f && f.title) || (f && f.code) || "";
+const builderRefusal = (e) => ((e && e.message) || tr("Request failed"));
+
+// A form's version history: each published version with when, who published it and the change
+// note. An admin retires the form from here, with the reason the API requires.
+function FormVersionHistoryWindow({ af, t, form, isAdmin, onClose, onRetired }) {
+  const [retiring, setRetiring] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [refusal, setRefusal] = useState("");
+  const versions = (form && Array.isArray(form.versions) ? form.versions : []).slice().sort((a, b) => (Number(b.version) || 0) - (Number(a.version) || 0));
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const retire = async () => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setRefusal("");
+    try {
+      await af("/api/form-builder/forms/" + encodeURIComponent(form.code) + "/retire", { method: "POST", body: { reason: reason.trim() } });
+      busyRef.current = false; setBusy(false);
+      onRetired();
+    } catch (e) { setRefusal(builderRefusal(e)); busyRef.current = false; setBusy(false); }
+  };
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{builderTitle(form)}</div>
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{form.code} . {tr("Version history")}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
+      <Bdg l={builderStatusWord(form.status)} c={builderStatusColor(form.status)} />
+      {form.draft && form.status !== "draft" && <Bdg l={tr("Draft in progress")} c={OR} />}
+      <span style={{ fontSize: 11, color: t.textMut }}>{builderSourceWord(form.source)}</span>
+    </div>
+    {versions.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 12 }}>{tr("No version published yet.")}</div>}
+    <div role="list" aria-label={tr("Version history")}>
+      {versions.map(v => (<div key={String(v.version)} role="listitem" style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Version {0}", v.version)}</span>
+          <span style={{ fontSize: 11, color: t.textMut }}>{[builderWhen(v.publishedAt), builderWho(v.publishedBy)].filter(Boolean).join(" . ")}</span>
+        </div>
+        {v.changeNote && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(v.changeNote)}</div>}
+      </div>))}
+    </div>
+    {retiring && <div data-retire-window="" style={{ marginTop: 14, padding: 12, borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+      <div style={{ fontSize: 12, color: t.text, marginBottom: 8 }}>{tr("Why is this form being retired?")}</div>
+      <TArea t={t} rows={2} value={reason} onChange={e => setReason(e.target.value)} aria-label={tr("Why is this form being retired?")} style={{ marginBottom: 10 }} />
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("A retired form leaves every list. Reports already filed still open.")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="danger" onClick={retire} disabled={busy || !reason.trim()} style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Retire form")}</Btn>
+        <Btn t={t} v="ghost" onClick={() => { setRetiring(false); setRefusal(""); }} disabled={busy} style={{ minHeight: 44 }}>{tr("Not yet")}</Btn>
+      </div>
+    </div>}
+    {refusal && <div style={{ fontSize: 12, color: RD, marginTop: 12 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+      {isAdmin && form.status !== "retired" && !retiring && <Btn t={t} v="ghost" onClick={() => { setRetiring(true); setReason(""); setRefusal(""); }} style={{ minHeight: 44, color: RD }}>{tr("Retire form")}</Btn>}
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+function FormBuilderPage({ af, token, t, user, allStaff = [], lkMap, route = [], onRoute, isAdmin = false }) {
+  const [forms, setForms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState("");
+  const [history, setHistory] = useState(null);
+  // The draft open in the builder, from #form-builder/<draft id>, so a refresh keeps it open.
+  const [draftId, setDraftId] = useState(() => (route[0] ? String(route[0]) : null));
+  useEffect(() => { setDraftId(route[0] ? String(route[0]) : null); }, [route]);
+  const [starting, setStarting] = useState("");
+  const [startErr, setStartErr] = useState("");
+  // The line the list says once a draft was published: the form's row is back on the list.
+  const [published, setPublished] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true); setFailed("");
+    try { const d = await af("/api/form-builder/forms"); setForms(d && Array.isArray(d.forms) ? d.forms : []); }
+    catch (e) { setForms([]); setFailed(builderRefusal(e)); }
+    setLoading(false);
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+
+  const openDraft = (id) => { setDraftId(String(id)); if (onRoute) onRoute([String(id)]); };
+  const closeDraft = () => { setDraftId(null); if (onRoute) onRoute([]); load(); };
+  // Edit opens the form's open draft, or starts one: with no code, a new form with the next code;
+  // with a published code, a draft of its next version. One open draft per code, so a second start
+  // answers the open one.
+  const startDraft = async (code) => {
+    if (starting) return;
+    setStarting(code || "new"); setStartErr(""); setPublished(null);
+    try {
+      const r = await af("/api/form-builder/drafts", { method: "POST", body: code ? { code } : {} });
+      const d = r && r.draft ? r.draft : r;
+      if (!d || !d.id) throw new Error(tr("Request failed"));
+      openDraft(d.id);
+    } catch (e) { setStartErr(builderRefusal(e)); }
+    setStarting("");
+  };
+  const edit = (f) => { if (f.draft && f.draft.id) openDraft(f.draft.id); else startDraft(f.code); };
+
+  const cols = [
+    { header: tr("Form"), render: f => <span style={{ fontWeight: 600, color: t.text }}>{builderTitle(f)}</span> },
+    { header: tr("Code"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: f => f.code },
+    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: f => (Number(f.latestVersion) > 0 ? tr("Version {0}", f.latestVersion) : "--") },
+    { header: tr("Status"), render: f => (<span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
+      <Bdg l={builderStatusWord(f.status)} c={builderStatusColor(f.status)} />
+      {f.draft && f.status !== "draft" && <Bdg l={tr("Draft in progress")} c={OR} />}
+    </span>) },
+    { header: tr("Source"), tdStyle: { color: t.textSec }, render: f => builderSourceWord(f.source) },
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: f => (f.status === "retired" ? null
+      : <Btn t={t} v="ghost" aria-label={tr("Edit") + " " + builderTitle(f)} onClick={e => { e.stopPropagation(); edit(f); }} disabled={!!starting} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{starting === f.code ? tr("Opening...") : tr("Edit")}</Btn>) },
+  ];
+
+  if (draftId) {
+    return <FormBuilderWorkspace af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} isAdmin={isAdmin} draftId={draftId}
+      onBack={closeDraft} onPublished={(form) => { setPublished(form || null); closeDraft(); }} />;
+  }
+  return (<div>
+    <SecT t={t} action={tr("New form")} onAction={() => startDraft("")}>{tr("Form builder")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Every form the apps offer, with its latest version. Edit opens the form's draft in the builder, or starts one. A row opens its version history.")}</div>
+    {published && <div style={{ padding: "10px 12px", marginBottom: 12, borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 13, color: t.text }}>{tr("Published as version {0}.", published.latestVersion || published.version || "")} {builderTitle(published)}</div>}
+    {startErr && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{startErr}</div>}
+    {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {!loading && failed && <LoadFailed t={t} text={failed} onRetry={load} />}
+    {!loading && !failed && <DataTable t={t} columns={cols} rows={forms} rowKey={f => f.code} onRowClick={f => setHistory(f)} empty={tr("No forms yet. New form starts one.")} />}
+    {history && <FormVersionHistoryWindow af={af} t={t} form={history} isAdmin={isAdmin} onClose={() => setHistory(null)} onRetired={() => { setHistory(null); load(); }} />}
+  </div>);
+}
+
+// The builder itself: the conversation, the preview and the publish controls (commit 2 of Step 187).
+function FormBuilderWorkspace({ t, draftId, onBack }) {
+  return (<div>
+    <Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44, marginBottom: 12 }}>{tr("Back")}</Btn>
+    <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("Loading...")} {draftId}</div></Crd>
+  </div>);
 }
 
 // ===== CUSTOMER LINKS AND THEIR QR CODES (Step 169) =====

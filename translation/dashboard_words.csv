@@ -2440,3 +2440,22 @@ Topic,Tema,"Help insights, the topics table"
 Section,Sección,"Help insights, the topics table"
 Topics,Temas,"Help insights, the people table"
 Question,Pregunta,"Help insights, the misses list"
+Form builder,Creador de formularios,Side panel and the page
+New form,Nuevo formulario,Form builder
+Version {0},Versión {0},A form's row and history
+Published,Publicado,A form's status
+Draft in progress,Borrador en curso,A form's status
+Retired,Retirado,A form's status
+From the code,Del código,A form's source
+Made with the builder,Hecho con el creador,A form's source
+Retire form,Retirar formulario,"A form's row, admins"
+Why is this form being retired?,¿Por qué se retira este formulario?,The retire window
+Version history,Historial de versiones,A form's history
+Published as version {0}.,Publicado como versión {0}.,After publishing
+Make and change forms,Crear y cambiar formularios,"Roles and Permissions, the build_forms capability's name"
+Code,Código,"Form builder, the table's column"
+Version,Versión,"Form builder, the table's column"
+No version published yet.,Todavía no se ha publicado ninguna versión.,"Version history, a form never published"
+A retired form leaves every list. Reports already filed still open.,Un formulario retirado sale de todas las listas. Los reportes ya presentados se siguen abriendo.,The retire window
+"Every form the apps offer, with its latest version. Edit opens the form's draft in the builder, or starts one. A row opens its version history.","Cada formulario que ofrecen las aplicaciones, con su última versión. Editar abre el borrador del formulario en el creador, o empieza uno. Una fila abre su historial de versiones.","Form builder, the line under the title"
+No forms yet. New form starts one.,Todavía no hay formularios. Nuevo formulario empieza uno.,"Form builder, the empty table"
