@@ -245,6 +245,30 @@ function createStubs() {
     summary: { open_count: 1, fill_rate: 75, avg_time_to_fill_minutes: 95, callout_count: 2, no_show_count: 1, posted_count: 4, filled_count: 3 },
     // hand: filled 3 of posted 4 = 75 percent, which is fill_rate.
   };
+  // GET /api/pickups/analytics/patterns the way routes/pickups.js answers it: the open shifts in the
+  // range counted by day of the week, by site and day, and by month. month_start is
+  // date_trunc('month', scheduled_date)::date, a DATE, which the API's driver sends as midnight UTC of
+  // the month's first day. The four shifts counted are invented: a callout at the first site on Monday
+  // February 23 and on Monday March 9, a no-show at the second site on Wednesday March 4, and a
+  // dropped shift at the third site on Saturday March 14.
+  const PICKUP_PATTERNS = {
+    by_day: [
+      { day_of_week: 1, total: 2, callouts: 2, no_shows: 0, voluntary_drops: 0 },
+      { day_of_week: 3, total: 1, callouts: 0, no_shows: 1, voluntary_drops: 0 },
+      { day_of_week: 6, total: 1, callouts: 0, no_shows: 0, voluntary_drops: 1 },
+    ],
+    by_site_day: [
+      { site_id: S[0].id, site_name: S[0].name, day_of_week: 1, total: 2, callouts: 2, no_shows: 0 },
+      { site_id: S[1].id, site_name: S[1].name, day_of_week: 3, total: 1, callouts: 0, no_shows: 1 },
+      { site_id: S[2].id, site_name: S[2].name, day_of_week: 6, total: 1, callouts: 0, no_shows: 0 },
+    ],
+    by_month: [
+      { month_start: "2026-02-01T00:00:00.000Z", total: 1, callouts: 1, no_shows: 0 },
+      { month_start: "2026-03-01T00:00:00.000Z", total: 3, callouts: 1, no_shows: 1 },
+    ],
+  };
+  // hand: 2 + 1 + 1 = 4 shifts by day, by site and day, and 1 + 3 = 4 by month, which is posted_count;
+  // callouts 2 + 0 + 0 = 2 and 1 + 1 = 2, which is callout_count; no-shows 1 each way, no_show_count.
 
   const SCHEDULE = [
     { id: "sh-1", user_id: "u-staff-5", user_name: "Tomasz Wisniewski", site_id: S[0].id, site_name: S[0].name, scheduled_date: seed.shift(0), start_time: "18:00", end_time: "02:00", status: "scheduled", building_name: "North Wing", floor_number: "3", notes: "", pattern_id: null, crosses_midnight: true },
@@ -427,15 +451,17 @@ function createStubs() {
     };
   };
   // A person's folder: the person, and every record they have as one list, with the count in each
-  // category. The onboarding steps carry the status the folder draws beside them.
+  // category. The onboarding steps carry the status the folder draws beside them. A training record's
+  // and a finished step's date is the day it was done, a DATE, which routes/hr.js sends as
+  // new Date(completed_date).toISOString(): midnight UTC of that day, from a server that runs in UTC.
   const hrFolder = (p) => {
     const items = [].concat(
       HR_DOCUMENTS.filter((x) => x.user_id === p.id).map((x) => ({ source: "document", source_id: x.id, title: x.title, category: x.category,
         raw_category_label: null, date: x.created_at, expiry_date: x.expiry_date })),
       HR_TRAINING.filter((x) => x.user_id === p.id).map((x) => ({ source: "training", source_id: x.id, title: x.training_name, category: "training",
-        raw_category_label: x.training_type, date: x.completed_date + "T12:00:00Z", expiry_date: x.expiry_date, administered_by: x.administered_by })),
+        raw_category_label: x.training_type, date: x.completed_date + "T00:00:00.000Z", expiry_date: x.expiry_date, administered_by: x.administered_by })),
       HR_ONBOARDING.map((x) => ({ source: "onboarding", source_id: x.id, title: x.step_name, category: "hr_onboarding", raw_category_label: x.step_category,
-        date: x.completed_date ? x.completed_date + "T12:00:00Z" : null, status: x.is_completed ? "completed" : "pending" })),
+        date: x.completed_date ? x.completed_date + "T00:00:00.000Z" : null, status: x.is_completed ? "completed" : "pending" })),
       JOTFORM_SUBMISSIONS.filter((x) => x.user_id === p.id).map((x) => ({ source: "jotform", source_id: x.id, title: x.form_title, category: "hr_ongoing",
         category_override: null, raw_category_label: null, date: x.submitted_at, submitter_name: x.submitter_name })));
     const counts = {};
@@ -1216,10 +1242,12 @@ function createStubs() {
       { id: "ck-5", label: "Clean window tracks", zone: "Atrium", shift: "Night", block: "End of shift", period: "seasonal", days: null, season: { from: "06-01", to: "08-31" }, shownToday: false },
     ],
   };
+  // An assigned task carries the day it is due and the time, the task_templates columns the route
+  // sends with tt.*; a checklist item carries neither.
   const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
     id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
     building_name: t.building_name, floor_number: t.floor_number, assigned_to_name: t.assigned_to_name,
-    media_required: false, description: t.description || "", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true,
+    due_date: t.due_date, due_time: t.due_time, media_required: false, description: t.description || "", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true,
   })).concat((CHECKLIST[siteId] || []).map((c) => Object.assign({ priority: "standard", cims_category: "SD",
     building_name: null, floor_number: null, assigned_to_name: null, media_required: false, description: "" }, c)))
     .map((c) => Object.assign(c, { dueToday: c.shownToday, doneThisPeriod: false, checkedToday: false }));
@@ -1690,6 +1718,7 @@ function createStubs() {
       return created({ message: "Open shift posted", pickup: row });
     }
     if (path.startsWith("/api/pickups/analytics/staff-reliability")) return ok(PICKUP_RELIABILITY);
+    if (path === "/api/pickups/analytics/patterns") return ok(PICKUP_PATTERNS);
     if (path.startsWith("/api/pickups/analytics")) return ok(PICKUP_ANALYTICS);
     if (path.startsWith("/api/pickups/convert/")) return ok({ message: "Converted to an open shift" });
     if (/^\/api\/pickups\/[^/]+\/(approve|deny|approve-drop|deny-drop|release)$/.test(path)) {

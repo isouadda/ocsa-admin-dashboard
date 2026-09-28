@@ -134,6 +134,23 @@ Reset PIN, no reset link, no Deactivate and no Edit. It saves a profile with an 
 else holds, has the API refuse it with `users.employeeIdTakenByOther`, and holds the line under the
 field to the table's words. Both languages, at 1024.
 
+**A day the API sends is the day it names, and today is March 17.** Since Step 181 one parser reads a
+DATE the API sends from its first ten characters, and toISO builds a day from the clock's local parts,
+so at 9:30 PM in New York, which is already March 18 in UTC, no day reads as the evening before and no
+today reads as tomorrow. The `dates` suite reads, in both languages, each card's due date on Assigned
+Tasks and the day and time in its window, a site's Contract Dates, its assigned task's due date and its
+upcoming shifts, each vendor's Reviewed line, an evaluation and the approved vendor list's Last Review
+Date, a person's hire date on their HR folder and the folder's training and onboarding lines, which
+carry the day and no clock, a Jotform filing's Expiry on its row and in its window, a certification's
+expiry on Staff Management, the issue report's weekly buckets on its two trend charts and on its print,
+and the months under Shift Pickup's Monthly Totals, and holds each to the day the API sent, written out
+by hand. It holds every today to March 17: Live Operations' day, the week's today column on Schedule,
+the day Schedule Shift opens on, the next 30 days Convert Callout reads, the last 30 days on Shift
+Pickup and on the issue report, and the day in the names of a person's and a site's timeline files, the
+approved vendor list and the service catalog. The stub sends a site's assigned task with its due date,
+a folder's training and onboarding days at midnight UTC the way `routes/hr.js` sends them, and the
+months of Monthly Totals as the DATE the API's driver sends, midnight UTC of each month's first day.
+
 **A control shows for whoever holds what guards it.** Since Step 181 the shell reads the person's own
 capabilities from `GET /api/users/me/permissions` once after sign-in, and gates every control the API
 guards with a capability on that capability. The stub answers the route the way `routes/users.js`
@@ -343,7 +360,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates` and `house-style`.
 
 ## How much is left in English
 

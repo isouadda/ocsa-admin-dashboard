@@ -108,6 +108,10 @@ const SUITES = [
   // both languages at 1024.
   { name: "staff-pins", mod: "./cases/staff-pins", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Dates since Step 181: every due date, contract date, hire date, expiry date and weekly bucket is the
+  // day the API sent, and every today is March 17 at 9:30 PM in New York, in both languages.
+  { name: "dates", mod: "./cases/dates", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Settings shows each list value's English and, in another language, its words there, and saves
   // exactly what it saves in English, in both languages at 1024.
   { name: "settings", mod: "./cases/settings", widths: ["narrow"],
