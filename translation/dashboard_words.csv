@@ -2356,3 +2356,6 @@ Reset link sent.,Enlace enviado.,After the reset link
 Generate badge number,Generar número de empleado,"Staff profile, when the badge is not set"
 Change photo,Cambiar foto,"Staff profile, the photo control"
 That employee ID is already in use.,Ese número de identificación de empleado ya está en uso.,Add New Staff and Contact Information
+An admin account holds these by role. There is nothing to change here.,Una cuenta de administrador los tiene por su rol. Aquí no hay nada que cambiar.,"Settings, Roles and Permissions, an admin picked"
+Your own capabilities are set by another admin.,Sus propias capacidades las define otro administrador.,"Settings, Roles and Permissions, the signed-in person picked"
+Only someone who holds this can grant it.,Solo quien la tiene puede otorgarla.,"Settings, Roles and Permissions, the manage admins row"

@@ -115,7 +115,16 @@ const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
-const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings"];
+const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
+// What each role holds when the API has not said: GET /api/users/me/permissions (Step 179) answers
+// this person's own capabilities, and until it does the API's own defaults table decides. Every
+// control the API guards with a capability draws only for a holder, so nothing is drawn that the
+// API will refuse.
+const CAP_ROLE_DEFAULTS = {
+  admin: { manage_permissions: true, manage_settings: true, manage_lookups: true, manage_staff: true, manage_sites: true, manage_integrations: true, manage_tasks: true, manage_inspections: true, manage_time: true, manage_schedule: true, approve_time_off: false, manage_supplies: true, manage_vendors: true, view_reports: true, read_incident_reports: true, export_payroll: true, manage_admins: false, send_announcements: true },
+  supervisor: { manage_tasks: true, manage_inspections: true, manage_schedule: true, view_reports: true },
+  staff: {},
+};
 const hashParts = () => window.location.hash.replace(/^#/, "").split("/").filter(Boolean);
 const pageFromHash = () => { const h = hashParts()[0] || ""; return PAGE_IDS.includes(h) ? h : "overview"; };
 // What follows the page id in the hash, for a page that reads one. #forms is unchanged by this.
@@ -495,16 +504,20 @@ export default function AdminDashboard() {
   const sf = useCallback((path, opts = {}, onEvent) => apiStream(path, { ...opts, token }, onEvent), [token]);
   const uf = useCallback((file, bucket) => apiUpload(file, bucket, token), [token]);
   const isAdmin = user?.role === "admin";
-  // The manage permissions capability opens the Roles and Permissions screen, which is the screen it
-  // names. One quiet call when the session starts asks the API for this person's own effective
-  // capabilities: a 200 answers it, and any other answer leaves them with what their role gives.
-  const [canManagePermissions, setCanManagePermissions] = useState(false);
-  // The manage settings capability opens the customer links on Filed forms (Step 169). An admin
-  // holds it by default; anyone else holds it when the same call says so.
-  const [canManageSettings, setCanManageSettings] = useState(false);
-  // The manage admins capability lets a person change an admin's account: Reset PIN, Deactivate
-  // and Edit on an admin's row draw only for a holder. Nobody holds it by default.
-  const [canManageAdmins, setCanManageAdmins] = useState(false);
+  // This person's own capabilities, as the API answered them, or null until it has. hasCap reads a
+  // capability from that answer, and from the role's defaults for one the answer does not name.
+  const [caps, setCaps] = useState(null);
+  const hasCap = useCallback((name) => {
+    if (caps && Object.prototype.hasOwnProperty.call(caps, name)) return !!caps[name];
+    const tier = isAdmin ? "admin" : (user && user.role === "supervisor" ? "supervisor" : "staff");
+    return !!(CAP_ROLE_DEFAULTS[tier] && CAP_ROLE_DEFAULTS[tier][name]);
+  }, [caps, isAdmin, user]);
+  // The manage permissions capability opens the Roles and Permissions screen; manage settings opens
+  // Company settings and the customer links on Filed forms; manage admins lets a person change an
+  // admin's account, which nobody holds by default.
+  const canManagePermissions = hasCap("manage_permissions");
+  const canManageSettings = hasCap("manage_settings");
+  const canManageAdmins = hasCap("manage_admins");
   // Forms holds every filed report now, and the API already decides who may read them. One quiet
   // call when the session starts asks for the list: a 200 opens the page, and any other answer
   // leaves this person with what their role gives, which is the line Forms has shown all along.
@@ -512,10 +525,12 @@ export default function AdminDashboard() {
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
-    if (id === "settings") return isAdmin || canManagePermissions;
-    if (id === "forms") return isAdmin || canReadFiledForms;
+    if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups");
+    if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
+    if (id === "staff") return hasCap("manage_staff");
+    if (id === "announcements") return hasCap("send_announcements");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canReadFiledForms]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -535,11 +550,13 @@ export default function AdminDashboard() {
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
-    if (!token || !id) { setCanManagePermissions(false); setCanManageSettings(false); setCanManageAdmins(false); return; }
+    if (!token || !id) { setCaps(null); return; }
     let alive = true;
-    af("/api/users/" + encodeURIComponent(id) + "/permissions")
-      .then(d => { if (alive) { const eff = (d && d.effective) || {}; setCanManagePermissions(!!eff.manage_permissions); setCanManageSettings(!!eff.manage_settings); setCanManageAdmins(!!eff.manage_admins); } })
-      .catch(e => { if (alive) { setCanManagePermissions(false); setCanManageSettings(false); setCanManageAdmins(false); } console.warn("Own capabilities:", e.message); });
+    const done = (map) => { if (alive) setCaps(map && typeof map === "object" ? map : null); };
+    // Until Step 179 answers the me route, the per-person route says the same for whoever may read it.
+    af("/api/users/me/permissions")
+      .then(d => done(d && d.capabilities))
+      .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => { done(null); console.warn("Own capabilities:", e.message); }); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
@@ -658,7 +675,7 @@ export default function AdminDashboard() {
       { id: "sites", l: tr("Sites"), i: MpI },
     ]},
     { label: tr("Staff"), items: [
-      ...(isAdmin ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
+      ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
@@ -898,25 +915,25 @@ export default function AdminDashboard() {
       {(navOpen || userMenuOpen || moreOpen) && <div onClick={() => { setNavOpen(false); setUserMenuOpen(false); setMoreOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 38 }} />}
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
-        {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} isAdmin={isAdmin} t={t} />}
+        {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
-        {page === "sites" && <SitesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
+        {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
-        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
-        {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
-        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
+        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
+        {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
+        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={isAdmin || canManageSettings} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -948,7 +965,7 @@ const flattenSessions = (d) => ((d && d.sites) || []).flatMap(site => (site.peop
 const fmtSessionStart = (ts) => ts ? new Date(ts).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "";
 const sessionPlace = (p) => [p.siteName, p.buildingName, p.floorNumber ? tr("Floor {0}", p.floorNumber) : null].filter(Boolean).join(", ");
 
-function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
+function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t }) {
   const [stats, setStats] = useState(null); const [started, setStarted] = useState([]);
   const [inspSummary, setInspSummary] = useState([]);
   // Which of the three reads failed last, so each card says so in its own place.
@@ -967,7 +984,7 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
       <SC t={t} label={tr("Started today")} value={stats.clockedInNow} sub={tr("of {0} active", stats.activeStaff)} color={GR} icon={CkI} />
       <SC t={t} label={tr("Open Issues")} value={stats.openIssues} color={stats.openIssues > 0 ? RD : GR} icon={AlI} />
-      {isAdmin && <SC t={t} label={tr("Pending")} value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
+      {canManageStaff && <SC t={t} label={tr("Pending")} value={stats.pendingStaff} color={stats.pendingStaff > 0 ? OR : GR} icon={UsI} />}
     </div>
     <SecT t={t}>{tr("Started today")}</SecT>
     <Crd t={t} style={{ marginBottom: 20 }}>
@@ -992,8 +1009,8 @@ function OverviewPage({ af, showToast, setPage, user, isAdmin, t }) {
           <RadialW t={t} value={stats.activeStaff > 0 ? (stats.clockedInNow / stats.activeStaff) * 100 : 0} valueText={stats.clockedInNow + " / " + stats.activeStaff} label={tr("Started")} color={GR} height={270} />
         </ChartCard>
       </div>
-    </div>    {((isAdmin && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-      {isAdmin && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{tr("{0} pending", stats.pendingStaff)}</button>}
+    </div>    {((canManageStaff && stats.pendingStaff > 0) || stats.openIssues > 0) && <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {canManageStaff && stats.pendingStaff > 0 && <button onClick={() => setPage("staff")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, color: OR, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><UsI sz={16} c={OR} />{tr("{0} pending", stats.pendingStaff)}</button>}
       {stats.openIssues > 0 && <button onClick={() => setPage("issues")} style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px", borderRadius: 10, background: t.redSubtle, border: "1px solid " + t.redBorder, color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><AlI sz={16} c={RD} />{tr("{0} open issues", stats.openIssues)}</button>}
     </div>}
   </div>);
@@ -1719,7 +1736,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 }
 
 
-function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
+function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
   const [siteProfile, setSiteProfile] = useState(null);
   const [siteTab, setSiteTab] = useState("general");
@@ -1958,7 +1975,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     try { await af("/api/sites/" + selectedSite + "/floor-plans/" + planId, { method: "DELETE" }); showToast(tr("Floor plan removed")); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const visibleSites = isAdmin ? sites : sites.filter(s => s.status === "active");
+  const visibleSites = canManageSites ? sites : sites.filter(s => s.status === "active");
   const inactiveCount = sites.filter(s => s.status !== "active").length;
 
   const tlCats = [
@@ -2128,7 +2145,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             </div>
             <div style={{ fontSize: 12, color: t.textSec, marginLeft: 34 }}>{s.address_line1}{s.city ? ", " + s.city : ""}{s.state ? " " + s.state : ""} {s.zip_code || ""}</div>
           </div>
-          {isAdmin && <div style={{ display: "flex", gap: 6 }}>
+          {canManageSites && <div style={{ display: "flex", gap: 6 }}>
             {s.status === "active" && <button onClick={() => { if (window.confirm(tr("Deactivate this site?"))) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>{tr("Deactivate")}</button>}
             {s.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + s.id, { method: "PATCH", body: { status: "active" } }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
             <button onClick={() => { setDeleteConfirm(s); setDeleteText(""); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>{tr("Delete")}</button>
@@ -2158,7 +2175,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Billing")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{billingOf(s.billing_frequency || "monthly")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fdDay(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fdDay(s.contract_end_date)) : ""}</div></div>
           </div>
-          {isAdmin && <button onClick={() => setEditSite({
+          {canManageSites && <button onClick={() => setEditSite({
             clientName: s.client_name || "", contractType: s.contract_type || "", primeContractor: s.prime_contractor || "",
             contractValueMonthly: s.contract_value_monthly || "", billingFrequency: s.billing_frequency || "monthly",
             contractStartDate: s.contract_start_date ? (typeof s.contract_start_date === "object" ? s.contract_start_date.toISOString().split("T")[0] : String(s.contract_start_date).split("T")[0]) : "",
@@ -2207,10 +2224,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
-              {isAdmin && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove")}</button>}
+              {canManageSites && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove")}</button>}
             </div>
           </div>)}
-          {isAdmin && <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {canManageSites && <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
             <Inp t={t} value={floorPlanLabel} onChange={e => setFloorPlanLabel(e.target.value)} placeholder={tr("Label")} style={{ width: 160, fontSize: 11 }} />
             <input type="file" accept="image/*,.pdf" onChange={e => { if (e.target.files?.[0]) uploadFloorPlan(e.target.files[0]); }} style={{ fontSize: 11, color: t.textSec }} />
           </div>}
@@ -2226,7 +2243,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       {siteTab === "tasks" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Tasks ({0})", st.length)}</div>
-          <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>
+          {canManageTasks && <button onClick={() => setAddTask({ siteId: selectedSite, label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "", taskType: "standard" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Task")}</button>}
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -2234,10 +2251,10 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
-            <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
+            {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
               <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
-            </div>
+            </div>}
           </div>
         </Crd>)}
         {st.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No tasks configured for this site")}</div>}
@@ -2277,7 +2294,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Supplies at This Site ({0})", sp.supplies.length)}</div>
-            {isAdmin && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Supply")}</button>}
+            {canManageSites && <button onClick={openAddSupply} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 12px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><PlI sz={12} c={t.goldText} /> {tr("Add Supply")}</button>}
           </div>
           {sp.supplies.map((sup, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4 }}>
             <div>
@@ -2289,7 +2306,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
                 <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.low_threshold ? RD : t.text }}>{sup.current_stock}</div>
                 <div style={{ fontSize: 9, color: t.textMut }}>{tr("Min: {0}", sup.low_threshold)}</div>
               </div>
-              {isAdmin && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>}
+              {canManageSites && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>}
             </div>
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supplies assigned to this site")}</div>}
@@ -2341,7 +2358,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Scope of Work")}</div>
           {s.scope_of_work ? <div style={{ fontSize: 12, color: t.textSec, whiteSpace: "pre-wrap", lineHeight: 1.7 }}>{s.scope_of_work}</div> : <div style={{ fontSize: 12, color: t.textMut, fontStyle: "italic" }}>{tr("No scope of work documented yet.")}</div>}
-          {isAdmin && <div style={{ marginTop: 12 }}>
+          {canManageSites && <div style={{ marginTop: 12 }}>
             <TArea t={t} rows={10} defaultValue={s.scope_of_work || ""} id="scopeEdit" placeholder={tr("Document the scope of work for this site...")} />
             <Btn t={t} style={{ marginTop: 8 }} onClick={() => { const v = document.getElementById("scopeEdit").value; saveSiteField({ scopeOfWork: v }); }}>{tr("Save Scope")}</Btn>
           </div>}
@@ -2498,14 +2515,14 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
 
   // ---- LIST VIEW ----
   return (<div>
-    <SecT t={t} action={isAdmin ? tr("Add Site") : undefined} onAction={isAdmin ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
-    {isAdmin && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
+    <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
+    {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
-      const base = isAdmin ? (statusF === "all" ? visibleSites : statusF === "inactive" ? visibleSites.filter(s => s.status !== "active") : visibleSites.filter(s => s.status === "active")) : visibleSites;
+      const base = canManageSites ? (statusF === "all" ? visibleSites : statusF === "inactive" ? visibleSites.filter(s => s.status !== "active") : visibleSites.filter(s => s.status === "active")) : visibleSites;
       const searched = base.filter(s => {
         if (!q.trim()) return true;
         const hay = (s.name + " " + (s.address_line1 || "") + " " + (s.contract_type || "")).toLowerCase();
@@ -2639,7 +2656,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   </div>);
 }
 
-function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkMap, lkHasOther }) {
+function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
@@ -2663,13 +2680,13 @@ function SuppliesAdminPage({ af, showToast, isAdmin, t, getOpts, lkMap, lkHasOth
   const reqTypeWord = { refill: tr("Refill Request"), damage_report: tr("Damage Report"), new_gear: tr("New Gear Request") };
   const pendingCount = requests.filter(r => r.status === "pending").length;
   return (<div>
-    <SecT t={t} action={isAdmin ? tr("Add Supply") : undefined} onAction={isAdmin ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
+    <SecT t={t} action={canManageSupplies ? tr("Add Supply") : undefined} onAction={canManageSupplies ? () => setAddForm({ name: "", category: "chemical", unit: "each", currentStock: "", lowThreshold: "", costPerUnit: "", isGreenCertified: false, greenCertType: "", epaRegNumber: "", manufacturer: "" }) : undefined}>{tr("Supplies and Inventory")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
       <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
       <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
     </div>
-    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={isAdmin ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
-    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{isAdmin ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
+    {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{canManageSupplies ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
@@ -4412,7 +4429,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   </div>);
 }
 
-function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf, getOpts }) {
+function AssignedTasksAdminPage({ af, showToast, canManageTasks = false, t, sites, allStaff, uf, getOpts }) {
   const [tasks, setTasks] = useState([]);
   const [filters, setFilters] = useState({ site_id: "", building_name: "", floor_number: "", zone: "", user_id: "", status: "" });
   const staffList = allStaff;
@@ -4443,7 +4460,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
   const selShown = sel ? shownItem(sel) : null;
   const hasFilters = Object.values(filters).some(v => v);
   return (<div>
-    <SecT t={t} action={tr("Create Task")} onAction={() => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" })}>{tr("Assigned Tasks")}</SecT>
+    <SecT t={t} action={canManageTasks ? tr("Create Task") : undefined} onAction={canManageTasks ? () => setCreateForm({ siteId: "", label: "", zone: "", cims: "SD", pri: "standard", assign: "", desc: "", mediaUrl: "", mediaType: "", dueDate: "", dueTime: "", building: "", floor: "" }) : undefined}>{tr("Assigned Tasks")}</SecT>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
       <Sel t={t} value={filters.site_id} onChange={e => updateFilter("site_id", e.target.value)} options={[{ v: "", l: tr("All Sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ flex: 1, minWidth: 120 }} />
       <Sel t={t} value={filters.building_name} onChange={e => updateFilter("building_name", e.target.value)} options={[{ v: "", l: tr("All Buildings") }, ...buildings.map(b => ({ v: b, l: b }))]} style={{ flex: 1, minWidth: 100 }} />
@@ -4510,7 +4527,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
   </div>);
 }
 
-function VendorsPage({ af, showToast, isAdmin, t }) {
+function VendorsPage({ af, showToast, canManageVendors = false, t }) {
   const [vendors, setVendors] = useState([]);
   const [supplies, setSupplies] = useState([]);
   const [filter, setFilter] = useState("all");
@@ -4607,7 +4624,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Vendor Registry")}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportAVL} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export AVL")}</button>
-        {isAdmin && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Vendor")}</button>}
+        {canManageVendors && <button onClick={() => setAddForm({ ...emptyForm })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Vendor")}</button>}
       </div>
     </div>
 
@@ -4666,13 +4683,13 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Linked Supplies")}</div>
-            {isAdmin && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Supply")}</button>}
+            {canManageVendors && <button onClick={() => setLinkSupply({ vendorId: detail.vendor.id, supplyId: "", isPreferred: false, unitCost: "", leadTime: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Supply")}</button>}
           </div>
           {(!detail.linkedSupplies || detail.linkedSupplies.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No supplies linked yet")}</div>}
           {detail.linkedSupplies?.map((ls, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
               <div><div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{ls.supply_name}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.unit_cost ? tr("${0}/unit", parseFloat(ls.unit_cost).toFixed(2)) : ""}{ls.lead_time_days ? (ls.unit_cost ? " | " : "") + tr("{0}d lead", ls.lead_time_days) : ""}{ls.is_preferred ? <span style={{ color: t.goldText, marginLeft: 6 }}>{tr("Preferred")}</span> : null}</div></div>
-              {isAdmin && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
+              {canManageVendors && <button onClick={() => unlinkSupply(detail.vendor.id, ls.supply_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
         </div>
@@ -4695,7 +4712,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
           ))}
         </div>
 
-        {isAdmin && <div style={{ display: "flex", gap: 8 }}>
+        {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
           <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.vendor.id, name: detail.vendor.name, contactName: detail.vendor.contact_name || "", contactPhone: detail.vendor.contact_phone || "", contactEmail: detail.vendor.contact_email || "", website: detail.vendor.website || "", addressLine1: detail.vendor.address_line1 || "", city: detail.vendor.city || "", state: detail.vendor.state || "", zipCode: detail.vendor.zip_code || "", productsServices: detail.vendor.products_services || "", certificationStatus: detail.vendor.certification_status || "", contractTerms: detail.vendor.contract_terms || "", approvalStatus: detail.vendor.approval_status, lastReviewDate: detail.vendor.last_review_date ? detail.vendor.last_review_date.slice(0, 10) : "" })}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this vendor?"))) deactivate(detail.vendor.id); }}>{tr("Remove")}</Btn>
         </div>}
@@ -4740,7 +4757,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
     </Mdl>}
   </div>);
 }
-function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
+function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap }) {
   // A category on this page is the cims_categories lookup's shown label, then the plain word.
   const catShown = lkMap ? lkMap("cims_categories", true) : {};
   const [services, setServices] = useState([]);
@@ -4817,7 +4834,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
       <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Service Catalog")}</div>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={exportCatalog} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.goldText, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><DlI sz={13} c={t.goldText} /> {tr("Export")}</button>
-        {isAdmin && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
+        {canManageVendors && <button onClick={() => setAddForm({ name: "", description: "", rateStructure: "", requiredCertifications: "", cimsCategory: "SD" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 12px", borderRadius: 8, border: "none", background: GO, color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer" }}><PlI sz={13} c={NAVY} /> {tr("Add Service")}</button>}
       </div>
     </div>
 
@@ -4876,7 +4893,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Active Sites")}</div>
-            {isAdmin && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Site")}</button>}
+            {canManageVendors && <button onClick={() => setLinkSite({ serviceId: detail.service.id, siteId: "", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 3, padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}><PlI sz={10} c={t.goldText} /> {tr("Link Site")}</button>}
           </div>
           {(!detail.linkedSites || detail.linkedSites.length === 0) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("No sites linked yet")}</div>}
           {detail.linkedSites?.map((ls, i) => (
@@ -4886,12 +4903,12 @@ function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
                 {ls.city && <div style={{ fontSize: 10, color: t.textMut, marginTop: 1 }}>{ls.city}, {ls.state}</div>}
                 {ls.notes && <div style={{ fontSize: 10, color: t.textSec, marginTop: 2 }}>{ls.notes}</div>}
               </div>
-              {isAdmin && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
+              {canManageVendors && <button onClick={() => unlinkSite(detail.service.id, ls.site_id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Unlink")}</button>}
             </div>
           ))}
         </div>
 
-        {isAdmin && <div style={{ display: "flex", gap: 8 }}>
+        {canManageVendors && <div style={{ display: "flex", gap: 8 }}>
           <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setEditForm({ id: detail.service.id, name: detail.service.name, description: detail.service.description || "", rateStructure: detail.service.rate_structure || "", rate_structure: detail.service.rate_structure || "", requiredCertifications: detail.service.required_certifications || "", required_certifications: detail.service.required_certifications || "", cimsCategory: detail.service.cims_category, cims_category: detail.service.cims_category })}>{tr("Edit")}</Btn>
           <Btn t={t} v="danger" style={{ flex: 1 }} onClick={() => { if (window.confirm(tr("Remove this service?"))) deactivate(detail.service.id); }}>{tr("Remove")}</Btn>
         </div>}
@@ -6590,7 +6607,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   </div>);
 }
 
-function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
+function InspectionsPage({ af, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
   const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
@@ -6914,7 +6931,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               </button>
             </div>
           )}
-          {!isComplete && isAdmin && (
+          {!isComplete && canManageInspections && (
             <div style={{ display: "flex", gap: 8 }}>
               <button onClick={() => openEditInspection(d)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 12, cursor: "pointer" }}>
                 <EdI sz={12} c={t.textSec} /> {tr("Edit")}
@@ -7050,7 +7067,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
-                    {isAdmin && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
+                    {canManageInspections && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
@@ -7141,7 +7158,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{canManageInspections && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
@@ -7170,7 +7187,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
               { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", si.total_score, si.max_possible_score)}</div></div>; } },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{isAdmin && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
@@ -7707,7 +7724,7 @@ function PermissionsMatrixPanel({ t }) {
   );
 }
 
-function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
+function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canManageAdmins = false }) {
   const [staff, setStaff] = useState([]);
   const [loadingStaff, setLoadingStaff] = useState(true);
   const [selId, setSelId] = useState("");
@@ -7748,6 +7765,11 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   const caps = (detail && Array.isArray(detail.capabilities)) ? detail.capabilities : [];
   const role = detail && detail.role;
   const isAdminTarget = role === "admin";
+  // Allow and Deny are not offered on an admin's account, which holds its capabilities by role, or on
+  // the signed-in person's own account, and manage admins is offered only by someone who holds it.
+  const isSelf = !!selId && String(selId) === String(selfId);
+  const fixedNote = isAdminTarget ? tr("An admin account holds these by role. There is nothing to change here.") : isSelf ? tr("Your own capabilities are set by another admin.") : null;
+  const rowNote = (c) => (c.key === "manage_admins" && !canManageAdmins && overrides.manage_admins !== true ? tr("Only someone who holds this can grant it.") : null);
   const tierOf = (r) => (r === "admin" ? "admin" : r === "supervisor" ? "supervisor" : "staff");
   const roleDefault = (c) => !!(c.defaults && c.defaults[tierOf(role)]);
 
@@ -7766,7 +7788,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   const setAllow = (key) => setOverrides(Object.assign({}, overrides, { [key]: true }));
   const setDeny = (key) => setOverrides(Object.assign({}, overrides, { [key]: false }));
 
-  const dirty = detail && JSON.stringify(overrides) !== JSON.stringify(detail.overrides || {});
+  const dirty = !fixedNote && detail && JSON.stringify(overrides) !== JSON.stringify(detail.overrides || {});
 
   const save = () => {
     if (!selId) return;
@@ -7822,6 +7844,7 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: t.text }}>{detail.name}</div>
               <div style={{ fontSize: 11, color: t.textMut }}>{tr("Role: {0}. Default follows this role until you override it.", roleOf(role))}</div>
+              {fixedNote && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{fixedNote}</div>}
             </div>
             <button onClick={save} disabled={!dirty || saving} style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: (dirty && !saving) ? GO : t.borderSolid, color: (dirty && !saving) ? "#0A1628" : t.textMut, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: (dirty && !saving) ? "pointer" : "default" }}>{saving ? tr("Saving...") : tr("Save changes")}</button>
           </div>
@@ -7840,8 +7863,10 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
                       {c.enforced ? tag(tr("Enforced"), GR) : tag(tr("Rolling out"), OR)}
                       <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{currentlyLine(eff, st)}</div>
                     </div>
-                    {locked ? (
+                    {fixedNote ? null : locked ? (
                       <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("Locked on")}</div>
+                    ) : rowNote(c) ? (
+                      <div style={{ fontSize: 11, color: t.textMut }}>{rowNote(c)}</div>
                     ) : (
                       <div style={{ display: "flex", gap: 6 }}>
                         <button onClick={() => setDefault(c.key)} style={segBtn(st === "default", BL)}>{tr("Default|permission")}</button>
@@ -7863,20 +7888,22 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap }) {
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = false, lkMap }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, selfId = "", lkMap }) {
   const [cats, setCats] = useState([]);
   const [selCat, setSelCat] = useState(null);
-  // Every tab here is an admin tab but one: the manage permissions capability opens Roles and
-  // Permissions and nothing else, so that is the tab it draws and the tab it starts on.
+  // Each tab is a capability's: Company and Who gets told are manage settings, the two lookups
+  // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
+  // tabs this person holds and starts on the first of them.
   const TABS = [
-    { id: "company", label: tr("Company"), adminOnly: true },
-    { id: "global", label: tr("Dropdown Options"), adminOnly: true },
-    { id: "site", label: tr("Site Lookups"), adminOnly: true },
-    { id: "permissions", label: tr("Roles and Permissions"), adminOnly: false },
-    { id: "recipients", label: tr("Who gets told"), adminOnly: true, style: { fontFamily: FONT_BODY } },
+    { id: "company", label: tr("Company"), open: canManageSettings },
+    { id: "global", label: tr("Dropdown Options"), open: canManageLookups },
+    { id: "site", label: tr("Site Lookups"), open: canManageLookups },
+    { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
+    { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
   ];
-  const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
-  const [tab, setTab] = useState(isAdmin ? "company" : "permissions");
+  const tabs = TABS.filter(x => x.open);
+  const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
+  const isAdmin = canManageLookups;
   // The Roles and Permissions tab holds two views: what one person can do, and what each role can do.
   const [permView, setPermView] = useState("editor");
   const [addCatForm, setAddCatForm] = useState(null);
@@ -7985,17 +8012,17 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
         {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
-      {tab === "company" && isAdmin && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
+      {tab === "company" && canManageSettings && <CompanySettingsPanel af={af} uf={uf} showToast={showToast} t={t} />}
 
-      {tab === "permissions" && <div>
+      {tab === "permissions" && canManagePermissions && <div>
         <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
           {[{ id: "editor", label: tr("By person") }, { id: "matrix", label: tr("Role reference") }].map(pv => <button key={pv.id} onClick={() => setPermView(pv.id)} style={{ padding: "5px 12px", borderRadius: 6, border: permView === pv.id ? "1px solid " + GO : "1px solid " + t.border, background: permView === pv.id ? t.goldBg : "transparent", color: permView === pv.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{pv.label}</button>)}
         </div>
-        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} lkMap={lkMap} />}
+        {permView === "editor" && <PermissionsEditorPanel af={af} uf={uf} showToast={showToast} t={t} lkMap={lkMap} selfId={selfId} canManageAdmins={canManageAdmins} />}
         {permView === "matrix" && <PermissionsMatrixPanel t={t} />}
       </div>}
 
-      {tab === "recipients" && isAdmin && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
+      {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -9919,11 +9946,12 @@ const GAP_COLS = ["Form Title", "Last Synced", "Jotform", "Ours", "Delta", "Fail
 const MISSING_COLS = ["Jotform Submission ID", "Submitted", "Submitter Name", "Email", ""];
 const FAILURE_COLS = ["Submission ID", "Form", "Stage", "Reason", "Attempted", "Already Synced?", ""];
 const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added", "Added By", "Notes", ""];
-function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false }) {
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false, canManageIntegrations = false }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
-  const isAdmin = user?.role === "admin";
+  // The Jotform and PDF access log tabs are the integrations capability's, which an admin holds by default.
+  const isAdmin = canManageIntegrations;
   const [tab, setTab] = useState("incident_reports");
   const [jotSection, setJotSection] = useState("inbox");
   // How many filings are unfinished, read by the Filed forms tab from the list it loads.
