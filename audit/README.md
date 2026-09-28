@@ -377,6 +377,20 @@ filled at a desk: Name, Role and the pad, Save signature sending the four keys, 
 line drawn after, Clear and a second signature, every refusal under the card in the API's words, and
 a save that carries nothing for it.
 
+**A form is offered in the apps the catalog names.** Since Step 186 `GET /api/forms` says which apps
+offer each form, `apps`, and with `?app=` lists only the forms offered in that app; with no app it lists
+every form. The stub answers it that way, each form with the apps the API's definitions carry, in the
+language the address names, and a form made with the builder joins the catalog once a case publishes
+it, the way the builder's publish makes a version the one every app offers. The `catalog` suite
+publishes two: OCSA-FRM-037, offered in the dashboard and to customers, and OCSA-FRM-038, offered in
+the staff app alone, with one report filed on it. It holds Filed forms' Form filter to every form the
+catalog read with no app holds, in the screen's language, each builder form by its title there, and
+choosing 038 to its report; Start a form to `GET /api/forms?app=dashboard`, whose picker lists the
+complaint log and 037 and leaves 038 out; Customer links to `GET /api/forms?app=customer`, whose Form
+select offers 037 beside the two customer forms, and a link made for 037 to what New link sends, the
+QR screen and the new row; and the report's window to Version 1, the version it was filed on. Both
+languages.
+
 ## How to run less of it
 
 ```
@@ -391,7 +405,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog` and `house-style`.
 
 ## How much is left in English
 

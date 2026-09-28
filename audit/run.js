@@ -45,6 +45,10 @@ const SUITES = [
   // since every word in the window and on the printed sheet comes from the table or the API.
   { name: "customer-links", mod: "./cases/customer-links", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The catalog by app since Step 187: the Form filter, Start a form and Customer links with two builder
+  // forms published, and a report's version, in both languages.
+  { name: "catalog", mod: "./cases/catalog", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },

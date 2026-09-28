@@ -84,6 +84,9 @@ function createStubs() {
     chatSent: {},
     announcements: null,
     alertSettings: {},
+    // Step 186: the codes of the builder forms published, and the reports filed on builder forms.
+    published: [],
+    builderReports: null,
   };
 
   const person = () => seed.PEOPLE[signedInAs];
@@ -721,22 +724,27 @@ function createStubs() {
     if (filedExtras.sections) fields.forEach((f) => { f.section = LOG_SECTION_OF[f.key] || null; });
     return fields;
   };
+  // Since Step 186 every form in the catalog says which apps offer it, apps, the way
+  // helpers/formCatalog.js sends it at ocsa-api 94dbe27: the code forms with the apps their
+  // definitions in data/forms carry, and the three invented codes, which the staff app files, with
+  // portal alone.
   const FORM_LIST = [
-    { code: "incident", title: "Incident report" },
-    { code: "vehicle", title: "Vehicle report" },
-    { code: "service-log", title: "Daily service log" },
+    { code: "incident", title: "Incident report", apps: ["portal"] },
+    { code: "vehicle", title: "Vehicle report", apps: ["portal"] },
+    { code: "service-log", title: "Daily service log", apps: ["portal"] },
     // The five batch two forms, by the codes the API lists them under, each with an invented title
     // of the API's own, so a screen that draws the API's title rather than the table's word for the
     // code is seen to. Step 159.
-    { code: "OCSA-FRM-010", title: "Form 010 as the API titles it" },
-    { code: "OCSA-FRM-015", title: "Form 015 as the API titles it" },
-    { code: "OCSA-FRM-027", title: "Form 027 as the API titles it" },
-    { code: "OCSA-FRM-032", title: "Form 032 as the API titles it" },
-    { code: "OCSA-FRM-036", title: "Form 036 as the API titles it" },
+    { code: "OCSA-FRM-010", title: "Form 010 as the API titles it", apps: ["portal"] },
+    { code: "OCSA-FRM-015", title: "Form 015 as the API titles it", apps: ["portal"] },
+    { code: "OCSA-FRM-027", title: "Form 027 as the API titles it", apps: ["portal"] },
+    { code: "OCSA-FRM-032", title: "Form 032 as the API titles it", apps: ["portal"] },
+    { code: "OCSA-FRM-036", title: "Form 036 as the API titles it", apps: ["portal"] },
     // Step 169: the two forms a customer fills through a link, titled the way the API titles them
-    // in the language asked. The catalog carries no customer flag, the way the API's does not.
-    { code: "OCSA-FRM-006", titles: { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluaci\u00f3n de limpieza del edificio" } },
-    { code: "OCSA-FRM-007", titles: { en: "Client Satisfaction Survey", es: "Encuesta de satisfacci\u00f3n del cliente" } },
+    // in the language asked. The catalog carries no customer flag, the way the API's does not; since
+    // Step 186 their apps name customer alone.
+    { code: "OCSA-FRM-006", titles: { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluaci\u00f3n de limpieza del edificio" }, apps: ["customer"] },
+    { code: "OCSA-FRM-007", titles: { en: "Client Satisfaction Survey", es: "Encuesta de satisfacci\u00f3n del cliente" }, apps: ["customer"] },
   ];
   const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
 
@@ -749,6 +757,8 @@ function createStubs() {
   const desk = (en, es, lang) => (lang === "es" ? es : en);
   const deskForm = (lang) => ({
     code: DESK_CODE, title: desk("Complaint log", "Registro de quejas", lang), fillers: startable ? ["admin", "supervisor"] : [],
+    // Offered in the staff app and in the dashboard, the way the code forms both apps offer are.
+    apps: ["portal", "dashboard"],
     sections: [
       { key: "where", title: desk("Where it came from", "De d\u00f3nde vino", lang), help: desk("As the caller gave it.", "Tal como lo dio quien llam\u00f3.", lang) },
       { key: "what", title: desk("What was said", "Lo que se dijo", lang) },
@@ -811,6 +821,103 @@ function createStubs() {
   let deskSeq = 0;
   let customerSigSeq = 0;
   const deskDraft = (r) => r && r.formCode === DESK_CODE;
+
+  // ---- Step 186: forms made with the builder ------------------------------------------------------
+  // A form a builder made is read the way every form is read since Step 186, from its latest published
+  // version, and the catalog sends it in the shape helpers/formCatalog.js gives every form at ocsa-api
+  // 94dbe27: the code the builder gave it, the title in the language asked, the version, the apps that
+  // offer it, and the questions of the filing half, labeled in that language. The catalog lists only
+  // the forms the caller may fill and sends no fillers, so the dashboard offers each one it lists. None
+  // is in the catalog until a case publishes it, the way POST /api/form-builder/drafts/:id/publish makes
+  // a version the one every app offers, and a reset takes them back out. Every value is invented.
+  //   OCSA-FRM-037  offered in the dashboard and to customers, so it is a customer's form.
+  //   OCSA-FRM-038  offered in the staff app alone.
+  const BUILDER_FORMS = {
+    "OCSA-FRM-037": { code: "OCSA-FRM-037", version: 1, customer: true, apps: ["dashboard", "customer"], readers: ["view_reports"],
+      title: { en: "Lobby walkthrough with the tenant", es: "Recorrido del vest\u00edbulo con el inquilino" },
+      fields: [
+        { key: "walked_with", half: "agent", type: "text", required: true, en: "Who walked with you", es: "Qui\u00e9n hizo el recorrido con usted" },
+        { key: "lobby_state", half: "agent", type: "select", required: true, en: "How the lobby looked", es: "C\u00f3mo se ve\u00eda el vest\u00edbulo",
+          options: [{ value: "good", en: "Good", es: "Bien" }, { value: "needs_work", en: "Needs work", es: "Necesita trabajo" }] },
+      ] },
+    "OCSA-FRM-038": { code: "OCSA-FRM-038", version: 1, apps: ["portal"], readers: ["view_reports"],
+      title: { en: "Dock door check", es: "Revisi\u00f3n de las puertas del muelle" },
+      fields: [
+        { key: "doors_closed", half: "agent", type: "select", required: true, en: "Every dock door closed", es: "Todas las puertas del muelle cerradas",
+          options: [{ value: "yes", en: "Yes", es: "S\u00ed" }, { value: "no", en: "No", es: "No" }] },
+        { key: "door_note", half: "agent", type: "textarea", required: false, en: "What was found at the doors", es: "Qu\u00e9 se encontr\u00f3 en las puertas" },
+      ] },
+  };
+  // A line in the language asked, and English where it has no Spanish, the way helpers/agentForms.js
+  // reads a label, an option and a help line; a title falls back to the code, as titleOf does.
+  const builderSay = (v, lang) => (v && typeof v === "object" ? String((lang === "es" && v.es) || v.en || "") : String(v || ""));
+  const builderTitle = (code, lang) => (BUILDER_FORMS[code] ? builderSay(BUILDER_FORMS[code].title, lang) || code : code);
+  const isPublished = (code) => !!BUILDER_FORMS[code] && (state.published || []).indexOf(code) >= 0;
+  const builderCatalogForm = (def, lang) => ({
+    code: def.code, title: builderTitle(def.code, lang), version: def.version, apps: def.apps.slice(),
+    fields: def.fields.filter((f) => f.half === "agent").map((f) => ({
+      key: f.key, label: builderSay(f, lang), type: f.type, required: f.required === true, osha: false, prefilled: !!f.prefill,
+      options: (f.options || []).map((o) => ({ value: o.value, label: builderSay(o, lang) })), appliesWhen: null,
+      help: f.help ? builderSay(f.help, lang) : null, section: null,
+    })),
+  });
+  const publishedForms = (lang) => Object.keys(BUILDER_FORMS).filter(isPublished).map((code) => builderCatalogForm(BUILDER_FORMS[code], lang));
+  // Reports filed on a builder form, which the list and the review window read once the form is
+  // published. Each carries the version it was filed on, which the review's draft sends as version
+  // since Step 186 (helpers/formDrafts.js draftView). fr-b1 was filed from the staff app.
+  const BUILDER_FILINGS = [
+    { id: "fr-b1", formCode: "OCSA-FRM-038", version: 1, status: "submitted", siteId: S[2].id, userId: "u-staff-8", source: "portal",
+      createdAt: seed.shift(-2) + "T21:40:00Z", submittedAt: seed.shift(-2) + "T21:55:00Z",
+      answers: { doors_closed: "no", door_note: "Door 3 would not seal at the bottom." } },
+  ];
+  const builderReports = () => { if (!state.builderReports) state.builderReports = clone(BUILDER_FILINGS); return state.builderReports; };
+  const builderReport = (id) => builderReports().find((r) => r.id === id && isPublished(r.formCode)) || null;
+  // What a question's answer reads as, helpers/formCatalog.js displayValueFor: a pick's label in the
+  // language asked, the text as it was typed, and nothing for nothing.
+  const builderDisplay = (f, v, lang) => {
+    if (v === null || v === undefined || v === "") return null;
+    const o = (f.options || []).find((x) => x.value === v);
+    return o ? builderSay(o, lang) : String(v);
+  };
+  // The draft as draftView sends it, with the list's name and site beside it.
+  const builderView = (r, lang) => {
+    const def = BUILDER_FORMS[r.formCode];
+    const answers = r.answers || {};
+    const asked = def.fields.filter((f) => f.half === "agent");
+    const missing = asked.filter((f) => f.required && !hasAnswer(answers[f.key]));
+    return {
+      id: r.id, formCode: r.formCode, version: r.version, formName: builderTitle(r.formCode, lang), source: r.source, status: r.status, answers: answers,
+      answered: asked.filter((f) => hasAnswer(answers[f.key])).length, remaining: missing.length,
+      missing: missing.map((f) => f.key), missingFields: missing.map((f) => ({ key: f.key, label: builderSay(f, lang) })),
+      userId: r.userId, userName: (state.staff.find((p) => p.id === r.userId) || {}).name || "",
+      siteId: r.siteId || null, siteName: (state.sites.find((x) => x.id === r.siteId) || {}).name || null,
+      dueAt: null, createdAt: r.createdAt, submittedAt: r.submittedAt || null,
+    };
+  };
+  // The list's row carries no answers and no version, the way GET /api/forms/responses sends one.
+  const builderListRow = (r, lang) => { const v = builderView(r, lang); ["answers", "version", "missing", "missingFields"].forEach((k) => { delete v[k]; }); return v; };
+  // The report in reportPayload's shape: every question with its answer, and what this caller may do.
+  // A reader of the form who did not file it may write the supervisor half of a filed report, and
+  // these forms have none; an admin may void a filed report; a reader who did not file it may send it
+  // again.
+  const builderPayload = (r, lang) => {
+    const def = BUILDER_FORMS[r.formCode];
+    const mine = String(r.userId || "") === String(person().id);
+    const reads = (def.readers || []).some((k) => !!effectiveMap(person(), state.overrides[person().id])[k]);
+    return {
+      draft: builderView(r, lang),
+      fields: def.fields.map((f) => {
+        const raw = Object.prototype.hasOwnProperty.call(r.answers || {}, f.key) ? r.answers[f.key] : null;
+        return { key: f.key, label: builderSay(f, lang), type: f.type, half: f.half, section: null, osha: false, value: raw, displayValue: builderDisplay(f, raw, lang) };
+      }),
+      sections: null,
+      canSign: [],
+      canWriteSupervisor: r.status === "submitted" && reads && !mine,
+      supervisorMissing: [],
+      canVoid: person().role === "admin" && r.status === "submitted",
+      canResend: reads && !mine && r.status === "submitted",
+    };
+  };
   const INCIDENT_FIELDS = (r) => [
     { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
       value: r.siteName || "", displayValue: r.siteName || "" },
@@ -920,9 +1027,14 @@ function createStubs() {
   let linkSeq = 0;
   const customerLinks = () => { if (!state.customerLinks) state.customerLinks = customerLinkRows(); return state.customerLinks; };
   const linkState = (l) => (l.disabledAt ? "disabled" : l.expired ? "expired" : "live");
+  // Since Step 186 a customer's form is any form whose definition says customer, a builder form among
+  // them once it is published (helpers/customerLinks.js isCustomerForm at ocsa-api 94dbe27), and a link
+  // names its form by formTitleFor, the title in the language asked.
+  const isCustomerForm = (code) => !!CUSTOMER_TITLES[code] || (isPublished(code) && BUILDER_FORMS[code].customer === true);
+  const customerTitle = (code, lang) => (CUSTOMER_TITLES[code] ? CUSTOMER_TITLES[code][lang === "es" ? "es" : "en"] : builderTitle(code, lang));
   const linkView = (l, lang) => ({
     id: l.id, token: l.token, url: PORTAL_BASE + "/c/" + l.token,
-    formCode: l.formCode, formTitle: CUSTOMER_TITLES[l.formCode][lang === "es" ? "es" : "en"],
+    formCode: l.formCode, formTitle: customerTitle(l.formCode, lang),
     site: { id: l.siteId, name: (state.sites.find((s) => s.id === l.siteId) || {}).name || null },
     state: linkState(l), uses: l.uses, lastUsedAt: l.lastUsedAt, createdAt: l.createdAt, createdBy: l.createdBy,
     disabledAt: l.disabledAt, disabledBy: l.disabledBy,
@@ -2235,7 +2347,16 @@ function createStubs() {
     if (/^\/api\/jotform\/employees\/[^/]+\/documents$/.test(path) && method === "POST") {
       return created({ id: "doc-new-1", user_id: idAfter("/api/jotform/employees/"), category: "uncategorized", created_at: seed.NOW_ISO });
     }
-    if (path === "/api/forms") return ok({ forms: FORM_LIST.map((f) => Object.assign({ fillers: [] }, f, f.titles ? { title: f.titles[lang === "es" ? "es" : "en"], titles: undefined } : {})).concat([deskForm(lang)]) });
+    // Since Step 186 ?app=portal|dashboard|customer lists only the forms offered in that app, and no app
+    // lists every form, as before (routes/forms.js and helpers/formCatalog.js at ocsa-api 94dbe27). A
+    // form a builder published is listed beside the rest. The catalog is in the language the address
+    // names, which the API reads ahead of the one the browser sends.
+    if (path === "/api/forms") {
+      const app = q("app");
+      const said = q("locale") === "es" || q("locale") === "en" ? q("locale") : lang;
+      const all = FORM_LIST.map((f) => Object.assign({ fillers: [] }, f, f.titles ? { title: f.titles[said === "es" ? "es" : "en"], titles: undefined } : {})).concat([deskForm(said)]).concat(publishedForms(said));
+      return ok({ forms: all.filter((f) => !app || (f.apps || []).indexOf(app) >= 0) });
+    }
     // Step 166: the draft routes the portal calls, for a form started at a desk. Since Step 179 the
     // API reads source admin from the body and stores it when an admin or a supervisor starts the
     // form, and portal otherwise (routes/forms.js at ocsa-api 1c3fb42); a save merges the answers, a
@@ -2312,7 +2433,9 @@ function createStubs() {
       // rows were filed before there was a source to store, and carry none unless filedSources is on.
       const rows = INCIDENT_REPORTS.concat(CUSTOMER_FILINGS).filter((r) => statusOf(r) === status && (!code || r.formCode === code))
         .map((r) => (customerFiling(r) ? Object.assign(customerListRow(r, lang), { source: "customer" }) : deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined }) : asFiled(r)));
-      return ok({ responses: rows });
+      // Step 186: the reports filed on a builder form, once the form is published.
+      const built = builderReports().filter((r) => isPublished(r.formCode) && statusOf(r) === status && (!code || r.formCode === code)).map((r) => builderListRow(r, lang));
+      return ok({ responses: rows.concat(built) });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
       const rid = path.split("/")[4];
@@ -2442,6 +2565,10 @@ function createStubs() {
       // An upload and a removal answer { key, photos }, the way routes/forms.js does, never { value }.
       return ok({ key: key, photos: keep(have) });
     }
+    // Step 186: a report filed on a builder form, read in the payload's shape.
+    if (/^\/api\/forms\/responses\/[^/]+$/.test(path) && method === "GET" && builderReport(idAfter("/api/forms/responses/"))) {
+      return ok(builderPayload(builderReport(idAfter("/api/forms/responses/")), lang));
+    }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
       const r = anyReport(id) || INCIDENT_REPORTS[0];
@@ -2458,7 +2585,7 @@ function createStubs() {
       if (path === "/api/customer-links" && method === "POST") {
         const formCode = String((body && body.formCode) || "").trim();
         const siteId = String((body && body.siteId) || "").trim();
-        if (!CUSTOMER_TITLES[formCode]) return linkRefusal("customer.formNotCustomer", 400, lang);
+        if (!isCustomerForm(formCode)) return linkRefusal("customer.formNotCustomer", 400, lang);
         if (!state.sites.some((x) => x.id === siteId)) return linkRefusal("customer.siteNotFound", 404, lang);
         const live = all.find((l) => l.siteId === siteId && l.formCode === formCode && linkState(l) === "live");
         if (live) return ok({ link: linkView(live, lang), created: false });
@@ -2867,6 +2994,9 @@ function createStubs() {
       if (at >= 0) INCIDENT_REPORTS.splice(at, 1);
       if (filedSources) INCIDENT_REPORTS.push(adminFiling());
     },
+    // A form made with the builder, published: its latest version is the one every app offers, and
+    // the reports filed on it are read. Step 186.
+    publishForm: (code) => { if (BUILDER_FORMS[code] && state.published.indexOf(code) < 0) state.published.push(code); },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -2891,6 +3021,8 @@ function createStubs() {
       // Every void made in a case, and the seed's sources with the admin's own filing, which the loop
       // above has taken away.
       state.voided = {}; filedSources = false;
+      // No builder form published, and the reports filed on them as they were.
+      state.published = []; state.builderReports = null;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};
