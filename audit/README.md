@@ -134,6 +134,17 @@ Reset PIN, no reset link, no Deactivate and no Edit. It saves a profile with an 
 else holds, has the API refuse it with `users.employeeIdTakenByOther`, and holds the line under the
 field to the table's words. Both languages, at 1024.
 
+**A control shows for whoever holds what guards it.** Since Step 181 the shell reads the person's own
+capabilities from `GET /api/users/me/permissions` once after sign-in, and gates every control the API
+guards with a capability on that capability. The stub answers the route the way `routes/users.js`
+does, from the role's defaults and the overrides it holds on the account. The `capabilities` suite
+holds the sign-in to one read of that route and none of the per-person one, then signs in a
+supervisor holding `manage_sites` by override, who is offered Add Site, Edit Details and Deactivate,
+and one on the role's defaults, who is offered none; an admin denied `manage_supplies`, who finds no
+Add Supply and a card that opens nothing, and one on the defaults, who finds both. On Roles and
+Permissions it holds the line an admin's account carries, the line one's own account carries, and
+the manage_admins row, which only a holder can grant, each with nothing to press. Both languages.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -269,7 +280,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities` and `house-style`.
 
 ## How much is left in English
 

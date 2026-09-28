@@ -75,6 +75,10 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
+  // holder of what guards it, by role or by override, in both languages.
+  { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Staff, PINs and badges since Step 181: the Temporary PIN window after Add New Staff, Reset PIN's box
   // and toast, an admin's account locked to a holder of manage_admins, and the employee ID line, in
   // both languages at 1024.
