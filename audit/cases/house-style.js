@@ -7,7 +7,7 @@
 "use strict";
 const fs = require("fs");
 const { findNonAscii } = require("../lib/ascii");
-const { compare, slotCheck } = require("../lib/words");
+const { compare, slotCheck, keyCheck } = require("../lib/words");
 const { APP } = require("../lib/strings");
 const { count } = require("../count");
 const TODO = require("path").resolve(__dirname, "..", "spanish-todo.json");
@@ -47,6 +47,19 @@ function run({ app, results, inventory }) {
         + words.extra.length + " in the CSV and not the table (" + say(words.extra) + ")");
   if (words.ok) {
     results.note("the word table holds " + words.entries + " entries and the CSV " + words.rows + " rows, which agree");
+  }
+
+  // Every key the source hands tr() or trn() as written has its Spanish in the table. A key without it
+  // reads in English on a Spanish screen, and nothing on the screen marks it (Step 185's guide list).
+  const keys = keyCheck();
+  results.check("house-style", inventory.WORD_KEYS.id, keys.missing.length === 0,
+    keys.missing.length + " of the " + keys.keys + " keys src/App.js hands tr() or trn() have no Spanish in the table: "
+      + keys.missing.slice(0, 3).map((m) => JSON.stringify(m.key) + " at line " + m.line).join("; "));
+  keys.missing.slice(0, 20).forEach((m) => {
+    results.note("src/App.js line " + m.line + " hands " + m.call + "() " + JSON.stringify(m.key) + ", which the table holds no Spanish for");
+  });
+  if (keys.missing.length === 0) {
+    results.note("every one of the " + keys.keys + " keys src/App.js hands tr() or trn() as written has its Spanish in the table");
   }
 
   // Every sentence that carries a value keeps that value in every language.

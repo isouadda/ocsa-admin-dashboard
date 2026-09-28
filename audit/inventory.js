@@ -359,6 +359,8 @@ const HOUSE_STYLE = { id: "house-style/banned-acronym" };
 const ASCII_ONLY = { id: "house-style/ascii-only-under-src" };
 // The word table and the translator's CSV are two copies of one thing.
 const WORD_TABLE = { id: "house-style/the-table-and-the-csv-agree" };
+// Every key src/App.js hands tr() or trn() as written has its Spanish in the table (Step 185, 424ca39).
+const WORD_KEYS = { id: "house-style/every-tr-key-has-an-entry" };
 // A sentence with a value in it carries the same values in every language.
 const WORD_SLOTS = { id: "house-style/a-translated-sentence-keeps-its-values" };
 // The finder reads every page the app prints, counted against a plain count of the pages the source
@@ -704,4 +706,4 @@ const CUSTOMER_LINKS = [
   { id: "customer-filing/the-averages-are-drawn", name: "The survey's section averages and overall draw under the answers, one decimal, by section title" },
 ];
 
-module.exports = { START_FORM, CUSTOMER_LINKS, PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, FILED_PHOTO_STATES, TRAINING_ROOM, PICKERS };
+module.exports = { START_FORM, CUSTOMER_LINKS, PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_KEYS, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, FILED_PHOTO_STATES, TRAINING_ROOM, PICKERS };

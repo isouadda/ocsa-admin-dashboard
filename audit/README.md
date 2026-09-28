@@ -351,6 +351,12 @@ a printed page included. A page still listed in `audit/spanish-todo.json` names 
 finder counts English on, and `house-style` fails the run when the list and the count part, so the
 part that takes a page takes its prints with it.
 
+**Every key has its Spanish.** Since Step 185's guide list, `house-style` reads every key `src/App.js`
+hands `tr` or `trn` as written and fails the run on each one the table holds no Spanish for, named with
+its line. Such a key reads in English on a Spanish screen, and nothing on the screen marks it. A key
+built as the page runs is the finder's to count. The same suite holds the table to the CSV and every
+file under `src/` to plain ASCII, the guide list's other two promises.
+
 ## Known failures
 
 `audit/known.json` holds the failures the app has today that the audit build does not fix, because
