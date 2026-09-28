@@ -112,7 +112,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -302,7 +302,9 @@ const EVERY_ITEM = "?day=all&shift=";
 const trWith = (key, piece) => { const [before, after] = tr(key, "\u0000").split("\u0000"); return <>{before}{piece}{after}</>; };
 
 // ===== THEMED SHARED COMPONENTS =====
-const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
+// Right of the screen, and never past it: at 390 pixels the box wraps inside left 20 and right 20,
+// and on a wide screen it stays as wide as its words (Step 185).
+const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, left: 20, right: 20, width: "fit-content", marginLeft: "auto", maxWidth: "calc(100vw - 40px)", boxSizing: "border-box", wordBreak: "break-word", background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
 const Crd = ({ children, style, onClick: oc, t }) => <div onClick={oc} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, cursor: oc ? "pointer" : "default", boxShadow: t.shadow, transition: "transform .15s ease, box-shadow .15s ease", ...style }}>{children}</div>;
 const Bdg = ({ l, c }) => { const t = useT(); return <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px", padding: "3px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c) }}>{l}</span>; };
 const SecT = ({ children, action, onAction, icon: I = PlI, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><I sz={13} c={NAVY} /> {action}</button>}</div>;
@@ -535,6 +537,9 @@ export default function AdminDashboard() {
     if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
     if (id === "staff") return hasCap("manage_staff");
     if (id === "announcements") return hasCap("send_announcements");
+    // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
+    // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
+    if (id === "help-insights") return hasCap("view_help_insights");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
   const [sites, setSites] = useState([]);
@@ -707,14 +712,14 @@ export default function AdminDashboard() {
     { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }] },
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
-    { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }] },
+    { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }, ...(canOpenPage("help-insights") ? [{ id: "help-insights", l: tr("Help insights"), i: HlpI }] : [])] },
     ...(canOpenPage("forms") ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -949,7 +954,7 @@ export default function AdminDashboard() {
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
-        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
+        {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
@@ -959,6 +964,7 @@ export default function AdminDashboard() {
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
+        {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -1724,7 +1730,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -1771,6 +1777,37 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
+  // Shown in Spanish as (Step 185): the Spanish the portal draws today for the item being edited,
+  // read from the same list with locale=es so each display field carries it, editable, and saved
+  // through PATCH /api/sites/:siteId/tasks/:taskId/translations as { locale, field, text }, one
+  // call per field the manager changed. A manager's wording stays until a manager changes it.
+  const [taskEs, setTaskEs] = useState(null);
+  const editTaskId = editTask ? editTask.id : null;
+  const editTaskSite = editTask ? editTask.siteId : null;
+  useEffect(() => {
+    if (!editTaskId) { setTaskEs(null); return undefined; }
+    let alive = true;
+    setTaskEs({ id: editTaskId, label: "", description: "", was: null });
+    af("/api/sites/" + editTaskSite + "/tasks" + EVERY_ITEM + "&locale=es").then(rows => {
+      if (!alive) return;
+      const row = (Array.isArray(rows) ? rows : []).find(r => String(r.id) === String(editTaskId));
+      const d = shownItem(row || {});
+      const was = { label: d.label || "", description: d.description || "" };
+      setTaskEs({ id: editTaskId, label: was.label, description: was.description, was });
+    }).catch(e => { if (alive) { console.warn("Spanish wording:", e.message); setTaskEs(null); } });
+    return () => { alive = false; };
+  }, [af, editTaskId, editTaskSite]);
+  const saveTaskSpanish = async () => {
+    if (!editTask || !taskEs || taskEs.id !== editTask.id || !taskEs.was) return false;
+    let fixed = false;
+    for (const field of ["label", "description"]) {
+      const text = String(taskEs[field] || "").trim();
+      if (!text || text === taskEs.was[field]) continue;
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id + "/translations", { method: "PATCH", body: { locale: "es", field, text } });
+      fixed = true;
+    }
+    return fixed;
+  };
   const [editSite, setEditSite] = useState(null);
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [timeline, setTimeline] = useState([]);
@@ -1970,7 +2007,8 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const submitEditTask = async () => {
     try {
       await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } });
-      showToast(tr("Task updated")); setEditTask(null);
+      const fixed = await saveTaskSpanish();
+      showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -2518,6 +2556,13 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
           <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setEditTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         {editTask.mediaUrl && (editTask.mediaType === "video" ? <div style={{ marginBottom: 12 }}><video src={editTask.mediaUrl} controls style={{ width: "100%", borderRadius: 8, maxHeight: 200 }} /></div> : editTask.mediaUrl.includes("youtube") || editTask.mediaUrl.includes("youtu.be") ? <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: BL }}>{tr("YouTube link attached")}</div></div> : <div style={{ marginBottom: 12 }}><img src={editTask.mediaUrl} alt={tr("Task reference")} style={{ width: "100%", borderRadius: 8, maxHeight: 200, objectFit: "cover" }} /></div>)}
+        {taskEs && taskEs.id === editTask.id && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: R.sm, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+          <Lbl>{tr("Shown in Spanish as")}</Lbl>
+          {!taskEs.was ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <>
+            <div style={{ marginBottom: 8 }}><Inp t={t} value={taskEs.label} onChange={e => setTaskEs({ ...taskEs, label: e.target.value })} aria-label={tr("Task Name")} placeholder={tr("Task Name")} /></div>
+            <TArea t={t} value={taskEs.description} onChange={e => setTaskEs({ ...taskEs, description: e.target.value })} aria-label={tr("Detailed Instructions")} placeholder={tr("Detailed Instructions")} rows={2} />
+          </>}
+        </div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -2669,8 +2714,35 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   </div>);
 }
 
-function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther }) {
+function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
+  // The QR image comes from GET /api/supplies/:id/qr.png (Step 185, STEP183_CONTRACT.md section 5),
+  // read with the token and kept as a data URL, never from an outside service. One read per
+  // supply, in list order; until the API answers it, the box draws the word QR alone.
+  const [qrs, setQrs] = useState({});
+  const qrsRef = useRef({}); qrsRef.current = qrs;
+  // The supplies taken off in this session, drawn under Removed supplies. The API lists active
+  // supplies only and has no route that brings one back, so the list holds what this screen
+  // removed and offers nothing to press.
+  const [removed, setRemoved] = useState([]);
+  useEffect(() => {
+    const want = supplies.filter(s => s && s.id != null && qrsRef.current[s.id] === undefined);
+    if (!want.length) return undefined;
+    let alive = true;
+    setQrs(q => { const next = { ...q }; want.forEach(s => { if (next[s.id] === undefined) next[s.id] = ""; }); return next; });
+    (async () => {
+      for (const s of want) {
+        let url = "";
+        try {
+          const r = await apiDownload("/api/supplies/" + encodeURIComponent(s.id) + "/qr.png", token, "qr.png");
+          url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(r.blob); });
+        } catch (e) { url = ""; }
+        if (!alive) return;
+        if (url) setQrs(q => ({ ...q, [s.id]: url }));
+      }
+    })();
+    return () => { alive = false; };
+  }, [supplies, token]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
@@ -2678,9 +2750,8 @@ function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpt
   useEffect(() => { loadSupplies(); loadRequests(); }, []);
   const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); const gone = supplies.find(s => String(s.id) === String(id)); if (gone) setRemoved(r => [gone, ...r.filter(x => String(x.id) !== String(id))]); showToast(tr("Supply removed")); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
-  const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(API + "/qr/" + code);
   // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
   const cats = getOpts("supply_categories", null, true);
   const units = getOpts("supply_units", null, true);
@@ -2698,12 +2769,16 @@ function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpt
       <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
       <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
     </div>
-    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{qrs[s.id] ? <img src={qrs[s.id]} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /> : <span style={{ fontSize: 9, fontWeight: 600, color: t.goldText }}>{tr("QR")}</span>}</div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{canManageSupplies ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
+    {tab === "inventory" && removed.length > 0 && <div style={{ marginTop: 18 }}>
+      <SecT t={t}>{tr("Removed supplies")}</SecT>
+      {removed.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14, opacity: 0.75 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}</div></div></div></Crd>))}
+    </div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
@@ -3066,7 +3141,12 @@ const agentAnsweredLine = (answered, remaining, say = agentEnglish) => (answered
 const agentMessageFrom = (m, i) => {
   const role = String(agentPick(m, ["role", "sender"]) || "").toLowerCase() === "user" ? "user" : "assistant";
   const cited = agentPick(m, ["citedDocs", "cited_doc_codes", "citedDocCodes"]);
-  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
+  // Step 185: an assistant row carries its id, which a rating names, the rating stored on it, and the
+  // names of its sources beside their codes (STEP183_CONTRACT.md, sections 1 and 2).
+  const names = agentPick(m, ["citedNames", "cited_names"]);
+  const rowId = agentPick(m, ["id", "messageId", "message_id"]);
+  const fb = m && m.feedback && typeof m.feedback === "object" ? m.feedback : null;
+  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], citedNames: Array.isArray(names) ? names : [], messageId: role === "assistant" && rowId !== undefined ? String(rowId) : "", feedback: role === "assistant" ? fb : null, degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
 // What is still unanswered, for the line on the Help page. The API names the questions when it can:
@@ -3113,9 +3193,15 @@ const agentSourceName = (code, say = agentEnglish) => {
   return c;
 };
 // Every source an answer cites, each named once: two guide codes on one answer name the app guide once.
-const agentSourcesLine = (codes, say = agentEnglish) => {
+// With citedNames beside the codes (Step 185), a source reads by the name the API sent for its code,
+// the document's title in the screen's language, and a name without a code is named too.
+const agentSourcesLine = (codes, say = agentEnglish, names) => {
   const out = [];
-  (Array.isArray(codes) ? codes : []).forEach(c => { const w = agentSourceName(c, say); if (w && out.indexOf(w) === -1) out.push(w); });
+  const list = Array.isArray(codes) ? codes : [];
+  const named = Array.isArray(names) ? names.filter(n => n && typeof n === "object") : [];
+  const add = (w) => { if (w && out.indexOf(w) === -1) out.push(w); };
+  list.forEach(c => { const hit = named.find(n => String(n.code) === String(c)); add(hit && hit.name ? String(hit.name) : agentSourceName(c, say)); });
+  named.forEach(n => { if (n.name && !list.some(c => String(c) === String(n.code))) add(String(n.name)); });
   return out.join(", ");
 };
 // AGENT_HELPERS_END
@@ -3241,7 +3327,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       const res = await af("/api/agent/conversations/" + encodeURIComponent(cid));
       const found = agentStoredAnswer(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom), question);
       if (found) {
-        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
+        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, citedNames: found.citedNames, messageId: found.messageId, feedback: found.feedback, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
         setSaid(agentSpokenText(found.text));
         loadDrafts();
         return;
@@ -3273,7 +3359,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         } else if (event === "done") {
           const r = d || {};
           if (r.conversationId) setConversationId(r.conversationId);
-          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
+          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
           if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
           setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
           setText(cur => cur === body ? "" : cur);
@@ -3307,6 +3393,19 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   };
   // Retry re-sends the same text and the same paths. Nothing is uploaded again.
   const retry = (m) => sendText(m.id, m.text, m.photoPaths || [], m.photoKeys || []);
+  // Rating an answer (Step 185, STEP183_CONTRACT.md section 1): Yes is saved at once; No asks What
+  // was missing? first and the note goes with it, at most 500 characters. Rating again replaces the
+  // rating, and the thanks line shows after a rating saved here, never for one read back.
+  const saveRating = async (m, helpful, note) => {
+    if (!m.messageId) return;
+    patchMsg(m.id, { rating: "saving" });
+    try {
+      const body = { helpful }; const words = String(note || "").trim().slice(0, 500); if (words) body.note = words;
+      const r = await af("/api/agent/messages/" + encodeURIComponent(m.messageId) + "/feedback", { method: "POST", body });
+      patchMsg(m.id, { feedback: (r && r.feedback && typeof r.feedback === "object") ? r.feedback : { helpful, note: words, at: new Date().toISOString() }, rating: "", note: "", thanked: true });
+    } catch (e) { patchMsg(m.id, { rating: "" }); showToast(e.message || tr("Request failed"), "error"); }
+  };
+  const rate = (m, helpful) => { if (helpful) saveRating(m, true, ""); else patchMsg(m.id, { rating: "note", note: (m.feedback && m.feedback.note) || "", thanked: false }); };
 
   const resume = async (d) => {
     if (busy) return;
@@ -3393,8 +3492,20 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
               </div>}
-              {!isMe && agentSourcesLine(m.citedDocs, tr) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr))}</div>}
+              {!isMe && agentSourcesLine(m.citedDocs, tr, m.citedNames) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr, m.citedNames))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
+              {!isMe && !arriving && m.messageId && <div style={{ marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11, color: t.textMut }}>
+                  <span>{tr("Was this helpful?")}</span>
+                  {[true, false].map(v => { const on = !!(m.feedback && m.feedback.helpful === v) || (v === false && m.rating === "note"); return <button key={String(v)} onClick={() => rate(m, v)} disabled={m.rating === "saving" || busy} aria-pressed={on} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.pill, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 11, fontWeight: 600, cursor: m.rating === "saving" ? "default" : "pointer", fontFamily: FONT_BODY }}>{v ? tr("Yes") : tr("No")}</button>; })}
+                </div>
+                {m.rating === "note" && <div style={{ display: "flex", gap: 6, alignItems: "flex-end", marginTop: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={m.note || ""} onChange={e => patchMsg(m.id, { note: e.target.value.slice(0, 500) })} rows={2} placeholder={tr("What was missing?")} aria-label={tr("What was missing?")} style={{ minHeight: 44 }} /></div>
+                  <Btn t={t} onClick={() => saveRating(m, false, m.note || "")} style={{ minHeight: 44 }}>{tr("Send")}</Btn>
+                </div>}
+                {m.thanked && <div style={{ fontSize: 11, color: GR, marginTop: 4 }}>{tr("Thanks. This helps Help get better.")}</div>}
+                {!m.thanked && m.rating !== "note" && m.feedback && m.feedback.helpful === false && m.feedback.note && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("What was missing?")} {m.feedback.note}</div>}
+              </div>}
               {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
@@ -3423,6 +3534,184 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         <button onClick={send} aria-label={tr("Send")} disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
+  </div>);
+}
+// ===== HELP INSIGHTS: what people ask Help, overall and per person (Step 185) =====
+// Drawn for holders of view_help_insights, from GET /api/help-insights/summary, /misses and
+// /people, each read with the range and the filters (STEP183_CONTRACT.md, section 4). Nothing
+// shows until the API answers: a 404 is a failed read, which the page says with This did not load
+// and Try again. A topic is drawn by its name and its section's title, never by its code.
+const helpAppWord = (app) => (app === "portal" ? tr("Portal") : app === "dashboard" ? tr("Dashboard") : String(app || ""));
+// A miss is a turn Help answered with the no-procedure reply or a degraded reply; an answer rated
+// not helpful rides the same list.
+const helpKindWord = (kind) => (kind === "notHelpful" ? tr("Rated not helpful") : tr("Missed"));
+const helpWhen = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? d.toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""; };
+// A reply time in words: under a minute in seconds, else in minutes.
+const helpReplyWords = (ms) => { const n = Number(ms); if (!Number.isFinite(n) || n <= 0) return "-"; return n < 60000 ? tr("{0} sec", (n / 1000).toFixed(1)) : tr("{0} min", (n / 60000).toFixed(1)); };
+const helpNum = (n) => (n === null || n === undefined || n === "" ? "-" : Number(n).toLocaleString(localeTag()));
+// The names an answer cites, each once, as citedNames carries them.
+const helpNamesLine = (names) => { const out = []; (Array.isArray(names) ? names : []).forEach(n => { const w = n && n.name ? String(n.name) : ""; if (w && out.indexOf(w) === -1) out.push(w); }); return out.join(", "); };
+const helpTopicNames = (list) => (Array.isArray(list) ? list : []).map(x => x && x.name).filter(Boolean).join(", ");
+// A person's name and role on one line, the way the misses list and the people table draw them.
+const helpPersonLine = (p) => (p && p.name ? String(p.name) + (p.role ? " (" + roleWord(p.role) + ")" : "") : "-");
+
+// A small table of a count by something: language, app or site.
+const HelpSmallTable = ({ title, rows, t }) => (<Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
+  <div style={{ padding: "12px 16px", borderBottom: "1px solid " + t.border, fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div>
+  {rows.length === 0 ? <div style={{ padding: 16, fontSize: 12, color: t.textMut }}>{tr("No questions in this range.")}</div> : rows.map((r, i) => (
+    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 16px", borderTop: i ? "1px solid " + t.border : "none", fontSize: 13 }}>
+      <span style={{ color: t.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+      <span style={{ color: t.textSec, flexShrink: 0 }}>{r.value}</span>
+    </div>))}
+</Crd>);
+
+// One person's questions with the answers, from GET /api/help-insights/people/:id, which writes an
+// audit row on every read, so the window says so under its title.
+function HelpPersonWindow({ af, t, person, query, onClose }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const load = useCallback(async () => {
+    setFailed(false); setData(null);
+    try { const d = await af("/api/help-insights/people/" + encodeURIComponent(person.id) + query); setData(d && typeof d === "object" ? d : {}); }
+    catch (e) { setFailed(true); console.warn("Help insights person:", e.message); }
+  }, [af, person.id, query]);
+  useEffect(() => { load(); }, [load]);
+  const who = (data && data.person) || person;
+  const turns = data && Array.isArray(data.turns) ? data.turns : [];
+  return (<Mdl t={t} onClose={onClose} tall>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{who.name}{who.role ? <span style={{ fontSize: 12, fontWeight: 500, color: t.textMut, marginLeft: 8 }}>{roleWord(who.role)}</span> : null}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.textSec, marginTop: 4 }}>{tr("Their questions")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Opening this is recorded.")}</div>
+        </div>
+        <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 20px 12px" }}>
+        {failed && <LoadFailed t={t} onRetry={load} />}
+        {!failed && !data && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+        {!failed && data && turns.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("No questions in this range.")}</div>}
+        {turns.map((u, i) => { const names = helpNamesLine(u.citedNames); const fb = u.feedback && typeof u.feedback === "object" ? u.feedback : null; return (
+          <div key={u.messageId || i} style={{ padding: "12px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 11, color: t.textMut }}>
+              <span>{helpWhen(u.askedAt)}</span>
+              {u.locale && <span>{langLabel(u.locale)}</span>}
+              {u.app && <span>{helpAppWord(u.app)}</span>}
+              {(u.kind === "noProcedure" || u.kind === "degraded" || u.kind === "notHelpful") && <Bdg l={helpKindWord(u.kind)} c={u.kind === "notHelpful" ? OR : RD} />}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{u.question}</div>
+            {u.answer && <div style={{ fontSize: 13, color: t.textSec, marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.45 }}>{u.answer}</div>}
+            {names && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", names)}</div>}
+            {fb && <div style={{ fontSize: 11, color: fb.helpful ? GR : OR, marginTop: 4 }}>{fb.helpful ? tr("Rated helpful") : tr("Rated not helpful")}{fb.note ? ": " + fb.note : ""}</div>}
+          </div>); })}
+      </div>
+    </div>
+  </Mdl>);
+}
+
+function HelpInsightsPage({ af, t, sites = [], getOpts }) {
+  const [dateRange, setDateRange] = useState(() => PRESETS.last30());
+  const [filters, setFilters] = useState({ siteId: "", role: "", locale: "", app: "" });
+  const [summary, setSummary] = useState(null);
+  const [misses, setMisses] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [person, setPerson] = useState(null);
+  // The range and the filters, the way every route takes them.
+  const query = useMemo(() => {
+    const p = new URLSearchParams({ from: dateRange.start, to: dateRange.end });
+    Object.keys(filters).forEach(k => { if (filters[k]) p.set(k, filters[k]); });
+    return "?" + p.toString();
+  }, [dateRange, filters]);
+  const load = useCallback(async () => {
+    setLoading(true); setFailed(false);
+    try {
+      const [s, m, p] = await Promise.all([af("/api/help-insights/summary" + query), af("/api/help-insights/misses" + query), af("/api/help-insights/people" + query)]);
+      setSummary(s && typeof s === "object" ? s : {});
+      setMisses(m && Array.isArray(m.misses) ? m.misses : []);
+      setPeople(p && Array.isArray(p.people) ? p.people : []);
+    } catch (e) { setFailed(true); console.warn("Help insights:", e.message); }
+    finally { setLoading(false); }
+  }, [af, query]);
+  useEffect(() => { load(); }, [load]);
+  const setFilter = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+
+  const questions = summary ? Number(summary.questions) || 0 : 0;
+  const missCount = summary ? Number(summary.misses) || 0 : 0;
+  const empty = !loading && !failed && !!summary && questions === 0;
+  const byDay = summary && Array.isArray(summary.byDay) ? summary.byDay : [];
+  const byLanguage = summary && Array.isArray(summary.byLanguage) ? summary.byLanguage : [];
+  const byApp = summary && Array.isArray(summary.byApp) ? summary.byApp : [];
+  const bySite = summary && Array.isArray(summary.bySite) ? summary.bySite : [];
+  const topTopics = summary && Array.isArray(summary.topTopics) ? summary.topTopics : [];
+  // The miss rate from the two counts the summary carries, so it reads the same whatever unit the
+  // summary's own missRate is written in.
+  const missRate = questions > 0 ? Math.round((100 * missCount) / questions) : 0;
+  const topicCols = [
+    { header: tr("Topic"), render: r => <span style={{ fontWeight: 600, color: t.text }}>{r.name || ""}</span> },
+    { header: tr("Section"), tdStyle: { color: t.textSec }, render: r => r.sectionTitle || "" },
+    { header: tr("Questions"), align: "right", tdStyle: { color: t.textSec }, render: r => helpNum(r.count) },
+  ];
+  const missCols = [
+    { header: tr("When"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontSize: 12 }, render: m => helpWhen(m.askedAt) },
+    { header: tr("Question"), tdStyle: { minWidth: 220, maxWidth: 420 }, render: m => <div><div style={{ color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.question}</div><div style={{ marginTop: 4 }}><Bdg l={helpKindWord(m.kind)} c={m.kind === "notHelpful" ? OR : RD} /></div></div> },
+    { header: tr("Person"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: m => helpPersonLine(m.person) },
+    { header: tr("Language"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: m => m.locale ? langLabel(m.locale) : "-" },
+    { header: tr("App"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: m => helpAppWord(m.app) || "-" },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: m => (m.site && m.site.name) || "-" },
+    { header: tr("What was missing"), tdStyle: { color: t.text, minWidth: 180, maxWidth: 320, fontSize: 12 }, render: m => m.feedbackNote || "" },
+  ];
+  const peopleCols = [
+    { header: tr("Name"), render: p => <span style={{ fontWeight: 600, color: t.text }}>{p.name || ""}</span> },
+    { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: p => p.role ? roleWord(p.role) : "-" },
+    { header: tr("Questions"), align: "right", tdStyle: { color: t.textSec }, render: p => helpNum(p.questions) },
+    { header: tr("Missed"), align: "right", tdStyle: { color: RD }, render: p => helpNum(p.misses) },
+    { header: tr("Rated not helpful"), align: "right", tdStyle: { color: OR }, render: p => helpNum(p.helpfulNo) },
+    { header: tr("Last asked"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontSize: 12 }, render: p => helpWhen(p.lastAskedAt) },
+    { header: tr("Topics"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 280 }, render: p => helpTopicNames(p.topTopics) },
+  ];
+  return (<div>
+    <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={load}>{tr("Help insights")}</SecT>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Site")} value={filters.siteId} onChange={e => setFilter("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Role")} value={filters.role} onChange={e => setFilter("role", e.target.value)} options={[{ v: "", l: tr("All roles") }, ...(getOpts ? getOpts("staff_roles", null, true) : [])]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Language")} value={filters.locale} onChange={e => setFilter("locale", e.target.value)} options={[{ v: "", l: tr("All languages") }, ...LANGUAGES.map(l => ({ v: l.id, l: l.label }))]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("App")} value={filters.app} onChange={e => setFilter("app", e.target.value)} options={[{ v: "", l: tr("All apps") }, { v: "portal", l: tr("Portal") }, { v: "dashboard", l: tr("Dashboard") }]} /></div>
+    </div>
+    {failed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {!failed && loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {empty && <Crd t={t}><div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>{tr("No questions in this range.")}</div></Crd>}
+    {!failed && !loading && summary && !empty && <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}>
+        <MetricTile label={tr("Questions")} value={helpNum(summary.questions)} t={t} />
+        <MetricTile label={tr("People asking")} value={helpNum(summary.people)} t={t} />
+        <MetricTile label={tr("Answered")} value={helpNum(summary.answered)} color={GR} t={t} />
+        <MetricTile label={tr("Missed")} value={helpNum(summary.misses)} sub={tr("{0}% missed", missRate)} color={RD} t={t} />
+        <MetricTile label={tr("Rated helpful")} value={helpNum(summary.helpfulYes)} t={t} />
+        <MetricTile label={tr("Rated not helpful")} value={helpNum(summary.helpfulNo)} color={OR} t={t} />
+        <MetricTile label={tr("Typical reply time")} value={helpReplyWords(summary.medianReplyMs)} t={t} />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <ChartCard title={tr("Questions by day")} t={t}>
+          {byDay.length > 0 ? <LineChartW t={t} categories={byDay.map(d => fmtBucketDate(d.day))} series={[{ name: tr("Questions"), data: byDay.map(d => Number(d.questions) || 0) }, { name: tr("Missed"), data: byDay.map(d => Number(d.misses) || 0) }]} colors={[GO, RD]} /> : <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No questions in this range.")}</div>}
+        </ChartCard>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
+        <HelpSmallTable t={t} title={tr("By language")} rows={byLanguage.map(r => ({ label: r.locale ? langLabel(r.locale) : "-", value: helpNum(r.questions) }))} />
+        <HelpSmallTable t={t} title={tr("By app")} rows={byApp.map(r => ({ label: helpAppWord(r.app) || "-", value: helpNum(r.questions) }))} />
+        <HelpSmallTable t={t} title={tr("By site")} rows={bySite.map(r => ({ label: r.siteName || "-", value: helpNum(r.questions) + (Number(r.misses) > 0 ? " (" + tr("{0} missed", helpNum(r.misses)) + ")" : "") }))} />
+      </div>
+      <SecT t={t}>{tr("What people ask about")}</SecT>
+      <div style={{ marginBottom: 16 }}><DataTable t={t} columns={topicCols} rows={topTopics} rowKey={r => (r.code || "") + "-" + (r.sectionRef || "")} empty={tr("No questions in this range.")} /></div>
+      <SecT t={t}>{tr("Questions Help could not answer")}</SecT>
+      <div style={{ marginBottom: 16 }}><DataTable t={t} columns={missCols} rows={misses} rowKey={m => m.messageId} empty={tr("No questions in this range.")} /></div>
+      <SecT t={t}>{tr("Everyone who asked")}</SecT>
+      <div style={{ marginBottom: 16 }}><DataTable t={t} columns={peopleCols} rows={people} rowKey={p => p.id} onRowClick={p => setPerson(p)} empty={tr("No questions in this range.")} /></div>
+    </>}
+    {person && <HelpPersonWindow af={af} t={t} person={person} query={query} onClose={() => setPerson(null)} />}
   </div>);
 }
 // ===== WHO GETS TOLD: the people and addresses told about each kind of report =====
@@ -3619,8 +3908,10 @@ const notifTarget = (link) => {
   if (!link) return { kind: "none" };
   let u; try { u = new URL(link, window.location.href); } catch { return { kind: "none" }; }
   if (u.origin !== window.location.origin) return { kind: "external", href: u.href };
-  const id = (u.hash || "").replace(/^#/, "");
-  return PAGE_IDS.includes(id) ? { kind: "page", page: id } : { kind: "external", href: u.href };
+  // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
+  const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
+  const id = parts[0] || "";
+  return PAGE_IDS.includes(id) ? { kind: "page", page: id, hash: parts.length > 1 ? parts.join("/") : "" } : { kind: "external", href: u.href };
 };
 const NOTIF_PAGE_SIZE = 30;
 function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused }) {
@@ -3663,7 +3954,7 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
     if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
     if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { refuse(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
-    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } onOpenPage(target.page); }
+    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
     onClose();
   };
@@ -5606,6 +5897,8 @@ const serviceWordOf = (lkMap) => {
 // drawn through the table under its code, and anything else as it was sent.
 const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand": "changed by hand", "posted as an open shift": "posted as an open shift", "referenced by site_sessions": "started|pattern", "already scheduled at that time": "already scheduled at that time" };
 const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
+// The line under a Time off button someone cannot open (Step 185).
+const TIME_OFF_LOCKED_LINE = "Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.";
 function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
   // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
   // label, then the table's word; a pickup's and an inspection's status read the table's word.
@@ -5649,10 +5942,13 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   // a 200 means they hold the capability and the count is what is waiting, and any other answer,
   // a 403 without it or a 404 before the routes are live, leaves the page exactly as it was.
   const [timeOffWaiting, setTimeOffWaiting] = useState(null);
+  // Step 185: a 403 is the refusal for someone without the capability, so the button stays, disabled,
+  // with the line saying who sees requests here. Any other answer leaves the page as it was.
+  const [timeOffLocked, setTimeOffLocked] = useState(false);
   const myId = user && user.id != null ? String(user.id) : "";
   const loadTimeOffCount = useCallback(async () => {
-    try { const d = await af(timeOffQuery("requested", "")); setTimeOffWaiting(Array.isArray(d && d.requests) ? d.requests.length : 0); }
-    catch (e) { setTimeOffWaiting(null); }
+    try { const d = await af(timeOffQuery("requested", "")); setTimeOffWaiting(Array.isArray(d && d.requests) ? d.requests.length : 0); setTimeOffLocked(false); }
+    catch (e) { setTimeOffWaiting(null); setTimeOffLocked(!!(e && e.status === 403)); }
   }, [af]);
   useEffect(() => { loadTimeOffCount(); }, [loadTimeOffCount]);
 
@@ -6013,9 +6309,11 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
         <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
         {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
+        {timeOffWaiting === null && timeOffLocked && <button disabled title={tr(TIME_OFF_LOCKED_LINE)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 500, background: "transparent", color: t.textMut, border: "1px solid " + t.border, cursor: "default", opacity: 0.55, fontFamily: FONT_BODY }}>{tr("Time off")}</button>}
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> {tr("Schedule Shift")}</Btn>
       </div>
     </div>
+    {timeOffWaiting === null && timeOffLocked && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr(TIME_OFF_LOCKED_LINE)}</div>}
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
     {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} />}
     {view !== "patterns" && view !== "timeoff" && <>
@@ -6974,6 +7272,18 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
+  // Rename (Step 185): PUT /api/inspections/templates/:id takes { name, description } and writes
+  // both, so the description goes back as it is, or the table would lose it.
+  const [renameTpl, setRenameTpl] = useState(null);
+  const saveRename = async () => {
+    const name = String(renameTpl.name || "").trim();
+    if (!name) { showToast(tr("Name required"), "error"); return; }
+    try {
+      await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body: { name, description: renameTpl.description || "" } });
+      showToast(tr("Saved")); setRenameTpl(null); loadTemplates();
+      if (selectedTemplate && selectedTemplate.id === renameTpl.id) openTemplate(renameTpl.id);
+    } catch (e) { showToast(e.message, "error"); }
+  };
   const [newTplForm, setNewTplForm] = useState({ name: "", description: "" });
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
@@ -7378,6 +7688,11 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
         ))}
       </div>
 
+      {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+        <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setRenameTpl(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveRename}>{tr("Save")}</Btn></div>
+      </div></Mdl>}
       {/* TEMPLATES TAB */}
       {tab === "templates" && (
         <div style={{ display: "flex", gap: 20 }}>
@@ -7388,7 +7703,10 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
-                    {canManageInspections && <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
+                    {canManageInspections && <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                      <button onClick={e => { e.stopPropagation(); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "" }); }} style={{ minHeight: 44, padding: "0 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Rename")}</button>
+                      <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={14} c={RD} /></button>
+                    </div>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
@@ -7921,6 +8239,8 @@ const CAPABILITY_LABELS = {
   read_incident_reports: "Read filed incident reports",
   export_payroll: "ADP payroll export",
   manage_admins: "Change admin accounts (role, status, PIN)",
+  // Step 185: the Help insights page, routes/help-insights (STEP183_CONTRACT.md, section 4).
+  view_help_insights: "See Help insights",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -8231,6 +8551,31 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
   const [editCatForm, setEditCatForm] = useState(null);
   const [addValForm, setAddValForm] = useState(null);
   const [editValForm, setEditValForm] = useState(null);
+  // Shown in Spanish as (Step 185): the Spanish the portal draws today for the value being edited,
+  // read from the same list with locale=es so displayLabel carries it, editable, and saved through
+  // PATCH /api/lookups/values/:id/translations as { locale, field, text } with field label.
+  const [valEs, setValEs] = useState(null);
+  const editValId = editValForm ? editValForm.id : null;
+  useEffect(() => {
+    if (!editValId) { setValEs(null); return undefined; }
+    let alive = true;
+    setValEs({ id: editValId, label: "", was: null });
+    af("/api/lookups/all?locale=es").then(cats => {
+      if (!alive) return;
+      let hit = null;
+      (Array.isArray(cats) ? cats : []).forEach(c => (Array.isArray(c.values) ? c.values : []).forEach(v => { if (String(v.id) === String(editValId)) hit = v; }));
+      const was = hit ? String(hit.displayLabel || hit.label || "") : "";
+      setValEs({ id: editValId, label: was, was });
+    }).catch(e => { if (alive) { console.warn("Spanish wording:", e.message); setValEs(null); } });
+    return () => { alive = false; };
+  }, [af, editValId]);
+  const saveValSpanish = async () => {
+    if (!editValForm || !valEs || valEs.id !== editValForm.id || valEs.was === null) return false;
+    const text = String(valEs.label || "").trim();
+    if (!text || text === valEs.was) return false;
+    await af("/api/lookups/values/" + editValForm.id + "/translations", { method: "PATCH", body: { locale: "es", field: "label", text } });
+    return true;
+  };
   const [loading, setLoading] = useState(true); const [lkFailed, setLkFailed] = useState(false);
   const [selSite, setSelSite] = useState("");
   const [siteLookups, setSiteLookups] = useState({ zones: [], buildings: [], floors: [] });
@@ -8271,7 +8616,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/values", { method: "POST", body: { ...addValForm, category_id: selCat } }); showToast(tr("Value added")); setAddValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const submitEditVal = async () => {
-    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast(tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
+    try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); const fixed = await saveValSpanish(); showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
     if (!window.confirm(tr("Remove this value from this list?"))) return;
@@ -8480,6 +8825,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
           <div><Lbl>{tr("Value (stored)")}</Lbl><Inp t={t} value={editValForm.value} onChange={e => setEditValForm({ ...editValForm, value: e.target.value })} style={{ fontFamily: "monospace" }} /></div>
           <div><Lbl>{tr("Label (displayed)")}</Lbl><Inp t={t} value={editValForm.label} onChange={e => setEditValForm({ ...editValForm, label: e.target.value })} /></div>
         </div>
+        {valEs && valEs.id === editValForm.id && <div style={{ marginBottom: 12 }}><Lbl>{tr("Shown in Spanish as")}</Lbl>{valEs.was === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <Inp t={t} value={valEs.label} onChange={e => setValEs({ ...valEs, label: e.target.value })} />}</div>}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
           <div><Lbl>{tr("Color")}</Lbl><Inp t={t} value={editValForm.color} onChange={e => setEditValForm({ ...editValForm, color: e.target.value })} placeholder={tr("e.g. #24A4F4")} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 22 }}><label style={chkWrap}><input type="checkbox" checked={editValForm.show_other_input} onChange={e => setEditValForm({ ...editValForm, show_other_input: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Show \"Other\" text input")}</span></div>
@@ -11093,7 +11439,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             </div>
           </div>
 
-          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                 {LIBRARY_COLS.map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{tr(h)}</th>)}
@@ -11140,7 +11486,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             </div>
           </div>
 
-          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                 {SUBMISSION_COLS.map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{tr(h)}</th>)}
@@ -11194,7 +11540,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <Btn t={t} v="ghost" onClick={() => loadPdfAccessLog(true)} style={{ fontSize: 12, padding: "8px 14px" }}>{tr("Refresh")}</Btn>
           </div>
 
-          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                 {ACCESS_COLS.map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{tr(h)}</th>)}
@@ -11660,6 +12006,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       </div>
                       <span style={{ fontSize: 11, color: t.textMut }}>{trn("{0} alias|count", g.rows.length)}</span>
                     </div>
+                    <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                         {ALIAS_COLS.map(h => (
@@ -11690,6 +12037,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </Crd>
                 ))}
               </div>
@@ -12381,7 +12729,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                       </button>
                     )}
                     {it.notes && (
-                      <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={it.notes}>{tr("note: {0}", it.notes.slice(0, 40) + (it.notes.length > 40 ? "..." : ""))}</span>
+                      <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={trainingNotesShown(it.notes)}>{tr("note: {0}", trainingNotesShown(it.notes).slice(0, 40) + (trainingNotesShown(it.notes).length > 40 ? "..." : ""))}</span>
                     )}
                   </div>
                 </div>
@@ -12894,6 +13242,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
               { label: tr("Expired Documents"), val: compliance.expiredDocs.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
               { label: tr("Expiring (30 days)"), val: compliance.expiringDocs.length + compliance.expiringTraining.length, bg: t.orangeSubtle, bdr: t.orangeBorder, c: OR },
               { label: tr("Expired Training"), val: compliance.expiredTraining.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
+              { label: tr("Certifications expiring soon"), val: (compliance.expiringCerts || []).length, bg: t.orangeSubtle, bdr: t.orangeBorder, c: OR },
+              { label: tr("Expired certifications"), val: (compliance.expiredCerts || []).length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
               { label: tr("Staff with Onboarding"), val: compliance.onboardingProgress.length, bg: t.blueSubtle, bdr: t.blueBorder, c: BL },
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, border: "1px solid " + s.bdr, borderRadius: 12, padding: "16px 20px" }}>
@@ -12903,7 +13253,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             ))}
           </div>
 
-          {(compliance.expiredDocs.length > 0 || compliance.expiredTraining.length > 0) && <div style={{ marginBottom: 24 }}>
+          {(compliance.expiredDocs.length > 0 || compliance.expiredTraining.length > 0 || (compliance.expiredCerts || []).length > 0) && <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: RD, marginBottom: 10 }}>{tr("Expired Items")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.redBorder, overflow: "hidden" }}>
               {compliance.expiredDocs.map(d => (
@@ -12920,10 +13270,17 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
                   <span style={{ color: RD }}>{fmtDate(r.expiry_date)}</span>
                 </div>
               ))}
+              {(compliance.expiredCerts || []).map(c => (
+                <div key={"cert" + c.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+                  <span style={{ color: t.text }}>{c.user_name}</span>
+                  <span style={{ color: t.textSec }}>{c.cert_name}</span>
+                  <span style={{ color: RD }}>{fmtDate(c.expiry_date)}</span>
+                </div>
+              ))}
             </div>
           </div>}
 
-          {(compliance.expiringDocs.length > 0 || compliance.expiringTraining.length > 0) && <div style={{ marginBottom: 24 }}>
+          {(compliance.expiringDocs.length > 0 || compliance.expiringTraining.length > 0 || (compliance.expiringCerts || []).length > 0) && <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: OR, marginBottom: 10 }}>{tr("Expiring Within 30 Days")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.orangeBorder, overflow: "hidden" }}>
               {compliance.expiringDocs.map(d => (
@@ -12938,6 +13295,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
                   <span style={{ color: t.text }}>{r.user_name}</span>
                   <span style={{ color: t.textSec }}>{r.training_name}</span>
                   <span style={{ color: OR }}>{fmtDate(r.expiry_date)}</span>
+                </div>
+              ))}
+              {(compliance.expiringCerts || []).map(c => (
+                <div key={"cert" + c.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+                  <span style={{ color: t.text }}>{c.user_name}</span>
+                  <span style={{ color: t.textSec }}>{c.cert_name}</span>
+                  <span style={{ color: OR }}>{fmtDate(c.expiry_date)}</span>
                 </div>
               ))}
             </div>
@@ -13117,6 +13481,8 @@ const trainingNames = (rows) => {
 };
 // The language a record's notes say its session was given in, or null.
 const trainingLanguageOf = (notes) => TRAINING_LANGUAGES.find((l) => String(notes || "").split("\n").some((line) => line.trim() === l.note)) || null;
+// A record's notes as a screen draws them: the language line in the screen's words, the rest as typed.
+const trainingNotesShown = (notes) => String(notes || "").split("\n").map((line) => { const l = TRAINING_LANGUAGES.find((x) => x.note === line.trim()); return l ? tr(l.note) : line; }).join("\n");
 // A day a record carries, YYYY-MM-DD, in the language's own words. Read as the parts it is written in, so
 // no time zone moves it.
 const trainingDayWords = (day, long) => {
