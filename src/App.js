@@ -1746,8 +1746,6 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const [editTask, setEditTask] = useState(null);
   const [editSite, setEditSite] = useState(null);
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [deleteText, setDeleteText] = useState("");
   const [timeline, setTimeline] = useState([]);
   const [tlTotal, setTlTotal] = useState(0);
   const [tlCat, setTlCat] = useState("all");
@@ -1873,7 +1871,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   };
 
   const removeSupplyFromSite = async (supplyId) => {
-    if (!window.confirm(tr("Remove this supply from the site?"))) return;
+    if (!window.confirm(tr("Remove this supply from this list?"))) return;
     try {
       await af("/api/sites/" + selectedSite + "/supplies/" + supplyId, { method: "DELETE" });
       showToast(tr("Supply removed"));
@@ -1955,7 +1953,6 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
 
   const deactivateSite = async (id) => { try { await af("/api/sites/" + id, { method: "PATCH", body: { status: "inactive" } }); showToast(tr("Site deactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
 
-  const deleteSite = async (id) => { try { await af("/api/sites/" + id, { method: "DELETE" }); showToast(tr("Site permanently deleted")); setDeleteConfirm(null); setDeleteText(""); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } };
 
   const uploadFloorPlan = async (file) => {
     if (!file || !selectedSite) return;
@@ -1971,7 +1968,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   };
 
   const deleteFloorPlan = async (planId) => {
-    if (!window.confirm(tr("Remove this floor plan?"))) return;
+    if (!window.confirm(tr("Remove this floor plan from this list?"))) return;
     try { await af("/api/sites/" + selectedSite + "/floor-plans/" + planId, { method: "DELETE" }); showToast(tr("Floor plan removed")); refreshProfile(); } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -2123,7 +2120,6 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
     const zoneWord = {}; st.forEach(tk => { if (tk.zone && tk.display && tk.display.zone) zoneWord[tk.zone] = tk.display.zone; });
     const zoneShown = lkMap("zones", true);
     // The word a person types to delete the site, in the language they read.
-    const deleteWord = tr("DELETE");
     const tabs = [
       { k: "general", l: tr("General Info") }, { k: "tasks", l: tr("Service Details") },
       { k: "shifts", l: tr("Shifts & Schedule") }, { k: "supplies", l: tr("Supplies") },
@@ -2148,7 +2144,6 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
           {canManageSites && <div style={{ display: "flex", gap: 6 }}>
             {s.status === "active" && <button onClick={() => { if (window.confirm(tr("Deactivate this site?"))) deactivateSite(s.id); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 11, cursor: "pointer" }}>{tr("Deactivate")}</button>}
             {s.status !== "active" && <button onClick={async () => { try { await af("/api/sites/" + s.id, { method: "PATCH", body: { status: "active" } }); showToast(tr("Site reactivated")); closeProfile(); load(); } catch (e) { showToast(e.message, "error"); } }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 11, cursor: "pointer" }}>{tr("Reactivate")}</button>}
-            <button onClick={() => { setDeleteConfirm(s); setDeleteText(""); }} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 11, cursor: "pointer" }}>{tr("Delete")}</button>
           </div>}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 16 }}>
@@ -2224,7 +2219,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
-              {canManageSites && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove")}</button>}
+              {canManageSites && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
             </div>
           </div>)}
           {canManageSites && <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -2306,7 +2301,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
                 <div style={{ fontSize: 13, fontWeight: 600, color: sup.current_stock <= sup.low_threshold ? RD : t.text }}>{sup.current_stock}</div>
                 <div style={{ fontSize: 9, color: t.textMut }}>{tr("Min: {0}", sup.low_threshold)}</div>
               </div>
-              {canManageSites && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>}
+              {canManageSites && <button onClick={() => removeSupplyFromSite(sup.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
             </div>
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supplies assigned to this site")}</div>}
@@ -2500,16 +2495,6 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
       </div></Mdl>}
 
       {/* DELETE SITE MODAL */}
-      {deleteConfirm && <Mdl t={t} onClose={() => setDeleteConfirm(null)}><div style={{ padding: 20 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: RD, marginBottom: 12 }}>{tr("Permanently Delete Site")}</div>
-        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{trWith("This will permanently remove {0} and all associated tasks, assignments, and data. This action cannot be undone.", <span style={{ fontWeight: 600, color: t.text }}>{deleteConfirm.name}</span>)}</div>
-        <div style={{ padding: "10px 12px", borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 14 }}>{trWith("Type {0} to confirm.", <span style={{ fontWeight: 600 }}>{deleteWord}</span>)}</div>
-        <div style={{ marginBottom: 16 }}><Inp t={t} value={deleteText} onChange={e => setDeleteText(e.target.value)} placeholder={tr("Type {0} here", deleteWord)} style={{ textTransform: "uppercase", textAlign: "center", fontSize: 16, letterSpacing: "4px", border: deleteText === deleteWord ? "1px solid " + RD : "1px solid " + t.inputBorder }} /></div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <Btn t={t} v="ghost" onClick={() => { setDeleteConfirm(null); setDeleteText(""); }}>{tr("Cancel")}</Btn>
-          <Btn t={t} v="danger" onClick={() => { if (deleteText === deleteWord) deleteSite(deleteConfirm.id); else showToast(tr("Type {0} to confirm", deleteWord), "error"); }}>{tr("Delete Permanently")}</Btn>
-        </div>
-      </div></Mdl>}
     </div>);
   }
 
@@ -4323,8 +4308,8 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const editReport = (d) => { setEditing(d); setView("edit"); };
   const duplicateReport = (d) => { setEditing({ name: tr("{0} (copy)", d.name || tr("Report")), description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
   const deleteReport = async (d) => {
-    if (!window.confirm(tr("Delete \"{0}\"? This cannot be undone.", d.name))) return;
-    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deleted")); loadDefs(); }
+    if (!window.confirm(tr("Deactivate \"{0}\"?", d.name))) return;
+    try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deactivated")); loadDefs(); }
     catch (e) { showToast(e.message, "error"); }
   };
 
@@ -4385,7 +4370,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
                     <Btn v="primary" t={t} onClick={() => runReport(d)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Run")}</Btn>
                     <Btn v="ghost" t={t} onClick={() => duplicateReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Duplicate")}</Btn>
                     {!d.is_system ? <Btn v="ghost" t={t} onClick={() => editReport(d)} style={{ padding: "7px 12px", fontSize: 12 }}>{tr("Edit")}</Btn> : null}
-                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Delete")}</Btn> : null}
+                    {!d.is_system ? <Btn v="ghost" t={t} onClick={() => deleteReport(d)} style={{ padding: "7px 12px", fontSize: 12, color: RD }}>{tr("Deactivate")}</Btn> : null}
                   </div>
                 </Crd>
               ))}
@@ -5565,7 +5550,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
   };
   // A shift a pattern wrote is cancelled for that date only; the pattern does not add it again.
   const editPatternId = editModal ? (editModal.shiftPatternId || editModal.shift_pattern_id || null) : null;
-  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? tr("Cancel this shift? The pattern will not add it again.") : tr("Delete this scheduled shift? This cannot be undone."))) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(fromPattern ? tr("Shift cancelled") : tr("Shift removed")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteShift = async (id) => { const fromPattern = !!editPatternId; if (!window.confirm(fromPattern ? tr("Cancel this shift? The pattern will not add it again.") : tr("Cancel this scheduled shift?"))) return; try { await af("/api/schedule/" + id, { method: "DELETE" }); showToast(tr("Shift cancelled")); setEditModal(null); loadCalendar(); } catch (e) { showToast(e.message, "error"); } };
   const [convertPickup, setConvertPickup] = useState(null);
   const submitConvertPickup = async () => {
     try {
@@ -5809,7 +5794,7 @@ function SchedulePage({ af, showToast, isAdmin, t, sites, allStaff, user, getOpt
 
       <div style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
         <div style={{ display: "flex", gap: 6 }}>
-          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? tr("Cancel this date") : tr("Delete")}</Btn>
+          <Btn t={t} v="danger" onClick={() => deleteShift(editModal.id)} style={{ fontSize: 11, padding: "8px 14px" }}>{editPatternId ? tr("Cancel this date") : tr("Cancel shift")}</Btn>
           {editModal.status === "scheduled" && !convertPickup && <button onClick={() => setConvertPickup({ id: editModal.id, origin: "callout", notes: "" })} style={{ display: "flex", alignItems: "center", gap: 4, padding: "8px 14px", borderRadius: 8, border: "1px solid " + TL, background: TL + "12", color: TL, fontSize: 11, fontWeight: 600, cursor: "pointer" }}><SwpI sz={12} c={TL} />{tr("Pickup")}</button>}
         </div>
         <div style={{ display: "flex", gap: 10 }}><Btn t={t} v="ghost" onClick={() => setEditModal(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div>
@@ -6721,8 +6706,8 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   };
 
   const deleteItem = async (itemId) => {
-    if (!window.confirm(tr("Remove this line item?"))) return;
-    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast(tr("Item removed")); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Deactivate this line item?"))) return;
+    try { await af("/api/inspections/templates/" + selectedTemplate.id + "/items/" + itemId, { method: "DELETE" }); showToast(tr("Item deactivated")); openTemplate(selectedTemplate.id); } catch (e) { showToast(e.message, "error"); }
   };
 
   const [editItemId, setEditItemId] = useState(null);
@@ -6742,10 +6727,10 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   };
 
   const deleteTemplate = async (id) => {
-    if (!window.confirm(tr("Delete this template? All scheduled inspections using it will also be removed."))) return;
+    if (!window.confirm(tr("Deactivate this template?"))) return;
     try {
       await af("/api/inspections/templates/" + id, { method: "DELETE" });
-      showToast(tr("Template deleted")); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
+      showToast(tr("Template deactivated")); if (selectedTemplate?.id === id) setSelectedTemplate(null); loadTemplates();
     } catch (e) { showToast(e.message, "error"); }
   };
 
@@ -6761,10 +6746,6 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
     try { const d = await af("/api/inspections/scheduled/" + id); setDetailView(d); setExpandedItems(new Set()); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteScheduled = async (id) => {
-    if (!window.confirm(tr("Delete this inspection?"))) return;
-    try { await af("/api/inspections/scheduled/" + id, { method: "DELETE" }); showToast(tr("Deleted|inspection")); loadScheduled(); } catch (e) { showToast(e.message, "error"); }
-  };
 
   const openEditInspection = (si) => {
     setEditInspForm({ template_id: si.template_id, site_id: si.site_id, assigned_to: si.assigned_to || "", scheduled_date: si.scheduled_date ? si.scheduled_date.slice(0, 10) : "" });
@@ -7067,7 +7048,7 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
-                    {canManageInspections && <button onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
+                    {canManageInspections && <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, flexShrink: 0 }}><XI sz={14} c={RD} /></button>}
                   </div>
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
@@ -7108,7 +7089,7 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
                           <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - {tr("max {0} pts", item.max_score)}</div>
                         </div>
                         <button onClick={() => startEditItem(item)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 4, color: t.textSec, fontSize: 10 }}>{tr("Edit")}</button>
-                        <button onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
+                        <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={() => deleteItem(item.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><XI sz={12} c={t.textMut} /></button>
                       </div>
                     )}
                   </div>
@@ -7158,7 +7139,7 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>{tr("Unassigned")}</span> },
               { header: tr("Status"), render: si => <Bdg l={stateOf(si.status)} c={STATUS_C[si.status] || BL} /> },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{canManageInspections && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Edit")} onClick={e => { e.stopPropagation(); openEditInspection(si); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><EdI sz={13} c={t.textMut} /></button>}{canManageInspections && <button title={tr("Cancel")} aria-label={tr("Cancel")} onClick={e => { e.stopPropagation(); cancelInspection(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
             ];
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={scheduled.length === 0 ? tr("No pending inspections.") : tr("No inspections match these filters.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setSchedPage} />} />;
@@ -7187,7 +7168,7 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
               { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
               { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
               { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: si => { const pct = si.total_score && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) : null; if (pct === null) return <span style={{ color: t.textMut }}>-</span>; const sc = pct >= 80 ? GR : pct >= 60 ? OR : RD; return <div><span style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: sc }}>{pct}%</span><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", si.total_score, si.max_possible_score)}</div></div>; } },
-              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button>{canManageInspections && <button title={tr("Delete")} onClick={e => { e.stopPropagation(); deleteScheduled(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.border, background: "transparent", cursor: "pointer" }}><XI sz={14} c={t.textMut} /></button>}</div> }
+              { header: tr("Actions"), align: "right", render: si => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}><button title={tr("View inspection")} onClick={e => { e.stopPropagation(); openDetail(si.id); }} style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 7, border: "1px solid " + t.goldBorder, background: t.goldBg, cursor: "pointer" }}><Ic d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" sz={15} c={t.goldText} /></button></div> }
             ];
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
@@ -7937,8 +7918,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/categories/" + editCatForm.id, { method: "PATCH", body: { label: editCatForm.label, description: editCatForm.description } }); showToast(tr("Category updated")); setEditCatForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteCat = async (id) => {
-    if (!window.confirm(tr("Delete this category and all its values?"))) return;
-    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Category deleted")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this list and its values from the lists shown?"))) return;
+    try { await af("/api/lookups/categories/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); if (selCat === id) setSelCat(cats.find(c => c.id !== id)?.id || null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleCatActive = async (cat) => {
     try { await af("/api/lookups/categories/" + cat.id, { method: "PATCH", body: { is_active: !cat.is_active } }); showToast(cat.is_active ? tr("Category deactivated") : tr("Category activated")); load(); } catch (e) { showToast(e.message, "error"); }
@@ -7953,8 +7934,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/values/" + editValForm.id, { method: "PATCH", body: { label: editValForm.label, value: editValForm.value, color: editValForm.color, show_other_input: editValForm.show_other_input } }); showToast(tr("Value updated")); setEditValForm(null); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteVal = async (id) => {
-    if (!window.confirm(tr("Delete this value?"))) return;
-    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Value deleted")); load(); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this value from this list?"))) return;
+    try { await af("/api/lookups/values/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); load(); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleValActive = async (val) => {
     try { await af("/api/lookups/values/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); load(); } catch (e) { showToast(e.message, "error"); }
@@ -7979,8 +7960,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     try { await af("/api/lookups/site/" + selSite + "/" + editSiteVal.id, { method: "PATCH", body: { label: editSiteVal.label, value: editSiteVal.value, lookup_type: editSiteVal.lookup_type } }); showToast(tr("Updated")); setEditSiteVal(null); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const deleteSiteVal = async (id) => {
-    if (!window.confirm(tr("Delete this value?"))) return;
-    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast(tr("Deleted")); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
+    if (!window.confirm(tr("Remove this value from this list?"))) return;
+    try { await af("/api/lookups/site/" + selSite + "/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
   };
   const toggleSiteValActive = async (val) => {
     try { await af("/api/lookups/site/" + selSite + "/" + val.id, { method: "PATCH", body: { is_active: !val.is_active } }); loadSiteLookups(selSite); } catch (e) { showToast(e.message, "error"); }
@@ -8055,7 +8036,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
             <div style={{ display: "flex", gap: 4 }}>
               <button onClick={() => setEditCatForm({ id: activeCat.id, label: activeCat.label, description: activeCat.description || "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => toggleCatActive(activeCat)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + (activeCat.is_active ? OR : GR), background: "transparent", color: activeCat.is_active ? OR : GR, fontSize: 10, cursor: "pointer" }}>{activeCat.is_active ? tr("Deactivate") : tr("Activate")}</button>
-              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Delete")}</button>}
+              {!activeCat.is_system && <button onClick={() => deleteCat(activeCat.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
               <button onClick={() => setAddValForm({ value: "", label: "", color: "", show_other_input: false })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: GO, color: NAVY, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>{tr("+ Add Value")}</button>
             </div>
           </div>
@@ -8076,7 +8057,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
                   <button onClick={() => setEditValForm({ id: v.id, value: v.value, label: v.label, color: v.color || "", show_other_input: v.show_other_input })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
-                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
+                  <button onClick={() => deleteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Remove from this list")}</button>
                 </div>
               </div>
             ))}
@@ -8113,7 +8094,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleSiteValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
                   <button onClick={() => setEditSiteVal({ id: v.id, value: v.value, label: v.label, lookup_type: v.lookup_type })} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 8, cursor: "pointer" }}>{tr("Edit")}</button>
-                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Del")}</button>
+                  <button onClick={() => deleteSiteVal(v.id)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 8, cursor: "pointer" }}>{tr("Remove from this list")}</button>
                 </div>
               </div>
             ))}
@@ -10288,11 +10269,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   }, [af, showToast, aliasAddForm, loadAliases]);
 
   const deleteAlias = useCallback(async (aliasId, label) => {
-    if (!window.confirm(tr("Remove alias {0}?", label ? "\"" + label + "\"" : "") + "\n\n" + tr("This affects future auto-matching. Existing linked submissions are not changed."))) return;
+    if (!window.confirm(tr("Deactivate alias {0}?", label ? "\"" + label + "\"" : "") + "\n\n" + tr("This affects future auto-matching. Existing linked submissions are not changed."))) return;
     setAliasDeletingId(aliasId);
     try {
       await af("/api/jotform/user-aliases/" + aliasId, { method: "DELETE" });
-      showToast(tr("Alias removed."));
+      showToast(tr("Alias deactivated."));
       loadAliases();
     } catch (e) { showToast(tr("Delete failed: {0}", e.message), "error"); }
     setAliasDeletingId(null);
@@ -11322,7 +11303,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                                 disabled={aliasDeletingId === a.id}
                                 style={{ background: "none", border: "none", color: RD, cursor: aliasDeletingId === a.id ? "wait" : "pointer", fontSize: 12 }}
                               >
-                                {aliasDeletingId === a.id ? "..." : tr("Remove")}
+                                {aliasDeletingId === a.id ? "..." : tr("Deactivate")}
                               </button>
                             </td>
                           </tr>
@@ -12009,7 +11990,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                       <button onClick={() => onEditDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Edit")}</button>
                     )}
                     {it.source === "document" && (
-                      <button onClick={() => onDeleteDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Delete")}</button>
+                      <button onClick={() => onDeleteDocument(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: RD, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Remove from this list")}</button>
                     )}
                     {it.source === "training" && (
                       <button onClick={() => onEditTraining(it.source_id)} style={{ padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 11, cursor: "pointer", fontWeight: 600 }}>{tr("Edit")}</button>
@@ -12319,7 +12300,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteDoc = async (id) => { if (!window.confirm(tr("Delete this document?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Document deleted")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteDoc = async (id) => { if (!window.confirm(tr("Remove this document from this list?"))) return; try { await af("/api/jotform/employee-documents/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadDocs(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const submitTraining = async () => {
     try {
@@ -12332,7 +12313,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteTraining = async (id) => { if (!window.confirm(tr("Delete this training record?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Training record deleted")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteTraining = async (id) => { if (!window.confirm(tr("Remove this training record from this list?"))) return; try { await af("/api/hr/training/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadTraining(); if (folderUserId) setFolderRefresh(v => v + 1); if (compliance) loadCompliance(); } catch (e) { showToast(e.message, "error"); } };
 
   const initOnboarding = async () => {
     if (!selUser) { showToast(tr("Select an employee first"), "error"); return; }
@@ -12348,7 +12329,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     try { await af("/api/hr/onboarding/step", { method: "POST", body: { user_id: selUser, ...form } }); showToast(tr("Step added")); setShowModal(null); setForm({}); loadOnboarding(); } catch (e) { showToast(e.message, "error"); }
   };
 
-  const deleteStep = async (id) => { if (!window.confirm(tr("Delete this step?"))) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast(tr("Step deleted")); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
+  const deleteStep = async (id) => { if (!window.confirm(tr("Remove this step from this list?"))) return; try { await af("/api/hr/onboarding/step/" + id, { method: "DELETE" }); showToast(tr("Removed from this list")); loadOnboarding(); } catch (e) { showToast(e.message, "error"); } };
 
   const tabs = [
     { id: "employees", l: tr("Employees") },
@@ -12451,7 +12432,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
             { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
             { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
-            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
+            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={d => d.id} empty={docs.length === 0 ? tr("No documents found. Use Add Document to upload.") : tr("No documents match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setDocPage} />} />;
         })()}
@@ -12484,7 +12465,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
             { header: tr("Score"), tdStyle: { color: t.textSec }, render: r => r.score || "" },
             { header: tr("Administered By"), tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
-            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
+            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
@@ -12515,7 +12496,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
                         <div style={{ color: step.is_completed ? t.textMut : t.text, textDecoration: step.is_completed ? "line-through" : "none", fontSize: 13 }}>{step.step_name}</div>
                         {step.is_completed && step.completed_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Completed {0}", fmtDate(step.completed_date))}{step.completed_by_name ? " " + tr("by {0}", step.completed_by_name) : ""}</div>}
                       </div>
-                      <button onClick={() => deleteStep(step.id)} style={{ background: "none", border: "none", color: t.textMut, cursor: "pointer", fontSize: 11 }}>{tr("Remove")}</button>
+                      <button onClick={() => deleteStep(step.id)} style={{ background: "none", border: "none", color: t.textMut, cursor: "pointer", fontSize: 11 }}>{tr("Remove from this list")}</button>
                     </div>
                   ))}
                 </div>
@@ -12645,7 +12626,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: d => <span>{expiryBadge(d.expiry_date)}{d.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(d.expiry_date)}</span> : ""}</span> },
             { header: tr("Uploaded By"), tdStyle: { color: t.textSec }, render: d => d.uploaded_by_name || "" },
             { header: tr("Date"), tdStyle: { color: t.textSec, fontSize: 12, whiteSpace: "nowrap" }, render: d => fd(d.created_at) },
-            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Delete")}</button></div> }
+            { header: "", align: "right", render: d => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...d, expiry_date: fmtDate(d.expiry_date) }); setFile(null); setShowModal("doc"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteDoc(d.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ]; return (<>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} item|count", otherDocs.length)}</div>
