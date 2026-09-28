@@ -92,6 +92,19 @@ function createStubs() {
     // Step 186: the codes of the builder forms published, and the reports filed on builder forms.
     published: [],
     builderReports: null,
+    // Since Step 179 the API deletes no row a person removes: it marks the row, is_active false, a
+    // status of cancelled or a removed_at stamp, and every list leaves it out. These hold the rows a
+    // removal marks, as a run has left them: a site's floor plans and supply rows, the scheduled
+    // inspections, each template's items, the saved reports, the aliases, the documents and the
+    // onboarding steps. A reset puts each back.
+    floorPlans: null,
+    siteSupplies: null,
+    inspections: null,
+    templateItems: null,
+    reportDefs: null,
+    aliases: null,
+    documents: null,
+    onboarding: null,
   };
 
   const person = () => seed.PEOPLE[signedInAs];
@@ -362,6 +375,9 @@ function createStubs() {
     { id: "rd-5", name: "Labor hours by site", description: "Arrives with the labor workstream.", category: "labor", source: "labor_hours", is_system: true, config: {} },
   ];
   // hand: 5 saved reports in 4 categories. 4 are system templates, 1 is custom, 1 source is not live.
+  // The saved reports as a run has left them. Since Step 179 a removed report is set is_active false
+  // and kept, by its owner or an admin, and the list reads the live ones (routes/report-engine.js).
+  const reportRows = () => { if (!state.reportDefs) state.reportDefs = clone(REPORT_DEFS); return state.reportDefs; };
 
   const INSPECTION_TEMPLATES = [
     { id: "tp-1", name: "Monthly quality walk", description: "Occupied floors, lobby and restrooms.", item_count: 10, max_total_score: 100, is_active: true },
@@ -376,6 +392,17 @@ function createStubs() {
     { id: "si-1", site_id: S[0].id, site_name: S[0].name, template_id: "tp-1", template_name: "Monthly quality walk", scheduled_date: seed.shift(4), status: "scheduled", assigned_to: "u-sup-1", assigned_to_name: "Marcus Ferreira" },
     { id: "si-2", site_id: S[2].id, site_name: S[2].name, template_id: "tp-2", template_name: "Dock area check", scheduled_date: seed.shift(6), status: "scheduled", assigned_to: "u-cap-1", assigned_to_name: "Priya Raghunathan" },
   ];
+  // The templates, each template's items and the scheduled inspections as a run has left them. Since
+  // Step 179 a template or an item is set is_active false and kept, and a scheduled inspection is
+  // cancelled and kept, with who and when; the lists read the live rows and the list of scheduled
+  // inspections answers every row, cancelled ones included, the way routes/inspections.js does.
+  const templateRows = () => { if (!state.templates) state.templates = clone(INSPECTION_TEMPLATES); return state.templates; };
+  const itemRows = (tpId) => {
+    if (!state.templateItems) state.templateItems = {};
+    if (!state.templateItems[tpId]) state.templateItems[tpId] = clone(INSPECTION_ITEMS);
+    return state.templateItems[tpId];
+  };
+  const inspectionRows = () => { if (!state.inspections) state.inspections = clone(SCHEDULED_INSPECTIONS); return state.inspections; };
 
   // Shaped to the Cases page: clock, ageHours, subject, assignedTo, reportedBy, escalatedTo, createdAt,
   // updatedAt, firstResponseAt, resolvedAt, the summary and the resolution notes. The response clock is
@@ -407,6 +434,11 @@ function createStubs() {
   }));
   // hand: 12 documents. category other = 3 (i = 3, 7, 11), so the Other tab lists 3 and the
   // Documents tab lists the other 9.
+  // The documents as a run has left them. Since Step 179 DELETE /api/jotform/employee-documents/:id
+  // stamps the row with removed_at and who, and the storage object stays; every list leaves a stamped
+  // row out (routes/jotform.js and routes/hr.js).
+  const docRows = () => { if (!state.documents) state.documents = clone(HR_DOCUMENTS); return state.documents; };
+  const liveDocs = () => docRows().filter((x) => !x.removed_at);
 
   const HR_TRAINING = Array.from({ length: 12 }, (_, i) => ({
     id: "ht-" + (i + 1),
@@ -441,6 +473,9 @@ function createStubs() {
     if (a.completed_date !== b.completed_date) return a.completed_date < b.completed_date ? 1 : -1;
     return String(b.created_at || "").localeCompare(String(a.created_at || ""));
   };
+  // Since Step 179 DELETE /api/hr/training/:id stamps the record with removed_at and who, and every
+  // list and read leaves a stamped record out (routes/hr.js).
+  const removedTraining = (id) => !!(state.training && state.training.some((r) => r.id === id && r.removed_at));
 
   const HR_ONBOARDING = [
     { id: "ob-1", step_category: "paperwork", step_name: "Handbook acknowledged", is_completed: true, completed_date: seed.shift(-20), completed_by_name: "Dana Whitlock" },
@@ -450,6 +485,10 @@ function createStubs() {
     { id: "ob-5", step_category: "equipment", step_name: "Keys and badge issued", is_completed: false, completed_date: null, completed_by_name: null },
   ];
   // hand: 5 steps in 3 categories, 3 complete, so the line reads "3 of 5 steps complete".
+  // The steps as a run has left them. Since Step 179 DELETE /api/hr/onboarding/step/:id stamps the
+  // step with removed_at and who, and every list leaves a stamped step out (routes/hr.js).
+  const onboardingRows = () => { if (!state.onboarding) state.onboarding = clone(HR_ONBOARDING); return state.onboarding; };
+  const liveSteps = () => onboardingRows().filter((x) => !x.removed_at);
 
   // A card on the Employees grid, shaped to what the grid reads since Session 22. The last activity
   // runs today, yesterday, days, a week, a month and a year back down the list, so each way a card
@@ -472,14 +511,15 @@ function createStubs() {
   // and a finished step's date is the day it was done, a DATE, which routes/hr.js sends as
   // new Date(completed_date).toISOString(): midnight UTC of that day, from a server that runs in UTC.
   // Since Step 186 the list starts with the filed reports about the person, the way routes/hr.js starts
-  // it from formItems.
+  // it from formItems. A document, a training record or a step removed since Step 179 is left out, the
+  // way routes/hr.js reads the folder.
   const hrFolder = (p) => {
     const items = folderForms(p).concat(
-      HR_DOCUMENTS.filter((x) => x.user_id === p.id).map((x) => ({ source: "document", source_id: x.id, title: x.title, category: x.category,
+      liveDocs().filter((x) => x.user_id === p.id).map((x) => ({ source: "document", source_id: x.id, title: x.title, category: x.category,
         raw_category_label: null, date: x.created_at, expiry_date: x.expiry_date })),
-      HR_TRAINING.filter((x) => x.user_id === p.id).map((x) => ({ source: "training", source_id: x.id, title: x.training_name, category: "training",
+      HR_TRAINING.filter((x) => x.user_id === p.id && !removedTraining(x.id)).map((x) => ({ source: "training", source_id: x.id, title: x.training_name, category: "training",
         raw_category_label: x.training_type, date: x.completed_date + "T00:00:00.000Z", expiry_date: x.expiry_date, administered_by: x.administered_by })),
-      HR_ONBOARDING.map((x) => ({ source: "onboarding", source_id: x.id, title: x.step_name, category: "hr_onboarding", raw_category_label: x.step_category,
+      liveSteps().map((x) => ({ source: "onboarding", source_id: x.id, title: x.step_name, category: "hr_onboarding", raw_category_label: x.step_category,
         date: x.completed_date ? x.completed_date + "T00:00:00.000Z" : null, status: x.is_completed ? "completed" : "pending" })),
       JOTFORM_SUBMISSIONS.filter((x) => x.user_id === p.id).map((x) => ({ source: "jotform", source_id: x.id, title: x.form_title, category: "hr_ongoing",
         category_override: null, raw_category_label: null, date: x.submitted_at, submitter_name: x.submitter_name })));
@@ -556,6 +596,18 @@ function createStubs() {
     { id: "pa-3", jotform_form_id: "240000000000001", form_title: "Incident report", submission_id: "600000000000001", first_name: null, last_name: null, access_type: "print", accessed_at: seed.shift(-8) + "T16:00:00Z", ip_address: "198.51.100.4", success: false, submitter_name: null, error_message: "The upstream PDF could not be read" },
   ];
   // hand: 3 access events, 1 of them a failure, and one with no person left on the row.
+  // The aliases Maintenance lists, in the columns GET /api/jotform/user-aliases selects in routes/jotform.js,
+  // ordered by the person's first and last name, the alias's type and its value. Since Step 179 a
+  // removal sets is_active false and keeps the row, and the list and the matcher leave it out.
+  const aliasFor = (p, extra) => Object.assign({ user_id: p.id, created_by_user_id: seed.PEOPLE.admin.id, notes: null,
+    first_name: p.first_name, last_name: p.last_name, email: p.email, user_status: p.status, employee_id: p.employee_id,
+    created_by_first_name: seed.PEOPLE.admin.firstName, created_by_last_name: seed.PEOPLE.admin.lastName }, extra);
+  const ALIASES = [
+    aliasFor(seed.STAFF[5], { id: "al-2", alias_type: "name", alias_value: "gigi okonkwo", source: "admin_added", created_at: seed.shift(-25) + "T14:00:00Z", last_matched_at: null, match_count: 0, notes: "Signs forms with a nickname" }),
+    aliasFor(seed.STAFF[4], { id: "al-1", alias_type: "email", alias_value: "t.wisniewski@example.invalid", source: "manual_link", created_at: seed.shift(-40) + "T15:00:00Z", last_matched_at: seed.shift(-3) + "T18:05:00Z", match_count: 2 }),
+  ];
+  // hand: 2 aliases, one each for two people, Ngozi Okonkwo's first by name.
+  const aliasRows = () => { if (!state.aliases) state.aliases = clone(ALIASES); return state.aliases; };
   // Shaped to the Filed forms view: formName, siteName, userName, submittedAt, createdAt,
   // answered, remaining, dueAt.
   const INCIDENT_REPORTS = [
@@ -1892,11 +1944,31 @@ function createStubs() {
   // off. Neither changes what a pick list offers, since a page reads a list's values whatever the
   // list's own state.
   const LIST_DESCRIPTIONS = { issue_severities: "How soon a reported problem needs attention." };
+  const systemList = (c) => c.slug !== "contract_types";
+  // The lists and the values a person has removed since the last reset. Since Step 179 a removal sets
+  // is_active false and keeps the row (routes/lookups.js): /all still answers it, off, and the lists
+  // anyone signed in reads leave it out.
+  let lookupOff = { lists: {}, values: {} };
+  // A site's own values, every one on or off, the way GET /api/lookups/site/:siteId/all answers them.
+  const siteLookupRows = () => {
+    if (!state.lookupValues) {
+      state.lookupValues = {
+        zones: [
+          { id: "sl-1", lookup_type: "zone", value: "atrium", label: "Atrium", is_active: true, sort_order: 1 },
+          { id: "sl-2", lookup_type: "zone", value: "loading_bay", label: "Loading Bay", is_active: true, sort_order: 2 },
+        ],
+        buildings: [{ id: "sl-3", lookup_type: "building", value: "north_wing", label: "North Wing", is_active: true, sort_order: 1 }],
+        floors: [{ id: "sl-4", lookup_type: "floor", value: "3", label: "Floor 3", is_active: true, sort_order: 1 }],
+      };
+    }
+    return state.lookupValues;
+  };
   const lookupsIn = (lang) => LOOKUPS.map((c, i) => ({
     id: c.id, slug: c.slug, label: c.name, description: LIST_DESCRIPTIONS[c.slug] || null,
-    is_system: c.slug !== "contract_types", sort_order: i + 1, is_active: c.slug !== "document_categories",
+    is_system: systemList(c), sort_order: i + 1, is_active: c.slug !== "document_categories" && !lookupOff.lists[c.id],
     values: withChoiceWords(c.values, lang).filter((v) => !(listGap && listGap.slug === c.slug && listGap.value === v.value))
-      .map((v) => Object.assign({ category_id: c.id, color: null, show_other_input: false, metadata: null }, v, { show_other_input: !!v.show_other_input })),
+      .map((v) => Object.assign({ category_id: c.id, color: null, show_other_input: false, metadata: null }, v, { show_other_input: !!v.show_other_input },
+        lookupOff.values[v.id] ? { is_active: false } : {})),
   }));
 
   // A site's checklist the way Step 124's API holds it. Every item has a shift, how often it comes
@@ -1994,8 +2066,24 @@ function createStubs() {
     };
   };
 
+  // A site's floor plans and its supply rows, supply_site_inventory, as a run has left them. Since Step
+  // 179 a removal sets the row's is_active false and keeps it, and the profile lists the live rows, the
+  // way routes/sites.js does. A supply row is keyed by its supply, which is the id DELETE names.
+  const sitePlans = (siteId) => {
+    if (!state.floorPlans) state.floorPlans = {};
+    if (!state.floorPlans[siteId]) state.floorPlans[siteId] = [{ id: "fp-1", label: "North Wing, floor 3", file_url: "", uploaded_at: seed.shift(-120) + "T12:00:00Z" }];
+    return state.floorPlans[siteId];
+  };
+  const siteStock = (siteId) => {
+    if (!state.siteSupplies) state.siteSupplies = {};
+    if (!state.siteSupplies[siteId]) state.siteSupplies[siteId] = SUPPLIES.slice(0, 2).map((sp0) => ({ supply_id: sp0.id, site_id: siteId }));
+    return state.siteSupplies[siteId];
+  };
+  const liveStock = (siteId) => siteStock(siteId).filter((r) => r.is_active !== false).map((r) => r.supply_id);
+
   // Shaped to what the site profile reads: site, staff, zones, floorPlans, taskCount,
-  // issueSummary, inspectionSummary, marketplaceSummary, upcomingShifts, supplies.
+  // issueSummary, inspectionSummary, marketplaceSummary, upcomingShifts, supplies. The supplies are
+  // the columns the profile selects, by name, each with the supply's own id.
   const siteProfile = (id) => {
     const s0 = state.sites.find((x) => x.id === id) || state.sites[0];
     const staffHere = state.staff.filter((st) => st.site_id === s0.id);
@@ -2011,7 +2099,7 @@ function createStubs() {
       },
       staff: staffHere.map((st) => ({ id: st.id, name: st.name, first_name: st.first_name, last_name: st.last_name, role: st.role, status: st.status })),
       zones: ["Lobby", "Restroom", "Corridor", "Dock"],
-      floorPlans: [{ id: "fp-1", label: "North Wing, floor 3", file_url: "", uploaded_at: seed.shift(-120) + "T12:00:00Z" }],
+      floorPlans: sitePlans(s0.id).filter((fp) => fp.is_active !== false),
       taskCount: ASSIGNED_TASKS.filter((t0) => t0.site_id === s0.id).length,
       issueSummary: { open_count: 1, in_progress_count: 1, resolved_count: 2 },
       inspectionSummary: { avg_score: 90, total: 2, last_inspection: seed.shift(-7) },
@@ -2021,7 +2109,8 @@ function createStubs() {
         user_name: sh.user_name, first_name: String(sh.user_name || "").split(" ")[0], last_name: String(sh.user_name || "").split(" ").slice(1).join(" "),
         status: sh.status,
       })),
-      supplies: SUPPLIES.slice(0, 2).map((sp0) => ({ id: "ss-" + sp0.id, supply_id: sp0.id, name: sp0.name, par_level: 12, category: sp0.category, unit: sp0.unit, current_stock: sp0.current_stock, low_threshold: sp0.low_threshold, is_green_certified: sp0.is_green_certified })),
+      supplies: SUPPLIES.filter((sp0) => liveStock(s0.id).indexOf(sp0.id) >= 0).sort((a, b) => a.name.localeCompare(b.name))
+        .map((sp0) => ({ id: sp0.id, name: sp0.name, category: sp0.category, current_stock: sp0.current_stock, low_threshold: sp0.low_threshold, unit: sp0.unit, is_green_certified: sp0.is_green_certified })),
     };
   };
   // hand: Harbor Point Center holds 4 of the 12 staff rows (every third row from the first), one
@@ -2032,6 +2121,26 @@ function createStubs() {
   // -------------------------------------------------------------------------
   const ok = (json) => ({ status: 200, json });
   const created = (json) => ({ status: 201, json });
+  // What a removal route answers for a row that is not there or may not go, Step 179, in the API's
+  // words for each language and with its code (helpers/words.js at ocsa-api 1c3fb42).
+  const REMOVAL_REFUSALS = {
+    "sites.floorPlanNotFound": [404, "Floor plan not found", "No se encontr\u00f3 el plano"],
+    "sites.assignmentNotFound": [404, "Assignment not found", "No se encontr\u00f3 la asignaci\u00f3n"],
+    "schedule.shiftNotFound": [404, "Scheduled shift not found", "No se encontr\u00f3 el turno programado"],
+    "inspections.scheduledNotFound": [404, "Scheduled inspection not found", "No se encontr\u00f3 la inspecci\u00f3n programada"],
+    "inspections.completedKept": [409, "A completed inspection is kept. It cannot be removed.", "Una inspecci\u00f3n completada se conserva. No se puede quitar."],
+    "lookups.categoryNotFound": [404, "Category not found", "No se encontr\u00f3 la categor\u00eda"],
+    "lookups.systemCategory": [403, "System categories cannot be deleted", "Las categor\u00edas del sistema no se pueden eliminar"],
+    "lookups.valueNotFound": [404, "Value not found", "No se encontr\u00f3 la opci\u00f3n"],
+    "lookups.siteValueNotFound": [404, "Site lookup not found", "No se encontr\u00f3 la opci\u00f3n del sitio"],
+    "jotform.aliasNotFound": [404, "Alias not found", "No se encontr\u00f3 el alias"],
+    "jotform.documentNotFound": [404, "Document not found", "No se encontr\u00f3 el documento"],
+    "hr.stepNotFound": [404, "Step not found", "No se encontr\u00f3 el paso"],
+  };
+  const refuse = (code, lang) => {
+    const r = REMOVAL_REFUSALS[code];
+    return { status: r[0], json: { error: lang === "es" ? r[2] : r[1], code: code } };
+  };
 
   function matchRefusal(method, path, body) {
     for (let i = 0; i < refusals.length; i += 1) {
@@ -2326,8 +2435,25 @@ function createStubs() {
       const filtered = cat && cat !== "all" ? rows.filter((r) => r.actionType.indexOf(cat.replace(/s$/, "")) >= 0) : rows;
       return ok({ entries: filtered, total: filtered.length });
     }
-    if (/^\/api\/sites\/[^/]+\/supplies\/available$/.test(path)) return ok(SUPPLIES.slice(2));
+    // The supplies not live at the site, and since Step 179 a supply taken off a site: its row is set
+    // is_active false and kept, and the profile and this list read the live rows (routes/sites.js).
+    if (/^\/api\/sites\/[^/]+\/supplies\/available$/.test(path)) return ok(SUPPLIES.filter((sp0) => liveStock(path.split("/")[3]).indexOf(sp0.id) < 0));
+    if (/^\/api\/sites\/[^/]+\/supplies\/[^/]+$/.test(path) && method === "DELETE") {
+      const parts = path.split("/");
+      const row = siteStock(parts[3]).find((r) => r.supply_id === parts[5] && r.is_active !== false);
+      if (!row) return refuse("sites.assignmentNotFound", lang);
+      row.is_active = false;
+      return ok({ message: "Supply removed from site" });
+    }
     if (/^\/api\/sites\/[^/]+\/supplies/.test(path)) return ok({ message: "Supply linked" });
+    // A floor plan taken off a site, Step 179: is_active false, and the profile lists the live plans.
+    if (/^\/api\/sites\/[^/]+\/floor-plans\/[^/]+$/.test(path) && method === "DELETE") {
+      const parts = path.split("/");
+      const plan = sitePlans(parts[3]).find((fp) => fp.id === parts[5] && fp.is_active !== false);
+      if (!plan) return refuse("sites.floorPlanNotFound", lang);
+      plan.is_active = false;
+      return ok({ message: "Floor plan removed" });
+    }
     if (path === "/api/sites" && method === "POST") { const row = Object.assign({ id: "s-new", status: "active" }, body || {}); state.sites.push(row); return created({ message: "Site added" }); }
     if (/^\/api\/sites\/[^/]+$/.test(path) && method === "GET") return ok(siteProfile(path.split("/")[3]));
     if (/^\/api\/sites\/[^/]+$/.test(path)) return ok({ message: "Site updated" });
@@ -2337,7 +2463,7 @@ function createStubs() {
       if (!state.schedule) state.schedule = clone(SCHEDULE);
       const site = q("site_id");
       const shifts = site ? state.schedule.filter((sh) => sh.site_id === site) : state.schedule;
-      return ok({ scheduled_shifts: shifts, inspections: SCHEDULED_INSPECTIONS });
+      return ok({ scheduled_shifts: shifts, inspections: inspectionRows() });
     }
     if (path === "/api/schedule" && method === "GET") { if (!state.schedule) state.schedule = clone(SCHEDULE); return ok(state.schedule); }
     if (path === "/api/schedule" && method === "POST") {
@@ -2384,11 +2510,17 @@ function createStubs() {
       const skipped = [reason(10, "patterns.skippedClash", "already scheduled at that time")];
       return ok({ pattern: p, created: 2, removed: 3, kept: kept, skipped: skipped, keptCount: kept.length, skippedCount: skipped.length });
     }
+    // Since Step 179 a removed shift stays and is marked cancelled, a pattern's shift as well, so
+    // the pattern never writes that date again, and the answer is the same either way. The calendar
+    // still answers the row, and the page leaves a cancelled shift off the week (routes/schedule.js).
     if (/^\/api\/schedule\/[^/]+$/.test(path) && method === "DELETE") {
       if (!state.schedule) state.schedule = clone(SCHEDULE);
-      const id = path.split("/")[3];
-      state.schedule = state.schedule.filter((s) => s.id !== id);
-      return ok({ message: "Shift removed" });
+      const row = state.schedule.find((s) => s.id === path.split("/")[3]);
+      if (!row) return refuse("schedule.shiftNotFound", lang);
+      row.status = "cancelled";
+      row.updated_at = seed.NOW_ISO;
+      if (row.shift_pattern_id) row.pattern_modified_at = seed.NOW_ISO;
+      return ok({ message: "Scheduled shift deleted" });
     }
     if (/^\/api\/schedule\/[^/]+$/.test(path)) {
       if (!state.schedule) state.schedule = clone(SCHEDULE);
@@ -2474,14 +2606,27 @@ function createStubs() {
     if (path.startsWith("/api/shift-sessions/by-site")) return ok(shiftSessions || SHIFT_SESSIONS);
 
     // --- inspections ------------------------------------------------------
-    if (path === "/api/inspections/templates" && method === "GET") return ok(state.templates || INSPECTION_TEMPLATES);
+    // The live templates, each with its live item count; ?all=true lists the removed ones too.
+    if (path === "/api/inspections/templates" && method === "GET") {
+      const off = (tpId) => (state.templateItems && state.templateItems[tpId] ? state.templateItems[tpId].filter((it) => it.is_active === false).length : 0);
+      return ok(templateRows().filter((tp) => q("all") === "true" || tp.is_active !== false)
+        .map((tp) => (off(tp.id) ? Object.assign({}, tp, { item_count: tp.item_count - off(tp.id) }) : tp)));
+    }
     if (path === "/api/inspections/templates" && method === "POST") return created({ message: "Template created", template: { id: "tp-new", name: (body && body.name) || "New template", item_count: 0, max_total_score: 0, is_active: true } });
+    // An item taken off a template, Step 179: is_active false and kept, so every score against it still
+    // names it.
+    if (/^\/api\/inspections\/templates\/[^/]+\/items\/[^/]+$/.test(path) && method === "DELETE") {
+      const parts = path.split("/");
+      const it = itemRows(parts[4]).find((x) => x.id === parts[6]);
+      if (it) it.is_active = false;
+      return ok({ success: true });
+    }
     if (/^\/api\/inspections\/templates\/[^/]+\/items/.test(path)) return ok({ message: "Item added" });
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[4];
-      const tp = INSPECTION_TEMPLATES.find((x) => x.id === id) || INSPECTION_TEMPLATES[0];
-      // The template's panel reads its name and id beside its items, at the top level.
-      return ok(Object.assign({}, tp, { template: tp, items: INSPECTION_ITEMS }));
+      const tp = templateRows().find((x) => x.id === id) || templateRows()[0];
+      // The template's panel reads its name and id beside its live items, at the top level.
+      return ok(Object.assign({}, tp, { template: tp, items: itemRows(tp.id).filter((it) => it.is_active !== false) }));
     }
     // PUT writes the name and the description it is sent, both columns, and answers the row, the way
     // routes/inspections.js does, so a rename that sent no description would empty it.
@@ -2493,10 +2638,17 @@ function createStubs() {
       tp.description = body && body.description !== undefined ? body.description : null;
       return ok(tp);
     }
+    // A template taken off the list, Step 179: is_active false and kept, so every completed inspection
+    // still names it.
+    if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "DELETE") {
+      const tp = templateRows().find((x) => x.id === path.split("/")[4]);
+      if (tp) tp.is_active = false;
+      return ok({ success: true });
+    }
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path)) return ok({ message: "Template updated" });
     if (path === "/api/inspections/scheduled" && method === "GET") {
       const done = seed.INSPECTION_SCORES.map((r) => Object.assign({}, r, { status: "completed", assigned_to_name: r.completed_by_name, template_id: "tp-1" }));
-      return ok(SCHEDULED_INSPECTIONS.concat(done));
+      return ok(inspectionRows().concat(done));
     }
     // hand: 2 pending plus 4 completed = 6 rows in one list, which the page splits by status.
     if (path === "/api/inspections/scheduled" && method === "POST") return created({ message: "Inspection scheduled" });
@@ -2504,7 +2656,7 @@ function createStubs() {
     // and matches a score to an item by template_item_id.
     if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "GET") {
       const id = path.split("/")[4];
-      const found = SCHEDULED_INSPECTIONS.concat(seed.INSPECTION_SCORES).find((x) => x.id === id) || seed.INSPECTION_SCORES[0];
+      const found = inspectionRows().concat(seed.INSPECTION_SCORES).find((x) => x.id === id) || seed.INSPECTION_SCORES[0];
       const scores = INSPECTION_ITEMS.map((it, i) => ({
         template_item_id: it.id, score: [9, 6, 7][i],
         notes: i === 1 ? "Handrail needs a wipe." : "", photo_url: null,
@@ -2525,6 +2677,23 @@ function createStubs() {
     }
     // hand: the three item scores 9 + 6 + 7 = 22 of a possible 10 + 10 + 10 = 30, which the detail
     // view shows as 73 percent and the CSV writes as its TOTAL row.
+    // PATCH writes the fields it is sent and answers the row; status cancelled is how the dashboard
+    // cancels one. DELETE cancels one too since Step 179, with who and when, and refuses a completed one,
+    // which is kept as it is (routes/inspections.js).
+    if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "PATCH") {
+      const row = inspectionRows().find((x) => x.id === path.split("/")[4]);
+      if (!row) return refuse("inspections.scheduledNotFound", lang);
+      ["template_id", "site_id", "assigned_to", "scheduled_date", "status"].forEach((k) => { if (body && body[k] !== undefined) row[k] = body[k]; });
+      return ok(Object.assign({}, row));
+    }
+    if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "DELETE") {
+      const id = path.split("/")[4];
+      if (seed.INSPECTION_SCORES.some((x) => x.id === id)) return refuse("inspections.completedKept", lang);
+      const row = inspectionRows().find((x) => x.id === id);
+      if (!row) return refuse("inspections.scheduledNotFound", lang);
+      row.status = "cancelled"; row.cancelled_by = person().id; row.cancelled_at = seed.NOW_ISO;
+      return ok({ success: true });
+    }
     if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path)) return ok({ message: "Inspection updated" });
     if (path.startsWith("/api/inspections/analytics/dashboard-summary")) return ok(seed.INSPECTION_DASHBOARD_SUMMARY);
     if (path.startsWith("/api/inspections/analytics/scores-over-time")) return ok(seed.INSPECTION_SCORES);
@@ -2547,9 +2716,18 @@ function createStubs() {
     // hand: 4 inspections x 3 items = 12 export rows, plus one header row = 13 lines.
 
     // --- report engine ----------------------------------------------------
-    if (path === "/api/report-engine/definitions" && method === "GET") return ok(REPORT_DEFS);
+    if (path === "/api/report-engine/definitions" && method === "GET") return ok(reportRows().filter((r) => q("all") === "true" || r.is_active !== false));
     if (path === "/api/report-engine/definitions" && method === "POST") return created({ message: "Report saved", definition: Object.assign({ id: "rd-new", is_system: false }, body || {}) });
-    if (/^\/api\/report-engine\/definitions\/[^/]+$/.test(path) && method === "DELETE") return ok({ message: "Report deleted" });
+    if (/^\/api\/report-engine\/definitions\/[^/]+$/.test(path) && method === "DELETE") {
+      const r = reportRows().find((x) => x.id === path.split("/")[4] && x.is_active !== false);
+      if (!r) return { status: 404, json: { error: "Report definition not found" } };
+      if (r.is_system) return { status: 403, json: { error: "System reports cannot be deleted." } };
+      if (String(r.created_by) !== String(person().id) && person().role !== "admin") {
+        return { status: 403, json: { error: lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions", code: "access.insufficientPermissions" } };
+      }
+      r.is_active = false;
+      return ok({ success: true });
+    }
     if (/^\/api\/report-engine\/definitions\/[^/]+$/.test(path)) return ok({ message: "Report saved", definition: Object.assign({ id: path.split("/")[4] }, body || {}) });
     if (path === "/api/report-engine/issue-timing") {
       const sev = q("severity");
@@ -2581,14 +2759,15 @@ function createStubs() {
     if (path.startsWith("/api/hr/documents")) {
       if (method !== "GET") return ok({ message: "Document saved" });
       const uid = q("user_id");
-      return ok(uid ? HR_DOCUMENTS.filter((d) => d.user_id === uid) : HR_DOCUMENTS);
+      return ok(uid ? liveDocs().filter((d) => d.user_id === uid) : liveDocs());
     }
     // routes/hr.js: a list filtered by user_id and nothing else, one record created per call, and an
     // update and a delete that find the record or say it is not there. Every route is admin or
-    // supervisor, which is who signs in here.
+    // supervisor, which is who signs in here. Since Step 179 a delete stamps the record with
+    // removed_at and who and keeps it, and the list and every read leave a stamped record out.
     if (path === "/api/hr/training" && method === "GET") {
       const uid = q("user_id");
-      return ok(trainingRows().filter((r) => !uid || r.user_id === uid).map(trainingListRow).sort(trainingOrder));
+      return ok(trainingRows().filter((r) => !r.removed_at && (!uid || r.user_id === uid)).map(trainingListRow).sort(trainingOrder));
     }
     if (path === "/api/hr/training" && method === "POST") {
       const b = body || {};
@@ -2609,9 +2788,9 @@ function createStubs() {
     if (/^\/api\/hr\/training\/[^/]+$/.test(path) && (method === "PUT" || method === "DELETE")) {
       const id = idAfter("/api/hr/training/");
       const rows = trainingRows();
-      const at = rows.findIndex((r) => r.id === id);
+      const at = rows.findIndex((r) => r.id === id && !r.removed_at);
       if (at < 0) return { status: 404, json: { error: "Training record not found" } };
-      if (method === "DELETE") { rows.splice(at, 1); return ok({ success: true }); }
+      if (method === "DELETE") { rows[at].removed_at = seed.NOW_ISO; rows[at].removed_by = person().id; return ok({ success: true }); }
       const b = body || {};
       ["training_name", "training_type", "completed_date", "expiry_date", "score", "administered_by", "notes", "document_id"]
         .forEach((k) => { rows[at][k] = b[k] || null; });
@@ -2626,9 +2805,17 @@ function createStubs() {
       const uid = idAfter("/api/hr/employee-folder/");
       return ok(hrFolder(state.staff.find((s) => s.id === uid) || state.staff[0]));
     }
+    // A step taken off a person's checklist, Step 179: stamped with removed_at and who and kept, and
+    // the checklist reads the live steps.
+    if (/^\/api\/hr\/onboarding\/step\/[^/]+$/.test(path) && method === "DELETE") {
+      const step = onboardingRows().find((x) => x.id === path.split("/")[5] && !x.removed_at);
+      if (!step) return refuse("hr.stepNotFound", lang);
+      step.removed_at = seed.NOW_ISO; step.removed_by = person().id;
+      return ok({ success: true });
+    }
     if (path.startsWith("/api/hr/onboarding")) {
       if (method !== "GET") return ok({ message: "Onboarding updated" });
-      return ok(HR_ONBOARDING);
+      return ok(liveSteps());
     }
 
     // --- cases ------------------------------------------------------------
@@ -2729,11 +2916,28 @@ function createStubs() {
       ];
       return ok({ failures, total: failures.length, limit: 200, offset: 0 });
     }
-    if (path === "/api/jotform/user-aliases" && method === "GET") return ok([{ id: "al-1", user_id: state.staff[4].id, user_name: state.staff[4].name, alias: "t.wisniewski", source: "manual" }]);
+    if (path === "/api/jotform/user-aliases" && method === "GET") {
+      const uid = q("user_id");
+      return ok(aliasRows().filter((a) => a.is_active !== false && (!uid || a.user_id === uid)));
+    }
+    if (/^\/api\/jotform\/user-aliases\/[^/]+$/.test(path) && method === "DELETE") {
+      const a = aliasRows().find((x) => x.id === path.split("/")[4] && x.is_active !== false);
+      if (!a) return refuse("jotform.aliasNotFound", lang);
+      a.is_active = false;
+      const own = {};
+      ["id", "user_id", "alias_type", "alias_value", "source", "created_by_user_id", "created_at", "last_matched_at", "match_count", "notes", "is_active"].forEach((k) => { own[k] = a[k]; });
+      return ok({ success: true, deleted: own });
+    }
     if (path.startsWith("/api/jotform/user-aliases")) return ok({ message: "Alias saved" });
     if (path === "/api/jotform/users-for-linking") return ok(state.staff.map((s) => ({ id: s.id, name: s.name, email: s.email })));
     if (path === "/api/jotform/auto-link") return ok({ message: "Linked 1 submission", linked: 1 });
     if (path === "/api/jotform/pdf-backfill") return ok({ message: "Backfilled 2 PDFs", filled: 2 });
+    if (/^\/api\/jotform\/employee-documents\/[^/]+$/.test(path) && method === "DELETE") {
+      const doc = docRows().find((x) => x.id === path.split("/")[4] && !x.removed_at);
+      if (!doc) return refuse("jotform.documentNotFound", lang);
+      doc.removed_at = seed.NOW_ISO; doc.removed_by = person().id;
+      return ok({ success: true, deleted: doc.id });
+    }
     if (path.startsWith("/api/jotform/employee-documents/")) return ok(JOTFORM_SUBMISSIONS.slice(0, 1));
     // POST /api/jotform/employees/:userId/documents answers the row it inserted, routes/jotform.js.
     if (/^\/api\/jotform\/employees\/[^/]+\/documents$/.test(path) && method === "POST") {
@@ -3176,8 +3380,30 @@ function createStubs() {
     // --- settings sub-panels ---------------------------------------------
     if (path === "/api/lookups/categories" && method === "GET") return ok(lookupsIn(lang));
     if (path === "/api/lookups/categories" && method === "POST") return created({ message: "Category added" });
+    // A list, a value and a site's value removed since Step 179: each is set is_active false and kept,
+    // and a list of the system's own is refused (routes/lookups.js).
+    if (/^\/api\/lookups\/categories\/[^/]+$/.test(path) && method === "DELETE") {
+      const c = LOOKUPS.find((x) => x.id === path.split("/")[4]);
+      if (!c) return refuse("lookups.categoryNotFound", lang);
+      if (systemList(c)) return refuse("lookups.systemCategory", lang);
+      lookupOff.lists[c.id] = true;
+      return ok({ message: "Category deleted" });
+    }
     if (/^\/api\/lookups\/categories\/[^/]+/.test(path)) return ok({ message: "Category saved" });
     if (path === "/api/lookups/values" && method === "POST") return created({ message: "Option added" });
+    if (/^\/api\/lookups\/values\/[^/]+$/.test(path) && method === "DELETE") {
+      const id = path.split("/")[4];
+      if (!LOOKUPS.some((c) => c.values.some((v) => v.id === id)) || lookupOff.values[id]) return refuse("lookups.valueNotFound", lang);
+      lookupOff.values[id] = true;
+      return ok({ message: "Value deleted" });
+    }
+    if (/^\/api\/lookups\/site\/[^/]+\/[^/]+$/.test(path) && method === "DELETE") {
+      const lists = siteLookupRows();
+      const row = [].concat(lists.zones, lists.buildings, lists.floors).find((x) => x.id === path.split("/")[5] && x.is_active);
+      if (!row) return refuse("lookups.siteValueNotFound", lang);
+      row.is_active = false;
+      return ok({ message: "Site lookup deleted" });
+    }
     // Step 183: PATCH /api/lookups/values/:id/translations { locale, field, text }, a manager's own
     // wording for a choice, stored with source person the way routes/lookups.js stores it.
     if (/^\/api\/lookups\/values\/[^/]+\/translations$/.test(path) && method === "PATCH") {
@@ -3192,18 +3418,9 @@ function createStubs() {
     if (/^\/api\/lookups\/values\/[^/]+/.test(path)) return ok({ message: "Option saved" });
     if (path === "/api/lookups/reorder") return ok({ message: "Order saved" });
     if (/^\/api\/lookups\/site\/[^/]+\/all$/.test(path)) {
-      if (!state.lookupValues) {
-        state.lookupValues = {
-          zones: [
-            { id: "sl-1", lookup_type: "zone", value: "atrium", label: "Atrium", is_active: true, sort_order: 1 },
-            { id: "sl-2", lookup_type: "zone", value: "loading_bay", label: "Loading Bay", is_active: true, sort_order: 2 },
-          ],
-          buildings: [{ id: "sl-3", lookup_type: "building", value: "north_wing", label: "North Wing", is_active: true, sort_order: 1 }],
-          floors: [{ id: "sl-4", lookup_type: "floor", value: "3", label: "Floor 3", is_active: true, sort_order: 1 }],
-        };
-      }
+      const lists = siteLookupRows();
       const choices = {};
-      Object.keys(state.lookupValues).forEach((k) => { choices[k] = withChoiceWords(state.lookupValues[k], lang); });
+      Object.keys(lists).forEach((k) => { choices[k] = withChoiceWords(lists[k], lang); });
       return ok(choices);
     }
     // hand: 2 zones, 1 building, 1 floor for the site picked.
@@ -3573,6 +3790,10 @@ function createStubs() {
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
       state.templates = null; corrections = {};
+      // Every row a removal marked since Step 179, put back as it was.
+      state.floorPlans = null; state.siteSupplies = null; state.inspections = null; state.templateItems = null;
+      state.reportDefs = null; state.aliases = null; state.documents = null; state.onboarding = null;
+      state.lookupValues = null; lookupOff = { lists: {}, values: {} };
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {}, photos: {} };
       photoSeq = 10;

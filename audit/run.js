@@ -144,6 +144,10 @@ const SUITES = [
   // of windows, the six checkboxes and Schedule's week as a list of days, on a phone in both languages.
   { name: "forty-four", mod: "./cases/forty-four", widths: ["phone"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Nothing is deleted since Step 181: each remove's button, question and toast, its call, its row
+  // leaving the list and kept in the stub, and a site with no Delete, in both languages.
+  { name: "removals", mod: "./cases/removals", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Settings shows each list value's English and, in another language, its words there, and saves
   // exactly what it saves in English, in both languages at 1024.
   { name: "settings", mod: "./cases/settings", widths: ["narrow"],

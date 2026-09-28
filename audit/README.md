@@ -321,6 +321,22 @@ log's draft it changes the delivery and holds the `PATCH` to the whole list, the
 and reads Published as version 3. with the form's title; a supervisor holding `build_forms` reads Only
 an admin can publish. Both languages.
 
+**Nothing is deleted, and every screen that removes something says so.** Since Step 179 the API keeps
+every row a person removes and marks it, a status of cancelled, is_active false or a removed_at stamp,
+and every list leaves it out; the stub answers each of those routes the same way and keeps the row,
+marked, until a reset. The `removals` suite, in both languages, finds a site's profile offering
+Deactivate alone, which asks the table's question and opens no window, and presses every remove Step
+181 renamed, each found by the row it sits in: a site's floor plan and supply, Cancel shift on the Edit
+Scheduled Shift window, an inspection template and one of its line items, a scheduled inspection's X,
+the custom report, a Dropdown Options value and list, a site's value, a Jotform alias, a document on
+Documents, on Other and in a person's folder, a training record and an onboarding step. It holds each
+button, question and toast to the table's words written out by hand, the one call the page sent to the
+call the API keeps the row on, the row leaving the list the page reads again, and the stub still
+holding the row, marked. The Dropdown Options editor lists every list and value, on or off, so for
+those it holds the call and the mark. A completed inspection offers View alone, and no question or
+screen the suite read says the change cannot be undone, nor does any question the app asks through
+`window.confirm`, read out of `src/App.js` with the table's Spanish for each.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -487,7 +503,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder`, `builder` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder`, `builder`, `removals` and `house-style`.
 
 ## How much is left in English
 
