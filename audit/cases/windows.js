@@ -244,6 +244,10 @@ const ROUTES = {
       return d.clickText("Complaint log", { inModal: true, exact: true });
     },
   },
+  // Step 169: the customer links window, from Filed forms, for whoever holds manage_settings.
+  "forms/customer-links": {
+    open: async (d) => { await d.goto("forms"); await d.clickText("Filed forms", { exact: false }); return d.clickText("Customer links", { exact: true }); },
+  },
   "forms/link-user": {
     // The link window opens from inside the submission detail, for a submission nobody linked yet.
     open: async (d) => {

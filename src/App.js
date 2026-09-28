@@ -3,7 +3,7 @@ import Chart from "react-apexcharts";
 import clientConfig from "./clientConfig";
 // The word table, the language the screen is drawn in, and what a formatter is given. Nothing
 // else lives there and nothing else leaves this file.
-import { LOCALES, LANGUAGES, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
+import { LOCALES, LANGUAGES, WORDS, tr, trn, setLang, getLang, localeTag, browserLang } from "./words";
 const API = process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app";
 // Every call to the API leaves through here. It says the language the screen is drawn in twice: as
 // locale= on the address, which a signed-in call is answered in ahead of the language on the
@@ -488,6 +488,9 @@ export default function AdminDashboard() {
   // names. One quiet call when the session starts asks the API for this person's own effective
   // capabilities: a 200 answers it, and any other answer leaves them with what their role gives.
   const [canManagePermissions, setCanManagePermissions] = useState(false);
+  // The manage settings capability opens the customer links on Filed forms (Step 169). An admin
+  // holds it by default; anyone else holds it when the same call says so.
+  const [canManageSettings, setCanManageSettings] = useState(false);
   // Forms holds every filed report now, and the API already decides who may read them. One quiet
   // call when the session starts asks for the list: a 200 opens the page, and any other answer
   // leaves this person with what their role gives, which is the line Forms has shown all along.
@@ -518,11 +521,11 @@ export default function AdminDashboard() {
   useEffect(() => { if (token) { loadSites(); loadStaff(); loadLookups(); } }, [token]);
   useEffect(() => {
     const id = user && user.id != null ? String(user.id) : "";
-    if (!token || !id || isAdmin) { setCanManagePermissions(false); return; }
+    if (!token || !id || isAdmin) { setCanManagePermissions(false); setCanManageSettings(false); return; }
     let alive = true;
     af("/api/users/" + encodeURIComponent(id) + "/permissions")
-      .then(d => { if (alive) setCanManagePermissions(!!(d && d.effective && d.effective.manage_permissions)); })
-      .catch(e => { if (alive) setCanManagePermissions(false); console.warn("Own capabilities:", e.message); });
+      .then(d => { if (alive) { setCanManagePermissions(!!(d && d.effective && d.effective.manage_permissions)); setCanManageSettings(!!(d && d.effective && d.effective.manage_settings)); } })
+      .catch(e => { if (alive) { setCanManagePermissions(false); setCanManageSettings(false); } console.warn("Own capabilities:", e.message); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
@@ -898,7 +901,7 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
-        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={isAdmin || canManageSettings} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} isAdmin={isAdmin} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
@@ -3086,6 +3089,9 @@ const FORM_TITLE_LABELS = {
   "OCSA-FRM-027": "Environmental Compliance Audit",
   "OCSA-FRM-032": "PPE Hazard Assessment Written Verification",
   "OCSA-FRM-036": "Safety Committee Minutes and Attendance",
+  // Step 169: the two forms a customer fills through a link.
+  "OCSA-FRM-006": "Facility Cleanliness Evaluation Checklist",
+  "OCSA-FRM-007": "Client Satisfaction Survey",
 };
 const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
 const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (f.title || f.code));
@@ -9300,7 +9306,231 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
   </Mdl>);
 }
 
-function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, onOpen, onClose, onUnfinished }) {
+// ===== CUSTOMER LINKS AND THEIR QR CODES (Step 169) =====
+// A customer link is the address a customer opens, from a QR code posted in the building, to fill
+// one of the two forms that are theirs to fill. The window lists every link the API holds, makes
+// one for a form and a site, switches one off and on, and shows the QR image the API draws at 512
+// pixels, which Print puts on one clean sheet with the site, the form's title and one line in each
+// language. The forms offered are the two the API accepts, by code: the catalog the dashboard reads
+// carries no customer flag. Every refusal is drawn in the API's own words, as sent.
+const CUSTOMER_FORM_CODES = ["OCSA-FRM-006", "OCSA-FRM-007"];
+const CUSTOMER_SCAN_LABELS = {
+  "OCSA-FRM-006": "Scan to tell OCSA how the building is being kept.",
+  "OCSA-FRM-007": "Scan to tell OCSA how we are doing.",
+};
+// The table's word for a key in a named language, for a line drawn in both languages at once. The
+// English is the key itself, which is what tr falls back to.
+function wordIn(lang, key) {
+  const bar = String(key).lastIndexOf("|");
+  const english = bar > 0 ? String(key).slice(0, bar) : String(key);
+  if (lang === "en") return english;
+  const entry = WORDS[key];
+  return entry && typeof entry[lang] === "string" && entry[lang] !== "" ? entry[lang] : tr(key);
+}
+// A form's title in every language the dashboard speaks, the screen's first, for a form the table
+// names; the API's title alone for one it does not.
+function customerFormTitles(link) {
+  if (!FORM_TITLE_LABELS[link.formCode]) return [link.formTitle || link.formCode];
+  const others = LOCALES.filter(l => l !== getLang());
+  const all = [tr(FORM_TITLE_LABELS[link.formCode])].concat(others.map(l => wordIn(l, FORM_TITLE_LABELS[link.formCode])));
+  return all.filter((v, i) => all.indexOf(v) === i);
+}
+// The line under the QR code, in every language, for the form the link opens.
+function customerScanLines(link) {
+  if (!CUSTOMER_SCAN_LABELS[link.formCode]) return [];
+  const others = LOCALES.filter(l => l !== getLang());
+  return [tr(CUSTOMER_SCAN_LABELS[link.formCode])].concat(others.map(l => wordIn(l, CUSTOMER_SCAN_LABELS[link.formCode])));
+}
+const linkStateWord = (s) => (s === "live" ? tr("Live|link") : s === "disabled" ? tr("Off|link") : s === "expired" ? tr("Expired|link") : String(s || ""));
+const linkStateColor = (s) => (s === "live" ? GR : s === "expired" ? OR : RD);
+
+// The sheet Print puts in a new window: the logo, the site, the form's title in each language, the
+// QR code at its full size, the scan line in each language and the address in small type. False
+// when the browser would not open the window.
+function printCustomerLinkSheet({ link, qr, titles, scanLines }) {
+  const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const cName = clientConfig.company.name;
+  const siteName = link.site && link.site.name ? link.site.name : tr("No site");
+  const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222;text-align:center}.brand{border-bottom:3px solid ' + GOLD + ';padding-bottom:10px;margin-bottom:18px}.brand img{height:56px}.co{font-size:20px;font-weight:700;color:' + NAVY + '}h1{color:' + NAVY + ';font-size:26px;margin:8px 0 4px}.form{font-size:18px;margin:2px 0;color:#333}.qr{display:block;width:512px;height:512px;margin:22px auto 18px}.scan{font-size:20px;font-weight:700;color:' + NAVY + ';margin:6px 0}.url{font-size:11px;color:#666;margin-top:16px;word-break:break-all}.footer{margin-top:24px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Customer link")) + '</title>' + style + '</head><body>'
+    + `<div class="brand"><img src="${esc(OCSA_LOGO_URL)}" alt="${esc(cName)}"></div>`
+    + '<h1>' + esc(siteName) + '</h1>'
+    + titles.map(x => '<p class="form">' + esc(x) + '</p>').join("")
+    + `<img class="qr" width="512" height="512" alt="${esc(tr("QR code"))}" src="${qr}">`
+    + scanLines.map(x => '<p class="scan">' + esc(x) + '</p>').join("")
+    + '<p class="url">' + esc(link.url) + '</p>'
+    + '<div class="footer">' + esc(cName) + '</div>'
+    + '</body></html>';
+  const w = window.open("", "_blank");
+  if (!w) return false;
+  w.document.write(html); w.document.close();
+  setTimeout(() => w.print(), 400);
+  return true;
+}
+
+function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
+  const [links, setLinks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [formCode, setFormCode] = useState(CUSTOMER_FORM_CODES[0]);
+  const [siteId, setSiteId] = useState(sites.length ? String(sites[0].id) : "");
+  const [making, setMaking] = useState(false);
+  const [makeError, setMakeError] = useState("");
+  // The link whose switch is in flight, and what the API said when it refused one, by link id.
+  const [busy, setBusy] = useState("");
+  const busyRef = useRef(false);
+  const [rowError, setRowError] = useState({});
+  const [copied, setCopied] = useState("");
+  // The link on the QR screen, its image as a data URL once fetched, and the line when it fails.
+  const [shown, setShown] = useState(null);
+  const [qr, setQr] = useState("");
+  const [qrError, setQrError] = useState("");
+  const [printError, setPrintError] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
+
+  useEffect(() => {
+    let alive = true;
+    af("/api/customer-links")
+      .then(d => { if (alive) { setLinks(d && Array.isArray(d.links) ? d.links : []); setLoading(false); } })
+      .catch(e => { if (alive) { setError(e.message || tr("Request failed")); setLoading(false); } });
+    return () => { alive = false; };
+  }, [af]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // The QR image is fetched with the token and kept as a data URL, so the screen and the printed
+  // sheet draw the same bytes the API sent.
+  const shownId = shown ? shown.id : "";
+  useEffect(() => {
+    if (!shownId) return undefined;
+    let alive = true;
+    setQr(""); setQrError(""); setPrintError("");
+    apiDownload("/api/customer-links/" + encodeURIComponent(shownId) + "/qr.png", token)
+      .then(f => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error(tr("Request failed")));
+        reader.readAsDataURL(f.blob);
+      }))
+      .then(url => { if (alive) setQr(url); })
+      .catch(e => { if (alive) setQrError(e.message || tr("Request failed")); });
+    return () => { alive = false; };
+  }, [shownId, token]);
+
+  const replaceLink = (link) => setLinks(prev => (prev.some(l => l.id === link.id) ? prev.map(l => (l.id === link.id ? link : l)) : [link].concat(prev)));
+  // One tap: the live link for the pair, made now or found. Either way its QR screen opens.
+  const makeLink = async () => {
+    if (making) return;
+    setMaking(true); setMakeError("");
+    try {
+      const r = await af("/api/customer-links", { method: "POST", body: { formCode, siteId } });
+      if (r && r.link) { replaceLink(r.link); setShown(r.link); }
+    } catch (e) { setMakeError(e.message || tr("Request failed")); }
+    if (mounted.current) setMaking(false);
+  };
+  const flip = async (link, on) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(link.id);
+    setRowError(prev => Object.assign({}, prev, { [link.id]: "" }));
+    try {
+      const r = await af("/api/customer-links/" + encodeURIComponent(link.id) + (on ? "/enable" : "/disable"), { method: "POST", body: {} });
+      if (r && r.link) { replaceLink(r.link); if (shown && shown.id === r.link.id) setShown(r.link); }
+    } catch (e) { setRowError(prev => Object.assign({}, prev, { [link.id]: e.message || tr("Request failed") })); }
+    busyRef.current = false;
+    if (mounted.current) setBusy("");
+  };
+  const copy = async (link) => {
+    setRowError(prev => Object.assign({}, prev, { [link.id]: "" }));
+    try {
+      await navigator.clipboard.writeText(link.url);
+      setCopied(link.id);
+      setTimeout(() => { if (mounted.current) setCopied(prev => (prev === link.id ? "" : prev)); }, 2000);
+    } catch (e) { setRowError(prev => Object.assign({}, prev, { [link.id]: tr("The address could not be copied.") })); }
+  };
+  const print = () => {
+    if (!shown || !qr) return;
+    setPrintError("");
+    if (!printCustomerLinkSheet({ link: shown, qr, titles: customerFormTitles(shown), scanLines: customerScanLines(shown) })) setPrintError(tr("Allow pop-ups to print the sheet"));
+  };
+
+  const head = { fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text };
+  const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+  const closeX = (<button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>);
+  const formOptions = CUSTOMER_FORM_CODES.map(code => ({ v: code, l: FORM_TITLE_LABELS[code] ? tr(FORM_TITLE_LABELS[code]) : code }));
+  const siteOptions = sites.map(s => ({ v: String(s.id), l: s.name }));
+
+  const row = (link) => (<div key={link.id} data-customer-link={link.id} style={{ padding: "12px 0", borderTop: "1px solid " + t.border }}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{link.formTitle || link.formCode}</div>
+      <Bdg l={linkStateWord(link.state)} c={linkStateColor(link.state)} />
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{link.site && link.site.name ? link.site.name : tr("No site")}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Uses")}: {Number(link.uses) || 0} &middot; {tr("Last used")}: {link.lastUsedAt ? irWhen(link.lastUsedAt) : "--"}</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      <Btn t={t} v="ghost" onClick={() => setShown(link)} style={small}>{tr("Show QR code")}</Btn>
+      <Btn t={t} v="ghost" onClick={() => copy(link)} style={small}>{copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
+      {link.state === "live"
+        ? <Btn t={t} v="ghost" onClick={() => flip(link, false)} disabled={!!busy} style={small}>{busy === link.id ? tr("Saving...") : tr("Turn off")}</Btn>
+        : <Btn t={t} v="ghost" onClick={() => flip(link, true)} disabled={!!busy} style={small}>{busy === link.id ? tr("Saving...") : tr("Turn on")}</Btn>}
+    </div>
+    {rowError[link.id] && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{rowError[link.id]}</div>}
+  </div>);
+
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    {shown ? (<div data-qr-screen="">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+        <div style={head}>{tr("Customer links")}</div>
+        {closeX}
+      </div>
+      <div style={{ textAlign: "center" }}>
+        {qr
+          ? <img src={qr} alt={tr("QR code")} width={512} height={512} style={{ display: "block", width: "100%", maxWidth: 512, height: "auto", margin: "0 auto", background: "#FFFFFF", borderRadius: 8 }} />
+          : qrError
+            ? <div data-qr-refusal="" style={{ fontSize: 12, color: RD, padding: 20 }}>{qrError}</div>
+            : <div style={{ fontSize: 13, color: t.textMut, padding: 40 }}>{tr("Loading...")}</div>}
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginTop: 14 }}>{shown.site && shown.site.name ? shown.site.name : tr("No site")}</div>
+        {customerFormTitles(shown).map(x => <div key={x} style={{ fontSize: 13, color: t.textSec, marginTop: 2 }}>{x}</div>)}
+        <div style={{ marginTop: 8 }}><Bdg l={linkStateWord(shown.state)} c={linkStateColor(shown.state)} /></div>
+        <div data-link-address="" style={{ fontSize: 11, color: t.textMut, marginTop: 10, wordBreak: "break-all" }}>{shown.url}</div>
+      </div>
+      {rowError[shown.id] && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{rowError[shown.id]}</div>}
+      {printError && <div style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{printError}</div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 16 }}>
+        <Btn t={t} onClick={print} disabled={!qr} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print")}</Btn>
+        <Btn t={t} v="ghost" onClick={() => copy(shown)} style={{ minHeight: 44, minWidth: 96 }}>{copied === shown.id ? tr("Copied") : tr("Copy link")}</Btn>
+        <Btn t={t} v="ghost" onClick={() => setShown(null)} style={{ minHeight: 44, minWidth: 96 }}>{tr("Back")}</Btn>
+        <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
+      </div>
+    </div>) : (<div data-links-list="">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+        <div style={head}>{tr("Customer links")}</div>
+        {closeX}
+      </div>
+      <div style={{ padding: 12, borderRadius: 10, border: "1px solid " + t.border, background: t.hover, marginBottom: 14 }}>
+        <Lbl>{tr("New link")}</Lbl>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={formOptions} style={{ minHeight: 44 }} /></div>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={siteOptions} style={{ minHeight: 44 }} /></div>
+          <Btn t={t} onClick={makeLink} disabled={making || !siteId} style={{ minHeight: 44, minWidth: 96 }}>{making ? tr("Saving...") : tr("New link")}</Btn>
+        </div>
+        {makeError && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{makeError}</div>}
+      </div>
+      {loading && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+      {!loading && error && <div style={{ padding: 20, textAlign: "center", color: RD, fontSize: 13 }}>{error}</div>}
+      {!loading && !error && links.length === 0 && <div style={{ fontSize: 13, color: t.textMut, padding: "10px 0" }}>{tr("No customer links yet.")}</div>}
+      {!loading && !error && <div role="list" aria-label={tr("Customer links")}>{links.map(row)}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+        <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
+      </div>
+    </div>)}
+  </div></Mdl>);
+}
+
+function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -9369,6 +9599,8 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
   const [starting, setStarting] = useState("");
   const [fill, setFill] = useState(null);
   const [openError, setOpenError] = useState("");
+  // Step 169: the customer links window, for whoever holds manage_settings.
+  const [linksOpen, setLinksOpen] = useState(false);
   const startable = forms.filter(formStartable);
   const readCatalog = async () => { const d = await af("/api/forms"); return d && Array.isArray(d.forms) ? d.forms : []; };
   const openPicker = async () => {
@@ -9438,7 +9670,10 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
       <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
-      {startable.length > 0 && <div style={{ marginLeft: "auto" }}><Btn t={t} onClick={openPicker} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Start a form")}</Btn></div>}
+      <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {canManageSettings && <Btn t={t} v="ghost" onClick={() => setLinksOpen(true)} style={{ minHeight: 44 }}>{tr("Customer links")}</Btn>}
+        {startable.length > 0 && <Btn t={t} onClick={openPicker} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Start a form")}</Btn>}
+      </div>
     </div>
     {openError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{openError}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading reports...")}</div>}
@@ -9465,6 +9700,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
       </div>
     </div></Mdl>)}
     {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={leaveFill} />}
+    {linksOpen && <CustomerLinksWindow af={af} token={token} t={t} sites={sites} onClose={() => setLinksOpen(false)} />}
   </div>);
 }
 
@@ -9477,7 +9713,7 @@ const GAP_COLS = ["Form Title", "Last Synced", "Jotform", "Ours", "Delta", "Fail
 const MISSING_COLS = ["Jotform Submission ID", "Submitted", "Submitter Name", "Email", ""];
 const FAILURE_COLS = ["Submission ID", "Form", "Stage", "Reason", "Attempted", "Already Synced?", ""];
 const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added", "Added By", "Notes", ""];
-function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute }) {
+function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute, canManageSettings = false }) {
   // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
   // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
@@ -10703,7 +10939,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ FILED FORMS ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} canManageSettings={canManageSettings} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
       {maintenance && (

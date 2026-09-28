@@ -2424,7 +2424,27 @@ export const WORDS = {
   "{0} app notice|count": {
     en: { one: "{0} app notice", other: "{0} app notices" },
     es: { one: "{0} aviso en la aplicaci\u00f3n", other: "{0} avisos en la aplicaci\u00f3n" },
-  },
+  },  // Step 169: customer links and their QR codes, a customer's filings, and the signature box on a
+  // dashboard filing.
+  "Customer links": { es: "Enlaces para clientes" },
+  "New link": { es: "Nuevo enlace" },
+  "Show QR code": { es: "Ver c\u00f3digo QR" },
+  "Copy link": { es: "Copiar enlace" },
+  "Turn off": { es: "Apagar" },
+  "Turn on": { es: "Encender" },
+  "Live|link": { es: "Activo" },
+  "Off|link": { es: "Apagado" },
+  "Expired|link": { es: "Vencido" },
+  "Uses": { es: "Usos" },
+  "Last used": { es: "\u00daltimo uso" },
+  "No customer links yet.": { es: "Todav\u00eda no hay enlaces para clientes." },
+  "QR code": { es: "C\u00f3digo QR" },
+  "Customer link": { es: "Enlace para clientes" },
+  "The address could not be copied.": { es: "No se pudo copiar la direcci\u00f3n." },
+  "Scan to tell OCSA how the building is being kept.": { es: "Escanee para decirle a OCSA c\u00f3mo se mantiene el edificio." },
+  "Scan to tell OCSA how we are doing.": { es: "Escanee para decirle a OCSA c\u00f3mo lo estamos haciendo." },
+  "Facility Cleanliness Evaluation Checklist": { es: "Lista de evaluaci\u00f3n de limpieza del edificio" },
+  "Client Satisfaction Survey": { es: "Encuesta de satisfacci\u00f3n del cliente" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

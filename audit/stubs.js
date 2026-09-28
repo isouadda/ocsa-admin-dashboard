@@ -681,6 +681,10 @@ function createStubs() {
     { code: "OCSA-FRM-027", title: "Form 027 as the API titles it" },
     { code: "OCSA-FRM-032", title: "Form 032 as the API titles it" },
     { code: "OCSA-FRM-036", title: "Form 036 as the API titles it" },
+    // Step 169: the two forms a customer fills through a link, titled the way the API titles them
+    // in the language asked. The catalog carries no customer flag, the way the API's does not.
+    { code: "OCSA-FRM-006", titles: { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluaci\u00f3n de limpieza del edificio" } },
+    { code: "OCSA-FRM-007", titles: { en: "Client Satisfaction Survey", es: "Encuesta de satisfacci\u00f3n del cliente" } },
   ];
   const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
 
@@ -763,21 +767,154 @@ function createStubs() {
   // What the read answers, and what the sign-off and supervisor routes answer back.
   const reportPayload = (r, lang) => {
     const isLog = r.id === SERVICE_LOG_ID;
-    const fields = isLog ? serviceLogFields() : deskDraft(r) ? deskFields(r, lang) : INCIDENT_FIELDS(r);
+    const isCustomer = customerFiling(r);
+    const fields = isLog ? serviceLogFields() : isCustomer ? customerFields(r, lang) : deskDraft(r) ? deskFields(r, lang) : INCIDENT_FIELDS(r);
     const mine = String(r.userId || "") === String(person().id);
-    const signed = !!filedState().signed.review_signoff;
     const sup = filedState().supervisor;
     // Step 165: with the log locked, nobody may write its supervisor half or sign it, which is how a
-    // person who is not a writer reads a photos question.
-    const canWrite = isLog && r.status === "submitted" && !mine && !filedExtras.locked;
+    // person who is not a writer reads a photos question. Step 169: a customer's filing is written
+    // and signed the same way, by whoever reviews it at a desk; its supervisor sign-off is its own.
+    const stampKeys = fields.filter((f) => f.type === "signoff" && f.half === "supervisor").map((f) => f.key);
+    const signed = stampKeys.some((k) => !!filedState().signed[k]);
+    const canWrite = (isLog || isCustomer) && r.status === "submitted" && !mine && !filedExtras.locked;
+    const required = isCustomer
+      ? fields.filter((f) => f.half === "supervisor" && f.type === "number").map((f) => ({ key: f.key, label: f.label }))
+      : supervisorRequired();
+    const held = (key) => (isCustomer && !Object.prototype.hasOwnProperty.call(sup, key) ? (r.answers || {})[key] : sup[key]);
+    const draft = isCustomer
+      ? Object.assign(customerListRow(r, lang), { source: "customer", customer: r.customer, answers: r.answers })
+      : Object.assign({}, r);
     return Object.assign({
-      draft: Object.assign({}, r),
+      draft: draft,
       fields: fields,
-      canSign: isLog && !mine && !signed && !filedExtras.locked ? ["review_signoff"] : [],
+      canSign: (isLog || isCustomer) && !mine && !signed && !filedExtras.locked ? stampKeys : [],
       canWriteSupervisor: canWrite,
-      supervisorMissing: canWrite ? supervisorRequired().filter((q) => !answered(sup[q.key])) : [],
-    }, isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
+      supervisorMissing: canWrite ? required.filter((q) => !answered(held(q.key))) : [],
+    }, isCustomer ? { sections: CUSTOMER_SECTIONS[r.formCode](lang) } : isLog && filedExtras.sections ? { sections: LOG_SECTIONS[lang === "es" ? "es" : "en"] } : {});
   };
+
+  // ---- Step 169: customer links, and a customer's filings -------------------------------------
+  // A customer link is a token per site per form, the address a customer opens from a QR code posted
+  // in the building. Three are served: one live, one switched off, one unused past its clock. The
+  // routes are the administrator's, manage_settings, which a supervisor does not hold; the view is
+  // the one routes/customerLinks.js sends, the title in the language asked. Every value here is
+  // invented, the portal's address included.
+  const CUSTOMER_TITLES = {
+    "OCSA-FRM-006": { en: "Facility Cleanliness Evaluation Checklist", es: "Lista de evaluación de limpieza del edificio" },
+    "OCSA-FRM-007": { en: "Client Satisfaction Survey", es: "Encuesta de satisfacción del cliente" },
+  };
+  const PORTAL_BASE = "https://portal.example.invalid";
+  const customerLinkRows = () => [
+    { id: "cl-1", token: "k7Qm2vX9pL4wR8sT1nB6yH3jF0cD5gZa", formCode: "OCSA-FRM-006", siteId: S[0].id, uses: 4, lastUsedAt: seed.shift(-2) + "T15:20:00Z", createdAt: seed.shift(-30) + "T13:00:00Z", createdBy: seed.PEOPLE.admin.id, disabledAt: null, disabledBy: null, expired: false },
+    { id: "cl-2", token: "p3Wn8xC1vM6zQ9rL2kT7hB4yJ0dS5fGe", formCode: "OCSA-FRM-007", siteId: S[1].id, uses: 1, lastUsedAt: seed.shift(-9) + "T10:05:00Z", createdAt: seed.shift(-20) + "T09:30:00Z", createdBy: seed.PEOPLE.admin.id, disabledAt: seed.shift(-3) + "T16:00:00Z", disabledBy: seed.PEOPLE.admin.id, expired: false },
+    { id: "cl-3", token: "z1Rt5yV8nK2mQ6xL9wB3cH7jP0aF4dSg", formCode: "OCSA-FRM-006", siteId: S[2].id, uses: 0, lastUsedAt: null, createdAt: seed.shift(-100) + "T08:00:00Z", createdBy: seed.PEOPLE.admin.id, disabledAt: null, disabledBy: null, expired: true },
+  ];
+  // hand: 3 links, newest first is cl-2 (20 days ago), then cl-1 (30), then cl-3 (100).
+  let linkSeq = 0;
+  const customerLinks = () => { if (!state.customerLinks) state.customerLinks = customerLinkRows(); return state.customerLinks; };
+  const linkState = (l) => (l.disabledAt ? "disabled" : l.expired ? "expired" : "live");
+  const linkView = (l, lang) => ({
+    id: l.id, token: l.token, url: PORTAL_BASE + "/c/" + l.token,
+    formCode: l.formCode, formTitle: CUSTOMER_TITLES[l.formCode][lang === "es" ? "es" : "en"],
+    site: { id: l.siteId, name: (state.sites.find((s) => s.id === l.siteId) || {}).name || null },
+    state: linkState(l), uses: l.uses, lastUsedAt: l.lastUsedAt, createdAt: l.createdAt, createdBy: l.createdBy,
+    disabledAt: l.disabledAt, disabledBy: l.disabledBy,
+  });
+  const linkRefusal = (code, status, lang, extra) => ({ status, json: Object.assign({
+    error: {
+      "customer.formNotCustomer": lang === "es" ? "Ese formulario no lo llenan los clientes" : "That form is not filled by customers",
+      "customer.siteNotFound": lang === "es" ? "No se encontró el sitio" : "Site not found",
+      "customer.linkNotFound": lang === "es" ? "No se encontró el enlace" : "Link not found",
+      "customer.anotherLinkLive": lang === "es" ? "Otro enlace para este sitio y formulario está activo" : "Another link for this site and form is live",
+    }[code], code }, extra || {}) });
+  const newestFirst = (rows) => rows.slice().sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+
+  // Two of a customer's filings, one of each customer form, filed through a link: no account, so
+  // userId is null and userName carries the customer's name and role on the list; the report itself
+  // carries source customer and the customer beside the draft, as routes/forms.js sends them since
+  // Step 167. The cleanliness checklist carries the customer's signature and the three numbers the
+  // API prefilled for the Field Lead; the survey carries the averages the API computed.
+  const CUSTOMER_FILINGS = [
+    { id: "cf-1", formCode: "OCSA-FRM-006", status: "submitted", siteId: S[1].id, userId: null, source: "customer",
+      customer: { name: "Rosalind Achterberg", role: "Facilities manager", linkId: "cl-1" },
+      createdAt: seed.shift(-1) + "T19:55:00Z", submittedAt: seed.shift(-1) + "T20:12:00Z", answered: 40, remaining: 0, dueAt: null,
+      answers: { completed_by: "Rosalind Achterberg", completed: "independently", first_impression: "acceptable", deficient_comments: "The east stairwell still had dust on the rails.",
+        customer_signed: { name: "Rosalind Achterberg", role: "Facilities manager", signatureId: "csig-1", at: seed.shift(-1) + "T20:12:00Z" },
+        acceptable_count: 27, deficient_count: 3, score: 90 } },
+    { id: "cf-2", formCode: "OCSA-FRM-007", status: "submitted", siteId: S[2].id, userId: null, source: "customer",
+      customer: { name: "Corvin Ballantyne", role: "Office manager", linkId: "cl-2" },
+      createdAt: seed.shift(-5) + "T14:00:00Z", submittedAt: seed.shift(-5) + "T14:18:00Z", answered: 9, remaining: 0, dueAt: null,
+      // hand: section 2 rated 4 and 4, section 3 rated 2, so 4.0 and 2.0, and the overall is (4 + 4 + 2) / 3 = 3.3.
+      answers: { organization: "Ballantyne Holdings", your_name: "Corvin Ballantyne", your_role: "Office manager", overall_quality: "4", service_consistency: "4", response_speed: "2", recommend: "yes", follow_up: "no",
+        _computed: { sections: { "2": 4, "3": 2 }, overall: 3.3, rated: 3 } } },
+  ];
+  const customerFiling = (r) => !!r && r.source === "customer";
+  const anyReport = (id) => INCIDENT_REPORTS.find((x) => x.id === id) || CUSTOMER_FILINGS.find((x) => x.id === id) || null;
+  const cw = (en, es, lang) => (lang === "es" ? es : en);
+  const CUSTOMER_SECTIONS = {
+    "OCSA-FRM-006": (lang) => [
+      { key: "1", title: cw("Building and review details", "Datos del edificio y de la revisión", lang) },
+      { key: "2", title: cw("Morning readiness", "Condición por la mañana", lang) },
+      { key: "8", title: cw("Your feedback", "Sus comentarios", lang) },
+      { key: "9", title: cw("For OCSA use", "Para uso de OCSA", lang) },
+    ],
+    "OCSA-FRM-007": (lang) => [
+      { key: "1", title: cw("About you", "Sobre usted", lang) },
+      { key: "2", title: cw("Service quality", "Calidad del servicio", lang) },
+      { key: "3", title: cw("Communication", "Comunicación", lang) },
+      { key: "7", title: cw("Your comments", "Sus comentarios", lang) },
+      { key: "8", title: cw("For OCSA use", "Para uso de OCSA", lang) },
+    ],
+  };
+  const RATING_OPTIONS = ["1", "2", "3", "4", "5"].map((v) => ({ value: v, label: v }));
+  const YES_NO = (lang) => [{ value: "yes", label: cw("Yes", "Sí", lang) }, { value: "no", label: cw("No", "No", lang) }];
+  const customerFields = (r, lang) => {
+    const a = r.answers || {};
+    const sup = filedState().supervisor;
+    const supValue = (key) => (Object.prototype.hasOwnProperty.call(sup, key) ? sup[key] : (a[key] === undefined ? null : a[key]));
+    const numberText = (v) => (typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+    const stamp = filedState().signed.received_by || filedState().signed.reviewed_by || null;
+    if (r.formCode === "OCSA-FRM-006") {
+      return [
+        { id: "cf1-1", key: "completed_by", label: cw("Completed by", "Completado por", lang), half: "agent", type: "text", section: "1", value: a.completed_by, displayValue: a.completed_by },
+        { id: "cf1-2", key: "completed", label: cw("How this checklist was completed", "Cómo se completó esta lista", lang), half: "agent", type: "select", section: "1",
+          options: [{ value: "independently", label: cw("Independently by the customer", "Por el cliente de forma independiente", lang) }, { value: "together", label: cw("Together with OCSA", "Junto con OCSA", lang) }],
+          value: a.completed, displayValue: cw("Independently by the customer", "Por el cliente de forma independiente", lang) },
+        { id: "cf1-3", key: "first_impression", label: cw("First impression on arrival", "Primera impresión al llegar", lang), half: "agent", type: "select", section: "2",
+          options: [{ value: "acceptable", label: cw("Acceptable", "Aceptable", lang) }, { value: "deficient", label: cw("Deficient", "Deficiente", lang) }],
+          value: a.first_impression, displayValue: cw("Acceptable", "Aceptable", lang) },
+        { id: "cf1-4", key: "deficient_comments", label: cw("Comments on anything deficient", "Comentarios sobre lo deficiente", lang), half: "agent", type: "textarea", section: "8", value: a.deficient_comments, displayValue: a.deficient_comments },
+        { id: "cf1-5", key: "photos", label: cw("Photos", "Fotos", lang), half: "agent", type: "photos", section: "8", maxPhotos: 3, value: [], displayValue: "" },
+        { id: "cf1-6", key: "customer_signed", label: cw("Signed by the customer representative", "Firmado por el representante del cliente", lang), half: "agent", type: "customer_signature", section: "8",
+          value: a.customer_signed, signature: { id: a.customer_signed.signatureId },
+          displayValue: cw("Signed by Rosalind Achterberg, Facilities manager on March 16, 2026 at 4:12 PM", "Firmado por Rosalind Achterberg, Facilities manager el 16 de marzo de 2026 a las 4:12 PM", lang) },
+        { id: "cf1-7", key: "acceptable_count", label: cw("Acceptable lines", "Líneas aceptables", lang), half: "supervisor", type: "number", section: "9", value: supValue("acceptable_count"), displayValue: numberText(supValue("acceptable_count")) },
+        { id: "cf1-8", key: "deficient_count", label: cw("Deficient lines", "Líneas deficientes", lang), half: "supervisor", type: "number", section: "9", value: supValue("deficient_count"), displayValue: numberText(supValue("deficient_count")) },
+        { id: "cf1-9", key: "score", label: cw("Score", "Puntaje", lang), half: "supervisor", type: "number", section: "9", value: supValue("score"), displayValue: numberText(supValue("score")) },
+        { id: "cf1-10", key: "lowest_area", label: cw("Lowest scoring area", "Área con el puntaje más bajo", lang), half: "supervisor", type: "text", section: "9", value: supValue("lowest_area") || "", displayValue: supValue("lowest_area") || "" },
+        { id: "cf1-11", key: "received_by", label: cw("Received by", "Recibido por", lang), half: "supervisor", type: "signoff", signer: "supervisor", section: "9", value: stamp, displayValue: "" },
+      ];
+    }
+    return [
+      { id: "cf2-1", key: "organization", label: cw("Organization", "Organización", lang), half: "agent", type: "text", section: "1", value: a.organization, displayValue: a.organization },
+      { id: "cf2-2", key: "your_name", label: cw("Your name", "Su nombre", lang), half: "agent", type: "text", section: "1", value: a.your_name, displayValue: a.your_name },
+      { id: "cf2-3", key: "your_role", label: cw("Your role", "Su cargo", lang), half: "agent", type: "text", section: "1", value: a.your_role, displayValue: a.your_role },
+      { id: "cf2-4", key: "overall_quality", label: cw("Overall quality of the cleaning", "Calidad general de la limpieza", lang), half: "agent", type: "select", section: "2", options: RATING_OPTIONS, value: a.overall_quality, displayValue: "4" },
+      { id: "cf2-5", key: "service_consistency", label: cw("Consistency of the service", "Consistencia del servicio", lang), half: "agent", type: "select", section: "2", options: RATING_OPTIONS, value: a.service_consistency, displayValue: "4" },
+      { id: "cf2-6", key: "response_speed", label: cw("Speed of the response", "Rapidez de la respuesta", lang), half: "agent", type: "select", section: "3", options: RATING_OPTIONS, value: a.response_speed, displayValue: "2" },
+      { id: "cf2-7", key: "recommend", label: cw("Would you recommend OCSA", "Recomendaría a OCSA", lang), half: "agent", type: "select", section: "7", options: YES_NO(lang), value: a.recommend, displayValue: cw("Yes", "Sí", lang) },
+      { id: "cf2-8", key: "follow_up", label: cw("Would you like a follow-up call", "Quiere una llamada de seguimiento", lang), half: "agent", type: "select", section: "7", options: YES_NO(lang), value: a.follow_up, displayValue: cw("No", "No", lang) },
+      { id: "cf2-9", key: "low_scores_followed_up", label: cw("How the low scores were followed up", "Cómo se dio seguimiento a los puntajes bajos", lang), half: "supervisor", type: "textarea", section: "8", value: supValue("low_scores_followed_up") || "", displayValue: supValue("low_scores_followed_up") || "" },
+      { id: "cf2-10", key: "reviewed_by", label: cw("Reviewed by", "Revisado por", lang), half: "supervisor", type: "signoff", signer: "supervisor", section: "8", value: stamp, displayValue: "" },
+    ];
+  };
+  // What the list sends for a customer's filing: the name and role where an account's name goes.
+  const customerListRow = (r, lang) => ({
+    id: r.id, formCode: r.formCode, formName: CUSTOMER_TITLES[r.formCode][lang === "es" ? "es" : "en"], status: r.status, userId: null,
+    userName: [r.customer.name, r.customer.role].filter(Boolean).join(", "),
+    siteId: r.siteId, siteName: (state.sites.find((s) => s.id === r.siteId) || {}).name || null,
+    answered: r.answered, remaining: r.remaining, dueAt: r.dueAt, createdAt: r.createdAt, submittedAt: r.submittedAt,
+  });
 
   // GET /api/notification-recipients. Every type except the two Speak Up ones takes an outside
   // address, and the keyed type carries the forms, each with how its email carries the report.
@@ -1695,7 +1832,7 @@ function createStubs() {
     if (/^\/api\/jotform\/employees\/[^/]+\/documents$/.test(path) && method === "POST") {
       return created({ id: "doc-new-1", user_id: idAfter("/api/jotform/employees/"), category: "uncategorized", created_at: seed.NOW_ISO });
     }
-    if (path === "/api/forms") return ok({ forms: FORM_LIST.map((f) => Object.assign({ fillers: [] }, f)).concat([deskForm(lang)]) });
+    if (path === "/api/forms") return ok({ forms: FORM_LIST.map((f) => Object.assign({ fillers: [] }, f, f.titles ? { title: f.titles[lang === "es" ? "es" : "en"], titles: undefined } : {})).concat([deskForm(lang)]) });
     // Step 166: the draft routes the portal calls, for a form started at a desk. The API sets the
     // source itself, portal, and reads none from the body (routes/forms.js at 9b8f5ed, Step 169);
     // a save merges the answers, a null taking one off; Send refuses with the missing list until
@@ -1740,8 +1877,8 @@ function createStubs() {
       const code = q("formCode") || "";
       // The list carries no source and no answers: the API's list sends neither, and a report's
       // source is read on the report itself.
-      const rows = INCIDENT_REPORTS.filter((r) => r.status === status && (!code || r.formCode === code))
-        .map((r) => (deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined, source: undefined }) : r));
+      const rows = INCIDENT_REPORTS.concat(CUSTOMER_FILINGS).filter((r) => r.status === status && (!code || r.formCode === code))
+        .map((r) => (customerFiling(r) ? customerListRow(r, lang) : deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined, source: undefined }) : r));
       return ok({ responses: rows });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
@@ -1763,7 +1900,7 @@ function createStubs() {
       return ok({ id: r.id, formCode: code, inApp: 2, email: 3, attached: (state.formDelivery[code] || "app_link") === "pdf" });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/signoff$/.test(path) && method === "POST") {
-      const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
+      const r = anyReport(path.split("/")[4]);
       if (!r) return { status: 404, json: { error: "Report not found" } };
       const key = body && body.key;
       const payload = reportPayload(r, lang);
@@ -1797,7 +1934,7 @@ function createStubs() {
       return ok(reportPayload(r, lang));
     }
     if (/^\/api\/forms\/responses\/[^/]+\/supervisor$/.test(path) && method === "PATCH") {
-      const r = INCIDENT_REPORTS.find((x) => x.id === path.split("/")[4]);
+      const r = anyReport(path.split("/")[4]);
       if (!r) return { status: 404, json: { error: "Report not found" } };
       const answers = body && body.answers;
       if (!answers || typeof answers !== "object" || Array.isArray(answers)) {
@@ -1811,6 +1948,9 @@ function createStubs() {
       if (outside) return { status: 400, json: { error: "Only the supervisor section can be changed here" } };
       const stamp = Object.keys(answers).find((k) => byKey[k].type === "signoff");
       if (stamp) return { status: 400, json: { error: "A sign-off is made with its own button" } };
+      // Step 169: a number question takes a number, or null, the way the API reads one.
+      const notANumber = Object.keys(answers).filter((k) => byKey[k].type === "number" && answers[k] !== null && !(typeof answers[k] === "number" && Number.isFinite(answers[k])));
+      if (notANumber.length) return { status: 400, json: { error: lang === "es" ? "Escriba un n\u00famero" : "Enter a number", code: "forms.badNumber", keys: notANumber } };
       Object.keys(answers).forEach((k) => { filedState().supervisor[k] = answers[k]; });
       return ok(reportPayload(r, lang));
     }
@@ -1854,9 +1994,45 @@ function createStubs() {
     }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
-      const r = INCIDENT_REPORTS.find((x) => x.id === id) || INCIDENT_REPORTS[0];
+      const r = anyReport(id) || INCIDENT_REPORTS[0];
       if (method !== "GET") return ok({ message: "Report saved", draft: r });
       return ok(reportPayload(r, lang));
+    }
+
+    // --- customer links (Step 169) ------------------------------------------
+    // The administrator's routes, manage_settings: an admin holds it and a supervisor does not.
+    if (path === "/api/customer-links" || path.startsWith("/api/customer-links/")) {
+      if (person().role !== "admin") return { status: 403, json: { error: lang === "es" ? "Permisos insuficientes" : "Insufficient permissions", code: "access.insufficientPermissions" } };
+      const all = customerLinks();
+      if (path === "/api/customer-links" && method === "GET") return ok({ links: newestFirst(all).map((l) => linkView(l, lang)) });
+      if (path === "/api/customer-links" && method === "POST") {
+        const formCode = String((body && body.formCode) || "").trim();
+        const siteId = String((body && body.siteId) || "").trim();
+        if (!CUSTOMER_TITLES[formCode]) return linkRefusal("customer.formNotCustomer", 400, lang);
+        if (!state.sites.some((x) => x.id === siteId)) return linkRefusal("customer.siteNotFound", 404, lang);
+        const live = all.find((l) => l.siteId === siteId && l.formCode === formCode && linkState(l) === "live");
+        if (live) return ok({ link: linkView(live, lang), created: false });
+        linkSeq += 1;
+        const made = { id: "cl-new-" + linkSeq, token: "n" + linkSeq + "Xq4Lm8vT2wR7pK5sB9yH3cJ6fD0gZaEu".slice(0, 31), formCode, siteId, uses: 0, lastUsedAt: null,
+          createdAt: seed.NOW_ISO, createdBy: person().id, disabledAt: null, disabledBy: null, expired: false };
+        all.push(made);
+        return created({ link: linkView(made, lang), created: true });
+      }
+      const id = decodeURIComponent(path.split("/")[3] || "");
+      const link = all.find((l) => l.id === id);
+      if (!link) return linkRefusal("customer.linkNotFound", 404, lang);
+      if (/\/disable$/.test(path) && method === "POST") {
+        if (!link.disabledAt) { link.disabledAt = seed.NOW_ISO; link.disabledBy = person().id; }
+        return ok({ link: linkView(link, lang) });
+      }
+      if (/\/enable$/.test(path) && method === "POST") {
+        const other = all.find((l) => l.id !== link.id && l.siteId === link.siteId && l.formCode === link.formCode && linkState(l) === "live");
+        if (other) return linkRefusal("customer.anotherLinkLive", 409, lang, { liveId: other.id });
+        link.disabledAt = null; link.disabledBy = null; link.expired = false; link.lastUsedAt = seed.NOW_ISO;
+        return ok({ link: linkView(link, lang) });
+      }
+      if (/\/qr\.png$/.test(path) && method === "GET") return imageAnswer();
+      return linkRefusal("customer.linkNotFound", 404, lang);
     }
 
     // --- settings sub-panels ---------------------------------------------
@@ -2057,6 +2233,8 @@ function createStubs() {
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {}, photos: {} };
       photoSeq = 10;
+      // The customer links, made new, and the count the ones made in a case were numbered by.
+      state.customerLinks = null; linkSeq = 0;
       // The forms started at a desk since the last reset, and the switch that lets one be started.
       for (let i = INCIDENT_REPORTS.length - 1; i >= 0; i -= 1) { if (deskDraft(INCIDENT_REPORTS[i])) INCIDENT_REPORTS.splice(i, 1); }
       deskSeq = 0; startable = true;
