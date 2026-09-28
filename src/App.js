@@ -112,7 +112,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -258,6 +258,7 @@ const ClI = p => <Ic d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6
 const ChI = p => <Ic d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...p} />;
 const BrI = p => <Ic d="M18 20V10 M12 20V4 M6 20v-6" {...p} />;
 const AlI = p => <Ic d="M12 2L2 22h20L12 2zm0 7v5m0 3h.01" {...p} />;
+const AnnI = p => <Ic d="M3 11l18-6v14L3 13v-2z M7 13v5a2 2 0 0 0 4 0v-4" {...p} />;
 const PlI = p => <Ic d="M12 5v14M5 12h14" {...p} />;
 const CkI = p => <Ic d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 0v10l4 4" {...p} />;
 const XI = p => <Ic d="M18 6L6 18M6 6l12 12" {...p} />;
@@ -578,20 +579,34 @@ export default function AdminDashboard() {
   const [unread, setUnread] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
   const loadUnread = useCallback(async () => { try { const d = await af("/api/notifications/unread-count"); setUnread(Number(d && d.unread) || 0); } catch (e) { setUnread(0); console.warn("Unread notifications:", e.message); } }, [af]);
-  // One timer drives the bell and the Cases badge together, so the two polls never stack.
+  // Unread messages, summed over every chat this person can read, from the unreadCount each channel
+  // carries (Step 179). A channel that carries none counts nothing, so the badge is quiet until then.
+  const [chatUnread, setChatUnread] = useState(0);
+  const loadChatUnread = useCallback(async () => { try { const d = await af("/api/chat/channels"); setChatUnread((Array.isArray(d) ? d : []).reduce((n, c) => n + (Number(c && c.unreadCount) || 0), 0)); } catch (e) { setChatUnread(0); console.warn("Unread messages:", e.message); } }, [af]);
+  // This person's phone alert settings (Step 179). The My alerts entry draws once the API answers.
+  const [alertSettings, setAlertSettings] = useState(null);
+  const [alertsOpen, setAlertsOpen] = useState(false);
   useEffect(() => {
-    if (!token) { setCaseQueue(null); setUnread(0); setBellOpen(false); return; }
-    const tick = () => { loadUnread(); if (isAdmin) loadCaseQueue(); };
+    if (!token) { setAlertSettings(null); setAlertsOpen(false); return; }
+    let alive = true;
+    af("/api/notifications/settings").then(d => { if (alive) setAlertSettings(d && typeof d === "object" && typeof d.chat === "string" ? d : null); }).catch(() => { if (alive) setAlertSettings(null); });
+    return () => { alive = false; };
+  }, [token, af]);
+  // One timer drives the bell, the Messages badge and the Cases badge together, so the polls never stack.
+  useEffect(() => {
+    if (!token) { setCaseQueue(null); setUnread(0); setChatUnread(0); setBellOpen(false); return; }
+    const tick = () => { loadUnread(); loadChatUnread(); if (isAdmin) loadCaseQueue(); };
     tick();
     const iv = setInterval(() => { if (!document.hidden) tick(); }, 60000);
     return () => clearInterval(iv);
-  }, [token, isAdmin, loadUnread, loadCaseQueue]);
+  }, [token, isAdmin, loadUnread, loadChatUnread, loadCaseQueue]);
   const caseQueueCount = caseQueue ? caseQueue.unassigned + caseQueue.dueSoon + caseQueue.overdue : 0;
   // What a badge on the side panel is made of. The light arm is the only thing that changed.
   const badgeRed = themeMode === "light" ? "#C62828" : RD;
   const badgeRedText = themeMode === "light" ? "#FFFFFF" : "#F8F7F4";
   const badgeRing = themeMode === "light" ? { boxShadow: "0 0 0 2px #FFFFFF" } : {};
   const openIssuesCount = notif && Number(notif.openIssues) > 0 ? Number(notif.openIssues) : 0;
+  const MessagesBadge = ({ style }) => chatUnread > 0 ? <span aria-label={tr("{0} unread messages", chatUnread)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", ...badgeRing, ...style }}>{chatUnread}</span> : null;
   const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={tr("{0} open issues", openIssuesCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
   const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={tr("{0} cases need attention", caseQueueCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
   // A pick list's choices. `shown` is for a screen that only shows them: each choice reads its
@@ -689,11 +704,12 @@ export default function AdminDashboard() {
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }] },
     ...(canOpenPage("forms") ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
+    ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -765,6 +781,7 @@ export default function AdminDashboard() {
                     {GroupIcon && <GroupIcon sz={18} c={isAnyItemActive ? SB_TEXT_ACTIVE : SB_TEXT} />}
                     {group.items.some(item => item.id === "cases") && <CaseQueueBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                     {group.items.some(item => item.id === "issues") && <OpenIssuesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
+                    {group.items.some(item => item.id === "chat") && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                   </button>
                 </div>
               );
@@ -805,6 +822,7 @@ export default function AdminDashboard() {
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
                     {item.id === "issues" && <OpenIssuesBadge style={{ marginLeft: "auto" }} />}
+                    {item.id === "chat" && <MessagesBadge style={{ marginLeft: "auto" }} />}
                   </button>
                 );
               })}
@@ -868,6 +886,7 @@ export default function AdminDashboard() {
                   <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("Notifications")}
                   {unread > 0 && <span style={{ marginLeft: "auto", minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: RD, color: "#fff", fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{unread > 9 ? "9+" : unread}</span>}
                 </button>
+                {alertSettings && <button onClick={() => { setMoreOpen(false); setAlertsOpen(true); }} style={menuRow}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={menuRow}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />} {themeMode === "dark" ? tr("Light mode") : tr("Dark mode")}</button>
                 <button onClick={signOut} style={{ ...menuRow, color: RD }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
               </div>
@@ -902,6 +921,7 @@ export default function AdminDashboard() {
               <div style={{ position: "absolute", top: 48, right: 0, width: 210, maxWidth: "calc(100vw / var(--zoom, 1) - 32px)", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, padding: 6, zIndex: 41 }}>
                 <div style={{ padding: "8px 10px", borderBottom: "1px solid " + t.border, marginBottom: 4 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{user?.firstName} {user?.lastName}</div><div style={{ fontSize: 11, color: t.textMut }}>{isAdmin ? tr("Administrator") : tr("Supervisor")}</div></div>
                 {canOpenPage("settings") && <button onClick={() => { setPage("settings"); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><StgI sz={16} c={t.textSec} /> {tr("Settings")}</button>}
+                {alertSettings && <button onClick={() => { setAlertsOpen(true); setUserMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: t.text, fontSize: 13, textAlign: "left", fontFamily: FONT_BODY }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={16} c={t.textSec} /> {tr("My alerts")}</button>}
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{textSizeChoice(true)}</div>
                 <div style={{ borderTop: "1px solid " + t.border, marginTop: 4, paddingTop: 4 }}>{languageChoice(true)}</div>
                 <button onClick={signOut} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "9px 10px", background: "none", border: "none", borderRadius: 8, cursor: "pointer", color: RD, fontSize: 13, textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.redSubtle; }} onMouseLeave={e => { e.currentTarget.style.background = "none"; }}><LoI sz={16} c={RD} /> {tr("Sign Out")}</button>
@@ -913,6 +933,7 @@ export default function AdminDashboard() {
       </div>
       )}
       {(navOpen || userMenuOpen || moreOpen) && <div onClick={() => { setNavOpen(false); setUserMenuOpen(false); setMoreOpen(false); }} style={{ position: "fixed", inset: 0, zIndex: 38 }} />}
+      {alertsOpen && alertSettings && <MyAlertsWindow af={af} t={t} settings={alertSettings} onChange={setAlertSettings} onClose={() => setAlertsOpen(false)} showToast={showToast} />}
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
@@ -929,7 +950,8 @@ export default function AdminDashboard() {
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "chat" && <ChatPage af={af} user={user} t={t} />}
+        {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} />}
+        {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -2680,44 +2702,159 @@ function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpt
   </div>);
 }
 
-function ChatPage({ af, user, t }) {
-  const [dms, setDms] = useState([]); const [sel, setSel] = useState(null); const [msgs, setMsgs] = useState([]); const [reply, setReply] = useState(""); const [q, setQ] = useState(""); const endRef = useRef(null);
-  const [dmsFailed, setDmsFailed] = useState(false); const [msgsFailed, setMsgsFailed] = useState(false);
-  const loadDms = () => af("/api/chat/dm-inbox").then(d => { setDms(d); setDmsFailed(false); }).catch(e => { setDmsFailed(true); console.warn(e.message); });
-  useEffect(() => { loadDms(); }, []);
+// A message's text with each tagged name drawn as a chip. The API keeps the ids in `mentions` and the
+// text as typed, with @Name in it, so the names are found in the text and everything else is drawn
+// as it was typed.
+const mentionParts = (text, mentions) => {
+  const names = (Array.isArray(mentions) ? mentions : []).map(m => m && m.name).filter(Boolean).sort((a, b) => b.length - a.length);
+  const out = []; let rest = String(text || ""); let k = 0;
+  while (rest.length) {
+    let at = -1; let hit = "";
+    names.forEach(n => { const i = rest.indexOf("@" + n); if (i >= 0 && (at < 0 || i < at)) { at = i; hit = n; } });
+    if (at < 0) { out.push({ k: k++, text: rest }); break; }
+    if (at > 0) out.push({ k: k++, text: rest.slice(0, at) });
+    out.push({ k: k++, text: "@" + hit, tag: true });
+    rest = rest.slice(at + hit.length + 1);
+  }
+  return out;
+};
+const MentionText = ({ text, mentions, color }) => <>{mentionParts(text, mentions).map(p => p.tag ? <span key={p.k} style={{ fontWeight: 700, color: color || GO }}>{p.text}</span> : <Fragment key={p.k}>{p.text}</Fragment>)}</>;
+
+// Tag someone: the active people who can read the chat, the caller left out, from the members route
+// (Step 179). A search narrows them, each row is 44 pixels, and a pick puts @Name in the text.
+function TagPicker({ af, t, channelId, onPick, onClose }) {
+  const [members, setMembers] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [q, setQ] = useState("");
+  const load = useCallback(() => {
+    setFailed(false); setMembers(null);
+    af("/api/chat/channels/" + encodeURIComponent(channelId) + "/members")
+      .then(d => setMembers(d && Array.isArray(d.members) ? d.members : []))
+      .catch(e => { setFailed(true); console.warn("Members:", e.message); });
+  }, [af, channelId]);
+  useEffect(() => { load(); }, [load]);
+  const shown = (members || []).filter(m => !q.trim() || String(m.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  return (<div role="dialog" aria-label={tr("Tag someone")} data-tag-picker style={{ position: "absolute", left: 16, right: 16, bottom: 64, maxWidth: 360, maxHeight: 320, display: "flex", flexDirection: "column", background: t.card, border: "1px solid " + t.border, borderRadius: 12, boxShadow: t.popShadow, zIndex: 20 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 8px 8px 14px", borderBottom: "1px solid " + t.border }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, flex: 1 }}>{tr("Tag someone")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={16} c={t.textMut} /></button>
+    </div>
+    <div style={{ padding: "8px 10px" }}><Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} autoFocus style={{ minHeight: 44 }} /></div>
+    <div style={{ overflowY: "auto", padding: "0 6px 6px" }}>
+      {failed && <LoadFailed t={t} onRetry={load} />}
+      {!failed && members === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {!failed && members !== null && members.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No one else can read this chat.")}</div>}
+      {!failed && members !== null && members.length > 0 && shown.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No staff match that search")}</div>}
+      {shown.map(m => (<button key={m.id} onClick={() => onPick(m)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+        <Ini name={m.name} sz={30} color={t.textSec} />
+        <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.name}</span>
+        {m.role && <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{roleWord(m.role)}</span>}
+      </button>))}
+    </div>
+  </div>);
+}
+
+// Messages: the general chat and every site chat on top, private conversations under them. Under
+// 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
+// Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
+// (Step 179; the read route arriving with it, its refusal is quiet until then).
+function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false }) {
+  const [channels, setChannels] = useState([]);
+  const [dms, setDms] = useState([]);
+  const [dmsFailed, setDmsFailed] = useState(false);
+  const [sel, setSel] = useState(null);
+  const [msgs, setMsgs] = useState([]);
+  const [msgsFailed, setMsgsFailed] = useState(false);
+  const [reply, setReply] = useState("");
+  const [q, setQ] = useState("");
+  const [mentions, setMentions] = useState([]);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+  const loadDms = () => af("/api/chat/dm-inbox").then(d => { setDms(Array.isArray(d) ? d : []); setDmsFailed(false); }).catch(e => { setDmsFailed(true); console.warn(e.message); });
+  const loadChannels = () => af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.type !== "admin_dm"))).catch(e => console.warn("Channels:", e.message));
+  useEffect(() => { loadDms(); loadChannels(); }, []);
+  const markRead = async (id) => {
+    try { await af("/api/chat/channels/" + encodeURIComponent(id) + "/read", { method: "POST" }); } catch (e) { return; }
+    setDms(p => p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d));
+    setChannels(p => p.map(c => c.id === id ? { ...c, unreadCount: 0 } : c));
+    if (onRead) onRead();
+  };
   // A conversation that does not load clears what the last one showed and says so, with a way to try again.
-  const open = async id => { setSel(id); try { const m = await af("/api/chat/channels/" + id + "/messages"); setMsgs(m); setMsgsFailed(false); } catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); } };
+  const open = async id => {
+    setSel(id); setTagOpen(false); setMentions([]);
+    try { const m = await af("/api/chat/channels/" + encodeURIComponent(id) + "/messages"); setMsgs(Array.isArray(m) ? m : []); setMsgsFailed(false); markRead(id); }
+    catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); }
+  };
+  useEffect(() => { const id = route[0]; if (id && id !== sel) open(id); }, [route[0]]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
-  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + sel + "/messages"); setMsgs(m); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
-  const send = async () => { if (!reply.trim() || !sel) return; try { const d = await af("/api/chat/channels/" + sel + "/messages", { method: "POST", body: { text: reply.trim() } }); setMsgs(p => [...p, d.message]); setReply(""); } catch (e) { console.error(e); } };
-  const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); setMsgs(Array.isArray(m) ? m : []); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
+  const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
+  const canTag = !!activeChannel;
+  // The tags still in the text are the ones sent, at most ten and no repeats.
+  const liveMentions = () => { const ids = []; mentions.forEach(m => { if (reply.indexOf("@" + m.name) >= 0 && ids.indexOf(m.id) < 0) ids.push(m.id); }); return ids.slice(0, 10); };
+  const send = async () => {
+    const text = reply.trim();
+    if (!text || !sel || sending) return;
+    setSending(true);
+    const ids = liveMentions();
+    const body = ids.length ? { text, mentions: ids } : { text };
+    try { const d = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages", { method: "POST", body }); if (d && d.message) setMsgs(p => [...p, d.message]); setReply(""); setMentions([]); }
+    catch (e) { if (showToast) showToast(e && e.code && e.message ? e.message : tr("Your message did not send."), "error"); }
+    setSending(false);
+  };
+  const onReplyChange = (v) => { setReply(v); if (canTag && v.length > reply.length && v.endsWith("@")) setTagOpen(true); };
+  const pickMember = (m) => {
+    const name = String(m.name || "");
+    setReply(r => (r.endsWith("@") ? r.slice(0, -1) : (r && !r.endsWith(" ") ? r + " " : r)) + "@" + name + " ");
+    setMentions(p => (p.some(x => x.id === m.id) ? p : [...p, { id: m.id, name }]));
+    setTagOpen(false);
+    if (inputRef.current) inputRef.current.focus();
+  };
+  const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
+  const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : tr("General chat"));
+  const unreadPill = (n) => (n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{n}</span> : null);
+  const showList = !phone || !sel;
+  const showTalk = !phone || !!sel;
+  const rowStyle = (active) => ({ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" });
   return (<div>
     <SecT t={t}>{tr("Messages")}</SecT>
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 420 }}>
-      <div style={{ width: 300, borderRight: "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      {showList && <div style={{ width: phone ? "100%" : 300, borderRight: phone ? "none" : "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Private conversations")}</div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 20, padding: "7px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 22, padding: "7px 12px", minHeight: 44 }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
+          {shownChannels.length > 0 && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Channels")}</div>}
+          {shownChannels.map(c => { const active = c.id === sel; return (
+            <button key={c.id} onClick={() => open(c.id)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><ChI sz={18} c={active ? GO : t.textSec} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: c.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>{c.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(c.lastMessageAt)}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: t.textMut }}>{channelKind(c)}</span>{unreadPill(Number(c.unreadCount) || 0)}</div>
+              </div>
+            </button>); })}
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>
           {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
           {!dmsFailed && filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
-            <button key={dm.channelId} onClick={() => open(dm.channelId)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" }} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+            <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.staffName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{dm.unreadCount > 0 && <span style={{ width: 18, height: 18, borderRadius: "50%", background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{dm.unreadCount}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
               </div>
             </button>
           ); })}
         </div>
-      </div>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+      </div>}
+      {showTalk && <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative" }}>
         {!sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
@@ -2725,28 +2862,182 @@ function ChatPage({ af, user, t }) {
             <div style={{ fontSize: 12, marginTop: 4 }}>{tr("Pick a conversation on the left to start.")}</div>
           </div>
         ) : (<>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid " + t.border }}>
-            <Ini name={activeDm?.staffName} sz={34} />
-            <div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{activeDm?.staffName || tr("Conversation")}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
+            {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
+            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : <Ini name={activeDm?.staffName} sz={34} />}
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
             {msgsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={() => open(sel)} style={{ padding: 40 }} />}
             {!msgsFailed && msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
-            {msgs.map((m, i) => { const isMe = m.senderRole === "admin" || m.senderRole === "supervisor"; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
+            {msgs.map((m, i) => { const isMe = user && m.senderId === user.id ? true : (m.senderRole === "admin" || m.senderRole === "supervisor") && !activeChannel; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
-                <div style={{ maxWidth: "75%" }}>{!isMe && showN && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec }}>{m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45 }}>{m.text}</div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
+                <div style={{ maxWidth: "75%" }}>{!isMe && showN && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec }}>{m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={m.text} mentions={m.mentions} color={isMe ? "#F8F7F4" : t.goldText} /></div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
               </div>); })}
             <div ref={endRef} />
           </div>
-          <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border }}>
-            <Inp t={t} value={reply} onChange={e => setReply(e.target.value)} placeholder={tr("Type a message")} style={{ borderRadius: 20 }} onKeyDown={e => e.key === "Enter" && send()} />
-            <button onClick={send} style={{ width: 40, height: 40, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
+          {tagOpen && canTag && <TagPicker af={af} t={t} channelId={sel} onPick={pickMember} onClose={() => setTagOpen(false)} />}
+          <div style={{ display: "flex", gap: 8, padding: "12px 16px", borderTop: "1px solid " + t.border, alignItems: "center" }}>
+            {canTag && <button onClick={() => setTagOpen(o => !o)} aria-label={tr("Tag someone")} title={tr("Tag someone")} aria-pressed={tagOpen} style={{ width: 44, height: 44, borderRadius: "50%", border: "1px solid " + (tagOpen ? GO : t.inputBorder), background: tagOpen ? t.goldBg : t.inputBg, color: tagOpen ? t.goldText : t.textSec, fontSize: 18, fontWeight: 700, cursor: "pointer", flexShrink: 0, fontFamily: FONT_BODY }}>@</button>}
+            <input ref={inputRef} value={reply} onChange={e => onReplyChange(e.target.value)} placeholder={tr("Type a message")} aria-label={tr("Type a message")} onKeyDown={e => { if (e.key === "Enter" && !tagOpen) send(); if (e.key === "Escape") setTagOpen(false); }} style={{ flex: 1, minWidth: 0, minHeight: 44, padding: "10px 13px", borderRadius: 22, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <button onClick={send} disabled={sending} aria-label={tr("Send")} title={tr("Send")} style={{ width: 44, height: 44, borderRadius: "50%", background: reply.trim() ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: reply.trim() ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={reply.trim() ? NAVY : t.textMut} /></button>
           </div>
         </>)}
-      </div>
+      </div>}
     </Crd>
   </div>);
+}
+
+// Announcements from the office (Step 179), for holders of send_announcements. Written once; the API
+// puts it in each person's language. The page draws nothing until the API lists announcements: a 404
+// hides the form, and any other failure says so.
+const announcementCodes = { "announcements.titleRequired": "title", "announcements.titleTooLong": "title", "announcements.bodyRequired": "body", "announcements.bodyTooLong": "body", "announcements.audienceEmpty": "audience", "announcements.siteNotFound": "audience" };
+function AnnouncementsPage({ af, showToast, t, sites = [], allStaff = [], getOpts, lkMap, route = [] }) {
+  const [list, setList] = useState([]);
+  const [listState, setListState] = useState("loading");
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [aud, setAud] = useState("all");
+  const [siteId, setSiteId] = useState("");
+  const [role, setRole] = useState("");
+  const [userIds, setUserIds] = useState([]);
+  const [pq, setPq] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [errors, setErrors] = useState({});
+  const [sending, setSending] = useState(false);
+  const [openOne, setOpenOne] = useState(null);
+  const sendingRef = useRef(false);
+  const lang = getLang();
+  const load = useCallback(() => {
+    setListState(s => (s === "ready" ? s : "loading"));
+    af("/api/announcements").then(d => { setList(d && Array.isArray(d.announcements) ? d.announcements : []); setListState("ready"); })
+      .catch(e => { setListState(e && e.status === 404 ? "hidden" : "failed"); console.warn("Announcements:", e.message); });
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  // The one the bell opened: in the list when it is there, read on its own when it is not.
+  useEffect(() => {
+    const id = route[0]; if (!id) { setOpenOne(null); return; }
+    const row = list.find(a => String(a.id) === String(id));
+    if (row) { setOpenOne(row); return; }
+    let alive = true;
+    af("/api/announcements/" + encodeURIComponent(id)).then(d => { if (alive) setOpenOne(d && d.announcement ? d.announcement : null); }).catch(() => { if (alive) setOpenOne(null); });
+    return () => { alive = false; };
+  }, [route[0], list, af]);
+  const audienceReady = aud === "all" || (aud === "site" && siteId) || (aud === "role" && role) || (aud === "users" && userIds.length > 0);
+  const previewQuery = () => "?type=" + aud + (aud === "site" ? "&siteId=" + encodeURIComponent(siteId) : aud === "role" ? "&role=" + encodeURIComponent(role) : aud === "users" ? "&userIds=" + userIds.map(encodeURIComponent).join(",") : "");
+  useEffect(() => {
+    if (listState !== "ready" || !audienceReady) { setPreview(null); return; }
+    let alive = true;
+    const h = setTimeout(() => { af("/api/announcements/preview" + previewQuery()).then(d => { if (alive) setPreview(d && typeof d === "object" ? d : null); }).catch(() => { if (alive) setPreview(null); }); }, 300);
+    return () => { alive = false; clearTimeout(h); };
+  }, [listState, aud, siteId, role, userIds.join(",")]);
+  const audienceBody = () => (aud === "site" ? { type: "site", siteId } : aud === "role" ? { type: "role", role } : aud === "users" ? { type: "users", userIds } : { type: "all" });
+  const send = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setErrors({});
+    try {
+      await af("/api/announcements", { method: "POST", body: { title: title.trim(), body: body.trim(), audience: audienceBody() } });
+      showToast(tr("Announcement sent."));
+      setTitle(""); setBody(""); setUserIds([]); load();
+    } catch (e) {
+      const field = (e && e.code && announcementCodes[e.code]) || "form";
+      setErrors({ [field]: (e && e.message) || tr("Request failed") });
+    }
+    sendingRef.current = false; setSending(false);
+  };
+  const roleOpts = getOpts ? getOpts("staff_roles", null, true) : [];
+  const roleShown = lkMap ? lkMap("staff_roles", true) : {};
+  const roleOf = (r) => roleShown[r] || roleWord(r);
+  const textOf = (v) => (v && typeof v === "object" ? (v[lang] || v.en || "") : (v || ""));
+  const audienceWord = (a) => {
+    if (!a) return "";
+    if (a.type === "site") { const s = sites.find(x => String(x.id) === String(a.siteId)); return s ? s.name : tr("One site's people"); }
+    if (a.type === "role") return roleOf(a.role);
+    if (a.type === "users") return tr("Chosen people") + " (" + (Array.isArray(a.userIds) ? a.userIds.length : 0) + ")";
+    return tr("Everyone");
+  };
+  const people = allStaff.filter(p => { const n = ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || ""; return !pq.trim() || n.toLowerCase().includes(pq.trim().toLowerCase()); });
+  const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+  const errLine = (k) => (errors[k] ? <div style={{ fontSize: 12, color: RD, marginTop: 4 }}>{errors[k]}</div> : null);
+  const choice = (v, l) => (<button key={v} onClick={() => setAud(v)} aria-pressed={aud === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (aud === v ? GO : t.border), background: aud === v ? t.goldBg : "transparent", color: aud === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
+  const row = (a, open) => (<div key={a.id} data-announcement={a.id} style={{ padding: "12px 0", borderBottom: "1px solid " + t.border, borderLeft: open ? "3px solid " + GO : "none", paddingLeft: open ? 10 : 0 }}>
+    <div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{textOf(a.title)}</div>
+    {open && <div style={{ fontSize: 13, color: t.text, marginTop: 6, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{textOf(a.body)}</div>}
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, display: "flex", gap: 10, flexWrap: "wrap" }}>
+      <span>{audienceWord(a.audience)}</span>
+      {a.sentBy && a.sentBy.name && <span>{tr("By: {0}", a.sentBy.name)}</span>}
+      {a.sentAt && <span>{irWhen(a.sentAt)}</span>}
+    </div>
+    <div style={{ fontSize: 12, color: t.textMut, marginTop: 2 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(a.recipients) || 0, Number(a.withPush) || 0)}</div>
+  </div>);
+  return (<div>
+    <SecT t={t}>{tr("Announcements")}</SecT>
+    {listState === "loading" && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {listState === "failed" && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {listState === "ready" && <>
+      {openOne && <Crd t={t} style={{ marginBottom: 16 }}>{row(openOne, true)}</Crd>}
+      <Crd t={t} style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("New announcement")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Title")}</Lbl><Inp t={t} value={title} maxLength={60} onChange={e => setTitle(e.target.value)} aria-label={tr("Title")} style={{ minHeight: 44 }} />{errLine("title")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Message")}</Lbl><TArea t={t} rows={4} value={body} maxLength={500} onChange={e => setBody(e.target.value)} aria-label={tr("Message")} />
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Written once; each person gets it in their language.")}</div>{errLine("body")}</div>
+        <div style={{ marginBottom: 12 }}><Lbl>{tr("Send to")}</Lbl>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>{choice("all", tr("Everyone"))}{choice("site", tr("One site's people"))}{choice("role", tr("A role"))}{choice("users", tr("Chosen people"))}</div>
+          {aud === "site" && <Sel t={t} value={siteId} onChange={e => setSiteId(e.target.value)} aria-label={tr("Site")} options={[{ v: "", l: tr("Select site...") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} style={{ minHeight: 44 }} />}
+          {aud === "role" && <Sel t={t} value={role} onChange={e => setRole(e.target.value)} aria-label={tr("Role")} options={[{ v: "", l: tr("Select role...") }, ...roleOpts]} style={{ minHeight: 44 }} />}
+          {aud === "users" && <div style={{ border: "1px solid " + t.border, borderRadius: 10, padding: 8 }}>
+            <Inp t={t} value={pq} onChange={e => setPq(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ minHeight: 44, marginBottom: 6 }} />
+            <div style={{ maxHeight: 220, overflowY: "auto" }}>
+              {people.map(p => { const on = userIds.indexOf(p.id) >= 0; return (<label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "0 6px", cursor: "pointer", fontSize: 13, color: t.text }}>
+                <input type="checkbox" checked={on} onChange={() => setUserIds(ids => (on ? ids.filter(x => x !== p.id) : [...ids, p.id]))} style={{ width: 18, height: 18 }} />
+                <span style={{ flex: 1 }}>{nameOf(p)}</span>{p.role && <span style={{ fontSize: 11, color: t.textMut }}>{roleOf(p.role)}</span>}
+              </label>); })}
+              {people.length === 0 && <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("No staff match that search")}</div>}
+            </div>
+          </div>}
+          {errLine("audience")}
+        </div>
+        {preview && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Reaches {0} people, {1} with phone alerts on.", Number(preview.recipients) || 0, Number(preview.withPush) || 0)}</div>}
+        {errLine("form")}
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} onClick={send} disabled={sending || !audienceReady} style={{ minHeight: 44 }}>{sending ? tr("Sending...") : tr("Send announcement")}</Btn></div>
+      </Crd>
+      <Crd t={t}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Sent")}</div>
+        {list.length === 0 && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No announcements yet.")}</div>}
+        {list.map(a => row(a, openOne && String(openOne.id) === String(a.id)))}
+      </Crd>
+    </>}
+  </div>);
+}
+
+// My alerts: the same settings as the staff app's Phone alerts (Step 179). They decide what is pushed
+// to a person's phones; the bell keeps every notice whatever they say. Each change is saved at once.
+const ALERT_SWITCHES = [["schedule", "Schedule and time off"], ["pickups", "Shift pickups and drops"], ["supplies", "Supply requests"], ["issues", "Problems reported"], ["forms", "Forms filed"]];
+function MyAlertsWindow({ af, t, settings, onChange, onClose, showToast }) {
+  const busyRef = useRef(false);
+  const save = async (patch) => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const before = settings;
+    onChange({ ...settings, ...patch });
+    try { const d = await af("/api/notifications/settings", { method: "PATCH", body: patch }); if (d && typeof d === "object" && typeof d.chat === "string") onChange({ ...settings, ...patch, ...d }); }
+    catch (e) { onChange(before); showToast(tr("Your settings did not save."), "error"); }
+    busyRef.current = false;
+  };
+  const chatChoice = (v, l) => (<button key={v} onClick={() => save({ chat: v })} aria-pressed={settings.chat === v} style={{ minHeight: 44, padding: "0 14px", borderRadius: 8, border: "1px solid " + (settings.chat === v ? GO : t.border), background: settings.chat === v ? t.goldBg : "transparent", color: settings.chat === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("My alerts")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 16, lineHeight: 1.5 }}>{tr("These decide what buzzes your phone in the staff app. The bell here keeps everything.")}</div>
+    <div style={{ marginBottom: 16 }}><Lbl>{tr("Chat messages")}</Lbl><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{chatChoice("all", tr("Every message"))}{chatChoice("mentions", tr("Only when I'm tagged"))}{chatChoice("off", tr("Off|alerts"))}</div></div>
+    {ALERT_SWITCHES.map(([k, l]) => (<label key={k} style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 44, cursor: "pointer", borderTop: "1px solid " + t.border }}>
+      <input type="checkbox" role="switch" checked={settings[k] !== false} aria-checked={settings[k] !== false} onChange={e => save({ [k]: e.target.checked })} style={{ width: 20, height: 20 }} />
+      <span style={{ fontSize: 13, color: t.text }}>{tr(l)}</span>
+    </label>))}
+  </div></Mdl>);
 }
 // ===== HELP: the assistant the staff portal's Help tab talks to. Same four requests, same screen. =====
 // AGENT_HELPERS_START (pure helpers, no React, so they can run as a script against fixtures)
@@ -3362,6 +3653,9 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
     setBusy(false);
     // A form notice carries the report it is about, so it opens that report rather than the page.
     if (n.subjectType === "form" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
+    // A chat notice and a tag carry their chat, and an announcement carries itself (Step 179).
+    if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
+    if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { refuse(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");

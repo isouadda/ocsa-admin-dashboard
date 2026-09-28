@@ -2352,3 +2352,35 @@ Why is this report being voided?,¿Por qué se anula este reporte?,The Void wind
 Void report,Anular reporte,The Void window's button
 Void,Anulado,"A void report's status; Filed forms, the status switch"
 Photo could not be loaded,No se pudo cargar la foto,A photo on a filed form
+Your message did not send.,Su mensaje no se envió.,Messages
+Announcements,Anuncios,Side panel and the page
+New announcement,Nuevo anuncio,Announcements
+Message,Mensaje,Announcements
+Send to,Enviar a,Announcements
+One site's people,El personal de un sitio,"Announcements, audience"
+A role,Un rol,"Announcements, audience"
+Chosen people,Personas elegidas,"Announcements, audience"
+"Reaches {0} people, {1} with phone alerts on.","Llega a {0} personas, {1} con alertas en el teléfono.","Announcements, before Send and under each sent one"
+Send announcement,Enviar anuncio,Announcements
+Written once; each person gets it in their language.,Se escribe una vez; cada persona lo recibe en su idioma.,"Announcements, under the message box"
+Sent,Enviados,"Announcements, the history heading"
+No announcements yet.,Todavía no hay anuncios.,Announcements
+Announcement sent.,Anuncio enviado.,"Announcements, after Send announcement"
+Tag someone,Etiquetar a alguien,"Messages, the tag picker"
+No one else can read this chat.,Nadie más puede leer este chat.,"Messages, the empty picker"
+Channels,Canales,"Messages, the list's first heading"
+Site channel,Canal del sitio,"Messages, under a site chat's name"
+General chat,Chat general,"Messages, under the general chat's name"
+{0} unread messages,{0} mensajes sin leer,"Side panel, the Messages badge's name"
+My alerts,Mis alertas,The name menu and its window
+Chat messages,Mensajes del chat,My alerts
+Every message,Cada mensaje,My alerts
+Only when I'm tagged,Solo cuando me etiquetan,My alerts
+Off,Apagado,My alerts
+Schedule and time off,Horario y tiempo libre,My alerts
+Shift pickups and drops,Turnos libres y turnos soltados,My alerts
+Supply requests,Pedidos de suministros,My alerts
+Problems reported,Problemas reportados,My alerts
+Forms filed,Formularios presentados,My alerts
+These decide what buzzes your phone in the staff app. The bell here keeps everything.,Esto decide lo que suena en su teléfono en la aplicación del personal. La campana aquí guarda todo.,My alerts
+Your settings did not save.,Sus ajustes no se guardaron.,My alerts
