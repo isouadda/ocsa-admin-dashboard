@@ -192,6 +192,22 @@ them, changes one field in each and holds the calls to one English save and one 
 order, and the toast to the table's words. It then renames an inspection template and holds the
 `PUT` to the name typed and the description the card already had, which the route writes as well.
 
+**A read that fails says so where its rows would be, with Try again.** Since 6a68c11 a list, a card or a
+window whose read fails draws one line in its place, This did not load. or the words the place has for
+it, with Try again, through one primitive, LoadFailed. The `load-failed` suite refuses each read the build
+lists, one at a time, with the API's own server error, `common.serverError`: the Dashboard's figures,
+Started today and Inspection scores by site, Staff Management, a site's Timeline and Chat, the Issue
+Tracker, Messages' conversations and one conversation, the Reports library and its three run views,
+Vendors, Services, Schedule's calendar, Shift Pickup's list and analytics, Inspections' templates, lists
+and analytics, Settings' Company and Dropdown Options, HR Compliance, a person's folder, and the Jotform
+Inbox, Forms, PDF access log and submission window. It holds the place to the line and to Try again, lets
+the read through, presses Try again and holds the place to the rows the stub served, with the line gone.
+Staff Management refused with `access.insufficientPermissions` says This page is for admins. with nothing
+to press, and the folder offers Back beside Try again. It holds a chip on the Issue Tracker whose state
+has no rows to No issues in this state., Schedule's week with nobody matching the search to No staff to
+show for this filter., and a Refresh on Schedule and on Shift Pickup, while the stub holds the read open,
+to the week and the list still drawn with no Loading line. Both languages, every word written out by hand.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -327,7 +343,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed` and `house-style`.
 
 ## How much is left in English
 

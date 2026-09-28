@@ -95,6 +95,10 @@ const SUITES = [
   // the translations route, and Rename keeps a template's description, in both languages.
   { name: "corrections", mod: "./cases/corrections", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // A read that fails since 6a68c11: each read the build lists refused, held to its line and Try again,
+  // then read again, the lines where nothing is left to show, and two quiet refreshes, in both languages.
+  { name: "load-failed", mod: "./cases/load-failed", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
   // holder of what guards it, by role or by override, in both languages.
   { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],
