@@ -13182,7 +13182,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const trainingTypeMap = lkMap("training_types", true);
   const onbCatMap = lkMap("onboarding_categories", true);
   // What a row's status code says. A code with no word here is drawn as it arrives.
-  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item") })[s] || s;
+  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item"), void: tr("Void|status") })[s] || s;
 
   const fmtDate = (d) => d ? fdLong(d) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
