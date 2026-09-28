@@ -2488,3 +2488,7 @@ Discard this draft? It leaves the list and cannot be reopened.,¿Descartar este 
 Publishing makes this the version every app offers.,"Al publicar, esta pasa a ser la versión que ofrecen todas las aplicaciones.",The publish area for an admin
 Fix the problems above before publishing.,Corrija los problemas de arriba antes de publicar.,The publish area with problems
 Publishing...,Publicando...,The publish button while out
+Filed form,Formulario presentado,"HR Records, a person's folder, the source of a filed report"
+FRM,FRM,"HR Records, a person's folder, the mark on a filed report's row"
+No one matches.,Nadie coincide.,A person question's picker with no match
+No filed forms,No hay formularios presentados,"Staff Management, HR Files, the filed forms card when empty"

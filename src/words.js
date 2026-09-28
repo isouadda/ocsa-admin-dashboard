@@ -2597,6 +2597,10 @@ export const WORDS = {
   "Publishing makes this the version every app offers.": { es: "Al publicar, esta pasa a ser la versi\u00f3n que ofrecen todas las aplicaciones." },
   "Fix the problems above before publishing.": { es: "Corrija los problemas de arriba antes de publicar." },
   "Publishing...": { es: "Publicando..." },
+  "Filed form": { es: "Formulario presentado" },
+  "FRM|source": { es: "FRM" },
+  "No one matches.": { es: "Nadie coincide." },
+  "No filed forms": { es: "No hay formularios presentados" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

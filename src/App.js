@@ -1077,6 +1077,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
+  // Step 187: the filed reports about this person, the source form items of their HR folder, and
+  // the one open in its review window.
+  const [hrForms, setHrForms] = useState([]); const [hrOpenReport, setHrOpenReport] = useState(null); const [hrPdfBusy, setHrPdfBusy] = useState("");
   // Timeline state (Session 18)
   const [timeline, setTimeline] = useState([]); const [tlTotal, setTlTotal] = useState(0);
   const [tlCategory, setTlCategory] = useState("all"); const [tlLoading, setTlLoading] = useState(false);
@@ -1142,6 +1145,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       ]);
       setHrDocs(docs); setHrTraining(train);
       try { const ob = await af("/api/hr/onboarding/" + userId); setHrOnboarding(ob); } catch (e) { setHrOnboarding([]); }
+      try { const folder = await af("/api/hr/employee-folder/" + userId); setHrForms(((folder && folder.items) || []).filter(it => it && it.source === "form")); } catch (e) { setHrForms([]); }
     } catch (e) { showToast(e.message, "error"); }
     setHrLoading(false);
   };
@@ -1531,6 +1535,18 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <Bdg l={trainingStateOf(rec.status || "completed")} c={rec.status === "failed" ? RD : GR} />
             </div>)}
           </Crd>
+          <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+            <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Filed forms ({0})", hrForms.length)}</div>
+            {hrForms.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No filed forms")}</div>}
+            {hrForms.map((it, i) => <div key={it.responseId || i} onClick={() => setHrOpenReport(it)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", minHeight: 44, padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4, cursor: "pointer" }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{builderText(it.formTitle) || it.title || it.formCode}{it.status === "void" && <span style={{ marginLeft: 8 }}><Bdg l={tr("Void|status")} c={RD} /></span>}</div>
+                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{[tr(HR_CATEGORY_LABEL(it.category)), it.date ? fmtDate(it.date) : "", it.filedBy && it.filedBy.name ? tr("Filed by {0}", it.filedBy.name) : ""].filter(Boolean).join(" | ")}</div>
+              </div>
+              <button onClick={async (e) => { e.stopPropagation(); if (hrPdfBusy) return; setHrPdfBusy(it.responseId); try { const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(it.responseId) + "/pdf", token, (it.formCode || "report") + "-" + String(it.responseId).slice(0, 8) + ".pdf"); const url = URL.createObjectURL(f.blob); const a = document.createElement("a"); a.href = url; a.download = f.filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 5000); } catch (err) { showToast(err.message, "error"); } setHrPdfBusy(""); }} disabled={hrPdfBusy === it.responseId} style={{ minHeight: 44, padding: "3px 10px", borderRadius: 4, border: "1px solid " + BL, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: FONT_BODY }}>{hrPdfBusy === it.responseId ? tr("Loading...") : tr("View PDF")}</button>
+            </div>)}
+          </Crd>
+          {hrOpenReport && <IncidentReportWindow af={af} token={token} t={t} id={hrOpenReport.responseId} row={hrOpenReport.filedBy && hrOpenReport.filedBy.name ? { userName: hrOpenReport.filedBy.name } : null} onClose={() => setHrOpenReport(null)} people={allStaff} />}
           {hrOnboarding.length > 0 && <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Onboarding Steps")}</div>
             {/* A step is done when the API says is_completed, on its completed_date, the two fields HR Records reads. */}
@@ -9262,7 +9278,7 @@ function SignatureImage({ t, token, responseId, signKey }) {
   return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
 }
 
-function IncidentReportWindow({ af, token, t, id, row, onClose }) {
+function IncidentReportWindow({ af, token, t, id, row, onClose, people = [] }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -9581,6 +9597,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       {inner}
     </div>);
     if (f.type === "grid") return box(gridTable(f, supCell));
+    if (f.type === "person") return box(formControl(t, f, cur, v => setSupValue(f, v), f.label, { people }));
     if (f.type === "textarea") return box(<TArea t={t} rows={3} aria-label={f.label} value={cur == null ? "" : String(cur)}
       onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 88 }} />);
     if (f.type === "select") return box(<Sel t={t} aria-label={f.label} value={cur == null ? "" : String(cur)}
@@ -9613,6 +9630,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     {computed.overall != null && <div style={{ fontSize: 13, color: t.text, fontWeight: 600, marginTop: 4 }}>{tr("Overall")} {oneDecimal(computed.overall)}</div>}
   </div>) : null;
   // The label comes from the API and is shown as sent: some carry required federal wording.
+  // A person question reads by the API's display value, or by the name stored with the answer.
+  const readValue = (f) => (f.type === "person" && (f.displayValue == null || f.displayValue === "") && f.value && typeof f.value === "object" ? f.value.name : f.displayValue);
   const fieldRow = (f) => {
     if (f.type === "signoff") return signoffRow(f);
     if (f.type === "photos") return photosRow(f, false);
@@ -9621,11 +9640,12 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
       {gridTable(f)}
     </div>);
+    const shown = readValue(f);
     return (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
-      {f.displayValue == null || f.displayValue === ""
+      {shown == null || shown === ""
         ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>{tr("Not answered")}</div>
-        : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+        : <div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{String(shown)}</div>}
     </div>);
   };
 
@@ -9763,6 +9783,8 @@ function formReadAnswer(f, v) {
     const parts = v.map(x => formOptionLabel(f, x)).filter(x => x !== "");
     return parts.length ? parts.join(", ") : null;
   }
+  // A picked person reads by the name stored with the answer (Step 187).
+  if (v && typeof v === "object" && typeof v.name === "string" && v.name) return v.name;
   if (!formPlainValue(v)) return tr("Answered|form");
   return formOptionLabel(f, v);
 }
@@ -9771,7 +9793,7 @@ const formIsChecklist = (f) => Array.isArray(f.rows);
 // draft keeps whatever it already carries for one this screen does not draw.
 const formDrawnHere = (f) => String(f.type || "") !== "signoff" || String(f.signer || "") === "filer";
 const formDraftOf = (r) => (r && r.draft ? r.draft : r);
-const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date", "time", "number", "grid", "signoff", "photos", "customer_signature"];
+const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date", "time", "number", "grid", "signoff", "photos", "customer_signature", "person"];
 // What the API clips a stored answer to, so a long answer is stopped in the box rather than after.
 const FORM_VALUE_MAX = 4000;
 // Where a filing came from, as the table's word for the source the API stores.
@@ -9795,12 +9817,43 @@ const formInputStyles = (t) => ({
 // A question the builder flagged as asking for sensitive information (Step 187): the flag on the
 // question as the API sends it, read under the two names a definition may carry it.
 const formSensitive = (f) => !!f && (f.sensitive === true || (Array.isArray(f.flags) && f.flags.indexOf("sensitive") !== -1));
+// A person question (Step 187, contract section 3): the one filling it picks an active staff member
+// from a list searched by name, and the answer stores the person's id and their name as it reads
+// that day, { id, name }. The picked name is drawn with Change beside it; the list draws 44 pixel
+// rows and at most twelve at a time, narrowed as the person types.
+const formPersonName = (u) => ((u.firstName || "") + " " + (u.lastName || "")).trim() || String(u.name || u.id || "");
+const formPersonOf = (v) => (v && typeof v === "object" && (v.id != null || v.name) ? v : null);
+function FormPersonPicker({ t, name, value, onChange, people = [], disabled = false }) {
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const picked = formPersonOf(value);
+  const active = people.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active"));
+  const needle = q.trim().toLowerCase();
+  const matches = (needle ? active.filter(u => formPersonName(u).toLowerCase().indexOf(needle) !== -1) : active).slice(0, 12);
+  const row = { display: "block", width: "100%", minHeight: 44, padding: "10px 12px", textAlign: "left", border: "none", borderBottom: "1px solid " + t.border, background: "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" };
+  if (picked && !open) {
+    return (<div data-person-picked="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <div style={{ fontSize: 13, color: t.text, minHeight: 44, display: "flex", alignItems: "center" }}>{String(picked.name || "")}</div>
+      {!disabled && <Btn t={t} v="ghost" aria-label={name + ": " + tr("Change")} onClick={() => { setOpen(true); setQ(""); }} style={{ minHeight: 44 }}>{tr("Change")}</Btn>}
+    </div>);
+  }
+  return (<div data-person-picker="">
+    <Inp t={t} aria-label={name} placeholder={tr("Search by name")} value={q} onChange={e => setQ(e.target.value)} disabled={disabled} style={{ minHeight: 44 }} />
+    {!disabled && <div role="listbox" aria-label={name} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
+      {matches.map(u => <button key={String(u.id)} role="option" aria-selected={false} onClick={() => { onChange({ id: u.id, name: formPersonName(u) }); setOpen(false); setQ(""); }} style={row}
+        onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>{formPersonName(u)}{u.role ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{roleWord(u.role)}</span> : null}</button>)}
+      {matches.length === 0 && <div style={{ padding: "12px", fontSize: 12, color: t.textMut }}>{active.length === 0 ? tr("Loading...") : tr("No one matches.")}</div>}
+      {picked && <button onClick={() => setOpen(false)} style={Object.assign({}, row, { color: t.textMut, borderBottom: "none" })}>{tr("Cancel")}</button>}
+    </div>}
+  </div>);
+}
 // One control, for a question or for one cell of a table. A cell gets the input its type gets as
-// a question. A pick one offers Not answered; a pick many is a row of boxes.
+// a question. A pick one offers Not answered; a pick many is a row of boxes; a person is picked.
 function formControl(t, spec, v, onChange, name, opts) {
   const o = opts || {};
   const off = !!o.disabled;
   const kind = String(spec.type || "");
+  if (kind === "person") return <FormPersonPicker t={t} name={name} value={v} onChange={onChange} people={Array.isArray(o.people) ? o.people : []} disabled={off} />;
   if (kind === "select") {
     return <Sel t={t} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value === "" ? null : e.target.value)} disabled={off} style={{ minHeight: 44 }}
       options={[{ v: "", l: tr("Not answered") }].concat((spec.options || []).map(o2 => ({ v: o2.value, l: o2.label })))} />;
@@ -11062,7 +11115,7 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished }) {
+function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
   // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
   // and a refusal or a 404 leaves the switch undrawn.
@@ -11233,7 +11286,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
-    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} />}
     {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
@@ -11251,7 +11304,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
         <Btn t={t} v="ghost" onClick={() => setPicker(null)} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       </div>
     </div></Mdl>)}
-    {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={leaveFill} />}
+    {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={leaveFill} people={allStaff} />}
     {linksOpen && <CustomerLinksWindow af={af} token={token} t={t} sites={sites} onClose={() => setLinksOpen(false)} />}
   </div>);
 }
@@ -12502,7 +12555,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ FILED FORMS ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} canManageSettings={canManageSettings} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
       {maintenance && (
@@ -13100,6 +13153,9 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState("all");
   const [pdfBusy, setPdfBusy] = useState(null);
+  // Step 187: a filed report of a form about this person, source form, opens its review window
+  // from its row, and View PDF reads the report's own PDF route.
+  const [openReport, setOpenReport] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -13194,6 +13250,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     training: tr("Training"),
     onboarding: tr("Onboarding Step"),
     jotform: tr("Jotform Form"),
+    form: tr("Filed form"),
   })[s] || s;
 
   const sourceColor = (s) => ({
@@ -13201,7 +13258,21 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     training: GR,
     onboarding: BL,
     jotform: GO,
+    form: "#1ABC9C",
   })[s] || t.textMut;
+  const sourceMark = (s) => (s === "document" ? tr("DOC|source") : s === "training" ? tr("TR|source") : s === "onboarding" ? tr("ONB|source") : s === "form" ? tr("FRM|source") : tr("JF|source"));
+  const viewReportPdf = async (it) => {
+    setPdfBusy(it.responseId);
+    try {
+      const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(it.responseId) + "/pdf", token, (it.formCode || "report") + "-" + String(it.responseId).slice(0, 8) + ".pdf");
+      const url = URL.createObjectURL(f.blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = f.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    } catch (e) { showToast(e.message, "error"); }
+    finally { setPdfBusy(null); }
+  };
 
   if (loading && !data) {
     return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading folder...")}</div>;
@@ -13268,13 +13339,14 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
             const catColor = HR_CATEGORY_COLOR[it.category] || GO;
             const srcColor = sourceColor(it.source);
 
+            const isForm = it.source === "form";
             return (
-              <div key={it.source + "_" + it.source_id} style={{ padding: "12px 16px", borderBottom: isLast ? "none" : "1px solid " + t.border, display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div key={it.source + "_" + (isForm ? it.responseId : it.source_id)} onClick={isForm ? () => setOpenReport(it) : undefined} style={{ padding: "12px 16px", borderBottom: isLast ? "none" : "1px solid " + t.border, display: "flex", gap: 12, alignItems: "flex-start", cursor: isForm ? "pointer" : "default" }}>
 
                 {/* Source icon column */}
                 <div style={{ width: 30, height: 30, borderRadius: 6, background: srcColor + "22", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: 2 }} title={sourceLabel(it.source)}>
                   <span style={{ fontSize: 9, fontWeight: 600, color: srcColor, textTransform: "uppercase" }}>
-                    {it.source === "document" ? tr("DOC|source") : it.source === "training" ? tr("TR|source") : it.source === "onboarding" ? tr("ONB|source") : tr("JF|source")}
+                    {sourceMark(it.source)}
                   </span>
                 </div>
 
@@ -13282,9 +13354,10 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 3 }}>{it.title}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 3 }}>{isForm ? (builderText(it.formTitle) || it.title || it.formCode) : it.title}{isForm && it.status === "void" && <span style={{ marginLeft: 8 }}><Bdg l={tr("Void|status")} c={RD} /></span>}</div>
                       <div style={{ fontSize: 11, color: t.textMut }}>
                         {sourceLabel(it.source)}
+                        {isForm && it.filedBy && it.filedBy.name ? " . " + tr("Filed by {0}", it.filedBy.name) : ""}
                         {it.raw_category_label ? " . " + (
                           it.source === "document" ? (docTypeMap[it.raw_category_label] || it.raw_category_label) :
                           it.source === "training" ? (trainingTypeMap[it.raw_category_label] || it.raw_category_label) :
@@ -13340,6 +13413,11 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         {pdfBusy === it.source_id ? tr("Loading...") : tr("View PDF")}
                       </button>
                     )}
+                    {isForm && (
+                      <button onClick={e => { e.stopPropagation(); viewReportPdf(it); }} disabled={pdfBusy === it.responseId} style={{ minHeight: 44, padding: "3px 10px", borderRadius: 6, border: "1px solid " + t.border, background: "transparent", color: BL, fontSize: 11, cursor: pdfBusy === it.responseId ? "wait" : "pointer", fontWeight: 600, fontFamily: FONT_BODY }}>
+                        {pdfBusy === it.responseId ? tr("Loading...") : tr("View PDF")}
+                      </button>
+                    )}
                     {it.notes && (
                       <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={trainingNotesShown(it.notes)}>{tr("note: {0}", trainingNotesShown(it.notes).slice(0, 40) + (trainingNotesShown(it.notes).length > 40 ? "..." : ""))}</span>
                     )}
@@ -13350,6 +13428,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
           })}
         </div>
       )}
+      {openReport && <IncidentReportWindow af={af} token={token} t={t} id={openReport.responseId} row={openReport.filedBy && openReport.filedBy.name ? { userName: openReport.filedBy.name } : null} onClose={() => setOpenReport(null)} people={allStaff} />}
     </div>
   );
 }
