@@ -234,6 +234,12 @@ const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
 const ft = d => new Date(d).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit", hour12: true });
 const fd = d => new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+// A DATE the API sends names a day, not an instant: its first ten characters, built from parts, so it
+// is that day in every time zone. Read as an instant, a date at UTC midnight is the evening before
+// anywhere west of Greenwich. fd and ft stay for a time stamp, which is an instant.
+const localDate = d => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || "")); return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(d); };
+const fdDay = d => localDate(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric" });
+const fdLong = d => localDate(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
 const ff = d => new Date(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const Ic = ({ d, sz = 18, c = "currentColor", style: s, ...p }) => <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={s} {...p}><path d={d} /></svg>;
 const HmI = p => <Ic d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10" {...p} />;
@@ -330,7 +336,8 @@ function fmtRange(s, e) {
   const em = ed.toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" });
   return sm + " - " + em;
 }
-function toISO(d) { return d.toISOString().split("T")[0]; }
+// The day a Date names where the person is, never the UTC day, which is tomorrow every evening.
+function toISO(d) { return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0"), String(d.getDate()).padStart(2, "0")].join("-"); }
 
 const PRESETS = {
   thisWeek: () => { const m = getMonday(new Date()); const s = new Date(m); s.setDate(s.getDate() + 6); return { start: toISO(m), end: toISO(s) }; },
@@ -1108,7 +1115,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
+    a.download = (u.firstName + "_" + u.lastName + "_Timeline_" + todayISO() + ".csv").replace(/ /g, "_");
     a.click(); URL.revokeObjectURL(a.href);
     showToast(tr("CSV exported"));
   };
@@ -1962,7 +1969,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
     const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-    a.download = (siteName + "_Timeline_" + new Date().toISOString().split("T")[0] + ".csv").replace(/ /g, "_");
+    a.download = (siteName + "_Timeline_" + todayISO() + ".csv").replace(/ /g, "_");
     a.click(); URL.revokeObjectURL(a.href);
     showToast(tr("CSV exported"));
   };
@@ -2102,7 +2109,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Client")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_name || tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Monthly Value")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Billing")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{billingOf(s.billing_frequency || "monthly")}</div></div>
-            <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fd(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fd(s.contract_end_date)) : ""}</div></div>
+            <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fdDay(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fdDay(s.contract_end_date)) : ""}</div></div>
           </div>
           {isAdmin && <button onClick={() => setEditSite({
             clientName: s.client_name || "", contractType: s.contract_type || "", primeContractor: s.prime_contractor || "",
@@ -2178,7 +2185,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}>
               <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}</div>
-              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fd(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
+              <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
               <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date || "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
@@ -2212,7 +2219,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Upcoming Shifts (Next 7 Days)")}</div>
           {sp.upcomingShifts.length > 0 ? sp.upcomingShifts.map((sh, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 3 }}>
-            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.scheduled_date ? fd(sh.scheduled_date) : ""}</div></div>
+            <div><div style={{ fontSize: 12, color: t.text }}>{sh.first_name} {sh.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{sh.scheduled_date ? fdDay(sh.scheduled_date) : ""}</div></div>
             <div style={{ fontSize: 11, color: t.textSec }}>{sh.start_time || ""} {sh.end_time ? " - " + sh.end_time : ""}</div>
           </div>) : <div style={{ fontSize: 12, color: t.textMut }}>{tr("No upcoming shifts")}</div>}
         </Crd>
@@ -3344,7 +3351,7 @@ const fmtDurMin = (m) => {
 };
 const fmtPctVal = (p) => (p === null || p === undefined) ? tr("n/a") : (p + "%");
 const hrsFromMin = (m) => m === null || m === undefined ? null : Math.round(m / 60 * 10) / 10;
-const fmtBucketDate = (s) => { try { return new Date(s).toLocaleDateString(localeTag(), { month: "short", day: "numeric" }); } catch (e) { return s; } };
+const fmtBucketDate = (s) => { try { return fdDay(s); } catch (e) { return s; } };
 // A trend's bucket is a code the report saves and sends. Where a screen or a print names it, it is
 // drawn as its word, whose English is the code.
 const bucketWord = (b) => tr((b || "week") + "|bucket");
@@ -4389,7 +4396,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
     {!loading && tasks.map(task => { const isIssue = !!task.source_issue_id; const shown = shownItem(task); const title = isIssue ? (task.issue_title || shown.label) : shown.label; const borderColor = isIssue ? (stC[task.resolution_status] || OR) : (priC[task.priority] || GO); const locParts = [task.site_name]; if (task.building_name) locParts.push(task.building_name); if (task.floor_number) locParts.push(tr("Fl {0}", task.floor_number)); if (shown.zone) locParts.push(shown.zone); return (
       <Crd key={task.task_id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + borderColor }} onClick={() => openDetail(task)}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div><div style={{ fontSize: 10, color: t.textSec, marginTop: 3 }}>{locParts.join(" > ")}</div></div><div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>{isIssue && <Bdg l={tr("Issue")} c={RD} />}{task.priority && task.priority !== "standard" && <Bdg l={priOf(task.priority)} c={priC[task.priority] || GO} />}<Bdg l={stateOf(task.resolution_status)} c={stC[task.resolution_status] || OR} /></div></div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fd(task.due_date))}</span>}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ display: "flex", gap: 10, fontSize: 10, color: t.textMut }}>{task.assigned_to_name && <span>{trWith("Assigned to: {0}", <span style={{ color: BL, fontWeight: 600 }}>{task.assigned_to_name}</span>)}</span>}<span>{tr("By: {0}", task.created_by_name)}</span><span>{fd(task.task_created_at)}</span></div>{task.due_date && <span style={{ fontSize: 10, color: OR }}>{tr("Due: {0}", fdDay(task.due_date))}</span>}</div>
       </Crd>); })}
     {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Task Detail")}</div><button onClick={() => setSel(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button></div>
@@ -4404,7 +4411,7 @@ function AssignedTasksAdminPage({ af, showToast, isAdmin, t, sites, allStaff, uf
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name || tr("Unassigned")}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Created By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.created_by_name}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Created")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.task_created_at)}</div></div>
-        {sel.due_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due Date")}<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fd(sel.due_date)}{sel.due_time ? " " + sel.due_time : ""}</div></div>}
+        {sel.due_date && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due Date")}<div style={{ color: OR, fontWeight: 500, marginTop: 2 }}>{fdDay(sel.due_date)}{sel.due_time ? " " + patternTime(sel.due_time) : ""}</div></div>}
         {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: GR, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
       </div>
       {sel.resolution_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 12 }}>{tr("Resolution: {0}", sel.resolution_note)}</div>}
@@ -4491,12 +4498,12 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
   const exportAVL = () => {
     const approved = vendors.filter(v => v.approval_status === "approved");
     if (approved.length === 0) { showToast(tr("No approved vendors to export"), "error"); return; }
-    dlCSV("OCSA_Approved_Vendor_List_" + new Date().toISOString().slice(0, 10) + ".csv",
+    dlCSV("OCSA_Approved_Vendor_List_" + todayISO() + ".csv",
       ["Vendor Name", "Contact Name", "Phone", "Email", "Address", "Products / Services", "Certification Status", "Contract Terms", "Last Review Date", "Approval Status"],
       approved.map(v => [v.name, v.contact_name || "", v.contact_phone || "", v.contact_email || "",
         [v.address_line1, v.city, v.state, v.zip_code].filter(Boolean).join(", "),
         v.products_services || "", v.certification_status || "", v.contract_terms || "",
-        v.last_review_date ? fd(v.last_review_date) : "", v.approval_status])
+        v.last_review_date ? fdDay(v.last_review_date) : "", v.approval_status])
     );
     showToast(tr("Approved Vendor List exported"));
   };
@@ -4557,7 +4564,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
       const cur = Math.min(page, totalPages);
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const columns = [
-        { header: tr("Vendor"), render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Reviewed {0}", fd(v.last_review_date))}</div>}</div></div> },
+        { header: tr("Vendor"), render: v => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ fontFamily: FONT_HEAD, width: 38, height: 38, borderRadius: 8, background: t.goldBg, border: "1px solid " + t.goldBorder, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, color: t.goldText, flexShrink: 0 }}>{v.name.slice(0, 2).toUpperCase()}</div><div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{v.name}</div>{v.products_services && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{v.products_services}</div>}{v.last_review_date && <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Reviewed {0}", fdDay(v.last_review_date))}</div>}</div></div> },
         { header: tr("Contact"), tdStyle: { maxWidth: 220 }, render: v => <div style={{ minWidth: 0 }}>{v.contact_name && <div style={{ fontSize: 12, color: t.textSec, fontWeight: 500 }}>{v.contact_name}</div>}{v.contact_phone && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1 }}>{v.contact_phone}</div>}{v.contact_email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.contact_email}</div>}{!v.contact_name && !v.contact_phone && !v.contact_email && <span style={{ color: t.textMut }}>-</span>}</div> },
         { header: tr("Status"), render: v => <Bdg l={statusWord[v.approval_status] || v.approval_status} c={statusColor[v.approval_status] || t.textMut} /> },
         { header: tr("Rating"), tdStyle: { whiteSpace: "nowrap" }, render: v => v.avg_rating ? <span style={{ color: t.goldText, fontSize: 12 }}>{"\u2605".repeat(Math.round(parseFloat(v.avg_rating)))} <span style={{ color: t.textMut }}>({parseFloat(v.avg_rating).toFixed(1)})</span></span> : <span style={{ color: t.textMut }}>-</span> },
@@ -4616,7 +4623,7 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
             <div key={i} style={{ padding: 8, background: t.hover, borderRadius: 6, marginBottom: 4 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ fontSize: 14, color: t.goldText, letterSpacing: 2 }}>{"\u2605".repeat(ev.rating)}{"\u2606".repeat(5 - ev.rating)}</span>
-                <span style={{ fontSize: 10, color: t.textMut }}>{fd(ev.evaluation_date)}</span>
+                <span style={{ fontSize: 10, color: t.textMut }}>{fdDay(ev.evaluation_date)}</span>
               </div>
               {ev.notes && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{ev.notes}</div>}
               {ev.evaluator_name && <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tr("By {0}", ev.evaluator_name)}</div>}
@@ -4709,7 +4716,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
 
   const exportCatalog = () => {
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
-    dlCSV("OCSA_Service_Catalog_" + new Date().toISOString().slice(0, 10) + ".csv",
+    dlCSV("OCSA_Service_Catalog_" + todayISO() + ".csv",
       ["Service Name", "Description", "Rate Structure", "Required Certifications", "Service Category", "Active Sites"],
       services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", CIMS_LABELS[s.cims_category] || s.cims_category || "", s.linked_site_count || 0])
     );
@@ -5972,8 +5979,8 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   const openConvertModal = async () => {
     setConvertModal(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const future = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
+      const today = todayISO();
+      const future = toISO(new Date(Date.now() + 30 * 86400000));
       const r = await af("/api/schedule?start_date=" + today + "&end_date=" + future);
       setSchedShifts(r.filter(s => s.status === "scheduled"));
     } catch { setSchedShifts([]); }
@@ -6301,7 +6308,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
                 {patternData.by_month.map((m, i) => {
                   const maxM = Math.max(...patternData.by_month.map(x => x.total));
                   const h = maxM > 0 ? (m.total / maxM * 80) : 0;
-                  const mDate = new Date(m.month_start + "T00:00:00");
+                  const mDate = localDate(m.month_start);
                   return (
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
                       <div style={{ fontSize: 8, color: t.textMut, marginBottom: 2 }}>{m.total}</div>
@@ -10658,7 +10665,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{s.user_id ? <span>{s.first_name + " " + s.last_name}{s.user_employee_id ? <div style={{ fontSize: 10, color: t.textMut, fontFamily: "monospace" }}>{s.user_employee_id}</div> : null}</span> : <span style={{ color: OR, fontStyle: "italic" }}>{tr("Unmatched")}</span>}</td>
                   <td style={{ padding: "10px 12px" }}>{statusBadge(s.status)}</td>
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.linked_entity_type ? <span>{entityWord(s.linked_entity_type)}</span> : <span style={{ color: t.textMut }}>--</span>}</td>
-                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.expiry_date ? fmtDate(s.expiry_date) : "--"}</td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{s.expiry_date ? fdLong(s.expiry_date) : "--"}</td>
                   <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <button onClick={() => openSubmissionDetail(s)} style={{ background: "none", border: "none", color: BL, cursor: "pointer", fontSize: 12 }}>{tr("View")}</button>
                   </td>
@@ -11294,7 +11301,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   )}
                 </div>
                 <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Status")}</div><div>{statusBadge(detailSub.meta.status)}</div></div>
-                {detailSub.meta.expiry_date && <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Expiry")}</div><div style={{ color: t.text }}>{fmtDate(detailSub.meta.expiry_date)}</div></div>}
+                {detailSub.meta.expiry_date && <div><div style={{ color: t.textMut, fontSize: 10, textTransform: "uppercase", marginBottom: 2 }}>{tr("Expiry")}</div><div style={{ color: t.text }}>{fdLong(detailSub.meta.expiry_date)}</div></div>}
               </div>
 
               {detailSub.meta.linked_entity_type && (
@@ -11661,8 +11668,10 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   // What a row's status code says. A code with no word here is drawn as it arrives.
   const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item") })[s] || s;
 
-  const fmtDate = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "";
+  const fmtDate = (d) => d ? fdLong(d) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  // A training record and an onboarding step carry a day, so their line shows the day and no clock.
+  const fmtWhen = (it) => (it.source === "training" || it.source === "onboarding" ? fmtDate(it.date) : fmtTime(it.date));
 
   const updateSubCategory = async (submissionUuid, newOverride) => {
     try {
@@ -11837,7 +11846,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                       </div>
                     </div>
                     <div style={{ fontSize: 11, color: t.textSec, whiteSpace: "nowrap", flexShrink: 0 }}>
-                      {fmtTime(it.date)}
+                      {fmtWhen(it)}
                     </div>
                   </div>
 
