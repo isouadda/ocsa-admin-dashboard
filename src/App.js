@@ -3070,7 +3070,12 @@ const agentAnsweredLine = (answered, remaining, say = agentEnglish) => (answered
 const agentMessageFrom = (m, i) => {
   const role = String(agentPick(m, ["role", "sender"]) || "").toLowerCase() === "user" ? "user" : "assistant";
   const cited = agentPick(m, ["citedDocs", "cited_doc_codes", "citedDocCodes"]);
-  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
+  // Step 185: an assistant row carries its id, which a rating names, the rating stored on it, and the
+  // names of its sources beside their codes (STEP183_CONTRACT.md, sections 1 and 2).
+  const names = agentPick(m, ["citedNames", "cited_names"]);
+  const rowId = agentPick(m, ["id", "messageId", "message_id"]);
+  const fb = m && m.feedback && typeof m.feedback === "object" ? m.feedback : null;
+  return { id: "h" + i, role, text: String(agentPick(m, ["text", "content", "reply"]) || ""), citedDocs: Array.isArray(cited) ? cited : [], citedNames: Array.isArray(names) ? names : [], messageId: role === "assistant" && rowId !== undefined ? String(rowId) : "", feedback: role === "assistant" ? fb : null, degraded: m && m.degraded === true, noProcedure: !!(m && (m.noProcedure === true || m.no_procedure === true)), status: "sent" };
 };
 const agentKeyToWords = (k) => { const w = String(k || "").replace(/[_-]+/g, " ").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/\s+/g, " ").trim().toLowerCase(); return w ? w.charAt(0).toUpperCase() + w.slice(1) : ""; };
 // What is still unanswered, for the line on the Help page. The API names the questions when it can:
@@ -3117,9 +3122,15 @@ const agentSourceName = (code, say = agentEnglish) => {
   return c;
 };
 // Every source an answer cites, each named once: two guide codes on one answer name the app guide once.
-const agentSourcesLine = (codes, say = agentEnglish) => {
+// With citedNames beside the codes (Step 185), a source reads by the name the API sent for its code,
+// the document's title in the screen's language, and a name without a code is named too.
+const agentSourcesLine = (codes, say = agentEnglish, names) => {
   const out = [];
-  (Array.isArray(codes) ? codes : []).forEach(c => { const w = agentSourceName(c, say); if (w && out.indexOf(w) === -1) out.push(w); });
+  const list = Array.isArray(codes) ? codes : [];
+  const named = Array.isArray(names) ? names.filter(n => n && typeof n === "object") : [];
+  const add = (w) => { if (w && out.indexOf(w) === -1) out.push(w); };
+  list.forEach(c => { const hit = named.find(n => String(n.code) === String(c)); add(hit && hit.name ? String(hit.name) : agentSourceName(c, say)); });
+  named.forEach(n => { if (n.name && !list.some(c => String(c) === String(n.code))) add(String(n.name)); });
   return out.join(", ");
 };
 // AGENT_HELPERS_END
@@ -3245,7 +3256,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       const res = await af("/api/agent/conversations/" + encodeURIComponent(cid));
       const found = agentStoredAnswer(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom), question);
       if (found) {
-        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
+        patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, citedNames: found.citedNames, messageId: found.messageId, feedback: found.feedback, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
         setSaid(agentSpokenText(found.text));
         loadDrafts();
         return;
@@ -3277,7 +3288,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         } else if (event === "done") {
           const r = d || {};
           if (r.conversationId) setConversationId(r.conversationId);
-          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
+          const reply = { id: replyId, role: "assistant", text: typeof r.reply === "string" ? r.reply : (r.reply == null ? "" : String(r.reply)), citedDocs: Array.isArray(r.citedDocs) ? r.citedDocs : [], citedNames: Array.isArray(r.citedNames) ? r.citedNames : [], messageId: r.messageId != null ? String(r.messageId) : "", feedback: null, degraded: r.degraded === true, noProcedure: r.noProcedure === true, status: "sent" };
           if (r.formResponse) { setFormResponse(r.formResponse); setMissing(null); setSubmitted(false); }
           setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), reply]);
           setText(cur => cur === body ? "" : cur);
@@ -3311,6 +3322,19 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   };
   // Retry re-sends the same text and the same paths. Nothing is uploaded again.
   const retry = (m) => sendText(m.id, m.text, m.photoPaths || [], m.photoKeys || []);
+  // Rating an answer (Step 185, STEP183_CONTRACT.md section 1): Yes is saved at once; No asks What
+  // was missing? first and the note goes with it, at most 500 characters. Rating again replaces the
+  // rating, and the thanks line shows after a rating saved here, never for one read back.
+  const saveRating = async (m, helpful, note) => {
+    if (!m.messageId) return;
+    patchMsg(m.id, { rating: "saving" });
+    try {
+      const body = { helpful }; const words = String(note || "").trim().slice(0, 500); if (words) body.note = words;
+      const r = await af("/api/agent/messages/" + encodeURIComponent(m.messageId) + "/feedback", { method: "POST", body });
+      patchMsg(m.id, { feedback: (r && r.feedback && typeof r.feedback === "object") ? r.feedback : { helpful, note: words, at: new Date().toISOString() }, rating: "", note: "", thanked: true });
+    } catch (e) { patchMsg(m.id, { rating: "" }); showToast(e.message || tr("Request failed"), "error"); }
+  };
+  const rate = (m, helpful) => { if (helpful) saveRating(m, true, ""); else patchMsg(m.id, { rating: "note", note: (m.feedback && m.feedback.note) || "", thanked: false }); };
 
   const resume = async (d) => {
     if (busy) return;
@@ -3397,8 +3421,20 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                   return line.parts.length === 0 ? <div key={li} style={{ height: 8 }} /> : <div key={li}>{inline}</div>;
                 })}
               </div>}
-              {!isMe && agentSourcesLine(m.citedDocs, tr) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr))}</div>}
+              {!isMe && agentSourcesLine(m.citedDocs, tr, m.citedNames) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", agentSourcesLine(m.citedDocs, tr, m.citedNames))}</div>}
               {!isMe && m.degraded && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Working from the written procedure only right now.")}</div>}
+              {!isMe && !arriving && m.messageId && <div style={{ marginTop: 4 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", fontSize: 11, color: t.textMut }}>
+                  <span>{tr("Was this helpful?")}</span>
+                  {[true, false].map(v => { const on = !!(m.feedback && m.feedback.helpful === v) || (v === false && m.rating === "note"); return <button key={String(v)} onClick={() => rate(m, v)} disabled={m.rating === "saving" || busy} aria-pressed={on} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.pill, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 11, fontWeight: 600, cursor: m.rating === "saving" ? "default" : "pointer", fontFamily: FONT_BODY }}>{v ? tr("Yes") : tr("No")}</button>; })}
+                </div>
+                {m.rating === "note" && <div style={{ display: "flex", gap: 6, alignItems: "flex-end", marginTop: 6 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}><TArea t={t} value={m.note || ""} onChange={e => patchMsg(m.id, { note: e.target.value.slice(0, 500) })} rows={2} placeholder={tr("What was missing?")} aria-label={tr("What was missing?")} style={{ minHeight: 44 }} /></div>
+                  <Btn t={t} onClick={() => saveRating(m, false, m.note || "")} style={{ minHeight: 44 }}>{tr("Send")}</Btn>
+                </div>}
+                {m.thanked && <div style={{ fontSize: 11, color: GR, marginTop: 4 }}>{tr("Thanks. This helps Help get better.")}</div>}
+                {!m.thanked && m.rating !== "note" && m.feedback && m.feedback.helpful === false && m.feedback.note && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("What was missing?")} {m.feedback.note}</div>}
+              </div>}
               {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
