@@ -302,7 +302,9 @@ const EVERY_ITEM = "?day=all&shift=";
 const trWith = (key, piece) => { const [before, after] = tr(key, "\u0000").split("\u0000"); return <>{before}{piece}{after}</>; };
 
 // ===== THEMED SHARED COMPONENTS =====
-const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, right: 20, background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
+// Right of the screen, and never past it: at 390 pixels the box wraps inside left 20 and right 20,
+// and on a wide screen it stays as wide as its words (Step 185).
+const Tst = ({ t: msg }) => <div style={{ position: "fixed", top: 20, left: 20, right: 20, width: "fit-content", marginLeft: "auto", maxWidth: "calc(100vw - 40px)", boxSizing: "border-box", wordBreak: "break-word", background: msg.t === "error" ? RD : GR, color: "#F8F7F4", padding: "11px 20px", borderRadius: R.sm, fontSize: 13, fontWeight: 600, zIndex: 1000, boxShadow: "0 8px 30px rgba(0,0,0,0.35)", fontFamily: FONT_BODY }}>{msg.m}</div>;
 const Crd = ({ children, style, onClick: oc, t }) => <div onClick={oc} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, cursor: oc ? "pointer" : "default", boxShadow: t.shadow, transition: "transform .15s ease, box-shadow .15s ease", ...style }}>{children}</div>;
 const Bdg = ({ l, c }) => { const t = useT(); return <span style={{ fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px", padding: "3px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c) }}>{l}</span>; };
 const SecT = ({ children, action, onAction, icon: I = PlI, t }) => <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 14, marginTop: 8 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, letterSpacing: ".2px" }}>{children}</div>{action && <button onClick={onAction} style={{ display: "flex", alignItems: "center", gap: 5, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 12, fontWeight: 600, cursor: "pointer", boxShadow: "0 6px 16px -8px " + GO }}><I sz={13} c={NAVY} /> {action}</button>}</div>;
@@ -952,7 +954,7 @@ export default function AdminDashboard() {
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
-        {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
+        {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
@@ -1728,7 +1730,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -2712,8 +2714,35 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   </div>);
 }
 
-function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther }) {
+function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t, getOpts, lkMap, lkHasOther }) {
   const [supplies, setSupplies] = useState([]); const [requests, setRequests] = useState([]);
+  // The QR image comes from GET /api/supplies/:id/qr.png (Step 185, STEP183_CONTRACT.md section 5),
+  // read with the token and kept as a data URL, never from an outside service. One read per
+  // supply, in list order; until the API answers it, the box draws the word QR alone.
+  const [qrs, setQrs] = useState({});
+  const qrsRef = useRef({}); qrsRef.current = qrs;
+  // The supplies taken off in this session, drawn under Removed supplies. The API lists active
+  // supplies only and has no route that brings one back, so the list holds what this screen
+  // removed and offers nothing to press.
+  const [removed, setRemoved] = useState([]);
+  useEffect(() => {
+    const want = supplies.filter(s => s && s.id != null && qrsRef.current[s.id] === undefined);
+    if (!want.length) return undefined;
+    let alive = true;
+    setQrs(q => { const next = { ...q }; want.forEach(s => { if (next[s.id] === undefined) next[s.id] = ""; }); return next; });
+    (async () => {
+      for (const s of want) {
+        let url = "";
+        try {
+          const r = await apiDownload("/api/supplies/" + encodeURIComponent(s.id) + "/qr.png", token, "qr.png");
+          url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(r.blob); });
+        } catch (e) { url = ""; }
+        if (!alive) return;
+        if (url) setQrs(q => ({ ...q, [s.id]: url }));
+      }
+    })();
+    return () => { alive = false; };
+  }, [supplies, token]);
   const [tab, setTab] = useState("inventory"); const [addForm, setAddForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
@@ -2721,9 +2750,8 @@ function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpt
   useEffect(() => { loadSupplies(); loadRequests(); }, []);
   const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); const gone = supplies.find(s => String(s.id) === String(id)); if (gone) setRemoved(r => [gone, ...r.filter(x => String(x.id) !== String(id))]); showToast(tr("Supply removed")); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
-  const qrUrl = (code) => "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(API + "/qr/" + code);
   // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
   const cats = getOpts("supply_categories", null, true);
   const units = getOpts("supply_units", null, true);
@@ -2741,12 +2769,16 @@ function SuppliesAdminPage({ af, showToast, canManageSupplies = false, t, getOpt
       <button onClick={() => setTab("inventory")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "inventory" ? t.goldBg : "transparent", color: tab === "inventory" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "inventory" ? 700 : 500, cursor: "pointer", border: tab === "inventory" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Inventory ({0})", supplies.length)}</button>
       <button onClick={() => setTab("requests")} style={{ padding: "5px 12px", borderRadius: 6, background: tab === "requests" ? t.goldBg : "transparent", color: tab === "requests" ? t.goldText : t.textMut, fontSize: 11, fontWeight: tab === "requests" ? 700 : 500, cursor: "pointer", border: tab === "requests" ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tr("Requests")} {pendingCount > 0 ? trn("({0} pending)|count", pendingCount) : ""}</button>
     </div>
-    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><img src={qrUrl(s.qr_code)} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /></div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
+    {tab === "inventory" && supplies.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={canManageSupplies ? () => setEditForm({ id: s.id, name: s.name, category: s.category, unit: s.unit, currentStock: s.current_stock || 0, lowThreshold: s.low_threshold || 0, costPerUnit: s.cost_per_unit || "", isGreenCertified: s.is_green_certified, greenCertType: s.green_cert_type || "", epaRegNumber: s.epa_reg_number || "", manufacturer: s.manufacturer || "", qrCode: s.qr_code }) : undefined}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ width: 44, height: 44, borderRadius: 8, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>{qrs[s.id] ? <img src={qrs[s.id]} alt={tr("QR")} style={{ width: 36, height: 36, borderRadius: 4 }} /> : <span style={{ fontSize: 9, fontWeight: 600, color: t.goldText }}>{tr("QR")}</span>}</div><div style={{ flex: 1 }}><div style={{ display: "flex", alignItems: "center", gap: 8 }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</span>{s.is_green_certified && <Bdg l={tr("Green")} c={GR} />}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)} | {tr("Stock: {0}", s.current_stock)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}{s.manufacturer ? " | " + s.manufacturer : ""}</div></div>{s.current_stock <= (s.low_threshold || 0) && <Bdg l={tr("Low Stock")} c={RD} />}</div></Crd>))}
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{canManageSupplies ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
+    {tab === "inventory" && removed.length > 0 && <div style={{ marginTop: 18 }}>
+      <SecT t={t}>{tr("Removed supplies")}</SecT>
+      {removed.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14, opacity: 0.75 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}</div></div></div></Crd>))}
+    </div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div><div style={{ padding: "8px 12px", borderRadius: 6, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14 }}>{tr("A unique QR code will be generated automatically.")}</div><div style={{ marginBottom: 12 }}><Lbl>{tr("Name *")}</Lbl><Inp t={t} value={addForm.name} onChange={e => setAddForm({ ...addForm, name: e.target.value })} placeholder={tr("e.g. All-Purpose Cleaner")} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category *")}</Lbl><Sel t={t} value={addForm.category} onChange={e => setAddForm({ ...addForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit *")}</Lbl><Sel t={t} value={addForm.unit} onChange={e => setAddForm({ ...addForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", addForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={addForm.categoryOther || ""} onChange={e => setAddForm({ ...addForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={addForm.currentStock} onChange={e => setAddForm({ ...addForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={addForm.lowThreshold} onChange={e => setAddForm({ ...addForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={addForm.costPerUnit} onChange={e => setAddForm({ ...addForm, costPerUnit: e.target.value })} placeholder="$" /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={addForm.manufacturer} onChange={e => setAddForm({ ...addForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={addForm.epaRegNumber} onChange={e => setAddForm({ ...addForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={addForm.greenCertType} onChange={e => setAddForm({ ...addForm, greenCertType: e.target.value })} placeholder={tr("e.g. {0}", "Green Seal")} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={addForm.isGreenCertified} onChange={e => setAddForm({ ...addForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAdd}>{tr("Add Supply")}</Btn></div></div></Mdl>}
-    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}><img src={qrUrl(editForm.qrCode)} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /><div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
+    {editForm && <Mdl t={t} onClose={() => setEditForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Supply")}</div><button onClick={() => setEditForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>{editForm.qrCode && <div style={{ textAlign: "center", marginBottom: 14 }}>{qrs[editForm.id] ? <img src={qrs[editForm.id]} alt={tr("QR")} style={{ width: 120, height: 120, borderRadius: 8 }} /> : null}<div style={{ fontSize: 11, color: t.goldText, marginTop: 6, fontFamily: "monospace" }}>{editForm.qrCode}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("Print this QR code and attach it to the supply container")}</div></div>}<div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Category")}</Lbl><Sel t={t} value={editForm.category} onChange={e => setEditForm({ ...editForm, category: e.target.value })} options={cats} /></div><div><Lbl>{tr("Unit")}</Lbl><Sel t={t} value={editForm.unit} onChange={e => setEditForm({ ...editForm, unit: e.target.value })} options={units} /></div></div>{lkHasOther("supply_categories", editForm.category) && <div style={{ marginBottom: 12 }}><Lbl>{tr("Specify Category")}</Lbl><Inp t={t} value={editForm.categoryOther || ""} onChange={e => setEditForm({ ...editForm, categoryOther: e.target.value })} placeholder={tr("Describe the category")} /></div>}<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Stock")}</Lbl><Inp t={t} type="number" value={editForm.currentStock} onChange={e => setEditForm({ ...editForm, currentStock: e.target.value })} /></div><div><Lbl>{tr("Low Threshold")}</Lbl><Inp t={t} type="number" value={editForm.lowThreshold} onChange={e => setEditForm({ ...editForm, lowThreshold: e.target.value })} /></div><div><Lbl>{tr("Cost/Unit")}</Lbl><Inp t={t} type="number" value={editForm.costPerUnit} onChange={e => setEditForm({ ...editForm, costPerUnit: e.target.value })} /></div></div><div style={{ marginBottom: 12 }}><Lbl>{tr("Manufacturer")}</Lbl><Inp t={t} value={editForm.manufacturer} onChange={e => setEditForm({ ...editForm, manufacturer: e.target.value })} /></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("EPA Reg #")}</Lbl><Inp t={t} value={editForm.epaRegNumber} onChange={e => setEditForm({ ...editForm, epaRegNumber: e.target.value })} /></div><div><Lbl>{tr("Green Cert Type")}</Lbl><Inp t={t} value={editForm.greenCertType} onChange={e => setEditForm({ ...editForm, greenCertType: e.target.value })} /></div></div><div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}><label style={chkWrap}><input type="checkbox" checked={editForm.isGreenCertified} onChange={e => setEditForm({ ...editForm, isGreenCertified: e.target.checked })} /></label><span style={{ fontSize: 12, color: t.textSec }}>{tr("Green Certified Product")}</span></div><div style={{ display: "flex", gap: 10 }}><Btn t={t} v="danger" onClick={() => { deactivate(editForm.id); setEditForm(null); }}>{tr("Remove")}</Btn><div style={{ flex: 1 }} /><Btn t={t} v="ghost" onClick={() => setEditForm(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEdit}>{tr("Save")}</Btn></div></div></Mdl>}
     {handleReq && <Mdl t={t} onClose={() => setHandleReq(null)}><div style={{ padding: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{handleReq.status === "approved" ? tr("Approve Request") : tr("Deny Request")}</div><div style={{ marginBottom: 16 }}><Lbl>{tr("Notes (optional)")}</Lbl><Inp t={t} value={handleReq.notes} onChange={e => setHandleReq({ ...handleReq, notes: e.target.value })} placeholder={tr("Add a note...")} /></div><div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setHandleReq(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitHandleReq}>{handleReq.status === "approved" ? tr("Approve") : tr("Deny")}</Btn></div></div></Mdl>}
   </div>);
 }
@@ -3876,8 +3908,10 @@ const notifTarget = (link) => {
   if (!link) return { kind: "none" };
   let u; try { u = new URL(link, window.location.href); } catch { return { kind: "none" }; }
   if (u.origin !== window.location.origin) return { kind: "external", href: u.href };
-  const id = (u.hash || "").replace(/^#/, "");
-  return PAGE_IDS.includes(id) ? { kind: "page", page: id } : { kind: "external", href: u.href };
+  // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
+  const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
+  const id = parts[0] || "";
+  return PAGE_IDS.includes(id) ? { kind: "page", page: id, hash: parts.length > 1 ? parts.join("/") : "" } : { kind: "external", href: u.href };
 };
 const NOTIF_PAGE_SIZE = 30;
 function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused }) {
@@ -3920,7 +3954,7 @@ function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpe
     if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
     if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { refuse(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
-    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } onOpenPage(target.page); }
+    if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
     onClose();
   };
@@ -5863,6 +5897,8 @@ const serviceWordOf = (lkMap) => {
 // drawn through the table under its code, and anything else as it was sent.
 const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand": "changed by hand", "posted as an open shift": "posted as an open shift", "referenced by site_sessions": "started|pattern", "already scheduled at that time": "already scheduled at that time" };
 const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
+// The line under a Time off button someone cannot open (Step 185).
+const TIME_OFF_LOCKED_LINE = "Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.";
 function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
   // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
   // label, then the table's word; a pickup's and an inspection's status read the table's word.
@@ -5906,10 +5942,13 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
   // a 200 means they hold the capability and the count is what is waiting, and any other answer,
   // a 403 without it or a 404 before the routes are live, leaves the page exactly as it was.
   const [timeOffWaiting, setTimeOffWaiting] = useState(null);
+  // Step 185: a 403 is the refusal for someone without the capability, so the button stays, disabled,
+  // with the line saying who sees requests here. Any other answer leaves the page as it was.
+  const [timeOffLocked, setTimeOffLocked] = useState(false);
   const myId = user && user.id != null ? String(user.id) : "";
   const loadTimeOffCount = useCallback(async () => {
-    try { const d = await af(timeOffQuery("requested", "")); setTimeOffWaiting(Array.isArray(d && d.requests) ? d.requests.length : 0); }
-    catch (e) { setTimeOffWaiting(null); }
+    try { const d = await af(timeOffQuery("requested", "")); setTimeOffWaiting(Array.isArray(d && d.requests) ? d.requests.length : 0); setTimeOffLocked(false); }
+    catch (e) { setTimeOffWaiting(null); setTimeOffLocked(!!(e && e.status === 403)); }
   }, [af]);
   useEffect(() => { loadTimeOffCount(); }, [loadTimeOffCount]);
 
@@ -6270,9 +6309,11 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
         <button onClick={switchToMonth} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "month" ? 700 : 500, background: view === "month" ? t.goldBg : "transparent", color: view === "month" ? t.goldText : t.textMut, border: view === "month" ? "1px solid " + t.goldBorder : "1px solid transparent", cursor: "pointer" }}>{tr("Month")}</button>
         <button onClick={() => setView("patterns")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "patterns" ? 700 : 500, background: view === "patterns" ? t.goldBg : "transparent", color: view === "patterns" ? t.goldText : t.textMut, border: view === "patterns" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Patterns")}</button>
         {timeOffWaiting !== null && <button onClick={() => setView("timeoff")} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: view === "timeoff" ? 700 : 500, background: view === "timeoff" ? t.goldBg : "transparent", color: view === "timeoff" ? t.goldText : t.textMut, border: view === "timeoff" ? "1px solid " + t.goldBorder : "1px solid " + t.border, cursor: "pointer", fontFamily: FONT_BODY }}>{timeOffWaiting > 0 ? tr("Time off ({0})", timeOffWaiting) : tr("Time off")}</button>}
+        {timeOffWaiting === null && timeOffLocked && <button disabled title={tr(TIME_OFF_LOCKED_LINE)} style={{ padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 500, background: "transparent", color: t.textMut, border: "1px solid " + t.border, cursor: "default", opacity: 0.55, fontFamily: FONT_BODY }}>{tr("Time off")}</button>}
         <Btn t={t} onClick={() => openCreate(createDateForRange(), "")} style={{ padding: "5px 14px", fontSize: 11 }}><PlI sz={12} c={NAVY} /> {tr("Schedule Shift")}</Btn>
       </div>
     </div>
+    {timeOffWaiting === null && timeOffLocked && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{tr(TIME_OFF_LOCKED_LINE)}</div>}
     {view === "patterns" && <PatternsView af={af} t={t} sites={sites} allStaff={allStaff} refreshKey={patternsRefresh} openId={patternOpenId} onOpen={id => setPatternOpenId(id)} onClose={() => { setPatternOpenId(null); loadCalendar(); }} />}
     {view === "timeoff" && <TimeOffView af={af} t={t} allStaff={allStaff} myId={myId} showToast={showToast} onCountChange={loadTimeOffCount} />}
     {view !== "patterns" && view !== "timeoff" && <>
@@ -11398,7 +11439,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             </div>
           </div>
 
-          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                 {LIBRARY_COLS.map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{tr(h)}</th>)}
@@ -11445,7 +11486,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             </div>
           </div>
 
-          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                 {SUBMISSION_COLS.map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{tr(h)}</th>)}
@@ -11499,7 +11540,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
             <Btn t={t} v="ghost" onClick={() => loadPdfAccessLog(true)} style={{ fontSize: 12, padding: "8px 14px" }}>{tr("Refresh")}</Btn>
           </div>
 
-          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
+          <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                 {ACCESS_COLS.map(h => <th key={h} style={{ padding: "10px 12px", textAlign: "left", color: t.textMut, fontWeight: 600, fontSize: 11, textTransform: "uppercase" }}>{tr(h)}</th>)}
@@ -11965,6 +12006,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       </div>
                       <span style={{ fontSize: 11, color: t.textMut }}>{trn("{0} alias|count", g.rows.length)}</span>
                     </div>
+                    <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                       <thead><tr style={{ borderBottom: "1px solid " + t.border }}>
                         {ALIAS_COLS.map(h => (
@@ -11995,6 +12037,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </Crd>
                 ))}
               </div>
@@ -12686,7 +12729,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                       </button>
                     )}
                     {it.notes && (
-                      <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={it.notes}>{tr("note: {0}", it.notes.slice(0, 40) + (it.notes.length > 40 ? "..." : ""))}</span>
+                      <span style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }} title={trainingNotesShown(it.notes)}>{tr("note: {0}", trainingNotesShown(it.notes).slice(0, 40) + (trainingNotesShown(it.notes).length > 40 ? "..." : ""))}</span>
                     )}
                   </div>
                 </div>
@@ -13199,6 +13242,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
               { label: tr("Expired Documents"), val: compliance.expiredDocs.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
               { label: tr("Expiring (30 days)"), val: compliance.expiringDocs.length + compliance.expiringTraining.length, bg: t.orangeSubtle, bdr: t.orangeBorder, c: OR },
               { label: tr("Expired Training"), val: compliance.expiredTraining.length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
+              { label: tr("Certifications expiring soon"), val: (compliance.expiringCerts || []).length, bg: t.orangeSubtle, bdr: t.orangeBorder, c: OR },
+              { label: tr("Expired certifications"), val: (compliance.expiredCerts || []).length, bg: t.redSubtle, bdr: t.redBorder, c: RD },
               { label: tr("Staff with Onboarding"), val: compliance.onboardingProgress.length, bg: t.blueSubtle, bdr: t.blueBorder, c: BL },
             ].map((s, i) => (
               <div key={i} style={{ background: s.bg, border: "1px solid " + s.bdr, borderRadius: 12, padding: "16px 20px" }}>
@@ -13208,7 +13253,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             ))}
           </div>
 
-          {(compliance.expiredDocs.length > 0 || compliance.expiredTraining.length > 0) && <div style={{ marginBottom: 24 }}>
+          {(compliance.expiredDocs.length > 0 || compliance.expiredTraining.length > 0 || (compliance.expiredCerts || []).length > 0) && <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: RD, marginBottom: 10 }}>{tr("Expired Items")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.redBorder, overflow: "hidden" }}>
               {compliance.expiredDocs.map(d => (
@@ -13225,10 +13270,17 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
                   <span style={{ color: RD }}>{fmtDate(r.expiry_date)}</span>
                 </div>
               ))}
+              {(compliance.expiredCerts || []).map(c => (
+                <div key={"cert" + c.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+                  <span style={{ color: t.text }}>{c.user_name}</span>
+                  <span style={{ color: t.textSec }}>{c.cert_name}</span>
+                  <span style={{ color: RD }}>{fmtDate(c.expiry_date)}</span>
+                </div>
+              ))}
             </div>
           </div>}
 
-          {(compliance.expiringDocs.length > 0 || compliance.expiringTraining.length > 0) && <div style={{ marginBottom: 24 }}>
+          {(compliance.expiringDocs.length > 0 || compliance.expiringTraining.length > 0 || (compliance.expiringCerts || []).length > 0) && <div style={{ marginBottom: 24 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: OR, marginBottom: 10 }}>{tr("Expiring Within 30 Days")}</div>
             <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.orangeBorder, overflow: "hidden" }}>
               {compliance.expiringDocs.map(d => (
@@ -13243,6 +13295,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
                   <span style={{ color: t.text }}>{r.user_name}</span>
                   <span style={{ color: t.textSec }}>{r.training_name}</span>
                   <span style={{ color: OR }}>{fmtDate(r.expiry_date)}</span>
+                </div>
+              ))}
+              {(compliance.expiringCerts || []).map(c => (
+                <div key={"cert" + c.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+                  <span style={{ color: t.text }}>{c.user_name}</span>
+                  <span style={{ color: t.textSec }}>{c.cert_name}</span>
+                  <span style={{ color: OR }}>{fmtDate(c.expiry_date)}</span>
                 </div>
               ))}
             </div>
@@ -13422,6 +13481,8 @@ const trainingNames = (rows) => {
 };
 // The language a record's notes say its session was given in, or null.
 const trainingLanguageOf = (notes) => TRAINING_LANGUAGES.find((l) => String(notes || "").split("\n").some((line) => line.trim() === l.note)) || null;
+// A record's notes as a screen draws them: the language line in the screen's words, the rest as typed.
+const trainingNotesShown = (notes) => String(notes || "").split("\n").map((line) => { const l = TRAINING_LANGUAGES.find((x) => x.note === line.trim()); return l ? tr(l.note) : line; }).join("\n");
 // A day a record carries, YYYY-MM-DD, in the language's own words. Read as the parts it is written in, so
 // no time zone moves it.
 const trainingDayWords = (day, long) => {
