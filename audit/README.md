@@ -182,6 +182,16 @@ expiring soon counts 2 and Expired certifications counts 1, worked out by hand f
 `expiringCerts` and `expiredCerts`, each listed with its expiry; and the bell, where a notice whose
 link is `#forms/reports/ir-1` opens Forms on that report, in the same tab, with the report read.
 
+**A manager corrects the Spanish where the English is edited.** Since Step 185 Edit Task on a site's
+checklist and Edit Value on Dropdown Options read the Spanish the portal draws, with `locale=es`, and
+show it under Shown in Spanish as; a changed field is saved after the English through its own
+translations route as `{ locale, field, text }`, which the stub answers the way `routes/sites.js` and
+`routes/lookups.js` do, and the toast says the wording is saved. The `corrections` suite reads, in both
+languages, the item's Spanish name and instructions and the value's Spanish label as the stub serves
+them, changes one field in each and holds the calls to one English save and one correction, in that
+order, and the toast to the table's words. It then renames an inspection template and holds the
+`PUT` to the name typed and the description the card already had, which the route writes as well.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -317,7 +327,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections` and `house-style`.
 
 ## How much is left in English
 

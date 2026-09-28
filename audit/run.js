@@ -91,6 +91,10 @@ const SUITES = [
   // the certification counts and a notice's link to a record, in both languages.
   { name: "leftovers", mod: "./cases/leftovers", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Spanish corrections since Step 185: Edit Task and Edit Value show the Spanish and send a change to
+  // the translations route, and Rename keeps a template's description, in both languages.
+  { name: "corrections", mod: "./cases/corrections", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
   // holder of what guards it, by role or by override, in both languages.
   { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],

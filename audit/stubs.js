@@ -1154,8 +1154,11 @@ function createStubs() {
   };
   // The shift and the block of a checklist row, in the language the call asked for.
   const SHIFT_WORDS_ES = { "Night": "Noche", "Day": "D\u00eda", "Start of shift": "Inicio del turno", "End of shift": "Fin del turno" };
+  // Step 183: a manager's own wording, the way routes/sites.js and routes/lookups.js store a correction
+  // with source person, by the item's or the choice's id and its field.
+  let corrections = {};
   const withDisplay = (item, lang) => {
-    const es = TASK_WORDS_ES[item.id];
+    const es = TASK_WORDS_ES[item.id] ? Object.assign({}, TASK_WORDS_ES[item.id], corrections[item.id] || {}) : corrections[item.id] ? Object.assign({ label: item.label, description: item.description, zone: item.zone }, corrections[item.id]) : null;
     const sayShift = (v) => (lang === "es" && SHIFT_WORDS_ES[v] ? SHIFT_WORDS_ES[v] : v);
     const around = item.shift ? { shift: sayShift(item.shift), block: sayShift(item.block) } : {};
     if (!es) return item.shift ? Object.assign({}, item, { display: around }) : item;
@@ -1182,7 +1185,7 @@ function createStubs() {
     "Post-Construction": "Posconstrucci\u00f3n",
   };
   const withChoiceWords = (values, lang) => (values || []).map((v) => Object.assign({}, v, {
-    displayLabel: lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
+    displayLabel: lang === "es" && corrections[v.id] && corrections[v.id].label ? corrections[v.id].label : lang === "es" && CHOICE_WORDS_ES[v.label] ? CHOICE_WORDS_ES[v.label] : v.label,
   }));
   // GET /api/lookups/all the way the API answers it: each list with its label, its description,
   // whether it is one of the system's own, its place and whether it is on, then its values. Every
@@ -1216,7 +1219,7 @@ function createStubs() {
   const siteTasks = (siteId) => ASSIGNED_TASKS.filter((t) => t.site_id === siteId).map((t) => ({
     id: t.id, label: t.label, zone: t.zone, priority: t.priority, cims_category: t.cims_category,
     building_name: t.building_name, floor_number: t.floor_number, assigned_to_name: t.assigned_to_name,
-    media_required: false, description: "", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true,
+    media_required: false, description: t.description || "", shift: "Night", block: "Start of shift", period: "daily", days: null, shownToday: true,
   })).concat((CHECKLIST[siteId] || []).map((c) => Object.assign({ priority: "standard", cims_category: "SD",
     building_name: null, floor_number: null, assigned_to_name: null, media_required: false, description: "" }, c)))
     .map((c) => Object.assign(c, { dueToday: c.shownToday, doneThisPeriod: false, checkedToday: false }));
@@ -1354,7 +1357,7 @@ function createStubs() {
     // the active lists and their active values, in the same shape.
     if (path === "/api/lookups/all") {
       if (!effectiveMap(person(), state.overrides[person().id]).manage_lookups) return { status: 403, json: { error: "Insufficient permissions" } };
-      return ok(lookupsIn(lang));
+      return ok(lookupsIn(q("locale") || lang));
     }
     if (path === "/api/lookups" && method === "GET") {
       return ok(lookupsIn(lang).filter((c) => c.is_active).map((c) => Object.assign({}, c, { values: c.values.filter((v) => v.is_active) })));
@@ -1547,10 +1550,25 @@ function createStubs() {
     if (path.startsWith("/api/sites/chat/")) {
       return ok({ messages: CHAT_MESSAGES, total: CHAT_MESSAGES.length, channel: { id: "ch-1", name: S[0].name } });
     }
+    // Step 183: PATCH /api/sites/:siteId/tasks/:taskId/translations { locale, field, text }, a
+    // manager's own wording for a checklist item, stored with source person and answered the way
+    // routes/sites.js answers it.
+    if (/^\/api\/sites\/[^/]+\/tasks\/[^/]+\/translations$/.test(path) && method === "PATCH") {
+      const b = body || {};
+      const taskId = path.split("/")[5];
+      if (b.locale !== "es") return { status: 400, json: { error: "Corrections are written for es", code: "translations.localeInvalid" } };
+      if (["label", "description", "zone"].indexOf(b.field) < 0) return { status: 400, json: { error: "A correction names label, description or zone", code: "translations.fieldInvalid" } };
+      const text = typeof b.text === "string" ? b.text.trim() : "";
+      if (!text) return { status: 400, json: { error: "Write the wording", code: "translations.textRequired" } };
+      corrections[taskId] = Object.assign({}, corrections[taskId] || {}, { [b.field]: text });
+      const item = siteTasks(path.split("/")[3]).find((x) => x.id === taskId) || { id: taskId };
+      return ok({ message: lang === "es" ? "Traducci\u00f3n guardada" : "Translation saved", code: "translations.saved", task: withDisplay(item, lang),
+        translation: { locale: "es", field: b.field, text: text, source: "person" } });
+    }
     if (/^\/api\/sites\/[^/]+\/tasks/.test(path)) {
       if (method !== "GET") return ok({ message: "Task saved" });
       const sid = path.split("/")[3];
-      return ok(checklistRead(sid, q("day"), q("shift")).map((tk) => withDisplay(tk, lang)));
+      return ok(checklistRead(sid, q("day"), q("shift")).map((tk) => withDisplay(tk, q("locale") || lang)));
     }
     if (path.startsWith("/api/sites/timeline/") || /^\/api\/sites\/[^/]+\/timeline/.test(path)) {
       const rows = timelineRows("Tomasz Wisniewski");
@@ -1705,7 +1723,7 @@ function createStubs() {
     if (path.startsWith("/api/shift-sessions/by-site")) return ok(shiftSessions || SHIFT_SESSIONS);
 
     // --- inspections ------------------------------------------------------
-    if (path === "/api/inspections/templates" && method === "GET") return ok(INSPECTION_TEMPLATES);
+    if (path === "/api/inspections/templates" && method === "GET") return ok(state.templates || INSPECTION_TEMPLATES);
     if (path === "/api/inspections/templates" && method === "POST") return created({ message: "Template created", template: { id: "tp-new", name: (body && body.name) || "New template", item_count: 0, max_total_score: 0, is_active: true } });
     if (/^\/api\/inspections\/templates\/[^/]+\/items/.test(path)) return ok({ message: "Item added" });
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "GET") {
@@ -1713,6 +1731,16 @@ function createStubs() {
       const tp = INSPECTION_TEMPLATES.find((x) => x.id === id) || INSPECTION_TEMPLATES[0];
       // The template's panel reads its name and id beside its items, at the top level.
       return ok(Object.assign({}, tp, { template: tp, items: INSPECTION_ITEMS }));
+    }
+    // PUT writes the name and the description it is sent, both columns, and answers the row, the way
+    // routes/inspections.js does, so a rename that sent no description would empty it.
+    if (/^\/api\/inspections\/templates\/[^/]+$/.test(path) && method === "PUT") {
+      if (!state.templates) state.templates = clone(INSPECTION_TEMPLATES);
+      const tp = state.templates.find((x) => x.id === path.split("/")[4]);
+      if (!tp) return { status: 404, json: { error: "Template not found", code: "inspections.templateNotFound" } };
+      tp.name = (body && body.name) || tp.name;
+      tp.description = body && body.description !== undefined ? body.description : null;
+      return ok(tp);
     }
     if (/^\/api\/inspections\/templates\/[^/]+$/.test(path)) return ok({ message: "Template updated" });
     if (path === "/api/inspections/scheduled" && method === "GET") {
@@ -2193,6 +2221,17 @@ function createStubs() {
     if (path === "/api/lookups/categories" && method === "POST") return created({ message: "Category added" });
     if (/^\/api\/lookups\/categories\/[^/]+/.test(path)) return ok({ message: "Category saved" });
     if (path === "/api/lookups/values" && method === "POST") return created({ message: "Option added" });
+    // Step 183: PATCH /api/lookups/values/:id/translations { locale, field, text }, a manager's own
+    // wording for a choice, stored with source person the way routes/lookups.js stores it.
+    if (/^\/api\/lookups\/values\/[^/]+\/translations$/.test(path) && method === "PATCH") {
+      const b = body || {};
+      const id = path.split("/")[4];
+      const text = typeof b.text === "string" ? b.text.trim() : "";
+      if (b.locale !== "es" || b.field !== "label" || !text) return { status: 400, json: { error: "A correction names es, label and the wording", code: "translations.fieldInvalid" } };
+      corrections[id] = Object.assign({}, corrections[id] || {}, { label: text });
+      return ok({ message: lang === "es" ? "Traducci\u00f3n guardada" : "Translation saved", code: "translations.saved", value: { id: id, displayLabel: text },
+        translation: { locale: "es", field: "label", text: text, source: "person" } });
+    }
     if (/^\/api\/lookups\/values\/[^/]+/.test(path)) return ok({ message: "Option saved" });
     if (path === "/api/lookups/reorder") return ok({ message: "Order saved" });
     if (/^\/api\/lookups\/site\/[^/]+\/all$/.test(path)) {
@@ -2458,6 +2497,7 @@ function createStubs() {
       state.schedule = null; state.patterns = null; state.timeOff = null;
       state.overrides = seededOverrides(); state.notifications = null; state.settings = null;
       state.training = null;
+      state.templates = null; corrections = {};
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {}, photos: {} };
       photoSeq = 10;

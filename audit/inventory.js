@@ -180,6 +180,8 @@ const WINDOWS = [
   { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [7702, 8050] },
   { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [8042] },
   { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [8061] },
+  // Step 185: Rename on a template's card, which sends the name typed and the description the card has.
+  { id: "inspections/rename-template", page: "inspections", title: "Rename", lines: [7726] },
 
   { id: "settings/add-category", page: "settings", title: "Add Category", lines: [8829] },
   { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [8837] },

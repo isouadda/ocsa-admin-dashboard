@@ -202,6 +202,9 @@ const ROUTES = {
   "inspections/edit-scheduled": {
     open: async (d) => { await d.goto("inspections"); await d.clickText("Scheduled", { exact: true }); return d.clickText("Edit", { exact: true }); },
   },
+  "inspections/rename-template": {
+    open: async (d) => { await d.goto("inspections"); await d.clickText("Templates", { exact: true }); return d.clickText("Rename", { exact: true }); },
+  },
 
   "settings/add-category": {
     open: async (d) => { await d.goto("settings"); await d.clickText("Dropdown Options", { exact: false }); return d.clickText("+ Add", { exact: true }); },
