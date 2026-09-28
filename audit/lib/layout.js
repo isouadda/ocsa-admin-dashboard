@@ -77,7 +77,10 @@ function finish(results) {
         + "Standard fails until the record is written again on purpose.",
       pages: seen,
     };
-    fs.writeFileSync(FILE, JSON.stringify(out, null, 2) + "\n");
+    // A word a screen draws with a character outside ASCII, a rating's stars or a menu's arrow, is
+    // written as its \u escape, so the record is plain ASCII like every file the audit keeps.
+    const ascii = (text) => text.replace(/[\u007f-\uffff]/g, (c) => "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
+    fs.writeFileSync(FILE, ascii(JSON.stringify(out, null, 2)) + "\n");
     results.pass("layout", "layout/record-written", Object.keys(seen).length + " page and width records written");
     return;
   }
