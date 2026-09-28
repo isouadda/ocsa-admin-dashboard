@@ -75,6 +75,11 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Staff, PINs and badges since Step 181: the Temporary PIN window after Add New Staff, Reset PIN's box
+  // and toast, an admin's account locked to a holder of manage_admins, and the employee ID line, in
+  // both languages at 1024.
+  { name: "staff-pins", mod: "./cases/staff-pins", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Settings shows each list value's English and, in another language, its words there, and saves
   // exactly what it saves in English, in both languages at 1024.
   { name: "settings", mod: "./cases/settings", widths: ["narrow"],

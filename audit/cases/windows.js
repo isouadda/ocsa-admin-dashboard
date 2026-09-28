@@ -17,6 +17,15 @@ const ROUTES = {
     // window rather than a toast.
     send: { fillLabels: [["First Name", "Adaeze"], ["Last Name", "Nwachukwu"], ["Phone", "2155559911"], ["Email", "adaeze.nwachukwu@example.invalid"]], press: "Add Staff", expect: { path: "/api/users", method: "POST", window: "Temporary PIN" } },
   },
+  // Step 181: the window Add New Staff opens once the API has saved the person, with the PIN it sent.
+  "staff/temporary-pin": {
+    open: async (d) => {
+      await d.goto("staff"); await d.clickText("Add Staff", { exact: false });
+      for (const [label, v] of [["First Name", "Adaeze"], ["Last Name", "Nwachukwu"], ["Phone", "2155559911"], ["Email", "adaeze.nwachukwu@example.invalid"]]) await d.fillByLabel(label, v);
+      await d.clickText("Add Staff", { inModal: true, exact: false });
+      return (await d.modalText()).indexOf("Temporary PIN") >= 0;
+    },
+  },
   "staff/edit": {
     // The pencil in the list's Actions column, which is an icon button titled Edit.
     open: async (d) => { await d.goto("staff"); return d.clickTitle("Edit"); },

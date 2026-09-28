@@ -128,6 +128,8 @@ const WINDOWS = [
   { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1721] },
   { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1728] },
   { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1780] },
+  // Step 181: the Temporary PIN window Add New Staff opens once the API has saved the person.
+  { id: "staff/temporary-pin", page: "staff", title: "Temporary PIN", lines: [1417] },
   { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1789] },
 
   { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [2409] },

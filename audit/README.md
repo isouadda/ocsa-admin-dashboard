@@ -123,6 +123,17 @@ way: every row of the list for its status, its response and who holds it, and ev
 for its log's roles and actions, and for the summary, the resolution notes and every name, which are
 held to the text the API sent, exactly.
 
+**A new person's PIN is shown once, and an admin's account is an admin holder's to change.** The
+`staff-pins` suite adds a person on Staff Management and holds the window the save opens, Step 181's
+Temporary PIN: the person's name, the PIN masked, Show drawing the PIN the API answered and Hide
+masking it again, Copy putting it on a clipboard kept on the page, and Send activation invite posting
+to the person's invite route. It resets a custodial lead's PIN through a masked number box and holds
+the toast to the person's name. As an admin without `manage_admins`, which no admin holds by default,
+it reads the list's pencils, on every row but an admin's, and another admin's profile, which offers no
+Reset PIN, no reset link, no Deactivate and no Edit. It saves a profile with an employee ID somebody
+else holds, has the API refuse it with `users.employeeIdTakenByOther`, and holds the line under the
+field to the table's words. Both languages, at 1024.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -258,7 +269,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins` and `house-style`.
 
 ## How much is left in English
 

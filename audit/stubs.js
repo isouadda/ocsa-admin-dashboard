@@ -1342,6 +1342,19 @@ function createStubs() {
     if (/^\/api\/users\/[^/]+\/assign-site$/.test(path)) return ok({ message: "Assignment saved" });
     if (/^\/api\/users\/[^/]+\/unassign-site\/[^/]+$/.test(path)) return ok({ message: "Assignment removed" });
     if (/^\/api\/users\/[^/]+\/certifications/.test(path)) return ok({ message: "Certification saved" });
+    // Step 176's three routes, as routes/users.js answers them at ocsa-api 1c3fb42: the invite and the
+    // reset link answer the mail's result, and a generated badge number the number and its source.
+    if (/^\/api\/users\/[^/]+\/(invite|send-reset)$/.test(path) && method === "POST") {
+      const u = state.staff.find((x) => x.id === path.split("/")[3]);
+      if (!u) return { status: 404, json: { error: lang === "es" ? "No se encontr\u00f3 el usuario" : "User not found", code: "common.userNotFound" } };
+      return ok({ status: "sent", email: u.email || null });
+    }
+    if (/^\/api\/users\/[^/]+\/badge\/generate$/.test(path) && method === "POST") {
+      const u = state.staff.find((x) => x.id === path.split("/")[3]);
+      if (!u) return { status: 404, json: { error: lang === "es" ? "No se encontr\u00f3 el usuario" : "User not found", code: "common.userNotFound" } };
+      u.badge_number = "7001";
+      return created({ badgeNumber: "7001", badgeSource: "generated", message: "Badge number assigned" });
+    }
     // The caller's own capabilities, the way routes/users.js answers GET /api/users/me/permissions
     // since Step 179: the role, and every capability's key with the override the person holds or the
     // role's default. A super admin holds every one. Declared ahead of the per-person route, the way
