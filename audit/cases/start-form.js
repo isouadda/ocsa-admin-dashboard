@@ -107,8 +107,9 @@ async function run({ d, results, inventory, stubs, lang }) {
     await pause(700);
     const started = bodyOf(d.callsSince(mark), "POST", /\/api\/forms\/desk-complaint\/drafts$/);
     const w0 = await window_(d);
+    // The API sets a draft's source itself and reads none from the body, so the start sends none.
     check("start-form/a-form-is-started",
-      picked && !!started && started.body && started.body.source === "admin" && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
+      picked && !!started && started.body && !Object.prototype.hasOwnProperty.call(started.body, "source") && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
         && ["site", "received_on", "received_at", "channel", "callers"].every((k) => w0.questions.indexOf(k) >= 0),
       !picked ? "nothing in the picker to press" : "starting sent " + JSON.stringify(started ? started.body : null) + " and the window is " + JSON.stringify(w0 ? { step: w0.step, questions: w0.questions } : null));
 
@@ -205,7 +206,8 @@ async function run({ d, results, inventory, stubs, lang }) {
         && !!w5 && w5.text.indexOf(say("Signed by {0} on {1} at {2}").split("{0}")[0].trim()) >= 0 && !w5.buttons.some((b) => b.text === say("Sign")),
       !signOpened ? "no Sign on the filer's sign-off" : "Sign sent " + JSON.stringify(signed ? Object.keys(signed.body || {}) : null) + " and the window reads " + JSON.stringify(w5 ? w5.text.slice(-160) : null));
 
-    // Sent, and under Submitted with its source.
+    // Sent, and under Submitted. The list the API sends carries no source, so the row names the form
+    // and nothing under it.
     await pressIn(d, say("Next"));
     await pause(700);
     const review1 = await window_(d);
@@ -223,7 +225,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const listed = await rowWith(d, title);
     check("start-form/the-filing-is-sent",
       sendOn && asked && !!sent && !!w6 && w6.text.indexOf(say("Form sent. The people who handle these forms have been told.")) >= 0
-        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) >= 0,
+        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) < 0 && listed.indexOf(say("From the app")) < 0,
       "on the review Send was " + (sendOn ? "on" : "off") + ", the question " + (asked ? "was asked" : "was not asked") + ", " + (sent ? "the filing went" : "nothing went")
         + ", the window read " + JSON.stringify(w6 ? w6.text.slice(0, 80) : null) + " and the row that names the form reads " + JSON.stringify(listed));
   }
@@ -326,12 +328,13 @@ async function run({ d, results, inventory, stubs, lang }) {
     check("start-form/refusal/sign", boxLine === signWords, "the box reads " + JSON.stringify(boxLine));
     stubs.clearRefusals();
 
-    // A photo refused: under the question, by its code.
-    stubs.setRefusal({ method: "POST", path: "/photos/", status: 409, code: "forms.photosFull", error: "The API's own words" });
+    // A photo refused: under the question, in the API's own words as sent.
+    const photoWords = lang === "es" ? "Esta pregunta acepta como máximo 3 fotos." : "This question takes 3 photos at most.";
+    stubs.setRefusal({ method: "POST", path: "/photos/", status: 400, code: "forms.photoLimit", error: photoWords, body: { max: 3 } });
     await d.modal().locator("input[type=file]").setInputFiles([{ name: "late.png", mimeType: "image/png", buffer: PNG }]);
     await pause(700);
     const photoLine = await d.page.evaluate((sel) => (document.querySelector(sel + " [data-question='evidence'] [data-photo-refusal]") || { innerText: "" }).innerText.trim(), MODAL);
-    check("start-form/refusal/photo", photoLine === say("This question is full."), "the line under the photos question reads " + JSON.stringify(photoLine));
+    check("start-form/refusal/photo", photoLine === photoWords, "the line under the photos question reads " + JSON.stringify(photoLine) + " where the API said " + JSON.stringify(photoWords));
     stubs.clearRefusals();
 
     // Continuing somebody else's draft: the API refuses and the tab says so.

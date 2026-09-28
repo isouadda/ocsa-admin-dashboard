@@ -8202,16 +8202,13 @@ const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "s
 // A photos question carries the photos the API holds for it, [{ id, name, bytes, uploadedAt }], and
 // how many it takes in maxPhotos. Each image is fetched with the token and drawn from a blob URL,
 // which is revoked when the photo or the question leaves the screen. A refusal is drawn under the
-// question as the table's word for its code, and as the API's own words for a code the table does
-// not know.
-const PHOTO_REFUSAL_WORDS = {
-  "forms.photosFull": "This question is full.",
-  "forms.photoTooLarge": "That photo is too large.",
-  "forms.notAPhoto": "Only a photo can be added here.",
-  "forms.photoNotFound": "That photo is no longer on the form.",
-  "forms.photosForbidden": "You cannot change the photos on this question.",
-};
-const photoRefusalLine = (e) => (e && e.code && PHOTO_REFUSAL_WORDS[e.code] ? tr(PHOTO_REFUSAL_WORDS[e.code]) : ((e && e.message) || tr("Request failed")));
+// question in the API's own words, as sent, whatever its code (Step 169: the API's words are the
+// ones that name the size, the type and the count it takes).
+const photoRefusalLine = (e) => ((e && e.message) || tr("Request failed"));
+// What an upload and a removal answer: { key, photos }, the question's photos as the API now holds
+// them (Step 169, to the API's contract). photos is read first and value after it, as the portal
+// does, so an answer in either shape redraws the thumbnails rather than emptying them.
+const photosAnswered = (d) => (d && Array.isArray(d.photos) ? d.photos : d && Array.isArray(d.value) ? d.value : null);
 const photoPath = (responseId, tail) => "/api/forms/responses/" + encodeURIComponent(responseId) + "/photos/" + tail;
 const photoBlobUrl = (u) => !!u && u !== "pending" && u !== "failed";
 
@@ -8291,7 +8288,8 @@ function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
     files.forEach(f => fd.append("photos", f, f.name));
     try {
       const d = await apiMultipart(photoPath(responseId, encodeURIComponent(field.key)), token, fd);
-      if (mounted.current && d && Array.isArray(d.value)) onValue(d.value);
+      const list = photosAnswered(d);
+      if (mounted.current && list) onValue(list);
     } catch (e) { if (mounted.current) setRefusal(photoRefusalLine(e)); }
     busyRef.current = false;
     if (mounted.current) setBusy("");
@@ -8301,7 +8299,8 @@ function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
     busyRef.current = true; setBusy("remove:" + p.id); setRefusal("");
     try {
       const d = await af(photoPath(responseId, encodeURIComponent(field.key) + "/" + encodeURIComponent(p.id)), { method: "DELETE" });
-      if (mounted.current && d && Array.isArray(d.value)) onValue(d.value);
+      const list = photosAnswered(d);
+      if (mounted.current && list) onValue(list);
     } catch (e) { if (mounted.current) setRefusal(photoRefusalLine(e)); }
     busyRef.current = false;
     if (mounted.current) setBusy("");
@@ -9377,12 +9376,13 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
     try { setPicker({ loading: false, forms: (await readCatalog()).filter(formStartable), error: "" }); }
     catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
   };
-  // The filing is marked as started from the dashboard by the source the API stores for it.
+  // The API sets a draft's source itself, portal, and reads none from the body (routes/forms.js,
+  // Step 169), so the start sends nothing for it.
   const startForm = async (f) => {
     if (starting) return;
     setStarting(f.code);
     try {
-      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: {} });
       setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
     } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
     setStarting("");

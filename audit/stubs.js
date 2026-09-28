@@ -553,16 +553,21 @@ function createStubs() {
     { id: "ph-1", name: "lobby.jpg", bytes: 24576, uploadedAt: seed.shift(-1) + "T21:50:00Z" },
     { id: "ph-2", name: "dock.jpg", bytes: 30720, uploadedAt: seed.shift(-1) + "T21:52:00Z" },
   ];
+  // The codes and the words are routes/forms.js's own, read at 9b8f5ed (Step 169): a question that
+  // takes no photos, a half this person may not write, no photo in the request, more than the
+  // question takes, and a photo that is not there.
   const PHOTO_REFUSAL = {
-    notAPhotoQuestion: { code: "forms.notAPhotoQuestion", status: 400, en: "That is not a photos question on this form", es: "Esa no es una pregunta de fotos en este formulario" },
-    photosForbidden: { code: "forms.photosForbidden", status: 403, en: "You cannot change the photos on this question", es: "No puede cambiar las fotos de esta pregunta" },
-    notAPhoto: { code: "forms.notAPhoto", status: 400, en: "Only a photo can be added here", es: "Aquí solo se puede agregar una foto" },
-    photosFull: { code: "forms.photosFull", status: 409, en: "This question is full", es: "Esta pregunta está llena" },
-    photoNotFound: { code: "forms.photoNotFound", status: 404, en: "That photo is no longer on the form", es: "Esa foto ya no está en el formulario" },
+    notAPhotosQuestion: { code: "forms.notAPhotosQuestion", status: 400, en: "That question does not take photos", es: "Esa pregunta no acepta fotos" },
+    cannotWriteSupervisor: { code: "forms.cannotWriteSupervisor", status: 403, en: "You cannot fill in the supervisor section", es: "No puede llenar la secci\u00f3n del supervisor" },
+    reportNotFound: { code: "forms.reportNotFound", status: 404, en: "Report not found", es: "No se encontr\u00f3 el reporte" },
+    photoNoFile: { code: "forms.photoNoFile", status: 400, en: "Attach at least one photo.", es: "Adjunte al menos una foto." },
+    photoLimit: { code: "forms.photoLimit", status: 400, en: "This question takes {max} photos at most.", es: "Esta pregunta acepta como m\u00e1ximo {max} fotos." },
+    photoNotFound: { code: "forms.photoNotFound", status: 404, en: "Photo not found", es: "No se encontr\u00f3 la foto" },
   };
-  const photoRefusal = (which, lang) => {
+  const photoRefusal = (which, lang, vars) => {
     const r = PHOTO_REFUSAL[which];
-    return { status: r.status, json: { error: lang === "es" ? r.es : r.en, code: r.code } };
+    const words = (lang === "es" ? r.es : r.en).replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] !== undefined ? String(vars[k]) : m));
+    return { status: r.status, json: { error: words, code: r.code } };
   };
   let photoSeq = 10;
   const stampNow = () => ({
@@ -1691,16 +1696,17 @@ function createStubs() {
       return created({ id: "doc-new-1", user_id: idAfter("/api/jotform/employees/"), category: "uncategorized", created_at: seed.NOW_ISO });
     }
     if (path === "/api/forms") return ok({ forms: FORM_LIST.map((f) => Object.assign({ fillers: [] }, f)).concat([deskForm(lang)]) });
-    // Step 166: the draft routes the portal calls, for a form started at a desk. Starting records
-    // the source the body names; a save merges the answers, a null taking one off; Send refuses with
-    // the missing list until every required question in play is answered, then files it.
+    // Step 166: the draft routes the portal calls, for a form started at a desk. The API sets the
+    // source itself, portal, and reads none from the body (routes/forms.js at 9b8f5ed, Step 169);
+    // a save merges the answers, a null taking one off; Send refuses with the missing list until
+    // every required question in play is answered, then files it.
     if (/^\/api\/forms\/[^/]+\/drafts$/.test(path) && method === "POST") {
       const code = decodeURIComponent(path.split("/")[3]);
       if (code !== DESK_CODE || !startable) return { status: 403, json: { error: lang === "es" ? "No puede iniciar este formulario" : "You cannot start this form", code: "forms.cannotStart" } };
       deskSeq += 1;
       const row = { id: "fr-new-" + deskSeq, formCode: DESK_CODE, formName: deskForm(lang).title, status: "draft", siteId: null, siteName: null,
         userId: person().id, userName: person().firstName + " " + person().lastName, createdAt: seed.NOW_ISO, submittedAt: null, dueAt: null,
-        source: (body && body.source) || "app", answers: {} };
+        source: "portal", answers: {} };
       INCIDENT_REPORTS.push(row);
       return created({ draft: deskView(row, lang) });
     }
@@ -1732,8 +1738,10 @@ function createStubs() {
       if (!canListFiledForms()) return { status: 403, json: { error: "Insufficient permissions" } };
       const status = q("status") || "submitted";
       const code = q("formCode") || "";
+      // The list carries no source and no answers: the API's list sends neither, and a report's
+      // source is read on the report itself.
       const rows = INCIDENT_REPORTS.filter((r) => r.status === status && (!code || r.formCode === code))
-        .map((r) => (deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined }) : r));
+        .map((r) => (deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined, source: undefined }) : r));
       return ok({ responses: rows });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
@@ -1807,7 +1815,7 @@ function createStubs() {
       return ok(reportPayload(r, lang));
     }
     // Step 165: the photo routes. The thumbnail and the full image are streamed; an upload takes
-    // multipart photos and answers the question's photos; a removal answers them too. An upload or a
+    // multipart photos and answers { key, photos }; a removal answers the same shape. An upload or a
     // removal is refused with a code on a question that is not a photos question, on one this person
     // may not write, with no photo in it, past maxPhotos, and for a photo that is not there.
     // Step 165: a stamp's signature, streamed as a PNG.
@@ -1820,25 +1828,29 @@ function createStubs() {
       const key = decodeURIComponent(path.split("/")[6] || "");
       const payload = reportPayload(r, lang);
       const f = payload.fields.find((x) => x.key === key);
-      if (!f || f.type !== "photos") return photoRefusal("notAPhotoQuestion", lang);
-      // Step 166: on a form started at a desk the photos are the filer's while it is a draft.
+      if (!f || f.type !== "photos") return photoRefusal("notAPhotosQuestion", lang);
+      // Step 166: on a form started at a desk the photos are the filer's while it is a draft. The
+      // API answers somebody else's draft as not found, and a supervisor half this person may not
+      // write with the supervisor section's own refusal.
       const onDraft = deskDraft(r);
-      if (onDraft ? (r.status !== "draft" || String(r.userId || "") !== String(person().id)) : (f.half !== "supervisor" || !payload.canWriteSupervisor)) return photoRefusal("photosForbidden", lang);
+      if (onDraft && (r.status !== "draft" || String(r.userId || "") !== String(person().id))) return photoRefusal("reportNotFound", lang);
+      if (!onDraft && (f.half !== "supervisor" || !payload.canWriteSupervisor)) return photoRefusal("cannotWriteSupervisor", lang);
       const held = () => (onDraft ? r.answers[key] : filedState().photos[key]) || [];
       const keep = (arr) => { if (onDraft) { if (arr.length) r.answers[key] = arr; else delete r.answers[key]; } else filedState().photos[key] = arr; return arr; };
       const have = held().slice();
       if (method === "DELETE") {
         const photoId = decodeURIComponent(path.split("/")[7] || "");
         if (!have.some((p) => p.id === photoId)) return photoRefusal("photoNotFound", lang);
-        return ok({ value: keep(have.filter((p) => p.id !== photoId)) });
+        return ok({ key: key, photos: keep(have.filter((p) => p.id !== photoId)) });
       }
       const raw = String(body || "");
       const names = [];
       raw.replace(/name="photos"; filename="([^"]*)"/g, (m, n) => { names.push(n); return m; });
-      if (names.length === 0) return photoRefusal("notAPhoto", lang);
-      if (Number(f.maxPhotos) > 0 && have.length + names.length > Number(f.maxPhotos)) return photoRefusal("photosFull", lang);
+      if (names.length === 0) return photoRefusal("photoNoFile", lang);
+      if (Number(f.maxPhotos) > 0 && have.length + names.length > Number(f.maxPhotos)) return photoRefusal("photoLimit", lang, { max: Number(f.maxPhotos) });
       names.forEach((name, i) => { photoSeq += 1; have.push({ id: "ph-" + photoSeq, name, bytes: 4096 * (i + 1), uploadedAt: seed.NOW_ISO }); });
-      return ok({ value: keep(have) });
+      // An upload and a removal answer { key, photos }, the way routes/forms.js does, never { value }.
+      return ok({ key: key, photos: keep(have) });
     }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
