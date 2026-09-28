@@ -198,7 +198,8 @@ const GOLD = clientConfig.brand.gold;
 const NAVY_DARK = clientConfig.brand.navyDark;
 const PANEL_LIGHT = clientConfig.brand.panelLight;
 const GO = GOLD, GL = "#FCEA4A", GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#24A4F4", TL = "#1ABC9C";
-const CIMS_LABELS = { SD: "Service Delivery", HSE: "Health, Safety & Environment", GB: "Green Buildings", QS: "Quality System", HR: "Human Resources", MC: "Management Commitment" };
+// A service category is a plain word, never the framework's own name for it. Keyed by the codes the API stores.
+const CIMS_LABELS = { SD: "Cleaning", HSE: "Safety", GB: "Green cleaning", QS: "Quality checks", HR: "Staff and training", MC: "Management" };
 const LOGO_SM = process.env.PUBLIC_URL + "/ocsa-logo-sm.png";
 const LOGO_LG = process.env.PUBLIC_URL + "/ocsa-logo.png";
 const DARK = {
@@ -895,7 +896,7 @@ export default function AdminDashboard() {
         {page === "supplies" && <SuppliesAdminPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} />}
+        {page === "services" && <ServicesPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat" && <ChatPage af={af} user={user} t={t} />}
@@ -1017,10 +1018,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // other as the name with its underscores as spaces, which is what the page has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage"), clock: tr("clock|record"), document: tr("document|record"), training: tr("training|record"), schedule: tr("schedule|record"), pickup: tr("pickup|record"), user: tr("user|record"), certification: tr("certification|record"), supply: tr("supply|record"), message: tr("message|record"), staff_site_assignment: tr("staff site assignment"), form: tr("form|record"), vendor: tr("vendor|record"), service: tr("service|record"), lookup: tr("lookup|record"), onboarding: tr("onboarding|record") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
   const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // A field's value where it is a code: a service category is drawn as its plain word.
+  const catShown = lkMap ? lkMap("cims_categories", true) : {};
+  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), catShown) : v);
   // The timeline's categories: what its chips say, and what a printed timeline names its filter with.
   const tlCats = [{ id: "all", l: tr("All|timeline") }, { id: "clock", l: tr("Clock") }, { id: "tasks", l: tr("Tasks") }, { id: "inspections", l: tr("Inspections") }, { id: "issues", l: tr("Issues") }, { id: "schedule", l: tr("Schedule") }, { id: "marketplace", l: tr("Marketplace") }, { id: "documents", l: tr("Documents") }, { id: "training", l: tr("Training") }, { id: "profile", l: tr("Profile") }, { id: "timesheets", l: tr("Timesheets") }, { id: "supplies", l: tr("Supplies") }];
   const tlCatWord = (c) => (tlCats.find((x) => x.id === c) || {}).l || c;
@@ -1148,7 +1152,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
           const label = fieldOf(k);
-          let val = String(v);
+          let val = String(valueOf(k, v));
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
@@ -1555,7 +1559,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               return <div key={k} style={{ fontSize: 11 }}>
                 <div style={{ color: t.textMut, fontSize: 9, textTransform: "uppercase", marginBottom: 1 }}>{fieldOf(k)}</div>
                 {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
-                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(v)}</div>}
+                  : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(valueOf(k, v))}</div>}
               </div>;
             })}
           </div>
@@ -1716,9 +1720,11 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
   // a word here is drawn as that word, and any other as the name with its underscores as spaces,
   // which is what the window has always drawn.
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
-  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field") };
+  const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
   const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // A field's value where it is a code: a service category is drawn as its plain word.
+  const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), cimsLabels) : v);
   // The kind of record a timeline entry points at, which the printed timeline shows as its category.
   const entityWord = { shift_session: tr("shift session"), shift: tr("shift|record"), issue: tr("issue|record"), task: tr("task|record"), inspection: tr("inspection|record"), supply_usage: tr("supply usage") };
   const entityOf = (k) => k ? (entityWord[k] || k.replace(/_/g, " ")) : "";
@@ -2004,7 +2010,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
       Object.entries(r).forEach(([k, v]) => {
         if (v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")) {
           const label = fieldOf(k);
-          let val = String(v);
+          let val = String(valueOf(k, v));
           if (typeof v === "object" && !Array.isArray(v)) val = JSON.stringify(v);
           const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
           if (isImgUrl) {
@@ -2351,7 +2357,7 @@ function SitesPage({ af, showToast, isAdmin, t, sites, allStaff, loadSites, uf, 
             {Object.entries(tlDetail.record).filter(([k, v]) => v !== null && v !== undefined && v !== "" && k !== "id" && !k.endsWith("_hash")).map(([k, v]) => {
               const isImgUrl = typeof v === "string" && (v.includes("supabase") || v.includes("storage")) && (v.includes(".jpg") || v.includes(".jpeg") || v.includes(".png") || v.includes(".webp") || v.includes("profile-photos") || v.includes("issue-photos") || v.includes("task-media"));
               if (isImgUrl) return <div key={k} style={{ gridColumn: "span 2" }}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><img src={v} alt="" style={{ maxWidth: "100%", maxHeight: 200, borderRadius: 8, marginTop: 4 }} /></div>;
-              let val = typeof v === "object" ? JSON.stringify(v) : String(v);
+              let val = typeof v === "object" ? JSON.stringify(v) : String(valueOf(k, v));
               if (val.length > 200) val = val.substring(0, 200) + "...";
               return <div key={k}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase" }}>{fieldOf(k)}</div><div style={{ fontSize: 12, color: t.text, marginTop: 2 }}>{val}</div></div>;
             })}
@@ -3357,7 +3363,7 @@ const ISSUE_SOURCE_KEY = "issues_timing";
 const ISSUE_SOURCE_ALIASES = ["issues_timing", "issues"];
 const isIssueSource = (key) => ISSUE_SOURCE_ALIASES.includes(key);
 const REPORT_SOURCES = [
-  { key: ISSUE_SOURCE_KEY, label: "Issue Response and Resolution", category: "Service Delivery", available: true },
+  { key: ISSUE_SOURCE_KEY, label: "Issue Response and Resolution", category: "Issues", available: true },
   { key: "supply_usage", label: "Supply Usage and Cost", category: "Supplies", available: true },
   { key: "inspection_quality", label: "Inspection and Quality", category: "Quality", available: true },
 ];
@@ -3367,8 +3373,8 @@ const sourceAvailable = (key) => { if (isIssueSource(key)) return true; const s 
 const prettyCat = (c) => String(c || "Other").replace(/_/g, " ");
 // A category heading on the Reports page: the words the dashboard and the report templates use are
 // drawn from the table, and any other category is drawn as it was typed. The English is the heading
-// as it has always read.
-const reportCategoryWord = (c) => { const p = prettyCat(c); const k = p.toLowerCase(); const w = tr(k + "|report category"); return w === k ? p : w; };
+// as it has always read. A report saved under the framework's old category name reads Issues.
+const reportCategoryWord = (c) => { const p = prettyCat(c); const k = p.toLowerCase(); if (k === "issues" || k === "service delivery") return tr("Issues|report category"); const w = tr(k + "|report category"); return w === k ? p : w; };
 
 const defaultIssueConfig = () => ({
   date_range: { preset: "last30" },
@@ -4029,7 +4035,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const toH = (m) => Math.round((m / 60) * 100) / 100;
   const [name, setName] = useState(initial ? (initial.name || "") : "");
   const [description, setDescription] = useState(initial && initial.description ? initial.description : "");
-  const [category, setCategory] = useState(initial && initial.category ? initial.category : "Service Delivery");
+  const [category, setCategory] = useState(initial && initial.category ? initial.category : "");
   const [source, setSource] = useState(initial && initial.source ? initial.source : ISSUE_SOURCE_KEY);
   const [preset, setPreset] = useState(c0.date_range.preset || "last30");
   const [bucket, setBucket] = useState(c0.bucket || "week");
@@ -4130,7 +4136,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={name} onChange={e => setName(e.target.value)} placeholder={tr("e.g. High severity weekly")} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={2} value={description} onChange={e => setDescription(e.target.value)} placeholder={tr("What this report covers")} /></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("Service Delivery")} /></div>
+        <div><Lbl>{tr("Category")}</Lbl><Inp t={t} value={category} onChange={e => setCategory(e.target.value)} placeholder={tr("e.g. Issues")} /></div>
         <div><Lbl>{tr("Source")}</Lbl>
           <select value={source} onChange={e => setSource(e.target.value)} style={selStyle}>
             {REPORT_SOURCES.map(s => <option key={s.key} value={s.key} disabled={!s.available}>{tr(s.label)}{s.available ? "" : " " + tr("(arriving with templates)")}</option>)}
@@ -4230,7 +4236,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   const runReport = (d) => { setActive(d); setView("run"); };
   const newReport = () => { setEditing(null); setView("edit"); };
   const editReport = (d) => { setEditing(d); setView("edit"); };
-  const duplicateReport = (d) => { setEditing({ name: (d.name || "Report") + " (copy)", description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
+  const duplicateReport = (d) => { setEditing({ name: tr("{0} (copy)", d.name || tr("Report")), description: d.description, category: d.category, source: d.source, config: d.config }); setView("edit"); };
   const deleteReport = async (d) => {
     if (!window.confirm(tr("Delete \"{0}\"? This cannot be undone.", d.name))) return;
     try { await af("/api/report-engine/definitions/" + d.id, { method: "DELETE" }); showToast(tr("Report deleted")); loadDefs(); }
@@ -4663,7 +4669,9 @@ function VendorsPage({ af, showToast, isAdmin, t }) {
     </Mdl>}
   </div>);
 }
-function ServicesPage({ af, showToast, isAdmin, t, sites }) {
+function ServicesPage({ af, showToast, isAdmin, t, sites, lkMap }) {
+  // A category on this page is the cims_categories lookup's shown label, then the plain word.
+  const catShown = lkMap ? lkMap("cims_categories", true) : {};
   const [services, setServices] = useState([]);
   const [detail, setDetail] = useState(null);
   const [addForm, setAddForm] = useState(null);
@@ -4703,7 +4711,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
     if (services.length === 0) { showToast(tr("No services to export"), "error"); return; }
     dlCSV("OCSA_Service_Catalog_" + new Date().toISOString().slice(0, 10) + ".csv",
       ["Service Name", "Description", "Rate Structure", "Required Certifications", "Service Category", "Active Sites"],
-      services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", s.cims_category || "", s.linked_site_count || 0])
+      services.map(s => [s.name, s.description || "", s.rate_structure || "", s.required_certifications || "", CIMS_LABELS[s.cims_category] || s.cims_category || "", s.linked_site_count || 0])
     );
     showToast(tr("Service catalog exported"));
   };
@@ -4728,7 +4736,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
     <div style={{ marginBottom: 12 }}><Lbl>{tr("Required Certifications")}</Lbl><TArea t={t} value={form.requiredCertifications || form.required_certifications || ""} onChange={e => setForm({ ...form, requiredCertifications: e.target.value, required_certifications: e.target.value })} rows={2} placeholder={tr("Certifications staff must hold...")} /></div>
     <div style={{ marginBottom: 16 }}><Lbl>{tr("Service Category")}</Lbl>
       <Sel t={t} value={form.cimsCategory || form.cims_category || Object.keys(CIMS_LABELS)[0]} onChange={e => setForm({ ...form, cimsCategory: e.target.value, cims_category: e.target.value })}
-        options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: c + " - " + serviceCategoryWord(c) }))} />
+        options={Object.keys(CIMS_LABELS).map(c => ({ v: c, l: serviceCategoryWord(c, catShown) }))} />
     </div>
   </>);
 
@@ -4751,11 +4759,11 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
               </div>
               <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, lineHeight: 1.3 }}>{s.name}</div>
             </div>
-            <Bdg l={serviceCategoryWord(s.cims_category)} c={cimsColor[s.cims_category] || GO} />
+            <Bdg l={serviceCategoryWord(s.cims_category, catShown)} c={cimsColor[s.cims_category] || GO} />
           </div>
           {s.description && <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{s.description}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: "1px solid " + t.border }}>
-            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category)}</span>
+            <span style={{ fontSize: 10, color: t.textMut }}>{serviceCategoryWord(s.cims_category, catShown)}</span>
             {s.linked_site_count > 0 && <span style={{ fontSize: 10, color: GR }}>{trn("{0} site|count", s.linked_site_count)}</span>}
           </div>
         </Crd>
@@ -4768,7 +4776,7 @@ function ServicesPage({ af, showToast, isAdmin, t, sites }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{detail.service.name}</div>
-            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category)} c={cimsColor[detail.service.cims_category] || GO} /><span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{CIMS_LABELS[detail.service.cims_category] ? serviceCategoryWord(detail.service.cims_category) : null}</span></div>
+            <div style={{ marginTop: 6 }}><Bdg l={serviceCategoryWord(detail.service.cims_category, catShown)} c={cimsColor[detail.service.cims_category] || GO} /></div>
           </div>
           <button onClick={() => setDetail(null)} style={{ background: "none", border: "none", cursor: "pointer" }}><XI sz={18} c={t.textMut} /></button>
         </div>
@@ -6680,7 +6688,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, cimsLabels[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
+      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
@@ -6770,7 +6778,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
     af("/api/inspections/analytics/export" + q).then(rows => {
       if (!rows.length) { showToast(tr("No data to export"), "error"); return; }
       const hdr = ["Date", "Site", "Template", "Score", "Max", "Pct", "Notes", "Completed By", "Item", "Zone", "Category", "Item Score", "Item Max", "Item Pct", "Item Notes"];
-      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
+      const csvRows = rows.map(r => [r.scheduled_date, r.site_name, r.template_name, r.total_score, r.max_possible_score, r.score_pct + "%", r.overall_notes || "", r.completed_by_name, r.item_label || "", r.item_zone || "", r.item_cims_category ? (cimsLabels[r.item_cims_category] || CIMS_LABELS[r.item_cims_category] || r.item_cims_category) : "", r.item_score ?? "", r.item_max_score ?? "", r.item_score_pct ? r.item_score_pct + "%" : "", r.item_notes || ""]);
       dlCSV("inspection-analytics-" + analyticsRange.start + "-to-" + analyticsRange.end + ".csv", hdr, csvRows);
       showToast(trn("Exported {0} row|count", rows.length));
     }).catch(e => showToast(e.message, "error"));
@@ -6854,7 +6862,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
             return (
               <Crd key={item.id} t={t} style={{ padding: 0, overflow: "hidden" }}>
                 <button onClick={() => toggleExpand(item.id)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={catWord(item.cims_category)}>{item.cims_category}</div>
+                  <div style={{ padding: "4px 8px", borderRadius: 6, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 10, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{shownItem(item).label}</div>
                     <div style={{ fontSize: 11, color: t.textMut }}>{zoneWord(item)}</div>
@@ -6984,7 +6992,7 @@ function InspectionsPage({ af, showToast, isAdmin, t, sites, allStaff, getOpts, 
                       </div>
                     ) : (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px" }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0 }} title={catWord(item.cims_category)}>{item.cims_category}</div>
+                        <div style={{ padding: "3px 7px", borderRadius: 5, background: (CIMS_C[item.cims_category] || BL) + "1A", fontSize: 9, fontWeight: 600, color: CIMS_C[item.cims_category] || BL, flexShrink: 0, whiteSpace: "nowrap" }}>{catWord(item.cims_category)}</div>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{item.label}</div>
                           <div style={{ fontSize: 10, color: t.textMut }}>{item.zone} - {tr("max {0} pts", item.max_score)}</div>
@@ -7937,7 +7945,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], isAdmin = fa
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, fontWeight: 500, color: t.text }}>{v.label}</div>
                   {showsDisplay && <div style={{ fontSize: 11, color: t.textSec }}>{tr("Shown as: {0}", v.displayLabel || v.label)}</div>}
-                  <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | " + tr("prompts text input") : ""}</div>
+                  {!activeCat.is_system && <div style={{ fontSize: 9, color: t.textMut, fontFamily: "monospace" }}>{v.value}{v.show_other_input ? " | " + tr("prompts text input") : ""}</div>}
+                  {activeCat.is_system && v.show_other_input && <div style={{ fontSize: 9, color: t.textMut }}>{tr("prompts text input")}</div>}
                 </div>
                 <div style={{ display: "flex", gap: 4 }}>
                   <button onClick={() => toggleValActive(v)} style={{ padding: "2px 6px", borderRadius: 3, border: "1px solid " + (v.is_active ? t.textMut : GR), background: "transparent", color: v.is_active ? t.textMut : GR, fontSize: 8, cursor: "pointer" }}>{v.is_active ? tr("Off|value") : tr("On|value")}</button>
