@@ -8532,7 +8532,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     // a table left with no rows goes as null, the way the portal sends one, so the API's missing list
     // keeps naming a required table the way it always has.
     const answers = {};
-    keys.forEach(k => { answers[k] = rowsToSend(fieldByKey[k], sup[k]); });
+    keys.forEach(k => { answers[k] = numberToSend(fieldByKey[k], rowsToSend(fieldByKey[k], sup[k])); });
     try {
       const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers } });
       if (d && d.draft) { setData(d); setSup({}); }
@@ -8591,6 +8591,14 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     if (!addsRows(f) || !Array.isArray(v)) return v;
     const kept = v.filter(row => row && Object.keys(row).some(k => cellFilled(row[k])));
     return kept.length ? kept : null;
+  };
+  // Step 169: a number box holds what was typed, and what is sent for a number question is a
+  // number, or null when the box was emptied; anything else goes as typed for the API to judge.
+  const numberToSend = (f, v) => {
+    if (!f || f.type !== "number") return v;
+    if (v === "" || v === null || v === undefined) return null;
+    const n = typeof v === "number" ? v : Number(String(v).trim());
+    return Number.isFinite(n) ? n : v;
   };
   const submitted = draft && draft.status === "submitted";
   // What a cell reads as. A ticked box is a word rather than a mark, a picked option is the label
@@ -8746,10 +8754,33 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     return box(<Inp t={t} type={kind} aria-label={f.label} value={cur == null ? "" : String(cur)}
       onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 44 }} />);
   };
+  // Step 169: a customer's filing names the customer, read from draft.customer, in place of a staff
+  // name; a nameless survey is named as the customer alone.
+  const customerLine = (c) => [c && c.name, c && c.role].filter(Boolean).join(", ") || tr("Customer");
+  // A customer's signature draws its drawing, fetched through the signatures route the way a
+  // sign-off's is, above the line the API sends for it.
+  const customerSignatureRow = (f) => (<div key={f.key} data-question={f.key} style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+    {f.signature && f.signature.id && <SignatureImage t={t} token={token} responseId={id} signKey={f.key} />}
+    {f.displayValue == null || f.displayValue === ""
+      ? <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>{tr("Not signed")}</div>
+      : <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{String(f.displayValue)}</div>}
+  </div>);
+  // The averages the API computed on a survey, draft.answers._computed: each rated section's
+  // average by the section's title, and the overall, to one decimal.
+  const computed = draft && draft.answers && draft.answers._computed && typeof draft.answers._computed === "object" ? draft.answers._computed : null;
+  const sectionTitle = (k) => { const sec = sections.find(x => String(x.key) === String(k)); return sec && sec.title != null ? String(sec.title) : String(k); };
+  const oneDecimal = (v) => Number(v).toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const averages = computed && (computed.sections || computed.overall != null) ? (<div data-computed="" style={{ marginTop: 6, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Section averages")}</div>
+    {Object.keys(computed.sections || {}).map(k => <div key={k} style={{ fontSize: 13, color: t.text }}>{sectionTitle(k)} {oneDecimal(computed.sections[k])}</div>)}
+    {computed.overall != null && <div style={{ fontSize: 13, color: t.text, fontWeight: 600, marginTop: 4 }}>{tr("Overall")} {oneDecimal(computed.overall)}</div>}
+  </div>) : null;
   // The label comes from the API and is shown as sent: some carry required federal wording.
   const fieldRow = (f) => {
     if (f.type === "signoff") return signoffRow(f);
     if (f.type === "photos") return photosRow(f, false);
+    if (f.type === "customer_signature") return customerSignatureRow(f);
     if (f.type === "grid") return (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
       {gridTable(f)}
@@ -8770,7 +8801,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
           <Bdg l={submitted ? tr("Submitted") : tr("Unfinished")} c={submitted ? GR : OR} />
           <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || tr("No site")}</span>
           <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? tr("Filed {0}", irWhen(draft.submittedAt)) : tr("Started {0}", irWhen(draft.createdAt))}</span>
-          {row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", row.userName)}</span>}
+          {draft.source === "customer"
+            ? <><Bdg l={tr("Customer")} c={BL} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", customerLine(draft.customer))}</span></>
+            : (row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", row.userName)}</span>)}
         </div>}
         {draft && !submitted && <div style={{ fontSize: 11, color: t.textSec, marginTop: 6 }}>{tr("{0} answered, {1} to go", Number(draft.answered) || 0, Number(draft.remaining) || 0)}</div>}
       </div>
@@ -8783,6 +8816,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
         <Lbl>{tr("What was reported")}</Lbl>
         {agentFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing reported yet.")}</div>}
         {grouped(agentFields, fieldRow)}
+        {averages}
       </div>
       <div>
         <Lbl>{tr("Supervisor section")}</Lbl>
@@ -9639,13 +9673,16 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
 
   const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
 
+  // Step 169: a customer's filing has no account. The API sends userId null and the customer's name
+  // and role where an account's name goes, so the column says Customer and names them under it.
+  const customerCell = (r) => (<span>{tr("Customer")}{r.userName ? <div style={{ fontSize: 10, color: t.textMut }}>{r.userName}</div> : null}</span>);
   // Where a filing came from, under its form name, when the API says.
   const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}{r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
     { header: tr("Form"), render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
-    { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
+    { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => (r.userId === null ? customerCell(r) : (r.userName || "--")) },
   ];
   const draftCols = [
     { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },

@@ -2445,6 +2445,9 @@ export const WORDS = {
   "Scan to tell OCSA how we are doing.": { es: "Escanee para decirle a OCSA c\u00f3mo lo estamos haciendo." },
   "Facility Cleanliness Evaluation Checklist": { es: "Lista de evaluaci\u00f3n de limpieza del edificio" },
   "Client Satisfaction Survey": { es: "Encuesta de satisfacci\u00f3n del cliente" },
+  "Customer": { es: "Cliente" },
+  "Section averages": { es: "Promedios por secci\u00f3n" },
+  "Overall": { es: "General" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

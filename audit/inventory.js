@@ -184,23 +184,23 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8036] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8047] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8765] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [11098] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [11151] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11266] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8796] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [11135] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [11188] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11340] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
-  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9685] },
-  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [9215] },
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9722] },
+  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [9249] },
   { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [11303] },
   // Step 169: the customer links window, from Filed forms, listing the links and showing a QR code.
-  { id: "forms/customer-links", page: "forms", title: "Customer links", lines: [9483] },
+  { id: "forms/customer-links", page: "forms", title: "Customer links", lines: [9517] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [11906] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [11943] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [12415] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [12437] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12471] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12712] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [12452] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [12474] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12508] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12749] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -658,4 +658,30 @@ const START_FORM = [
   { id: "start-form/refusal/continue", name: "A draft the API will not hand over is refused on the tab in the API's words" },
 ];
 
-module.exports = { START_FORM, PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, FILED_PHOTO_STATES, TRAINING_ROOM, PICKERS };
+// ---------------------------------------------------------------------------
+// Step 169: customer links and their QR codes, and a customer's filings in Filed forms, in English
+// and in Spanish.
+// ---------------------------------------------------------------------------
+const CUSTOMER_LINKS = [
+  { id: "customer-links/the-button-is-offered-to-an-admin", name: "Filed forms offers Customer links to a person who holds manage_settings" },
+  { id: "customer-links/the-list-draws-every-link", name: "The window lists every link the API sends, newest first: the form's title in the screen's language, the site, the state word, the uses and the last use" },
+  { id: "customer-links/each-row-offers-its-buttons", name: "A live link offers Show QR code, Copy link and Turn off; one off or expired offers Turn on in its place" },
+  { id: "customer-links/a-new-link-is-made", name: "New link sends the form and the site, and the link the API made opens on its QR screen" },
+  { id: "customer-links/an-existing-pair-opens-its-link", name: "Asking for a pair that has a live link opens that link's QR screen and adds no row" },
+  { id: "customer-links/turned-off", name: "Turn off sends the request and the row reads Off with Turn on" },
+  { id: "customer-links/turned-on", name: "Turn on sends the request and the row reads Live with Turn off" },
+  { id: "customer-links/refusal/customer.anotherLinkLive", name: "A refused Turn on is drawn under its row in the API's own words, with the row as it was" },
+  { id: "customer-links/refusal/customer.siteNotFound", name: "A refused New link is drawn under the controls in the API's own words" },
+  { id: "customer-links/the-qr-screen", name: "Show QR code draws the API's PNG at its full size, the site, the form's title in both languages, the address in small type, and Print, Copy link, Back and Close" },
+  { id: "customer-links/copy-link", name: "Copy link puts the address on the clipboard and the button reads Copied" },
+  { id: "customer-links/the-print-sheet", name: "Print opens one sheet: the logo, the site, the form's title, the QR code at 512, the scan line in English and in Spanish, and the address" },
+  { id: "customer-links/a-supervisor-sees-no-button", name: "A supervisor, who does not hold manage_settings, is offered no Customer links" },
+  { id: "customer-links/the-window-fits-a-phone", name: "At 390 the list and the QR screen fit the screen and every control is 44 by 44" },
+  { id: "customer-filing/the-row-reads-customer", name: "A customer's filing reads Customer in the filed-by column, with the customer's name and role under it" },
+  { id: "customer-filing/the-header-names-the-customer", name: "The review window's header says Customer and names the customer and their role in place of a staff name" },
+  { id: "customer-filing/the-signature-is-drawn", name: "A customer's signature draws its drawing above the line the API sends for it" },
+  { id: "customer-filing/a-number-box-sends-a-number", name: "A number question in the supervisor section is a number box, prefilled, and Save sends a number" },
+  { id: "customer-filing/the-averages-are-drawn", name: "The survey's section averages and overall draw under the answers, one decimal, by section title" },
+];
+
+module.exports = { START_FORM, CUSTOMER_LINKS, PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, FILED_PHOTO_STATES, TRAINING_ROOM, PICKERS };

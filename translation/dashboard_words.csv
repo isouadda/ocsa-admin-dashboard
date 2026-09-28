@@ -2337,3 +2337,6 @@ Scan to tell OCSA how the building is being kept.,Escanee para decirle a OCSA c�
 Scan to tell OCSA how we are doing.,Escanee para decirle a OCSA cómo lo estamos haciendo.,"Forms, Customer links, the printed sheet for the satisfaction survey, in both languages"
 Facility Cleanliness Evaluation Checklist,Lista de evaluación de limpieza del edificio,"Forms, a form's title; Forms, Customer links, the form picker and the QR screen"
 Client Satisfaction Survey,Encuesta de satisfacción del cliente,"Forms, a form's title; Forms, Customer links, the form picker and the QR screen"
+Customer,Cliente,"Forms, Filed forms, a customer's filing, the filed-by column and the review window's header"
+Section averages,Promedios por sección,"Forms, a filed survey, under the answers"
+Overall,General,"Forms, a filed survey, the overall average"
