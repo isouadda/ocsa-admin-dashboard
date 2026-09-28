@@ -2440,3 +2440,55 @@ Topic,Tema,"Help insights, the topics table"
 Section,Sección,"Help insights, the topics table"
 Topics,Temas,"Help insights, the people table"
 Question,Pregunta,"Help insights, the misses list"
+Form builder,Creador de formularios,Side panel and the page
+New form,Nuevo formulario,Form builder
+Version {0},Versión {0},A form's row and history
+Published,Publicado,A form's status
+Draft in progress,Borrador en curso,A form's status
+Retired,Retirado,A form's status
+From the code,Del código,A form's source
+Made with the builder,Hecho con el creador,A form's source
+Retire form,Retirar formulario,"A form's row, admins"
+Why is this form being retired?,¿Por qué se retira este formulario?,The retire window
+Version history,Historial de versiones,A form's history
+Published as version {0}.,Publicado como versión {0}.,After publishing
+Make and change forms,Crear y cambiar formularios,"Roles and Permissions, the build_forms capability's name"
+Code,Código,"Form builder, the table's column"
+Version,Versión,"Form builder, the table's column"
+No version published yet.,Todavía no se ha publicado ninguna versión.,"Version history, a form never published"
+A retired form leaves every list. Reports already filed still open.,Un formulario retirado sale de todas las listas. Los reportes ya presentados se siguen abriendo.,The retire window
+"Every form the apps offer, with its latest version. Edit opens the form's draft in the builder, or starts one. A row opens its version history.","Cada formulario que ofrecen las aplicaciones, con su última versión. Editar abre el borrador del formulario en el creador, o empieza uno. Una fila abre su historial de versiones.","Form builder, the line under the title"
+No forms yet. New form starts one.,Todavía no hay formularios. Nuevo formulario empieza uno.,"Form builder, the empty table"
+Describe the form you need. The builder asks what it needs to know.,Describa el formulario que necesita. El creador le pregunta lo que necesita saber.,The builder's empty chat
+Staff app,Aplicación del personal,The preview's tab
+PDF,PDF,The preview's tab
+Try it,Probarlo,"The preview, filling the draft as a test"
+Needs fixing before it can be published,Hay que corregir esto antes de publicarlo,The problems list
+Who gets the filled report,Quién recibe el reporte lleno,The recipients panel
+Filled PDF attached,Con el PDF lleno adjunto,Delivery choice
+What changed,Qué cambió,The publish window's note
+Publish,Publicar,The publish button
+Only an admin can publish. Your draft is saved for one to review.,Solo un administrador puede publicar. Su borrador queda guardado para que uno lo revise.,The publish area for a non-admin
+Discard draft,Descartar borrador,The builder
+This question asks for sensitive information.,Esta pregunta pide información delicada.,A flag on a sensitive question in the preview
+The builder is working...,El creador está trabajando...,The builder's conversation while a turn is out
+Write to the builder,Escriba al creador,The builder's message box
+You,Usted,"The builder's conversation, the person's own line"
+The builder,El creador,"The builder's conversation, the builder's line"
+Start over,Empezar de nuevo,"The preview, clearing a test filling"
+A test filling. Nothing is saved or sent.,Un llenado de prueba. No se guarda ni se envía nada.,The preview while Try it is on
+This was a test. Nothing was saved or sent.,Esto fue una prueba. No se guardó ni se envió nada.,The preview after a test Send
+Photos are added when the form is filled for real.,Las fotos se agregan cuando el formulario se llena de verdad.,"The preview, a photos question"
+The customer signs here.,El cliente firma aquí.,"The preview, a customer signature"
+Question {0} of {1},Pregunta {0} de {1},The staff app preview
+Nothing to show yet. Describe the form and the preview draws it.,Todavía no hay nada que mostrar. Describa el formulario y la vista previa lo dibuja.,The preview of an empty draft
+Loading the PDF...,Cargando el PDF...,The PDF tab
+No problems. This draft can be published.,Sin problemas. Este borrador se puede publicar.,The problems list when empty
+Discard this draft? It leaves the list and cannot be reopened.,¿Descartar este borrador? Sale de la lista y no se puede volver a abrir.,The discard confirm
+Publishing makes this the version every app offers.,"Al publicar, esta pasa a ser la versión que ofrecen todas las aplicaciones.",The publish area for an admin
+Fix the problems above before publishing.,Corrija los problemas de arriba antes de publicar.,The publish area with problems
+Publishing...,Publicando...,The publish button while out
+Filed form,Formulario presentado,"HR Records, a person's folder, the source of a filed report"
+FRM,FRM,"HR Records, a person's folder, the mark on a filed report's row"
+No one matches.,Nadie coincide.,A person question's picker with no match
+No filed forms,No hay formularios presentados,"Staff Management, HR Files, the filed forms card when empty"
