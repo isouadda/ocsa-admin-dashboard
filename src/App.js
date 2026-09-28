@@ -3760,7 +3760,9 @@ const FORM_TITLE_LABELS = {
   "OCSA-FRM-007": "Client Satisfaction Survey",
 };
 const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
-const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (f.title || f.code));
+// A form the table does not name reads by the title the API sent, in the screen's language where
+// it came in both (Step 187: a builder form's title is { en, es } on the builder's routes).
+const formTitleName = (f) => (FORM_TITLE_LABELS[f.code] ? tr(FORM_TITLE_LABELS[f.code]) : (builderText(f.title) || f.code));
 function WhoGetsToldPanel({ af, showToast, t, allStaff = [], lkMap }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -9635,6 +9637,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
           <Bdg l={isVoid ? tr("Void|status") : submitted ? tr("Submitted") : tr("Unfinished")} c={isVoid ? RD : submitted ? GR : OR} />
           <span style={{ fontSize: 11, color: t.textMut }}>{draft.siteName || tr("No site")}</span>
           <span style={{ fontSize: 11, color: t.textMut }}>{submitted ? tr("Filed {0}", irWhen(draft.submittedAt)) : tr("Started {0}", irWhen(draft.createdAt))}</span>
+          {Number(draft.version) > 0 && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Version {0}", draft.version)}</span>}
           {draft.source === "customer"
             ? <><Bdg l={tr("Customer")} c={BL} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", customerLine(draft.customer))}</span></>
             : (row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", row.userName)}</span>)}
@@ -10827,9 +10830,17 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
 // one of the two forms that are theirs to fill. The window lists every link the API holds, makes
 // one for a form and a site, switches one off and on, and shows the QR image the API draws at 512
 // pixels, which Print puts on one clean sheet with the site, the form's title and one line in each
-// language. The forms offered are the two the API accepts, by code: the catalog the dashboard reads
-// carries no customer flag. Every refusal is drawn in the API's own words, as sent.
+// language. The forms offered are read from GET /api/forms?app=customer (Step 187): every form
+// whose apps names customer, a builder form included once it is published. An API that sends no
+// apps on its forms is one from before Step 186, and the two codes below stand in. Every refusal
+// is drawn in the API's own words, as sent.
 const CUSTOMER_FORM_CODES = ["OCSA-FRM-006", "OCSA-FRM-007"];
+const customerFormsOf = (list) => {
+  const forms = Array.isArray(list) ? list : [];
+  const flagged = forms.filter(f => f && Array.isArray(f.apps));
+  if (flagged.length === 0) return CUSTOMER_FORM_CODES.map(code => ({ code, title: FORM_TITLE_LABELS[code] ? tr(FORM_TITLE_LABELS[code]) : code }));
+  return flagged.filter(f => f.apps.indexOf("customer") !== -1);
+};
 const CUSTOMER_SCAN_LABELS = {
   "OCSA-FRM-006": "Scan to tell OCSA how the building is being kept.",
   "OCSA-FRM-007": "Scan to tell OCSA how we are doing.",
@@ -10846,7 +10857,7 @@ function wordIn(lang, key) {
 // A form's title in every language the dashboard speaks, the screen's first, for a form the table
 // names; the API's title alone for one it does not.
 function customerFormTitles(link) {
-  if (!FORM_TITLE_LABELS[link.formCode]) return [link.formTitle || link.formCode];
+  if (!FORM_TITLE_LABELS[link.formCode]) return [builderText(link.formTitle) || link.formCode];
   const others = LOCALES.filter(l => l !== getLang());
   const all = [tr(FORM_TITLE_LABELS[link.formCode])].concat(others.map(l => wordIn(l, FORM_TITLE_LABELS[link.formCode])));
   return all.filter((v, i) => all.indexOf(v) === i);
@@ -10889,6 +10900,7 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [formCode, setFormCode] = useState(CUSTOMER_FORM_CODES[0]);
+  const [customerForms, setCustomerForms] = useState(() => customerFormsOf([]));
   const [siteId, setSiteId] = useState(sites.length ? String(sites[0].id) : "");
   const [making, setMaking] = useState(false);
   const [makeError, setMakeError] = useState("");
@@ -10910,6 +10922,10 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
     af("/api/customer-links")
       .then(d => { if (alive) { setLinks(d && Array.isArray(d.links) ? d.links : []); setLoading(false); } })
       .catch(e => { if (alive) { setError(e.message || tr("Request failed")); setLoading(false); } });
+    // The forms a customer may fill, from the catalog. A read that fails keeps the two codes.
+    af("/api/forms?app=customer")
+      .then(d => { if (!alive) return; const list = customerFormsOf(d && d.forms); if (list.length) { setCustomerForms(list); setFormCode(prev => (list.some(f => f.code === prev) ? prev : list[0].code)); } })
+      .catch(e => { console.warn("Customer forms:", e.message); });
     return () => { alive = false; };
   }, [af]);
   useEffect(() => {
@@ -10976,12 +10992,12 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
   const head = { fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text };
   const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
   const closeX = (<button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>);
-  const formOptions = CUSTOMER_FORM_CODES.map(code => ({ v: code, l: FORM_TITLE_LABELS[code] ? tr(FORM_TITLE_LABELS[code]) : code }));
+  const formOptions = customerForms.map(f => ({ v: f.code, l: formTitleName(f) }));
   const siteOptions = sites.map(s => ({ v: String(s.id), l: s.name }));
 
   const row = (link) => (<div key={link.id} data-customer-link={link.id} style={{ padding: "12px 0", borderTop: "1px solid " + t.border }}>
     <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{link.formTitle || link.formCode}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{builderText(link.formTitle) || link.formCode}</div>
       <Bdg l={linkStateWord(link.state)} c={linkStateColor(link.state)} />
     </div>
     <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{link.site && link.site.name ? link.site.name : tr("No site")}</div>
@@ -11062,18 +11078,26 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
   const [siteId, setSiteId] = useState("");
   const [rows, setRows] = useState([]);
   const [forms, setForms] = useState([]);
+  // The forms this dashboard offers to start, by app (Step 187).
+  const [offered, setOffered] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasMore, setHasMore] = useState(false);
   const [paging, setPaging] = useState(false);
 
-  // The form list is read once, when the tab first opens. A failure leaves the select with All forms
-  // and never stops the list from loading.
+  // The form list is read once, when the tab first opens: the full catalog, so the filter names every
+  // form a report can be of, a builder form included once it is published (Step 187). A failure
+  // leaves the select with All forms and never stops the list from loading. Start a form reads the
+  // forms offered in the dashboard, GET /api/forms?app=dashboard; an API that does not read app
+  // answers the whole catalog, as before.
   useEffect(() => {
     let alive = true;
-    af("/api/forms?locale=en")
+    af("/api/forms")
       .then(d => { if (alive) setForms(d && Array.isArray(d.forms) ? d.forms : []); })
       .catch(e => { console.warn("Form list:", e.message); if (alive) setForms([]); });
+    af("/api/forms?app=dashboard")
+      .then(d => { if (alive) setOffered(d && Array.isArray(d.forms) ? d.forms : []); })
+      .catch(e => { console.warn("Form list:", e.message); if (alive) setOffered([]); });
     return () => { alive = false; };
   }, [af]);
 
@@ -11127,11 +11151,11 @@ function IncidentReportsTab({ af, token, t, user, sites = [], canManageSettings 
   const [openError, setOpenError] = useState("");
   // Step 169: the customer links window, for whoever holds manage_settings.
   const [linksOpen, setLinksOpen] = useState(false);
-  const startable = forms.filter(formStartable);
-  const readCatalog = async () => { const d = await af("/api/forms"); return d && Array.isArray(d.forms) ? d.forms : []; };
+  const startable = offered.filter(formStartable);
+  const readCatalog = async (query) => { const d = await af("/api/forms" + (query || "")); return d && Array.isArray(d.forms) ? d.forms : []; };
   const openPicker = async () => {
     setPicker({ loading: true, forms: [], error: "" }); setOpenError("");
-    try { setPicker({ loading: false, forms: (await readCatalog()).filter(formStartable), error: "" }); }
+    try { setPicker({ loading: false, forms: (await readCatalog("?app=dashboard")).filter(formStartable), error: "" }); }
     catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
   };
   // A form started here is filed from the dashboard, and the start says so (Step 175).
