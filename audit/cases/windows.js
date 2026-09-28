@@ -278,6 +278,10 @@ const ROUTES = {
       return d.modalOpen();
     },
   },
+  // Step 187: a form's Version history, from a row of the Form builder's list, which an admin opens.
+  "form-builder/version-history": {
+    open: async (d) => { await d.goto("form-builder"); await d.settle(400); await d.clickCell(0, 0); return d.modalOpen(); },
+  },
   "cases/window": {
     open: async (d) => { await d.goto("cases"); return d.clickRow(0); },
   },

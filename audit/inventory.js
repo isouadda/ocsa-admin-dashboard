@@ -33,6 +33,8 @@ const PAGES = [
   // Step 181: for a holder of send_announcements, which the API's defaults give admins alone, so it
   // opens for the admin and the super admin and tells both supervisors it is for admins.
   { id: "announcements", label: "Announcements", expect: "New announcement", gated: true },
+  // Step 187: for a holder of build_forms, whom the API names by default among admins only.
+  { id: "form-builder", label: "Form builder", expect: "Every form the apps offer", gated: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -122,6 +124,7 @@ const VIEWS = [
   { id: "help/single", page: "help", click: null, expect: "Help" },
   { id: "help-insights/single", page: "help-insights", click: null, expect: "Everyone who asked" },
   { id: "announcements/single", page: "announcements", click: null, expect: "New announcement" },
+  { id: "form-builder/list", page: "form-builder", click: null, expect: "Every form the apps offer" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -207,6 +210,8 @@ const WINDOWS = [
 
   // Step 185: a person's questions, opened from Everyone who asked on Help insights.
   { id: "help-insights/person", page: "help-insights", title: "Their questions", lines: [3614] },
+  // Step 187: a form's Version history, opened from a row of the Form builder's list.
+  { id: "form-builder/version-history", page: "form-builder", title: "Version history", lines: [10395] },
 
   // Step 181: My alerts, which the shell draws from the name menu, and the phone's More menu, on any
   // page once GET /api/notifications/settings has answered.

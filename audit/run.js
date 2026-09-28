@@ -111,6 +111,10 @@ const SUITES = [
   // Tag someone, a send's mentions, the preview line, the bell and each PATCH, in both languages.
   { name: "messages", mod: "./cases/messages", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The Form builder page since Step 187: who the permissions route lets find it, the table held to the
+  // list the API answers, a row's history, Retire form for an admin alone, Edit and New form, in both languages.
+  { name: "form-builder", mod: "./cases/form-builder", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
   // holder of what guards it, by role or by override, in both languages.
   { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],

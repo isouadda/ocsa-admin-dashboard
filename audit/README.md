@@ -290,6 +290,20 @@ hands a person's timeline those two entries. The suite also holds the issue repo
 under the framework's old category, to the heading Issues, a new report's Category to empty with its
 example, and every screen, page and file it read to carry the framework's name nowhere.
 
+**The Form builder is found by whoever the permissions route names.** Since Step 187 a page for a
+holder of `build_forms` lists every form the API holds as versions, `GET /api/form-builder/forms`,
+which the stub answers the way `routes/formBuilder.js` does at ocsa-api 94dbe27: four forms, one
+published from the code, one published from the builder with a draft open, one retired and one a
+draft never published, each with its versions and who published them. The `form-builder` suite holds
+a supervisor on the role's defaults, and an admin whose permissions route does not answer, to no side
+panel item and no read behind the address; an admin, and a supervisor holding the capability by
+override, to the item and one read of the list; every row to the list the API answered, the title in
+the screen's language, the version, the status, the source and Edit; a row's Version history to its
+versions newest first, with when and who in the screen's language written out by hand; Retire form,
+for an admin alone, to the question, the reason sent and the row read again as retired; Edit and New
+form to the draft opened or started and kept in the hash; a list that does not load, and an empty one,
+to their lines; and the capability's name on Roles and Permissions. Both languages.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -456,7 +470,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder` and `house-style`.
 
 ## How much is left in English
 

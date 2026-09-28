@@ -346,9 +346,10 @@ function createStubs() {
     // Step 179 and Step 183, as middleware/capabilities.js carries them at ocsa-api 1c3fb42.
     { key: "send_announcements", label: "Send announcements to phones", group: "Operations", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "view_help_insights", label: "Help insights: what people ask Help", group: "Reporting", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
-    // Step 186, which the API does not carry yet: an admin's by default, the way the contract the
-    // Form builder was built against says (pull request #68, what was wrong, item 1).
-    { key: "build_forms", label: "Build and change forms", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
+    // Step 186, as middleware/capabilities.js carries it at ocsa-api 94dbe27: an admin's by default,
+    // the way the contract the Form builder was built against says (pull request #68, what was
+    // wrong, item 1).
+    { key: "build_forms", label: "Build forms with the builder", group: "Administration", enforced: true, defaults: { admin: true, supervisor: false, staff: false } },
     { key: "audit_unknown_capability", label: "A capability the dashboard has no name for", group: "Administration", enforced: false, defaults: { admin: true, supervisor: false, staff: false } },
   ];
 
@@ -1228,6 +1229,246 @@ function createStubs() {
     siteId: r.siteId, siteName: (state.sites.find((s) => s.id === r.siteId) || {}).name || null,
     answered: r.answered, remaining: r.remaining, dueAt: r.dueAt, createdAt: r.createdAt, submittedAt: r.submittedAt,
   });
+
+  // ---- Step 186: the form builder -------------------------------------------------------------------
+  // Forms as versions, and the drafts the builder holds, the way routes/formBuilder.js,
+  // helpers/formBuilder.js and helpers/formStore.js answer them at ocsa-api 94dbe27. Four codes: the
+  // daily service log, copied in from the code at boot; the complaint log, copied in at boot and then
+  // version 2 from the builder, with a draft of version 3 open; a ladder checklist the builder made
+  // and an admin retired; and a floor buffer sign-out nobody has published yet, whose draft holds two
+  // questions and two problems. The last two are numbered 040 and 041, after the three builder forms
+  // the catalog above serves, 037 to 039. A definition is held in the engine's shape, every line in
+  // both languages, and read through a copy of the API's catalog for its preview and of the part of
+  // its check these definitions reach for its problems, in the API's paths and words. Every title,
+  // question and note is invented.
+  const FB_BOOT_NOTE = "Copied in from the code at boot";
+  const fbLine = (en, es) => ({ en, es });
+  const fbOpt = (value, en, es) => ({ value, en, es });
+  const FB_LOG = { title: fbLine("Daily Service Log", "Registro diario de servicio"), apps: ["portal"], fillers: "everyone", readers: ["manage_tasks"], fields: [
+    { key: "service_date", half: "agent", type: "date", en: "Date of service", es: "Fecha del servicio", required: true },
+    { key: "areas_done", half: "agent", type: "textarea", en: "Areas cleaned", es: "\u00c1reas limpiadas", required: true },
+  ] };
+  const FB_COMPLAINT_1 = { title: fbLine("Customer Complaint Log", "Registro de quejas de clientes"), apps: ["portal"], fillers: "everyone", readers: ["manage_tasks"], fields: [
+    { key: "received_on", half: "agent", type: "date", en: "Received on", es: "Recibida el", required: true },
+    { key: "summary", half: "agent", type: "textarea", en: "What the customer said", es: "Lo que dijo el cliente", required: true },
+  ] };
+  const FB_COMPLAINT_2 = Object.assign({}, FB_COMPLAINT_1, { apps: ["portal", "dashboard"], fields: FB_COMPLAINT_1.fields.concat([
+    { key: "follow_up", half: "agent", type: "select", en: "Does the customer want a call back", es: "Quiere el cliente que le devuelvan la llamada", required: false,
+      options: [fbOpt("yes", "Yes", "S\u00ed"), fbOpt("no", "No", "No")] },
+  ]) });
+  const FB_COMPLAINT_3 = Object.assign({}, FB_COMPLAINT_2, { fields: FB_COMPLAINT_2.fields.concat([
+    { key: "call_back", half: "agent", type: "text", en: "Number to call back", es: "N\u00famero al que devolver la llamada", required: true, appliesWhen: { key: "follow_up", anyOf: ["yes"] } },
+  ]) });
+  const FB_LADDER = { title: fbLine("Ladder Inspection Checklist", "Lista de revisi\u00f3n de escaleras"), apps: ["portal"], fillers: "everyone", readers: ["manage_tasks"], fields: [
+    { key: "ladder_no", half: "agent", type: "text", en: "Ladder number", es: "N\u00famero de la escalera", required: true },
+  ] };
+  // The floor buffer sign-out's draft: offered in no app, and a pick with no choices, which are the
+  // two problems the check names.
+  const FB_BUFFER_1 = { title: fbLine("Floor Buffer Sign-out", "Registro de salida de la pulidora"), apps: [], fillers: "everyone", readers: ["manage_tasks"], fields: [
+    { key: "taken_by", half: "agent", type: "text", en: "Who is taking the buffer", es: "Qui\u00e9n se lleva la pulidora", required: true },
+    { key: "condition", half: "agent", type: "select", en: "How it came back", es: "C\u00f3mo regres\u00f3", required: true },
+  ] };
+  // Draft ids are uuids, the way the table keys its rows; a new draft takes the next one.
+  const FB_ID = "5b0e2c4a-7d31-4f8e-9a60-0000000000";
+  const FB_DRAFT_COMPLAINT = FB_ID + "01";
+  const FB_DRAFT_BUFFER = FB_ID + "02";
+  const fbWorld = () => {
+    if (state.formBuilder) return state.formBuilder;
+    const v = (version, status, source, def, publishedAt, publishedBy, changeNote) => ({ version, status, source, definition: clone(def), publishedAt, publishedBy, changeNote });
+    state.formBuilder = {
+      store: {
+        "OCSA-FRM-005": [v(1, "published", "code", FB_LOG, "2026-02-03T15:20:00Z", null, FB_BOOT_NOTE)],
+        "OCSA-FRM-009": [v(1, "published", "code", FB_COMPLAINT_1, "2026-02-03T15:20:00Z", null, FB_BOOT_NOTE),
+          v(2, "published", "builder", FB_COMPLAINT_2, "2026-03-10T14:05:00Z", seed.PEOPLE.admin.id, "Asks whether the customer wants a call back.")],
+        "OCSA-FRM-040": [v(1, "retired", "builder", FB_LADDER, "2025-11-20T17:00:00Z", seed.PEOPLE.admin.id, "First version.")],
+      },
+      drafts: [
+        { id: FB_DRAFT_COMPLAINT, code: "OCSA-FRM-009", version: 3, status: "draft", source: "builder", definition: clone(FB_COMPLAINT_3),
+          recipients: [{ userId: seed.PEOPLE.supervisor.id, viaEmail: true, viaInApp: true }, { email: "complaints@example.invalid", viaEmail: true, viaInApp: false }],
+          delivery: "pdf", draftedBy: seed.PEOPLE.supervisor.id, updatedAt: "2026-03-16T19:40:00Z",
+          conversation: [
+            { role: "user", text: "Ask for a number to call back, only when the customer wants a call back.", at: "2026-03-16T19:40:00Z" },
+            { role: "assistant", text: "I added Number to call back. It is asked only when the customer wants a call back.", at: "2026-03-16T19:40:00Z" },
+          ] },
+        { id: FB_DRAFT_BUFFER, code: "OCSA-FRM-041", version: 1, status: "draft", source: "builder", definition: clone(FB_BUFFER_1),
+          recipients: null, delivery: null, draftedBy: seed.PEOPLE.admin.id, updatedAt: "2026-03-17T22:02:00Z",
+          conversation: [
+            { role: "user", text: "A sign-out sheet for the floor buffers, filled by whoever takes one out.", at: "2026-03-17T22:02:00Z" },
+            { role: "assistant", text: "I started the form with who is taking the buffer and how it came back. Which app should offer it?", at: "2026-03-17T22:02:00Z" },
+          ] },
+      ],
+      seq: 2,
+    };
+    return state.formBuilder;
+  };
+  // The refusals routes/formBuilder.js answers, by the key helpers/words.js holds their words under.
+  const FB_WORDS = {
+    "access.insufficientPermissions": ["Insufficient permissions", "No tiene permiso para hacer esto"],
+    "builder.notFound": ["Form or draft not found", "No se encontr\u00f3 el formulario o el borrador"],
+    "builder.adminOnly": ["Only an administrator can publish or retire a form", "Solo un administrador puede publicar o retirar un formulario"],
+    "builder.retireReasonRequired": ["Write the reason for retiring the form", "Escriba el motivo para retirar el formulario"],
+    "builder.retireReasonTooLong": ["The reason is over {max} characters", "El motivo tiene m\u00e1s de {max} caracteres"],
+    "builder.recipientUnknown": ["The recipient {who} is not an active staff member or a usable email address", "El destinatario {who} no es un empleado activo ni una direcci\u00f3n de correo utilizable"],
+  };
+  const fbFill = (text, vars) => String(text).replace(/\{([a-zA-Z]+)\}/g, (m, k) => (vars && Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
+  const fbSay = (key, lang, vars) => fbFill(FB_WORDS[key][lang === "es" ? 1 : 0], vars);
+  const fbRefusal = (status, key, lang, vars, extra) => ({ status, json: Object.assign({ error: fbSay(key, lang, vars), code: key }, extra || {}) });
+  // The sentences of helpers/formCheck.js these definitions reach, in both languages.
+  const FB_CHECK = {
+    photosMax: ["the photos question {key} has a maxPhotos that is not a whole number above zero", "la pregunta de fotos {key} tiene un maxPhotos que no es un n\u00famero entero mayor que cero"],
+    noFields: ["{code} has no fields", "{code} no tiene campos"],
+    noEnglish: ["{what} has no English label", "{whatEs} no tiene etiqueta en ingl\u00e9s"],
+    noSpanish: ["{what} has no Spanish label", "{whatEs} no tiene etiqueta en espa\u00f1ol"],
+    noOptions: ["the field {key} is a pick with no options", "el campo {key} es una selecci\u00f3n sin opciones"],
+    statesNo: ["{code} states no {what}", "{code} no indica {what}"],
+    statesEmpty: ["{code} states an empty {what}", "{code} indica {what} vac\u00edo"],
+    appsShape: ["{code} states no apps", "{code} no indica apps"],
+    appsEmpty: ["{code} states an empty apps", "{code} indica apps vac\u00edo"],
+  };
+  const fbProblem = (path, id, vars) => ({ path, en: fbFill(FB_CHECK[id][0], vars), es: fbFill(FB_CHECK[id][1], vars) });
+  // The problems, in the order the check's rules run: photos, keys, labels, shapes, access, apps.
+  const fbProblems = (def) => {
+    const out = [];
+    const code = def.code;
+    const fields = Array.isArray(def.fields) ? def.fields : [];
+    fields.filter((f) => f.type === "photos").forEach((f) => {
+      if (f.maxPhotos !== undefined && !(Number.isInteger(f.maxPhotos) && f.maxPhotos > 0)) out.push(fbProblem("fields." + f.key + ".maxPhotos", "photosMax", { key: f.key }));
+    });
+    if (fields.length === 0) out.push(fbProblem("fields", "noFields", { code }));
+    const missing = (path, what, whatEs, o) => {
+      if (!o || typeof o.en !== "string" || !o.en.trim()) out.push(fbProblem(path, "noEnglish", { what, whatEs }));
+      if (!o || typeof o.es !== "string" || !o.es.trim()) out.push(fbProblem(path, "noSpanish", { what, whatEs }));
+    };
+    missing("title", "the title of " + code, "el t\u00edtulo de " + code, def.title);
+    fields.forEach((f) => {
+      missing("fields." + f.key, "the field " + f.key, "el campo " + f.key, f);
+      (f.options || []).forEach((o) => missing("fields." + f.key + ".options." + o.value, "the option " + f.key + "." + o.value, "la opci\u00f3n " + f.key + "." + o.value, o));
+    });
+    fields.forEach((f) => {
+      if ((f.type === "select" || f.type === "multiselect") && (!Array.isArray(f.options) || f.options.length === 0)) out.push(fbProblem("fields." + f.key + ".options", "noOptions", { key: f.key }));
+    });
+    const caps = (what, list) => {
+      if (!Array.isArray(list)) out.push(fbProblem(what, "statesNo", { code, what }));
+      else if (list.length === 0) out.push(fbProblem(what, "statesEmpty", { code, what }));
+    };
+    if (def.fillers !== "everyone") caps("fillers", def.fillers);
+    caps("readers", def.readers);
+    if (!Array.isArray(def.apps)) out.push(fbProblem("apps", "appsShape", { code }));
+    else if (def.apps.length === 0) out.push(fbProblem("apps", "appsEmpty", { code }));
+    return out;
+  };
+  // What GET /api/forms would send for a definition, helpers/formCatalog.js's catalogForm: the title
+  // and every line in the language asked for, English where a line has none, the agent half in the
+  // definition's order, and sensitive on a question the builder flagged.
+  const fbSays = (o, lang) => (lang === "es" && o.es ? o.es : o.en);
+  const fbPreview = (def, lang) => {
+    const title = def.title && typeof def.title === "object" ? def.title : {};
+    const said = (lang && typeof title[lang] === "string" ? title[lang].trim() : "") || (typeof title.en === "string" ? title.en.trim() : "") || String(def.code || "");
+    return {
+      code: def.code, title: said, version: def.version, apps: Array.isArray(def.apps) ? def.apps.slice() : [],
+      fields: (def.fields || []).filter((f) => f.half === "agent").map((f) => Object.assign({
+        key: f.key, label: fbSays(f, lang), type: f.type, required: f.required === true, osha: f.osha === true, prefilled: !!f.prefill,
+        options: f.type === "select" || f.type === "multiselect" ? (f.options || []).map((o) => ({ value: o.value, label: fbSays(o, lang) })) : [],
+        appliesWhen: f.appliesWhen || null, help: null, section: f.section || null,
+      }, f.type === "photos" ? { maxPhotos: Number.isFinite(f.maxPhotos) ? f.maxPhotos : 6 } : {}, f.sensitive === true ? { sensitive: true } : {})),
+    };
+  };
+  const fbName = (id) => { const p = state.staff.find((x) => x.id === id); return p ? p.name : null; };
+  const fbLatest = (code) => (fbWorld().store[code] || []).filter((x) => x.status === "published").pop() || null;
+  const fbLastNumber = (code) => { const list = fbWorld().store[code] || []; return list.length ? list[list.length - 1].version : 0; };
+  const fbOpenDraft = (code) => fbWorld().drafts.find((x) => x.code === code && x.status === "draft") || null;
+  const fbDefinition = (row) => Object.assign(clone(row.definition), { code: row.code, version: String(row.version) });
+  // Who gets the filled report, normalized the way publish normalizes it: one entry per person or
+  // address, an address email only, a person with no channel told in the app. Each person is read
+  // off the staff, and a person who is not active, or an address that could not be delivered to, is
+  // a problem at recipients.<i> naming them.
+  const fbNormalize = (list) => {
+    const out = [];
+    const seen = new Set();
+    (list || []).forEach((raw) => {
+      const o = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+      const userId = o.userId === undefined || o.userId === null || o.userId === "" ? null : String(o.userId);
+      const r = userId ? { userId, viaEmail: o.viaEmail === undefined ? true : o.viaEmail === true, viaInApp: o.viaInApp === undefined ? true : o.viaInApp === true }
+        : { email: String(o.email || "").trim().toLowerCase() || null, viaEmail: true, viaInApp: false };
+      const key = r.userId ? "u:" + r.userId : "e:" + String(r.email || "");
+      if (seen.has(key)) return;
+      seen.add(key);
+      if (!r.viaEmail && !r.viaInApp) r.viaInApp = true;
+      out.push(r);
+    });
+    return out;
+  };
+  const fbRecipients = (row) => {
+    if (!Array.isArray(row.recipients)) return { recipients: [], problems: [], bad: [] };
+    const recipients = [];
+    const problems = [];
+    const bad = [];
+    fbNormalize(row.recipients).forEach((r, i) => {
+      const path = "recipients." + i;
+      const who = r.userId ? state.staff.find((x) => x.id === r.userId) : null;
+      const usable = r.userId ? !!who && who.status === "active" && who.role !== "client_contact" : !!r.email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email);
+      recipients.push(r.userId ? { userId: r.userId, name: who ? who.name : null, viaEmail: r.viaEmail, viaInApp: r.viaInApp } : { email: r.email, viaEmail: true, viaInApp: false });
+      if (!usable) {
+        const name = r.userId ? (who ? who.name : r.userId) : r.email || "(none)";
+        problems.push({ path, en: fbSay("builder.recipientUnknown", "en", { who: name }), es: fbSay("builder.recipientUnknown", "es", { who: name }) });
+        bad.push({ path, who: name });
+      }
+    });
+    return { recipients, problems, bad };
+  };
+  // The draft as helpers/formBuilder.js's draftView sends it, and the read's whole answer.
+  const fbDraftView = (row) => {
+    const def = fbDefinition(row);
+    const rec = fbRecipients(row);
+    return {
+      draft: {
+        id: row.id, code: row.code, version: row.status === "draft" ? Math.max(row.version, fbLastNumber(row.code) + 1) : row.version, status: row.status,
+        definition: def, recipients: rec.recipients,
+        delivery: row.delivery === "pdf" || row.delivery === "app_link" ? row.delivery : state.formDelivery[row.code] || "app_link",
+        updatedAt: row.updatedAt, draftedBy: row.draftedBy ? { id: row.draftedBy, name: fbName(row.draftedBy) } : null,
+      },
+      problems: fbProblems(def).concat(rec.problems),
+      notes: [],
+    };
+  };
+  const fbReadView = (row, lang) => {
+    const view = fbDraftView(row);
+    return { draft: view.draft, problems: view.problems, notes: view.notes, preview: fbPreview(view.draft.definition, lang), conversation: row.conversation.map((m) => Object.assign({}, m)) };
+  };
+  // One row of the list, as listForms builds it: the latest version, the status, where it came from,
+  // its apps, its open draft and every live version with who published it.
+  const fbListRow = (code) => {
+    const versions = fbWorld().store[code] || [];
+    const last = versions.length ? versions[versions.length - 1] : null;
+    const latest = fbLatest(code);
+    const draft = fbOpenDraft(code);
+    const from = latest ? latest.definition : last ? last.definition : draft ? draft.definition : null;
+    const title = from && from.title && typeof from.title === "object" ? from.title : { en: "", es: "" };
+    return {
+      code, title: { en: String(title.en || ""), es: String(title.es || "") },
+      latestVersion: last ? last.version : 0,
+      status: latest ? "published" : last ? "retired" : "draft",
+      source: last ? last.source : draft ? draft.source : "code",
+      apps: from && Array.isArray(from.apps) ? from.apps.slice() : [],
+      draft: draft ? { id: draft.id, version: draft.version, updatedAt: draft.updatedAt, draftedBy: draft.draftedBy ? { id: draft.draftedBy, name: fbName(draft.draftedBy) } : null } : null,
+      versions: versions.map((x) => ({ version: x.version, status: x.status, source: x.source, publishedAt: x.publishedAt,
+        publishedBy: x.publishedBy ? { id: x.publishedBy, name: fbName(x.publishedBy) } : null, changeNote: x.changeNote })),
+    };
+  };
+  // Every code the store holds and every code with an open draft, in code order. hand: 005, 009, 040
+  // and 041, four rows.
+  const fbList = () => {
+    const w = fbWorld();
+    const codes = new Set(Object.keys(w.store).concat(w.drafts.filter((x) => x.status === "draft").map((x) => x.code)));
+    return Array.from(codes).sort().map(fbListRow);
+  };
+  // The next OCSA-FRM-### above every code the table has held, whatever its status. hand: 042.
+  const fbNextCode = () => {
+    const w = fbWorld();
+    let max = 0;
+    Object.keys(w.store).concat(w.drafts.map((x) => x.code)).forEach((c) => { const m = /^OCSA-FRM-(\d{3})$/.exec(c); if (m) max = Math.max(max, parseInt(m[1], 10)); });
+    return "OCSA-FRM-" + String(max + 1).padStart(3, "0");
+  };
 
   // GET /api/notification-recipients. Every type except the two Speak Up ones takes an outside
   // address, and the keyed type carries the forms, each with how its email carries the report.
@@ -2793,6 +3034,56 @@ function createStubs() {
       return linkRefusal("customer.linkNotFound", 404, lang);
     }
 
+    // --- the form builder (Step 186) ----------------------------------------
+    // Every route is a holder's of build_forms, and retire is the admin role's whatever the
+    // capabilities say, the way routes/formBuilder.js gates them. Each answer and refusal is in the
+    // language the call names on its address, which is where the API reads it from first.
+    if (path.startsWith("/api/form-builder/")) {
+      const said = q("locale") === "es" || q("locale") === "en" ? q("locale") : lang;
+      const me = person();
+      if (!me.isSuperAdmin && !effectiveMap(me, state.overrides[me.id]).build_forms) return fbRefusal(403, "access.insufficientPermissions", said);
+      const admin = me.role === "admin" || me.isSuperAdmin === true;
+      const w = fbWorld();
+      if (path === "/api/form-builder/forms" && method === "GET") return ok({ forms: fbList() });
+      // With no code, a new form at the next code; with a published code, a draft of its next version
+      // copied from the latest published one. One open draft per code: a second start answers the
+      // open one with 200, where a new draft answers 201.
+      if (path === "/api/form-builder/drafts" && method === "POST") {
+        const code = body && body.code !== undefined && body.code !== null ? String(body.code).trim() : "";
+        if (code && !fbLatest(code)) return fbRefusal(404, "builder.notFound", said);
+        const useCode = code || fbNextCode();
+        const open = fbOpenDraft(useCode);
+        if (open) { const view = fbDraftView(open); return ok({ draft: view.draft, problems: view.problems, resumed: true }); }
+        w.seq += 1;
+        const row = { id: FB_ID + String(w.seq).padStart(2, "0"), code: useCode, version: fbLastNumber(useCode) + 1, status: "draft", source: "builder",
+          definition: code ? clone(fbLatest(code).definition) : { title: { en: "", es: "" }, apps: [], fillers: [], readers: [], fields: [] },
+          recipients: null, delivery: null, draftedBy: me.id, updatedAt: seed.NOW_ISO, conversation: [] };
+        w.drafts.push(row);
+        const view = fbDraftView(row);
+        return created({ draft: view.draft, problems: view.problems, resumed: false });
+      }
+      // The draft, its problems, its preview in the language the call names, and its conversation. Any
+      // row reads, so a discarded or published draft still opens by its id.
+      const onDraft = /^\/api\/form-builder\/drafts\/([^/]+)$/.exec(path);
+      if (onDraft && method === "GET") {
+        const row = w.drafts.find((x) => x.id === decodeURIComponent(onDraft[1]));
+        if (!row) return fbRefusal(404, "builder.notFound", said);
+        return ok(fbReadView(row, said));
+      }
+      // Admin only, a published form and a reason of 500 at most: every published version is retired.
+      const retiring = /^\/api\/form-builder\/forms\/([^/]+)\/retire$/.exec(path);
+      if (retiring && method === "POST") {
+        if (!admin) return fbRefusal(403, "builder.adminOnly", said);
+        const code = decodeURIComponent(retiring[1]);
+        if (!fbLatest(code)) return fbRefusal(404, "builder.notFound", said);
+        const reason = body && typeof body.reason === "string" ? body.reason.trim() : "";
+        if (!reason) return fbRefusal(400, "builder.retireReasonRequired", said);
+        if (reason.length > 500) return fbRefusal(400, "builder.retireReasonTooLong", said, { max: 500 });
+        w.store[code].forEach((x) => { if (x.status === "published") { x.status = "retired"; x.retiredAt = seed.NOW_ISO; x.retireReason = reason; } });
+        return ok({ form: fbListRow(code) });
+      }
+    }
+
     // --- settings sub-panels ---------------------------------------------
     if (path === "/api/lookups/categories" && method === "GET") return ok(lookupsIn(lang));
     if (path === "/api/lookups/categories" && method === "POST") return created({ message: "Category added" });
@@ -3198,6 +3489,8 @@ function createStubs() {
       photoSeq = 10;
       // The customer links, made new, and the count the ones made in a case were numbered by.
       state.customerLinks = null; linkSeq = 0;
+      // The form builder's forms and drafts, as the fixtures above hold them.
+      state.formBuilder = null;
       // The forms started at a desk since the last reset, and the switch that lets one be started.
       for (let i = INCIDENT_REPORTS.length - 1; i >= 0; i -= 1) { if (deskDraft(INCIDENT_REPORTS[i])) INCIDENT_REPORTS.splice(i, 1); }
       deskSeq = 0; customerSigSeq = 0; startable = true;
