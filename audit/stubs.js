@@ -218,9 +218,10 @@ function createStubs() {
       request_type: "new_gear", urgency: "normal", created_at: seed.shift(-11) + "T15:45:00Z", description: "" },
   ];
 
-  // The list and the approved-vendor export both read approval_status.
+  // The list and the approved-vendor export both read approval_status. The first vendor has a website,
+  // a column of the API's vendors table, which the vendor's window draws as a link.
   const VENDORS = [
-    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), linked_supply_count: 2, category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
+    { id: "v-1", name: "Tallow Ridge Supply", status: "approved", approval_status: "approved", address_line1: "12 Tannery Row", zip_code: "19044", products_services: "Chemicals and dilution control", certification_status: "Third-party", contract_terms: "Net 30", last_review_date: seed.shift(-40), linked_supply_count: 2, category: "chemical", contact_name: "K. Osei", contact_email: "orders@tallowridge.example.invalid", contact_phone: "2155559001", website: "https://tallowridge.example.invalid", insurance_expiry: seed.shift(120), w9_on_file: true, avg_rating: 4.4, evaluation_count: 3, city: "Fairhaven", state: "PA" },
     { id: "v-2", name: "Brightwater Equipment", status: "approved", approval_status: "approved", address_line1: "3 Dockside Lane", zip_code: "19061", products_services: "Autoscrubbers and parts", certification_status: "None", contract_terms: "Net 15", last_review_date: seed.shift(-90), linked_supply_count: 1, category: "equipment", contact_name: "M. Delacroix", contact_email: "sales@brightwater.example.invalid", contact_phone: "2155559002", insurance_expiry: seed.shift(22), w9_on_file: true, avg_rating: 3.9, evaluation_count: 2, city: "Oldmarsh", state: "PA" },
     { id: "v-3", name: "Kestrel Paper Co", status: "pending", approval_status: "pending", address_line1: "88 Foundry Street", zip_code: "19045", products_services: "Paper and liners", certification_status: "None", contract_terms: "Prepaid", last_review_date: null, category: "consumable", contact_name: "S. Nakamura", contact_email: "hello@kestrelpaper.example.invalid", contact_phone: "2155559003", insurance_expiry: seed.shift(-14), w9_on_file: false, avg_rating: null, evaluation_count: 0, city: "Fairhaven", state: "PA" },
   ];
@@ -535,11 +536,13 @@ function createStubs() {
     { id: "jf-1", form_id: "240000000000001", title: "Incident report", status: "ENABLED", submission_count: 4, last_submission_at: seed.shift(-1) + "T18:00:00Z", locale: "en" },
     { id: "jf-2", form_id: "240000000000002", title: "New hire packet", status: "ENABLED", submission_count: 9, last_submission_at: seed.shift(-5) + "T10:00:00Z", locale: "en" },
   ];
-  // Shaped to the Submissions table: submitter_name, first_name, linked_entity_type, expiry_date.
+  // Shaped to the Submissions table: submitter_name, first_name, linked_entity_type, expiry_date. Each
+  // row carries jotform_view_url, the address of the submission on Jotform, which routes/jotform.js
+  // writes on every sync and answers with the row, and which the detail window draws as a link.
   const JOTFORM_SUBMISSIONS = [
-    { id: "js-1", jotform_form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-1) + "T18:00:00Z", user_id: "u-staff-5", first_name: "Tomasz", last_name: "Wisniewski", user_employee_id: "EMP-1005", submitter_name: "Tomasz Wisniewski", submitter_email: "tomasz.wisniewski@example.invalid", status: "ACTIVE", linked_entity_type: null, expiry_date: null, has_original_pdf: true },
-    { id: "js-2", jotform_form_id: "240000000000002", form_title: "New hire packet", submitted_at: seed.shift(-5) + "T10:00:00Z", user_id: "u-staff-6", first_name: "Ngozi", last_name: "Okonkwo", user_employee_id: "EMP-1006", submitter_name: "Ngozi Okonkwo", submitter_email: "ngozi.okonkwo@example.invalid", status: "ACTIVE", linked_entity_type: "hr_document", expiry_date: seed.shift(90), has_original_pdf: true },
-    { id: "js-3", jotform_form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-9) + "T08:00:00Z", user_id: null, first_name: null, last_name: null, user_employee_id: null, submitter_name: null, submitter_email: null, status: "ACTIVE", linked_entity_type: null, expiry_date: null, has_original_pdf: false },
+    { id: "js-1", jotform_form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-1) + "T18:00:00Z", user_id: "u-staff-5", first_name: "Tomasz", last_name: "Wisniewski", user_employee_id: "EMP-1005", submitter_name: "Tomasz Wisniewski", submitter_email: "tomasz.wisniewski@example.invalid", status: "ACTIVE", linked_entity_type: null, expiry_date: null, has_original_pdf: true, jotform_view_url: "https://www.jotform.example.invalid/submission/600000000000001" },
+    { id: "js-2", jotform_form_id: "240000000000002", form_title: "New hire packet", submitted_at: seed.shift(-5) + "T10:00:00Z", user_id: "u-staff-6", first_name: "Ngozi", last_name: "Okonkwo", user_employee_id: "EMP-1006", submitter_name: "Ngozi Okonkwo", submitter_email: "ngozi.okonkwo@example.invalid", status: "ACTIVE", linked_entity_type: "hr_document", expiry_date: seed.shift(90), has_original_pdf: true, jotform_view_url: "https://www.jotform.example.invalid/submission/600000000000002" },
+    { id: "js-3", jotform_form_id: "240000000000001", form_title: "Incident report", submitted_at: seed.shift(-9) + "T08:00:00Z", user_id: null, first_name: null, last_name: null, user_employee_id: null, submitter_name: null, submitter_email: null, status: "ACTIVE", linked_entity_type: null, expiry_date: null, has_original_pdf: false, jotform_view_url: "https://www.jotform.example.invalid/submission/600000000000003" },
   ];
   // hand: 3 submissions, 1 already linked, 1 with nobody matched to it.
   // Field names follow the PDF Access Log table: first_name, access_type, submitter_name, success.
@@ -1678,7 +1681,9 @@ function createStubs() {
   // GET /api/users/timeline-detail/task/:id the way routes/users.js answers it: the task_templates row
   // with its site's name and its display in the language the call asked for, and the task's active
   // assignments, each with the person's first and last name. The row carries the task's service
-  // category as the code the API stores. A task the route cannot find answers found false.
+  // category as the code the API stores, and a resolved task the photo taken when it was resolved as
+  // resolution_photo_url, an address longer than 60 characters, which Record Detail draws as a link
+  // reading View file. A task the route cannot find answers found false.
   const taskDetail = (id, lang) => {
     const t0 = ASSIGNED_TASKS.find((x) => x.id === id);
     if (!t0) return { found: false, record: null, photos: [], relatedItems: [] };
@@ -1687,6 +1692,7 @@ function createStubs() {
       id: t0.id, site_id: t0.site_id, label: t0.label, zone: t0.zone, cims_category: t0.cims_category, priority: t0.priority,
       frequency: "per_visit", sort_order: 0, is_active: true, created_at: t0.task_created_at, resolution_status: t0.resolution_status,
       resolution_note: t0.resolution_note || null, resolved_at: t0.resolved_at || null, description: t0.description || null,
+      resolution_photo_url: t0.resolution_status === "resolved" ? "https://storage.example.invalid/storage/v1/object/public/task-photos/" + t0.id + "/restrooms-restocked.jpg" : null,
       due_date: t0.due_date, due_time: t0.due_time + ":00", has_details: false, building_name: t0.building_name,
       floor_number: t0.floor_number, task_type: "assigned", site_name: t0.site_name,
     }, lang);

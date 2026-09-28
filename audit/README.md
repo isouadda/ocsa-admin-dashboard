@@ -151,6 +151,23 @@ approved vendor list and the service catalog. The stub sends a site's assigned t
 a folder's training and onboarding days at midnight UTC the way `routes/hr.js` sends them, and the
 months of Monthly Totals as the DATE the API's driver sends, midnight UTC of each month's first day.
 
+**Every control a finger presses is 44 by 44 on a phone.** Since Step 181 every button is at least 44
+by 44 and every select, text area and text input at least 44 tall, through one rule in the stylesheet
+and minHeight in the primitives; every close X is 44 by 44 and named Close; the floor plan's View, the
+file on a record, a vendor's website and Open in Jotform are 44 tall; a checkbox that stood in a div
+sits inside a 44 by 44 label; and under 700 pixels Schedule's week is a stacked list of days whose
+chips are buttons. The `forty-four` suite reads every page an admin opens at 390 by 844, in English
+and in Spanish, and holds every button on it to 44 by 44 and every input, select and text area to 44
+tall, with half a pixel for rounding. It holds the four links to 44 by 44, the X of fifteen windows,
+opened the way the `windows` suite opens them, to 44 by 44 and to Close in the screen's language, and
+the six checkboxes to a label 44 by 44. It holds Schedule's week to seven blocks, Monday to Sunday in
+order, one under the other and inside the screen, and each of the twelve chips the stub puts in the
+week, four shifts, four starts, an open shift, a drop request, a claim and an inspection, to a button
+44 by 44 in its day. The stub's first vendor has a website, each Jotform submission its address on
+Jotform, and a resolved task's record the photo taken when it was resolved, the way the API answers
+them. What the build left as it was is not held: the month view's day cells, the week grid's empty
+day cell and the two stacked move arrows on Dropdown Options.
+
 **A control shows for whoever holds what guards it.** Since Step 181 the shell reads the person's own
 capabilities from `GET /api/users/me/permissions` once after sign-in, and gates every control the API
 guards with a capability on that capability. The stub answers the route the way `routes/users.js`
@@ -439,7 +456,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four` and `house-style`.
 
 ## How much is left in English
 

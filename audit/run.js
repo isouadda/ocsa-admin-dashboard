@@ -132,6 +132,10 @@ const SUITES = [
   // Inspections and Record Detail, with the list as served and with a code off it, in both languages.
   { name: "categories", mod: "./cases/categories", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Forty-four pixels since Step 181: every page an admin opens, the four links, the close X of a sample
+  // of windows, the six checkboxes and Schedule's week as a list of days, on a phone in both languages.
+  { name: "forty-four", mod: "./cases/forty-four", widths: ["phone"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Settings shows each list value's English and, in another language, its words there, and saves
   // exactly what it saves in English, in both languages at 1024.
   { name: "settings", mod: "./cases/settings", widths: ["narrow"],
