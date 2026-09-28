@@ -112,7 +112,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -535,6 +535,9 @@ export default function AdminDashboard() {
     if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
     if (id === "staff") return hasCap("manage_staff");
     if (id === "announcements") return hasCap("send_announcements");
+    // Help insights opens only for a holder the API named (Step 185): the role defaults do not hold
+    // it, so nothing is drawn until GET /api/users/me/permissions answers with it.
+    if (id === "help-insights") return hasCap("view_help_insights");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
   const [sites, setSites] = useState([]);
@@ -707,14 +710,14 @@ export default function AdminDashboard() {
     { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }] },
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
-    { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }] },
+    { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }, ...(canOpenPage("help-insights") ? [{ id: "help-insights", l: tr("Help insights"), i: HlpI }] : [])] },
     ...(canOpenPage("forms") ? [{ label: tr("Integrations"), items: [{ id: "forms", l: tr("Forms"), i: FmI }] }] : []),
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -959,6 +962,7 @@ export default function AdminDashboard() {
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
+        {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -3423,6 +3427,184 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         <button onClick={send} aria-label={tr("Send")} disabled={!canSend} style={{ width: 44, height: 44, borderRadius: "50%", background: canSend ? "linear-gradient(135deg," + GO + "," + GL + ")" : t.cardAlt, border: "none", cursor: canSend ? "pointer" : "default", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><SnI sz={16} c={canSend ? NAVY : t.textMut} /></button>
       </div>
     </Crd>
+  </div>);
+}
+// ===== HELP INSIGHTS: what people ask Help, overall and per person (Step 185) =====
+// Drawn for holders of view_help_insights, from GET /api/help-insights/summary, /misses and
+// /people, each read with the range and the filters (STEP183_CONTRACT.md, section 4). Nothing
+// shows until the API answers: a 404 is a failed read, which the page says with This did not load
+// and Try again. A topic is drawn by its name and its section's title, never by its code.
+const helpAppWord = (app) => (app === "portal" ? tr("Portal") : app === "dashboard" ? tr("Dashboard") : String(app || ""));
+// A miss is a turn Help answered with the no-procedure reply or a degraded reply; an answer rated
+// not helpful rides the same list.
+const helpKindWord = (kind) => (kind === "notHelpful" ? tr("Rated not helpful") : tr("Missed"));
+const helpWhen = (iso) => { const d = new Date(iso); return Number.isFinite(d.getTime()) ? d.toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : ""; };
+// A reply time in words: under a minute in seconds, else in minutes.
+const helpReplyWords = (ms) => { const n = Number(ms); if (!Number.isFinite(n) || n <= 0) return "-"; return n < 60000 ? tr("{0} sec", (n / 1000).toFixed(1)) : tr("{0} min", (n / 60000).toFixed(1)); };
+const helpNum = (n) => (n === null || n === undefined || n === "" ? "-" : Number(n).toLocaleString(localeTag()));
+// The names an answer cites, each once, as citedNames carries them.
+const helpNamesLine = (names) => { const out = []; (Array.isArray(names) ? names : []).forEach(n => { const w = n && n.name ? String(n.name) : ""; if (w && out.indexOf(w) === -1) out.push(w); }); return out.join(", "); };
+const helpTopicNames = (list) => (Array.isArray(list) ? list : []).map(x => x && x.name).filter(Boolean).join(", ");
+// A person's name and role on one line, the way the misses list and the people table draw them.
+const helpPersonLine = (p) => (p && p.name ? String(p.name) + (p.role ? " (" + roleWord(p.role) + ")" : "") : "-");
+
+// A small table of a count by something: language, app or site.
+const HelpSmallTable = ({ title, rows, t }) => (<Crd t={t} style={{ padding: 0, overflow: "hidden" }}>
+  <div style={{ padding: "12px 16px", borderBottom: "1px solid " + t.border, fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{title}</div>
+  {rows.length === 0 ? <div style={{ padding: 16, fontSize: 12, color: t.textMut }}>{tr("No questions in this range.")}</div> : rows.map((r, i) => (
+    <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "9px 16px", borderTop: i ? "1px solid " + t.border : "none", fontSize: 13 }}>
+      <span style={{ color: t.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+      <span style={{ color: t.textSec, flexShrink: 0 }}>{r.value}</span>
+    </div>))}
+</Crd>);
+
+// One person's questions with the answers, from GET /api/help-insights/people/:id, which writes an
+// audit row on every read, so the window says so under its title.
+function HelpPersonWindow({ af, t, person, query, onClose }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const load = useCallback(async () => {
+    setFailed(false); setData(null);
+    try { const d = await af("/api/help-insights/people/" + encodeURIComponent(person.id) + query); setData(d && typeof d === "object" ? d : {}); }
+    catch (e) { setFailed(true); console.warn("Help insights person:", e.message); }
+  }, [af, person.id, query]);
+  useEffect(() => { load(); }, [load]);
+  const who = (data && data.person) || person;
+  const turns = data && Array.isArray(data.turns) ? data.turns : [];
+  return (<Mdl t={t} onClose={onClose} tall>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "16px 20px", borderBottom: "1px solid " + t.border, display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{who.name}{who.role ? <span style={{ fontSize: 12, fontWeight: 500, color: t.textMut, marginLeft: 8 }}>{roleWord(who.role)}</span> : null}</div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.textSec, marginTop: 4 }}>{tr("Their questions")}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Opening this is recorded.")}</div>
+        </div>
+        <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 20px 12px" }}>
+        {failed && <LoadFailed t={t} onRetry={load} />}
+        {!failed && !data && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+        {!failed && data && turns.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("No questions in this range.")}</div>}
+        {turns.map((u, i) => { const names = helpNamesLine(u.citedNames); const fb = u.feedback && typeof u.feedback === "object" ? u.feedback : null; return (
+          <div key={u.messageId || i} style={{ padding: "12px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 11, color: t.textMut }}>
+              <span>{helpWhen(u.askedAt)}</span>
+              {u.locale && <span>{langLabel(u.locale)}</span>}
+              {u.app && <span>{helpAppWord(u.app)}</span>}
+              {(u.kind === "noProcedure" || u.kind === "degraded" || u.kind === "notHelpful") && <Bdg l={helpKindWord(u.kind)} c={u.kind === "notHelpful" ? OR : RD} />}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{u.question}</div>
+            {u.answer && <div style={{ fontSize: 13, color: t.textSec, marginTop: 6, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.45 }}>{u.answer}</div>}
+            {names && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Based on {0}", names)}</div>}
+            {fb && <div style={{ fontSize: 11, color: fb.helpful ? GR : OR, marginTop: 4 }}>{fb.helpful ? tr("Rated helpful") : tr("Rated not helpful")}{fb.note ? ": " + fb.note : ""}</div>}
+          </div>); })}
+      </div>
+    </div>
+  </Mdl>);
+}
+
+function HelpInsightsPage({ af, t, sites = [], getOpts }) {
+  const [dateRange, setDateRange] = useState(() => PRESETS.last30());
+  const [filters, setFilters] = useState({ siteId: "", role: "", locale: "", app: "" });
+  const [summary, setSummary] = useState(null);
+  const [misses, setMisses] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [person, setPerson] = useState(null);
+  // The range and the filters, the way every route takes them.
+  const query = useMemo(() => {
+    const p = new URLSearchParams({ from: dateRange.start, to: dateRange.end });
+    Object.keys(filters).forEach(k => { if (filters[k]) p.set(k, filters[k]); });
+    return "?" + p.toString();
+  }, [dateRange, filters]);
+  const load = useCallback(async () => {
+    setLoading(true); setFailed(false);
+    try {
+      const [s, m, p] = await Promise.all([af("/api/help-insights/summary" + query), af("/api/help-insights/misses" + query), af("/api/help-insights/people" + query)]);
+      setSummary(s && typeof s === "object" ? s : {});
+      setMisses(m && Array.isArray(m.misses) ? m.misses : []);
+      setPeople(p && Array.isArray(p.people) ? p.people : []);
+    } catch (e) { setFailed(true); console.warn("Help insights:", e.message); }
+    finally { setLoading(false); }
+  }, [af, query]);
+  useEffect(() => { load(); }, [load]);
+  const setFilter = (k, v) => setFilters(f => ({ ...f, [k]: v }));
+
+  const questions = summary ? Number(summary.questions) || 0 : 0;
+  const missCount = summary ? Number(summary.misses) || 0 : 0;
+  const empty = !loading && !failed && !!summary && questions === 0;
+  const byDay = summary && Array.isArray(summary.byDay) ? summary.byDay : [];
+  const byLanguage = summary && Array.isArray(summary.byLanguage) ? summary.byLanguage : [];
+  const byApp = summary && Array.isArray(summary.byApp) ? summary.byApp : [];
+  const bySite = summary && Array.isArray(summary.bySite) ? summary.bySite : [];
+  const topTopics = summary && Array.isArray(summary.topTopics) ? summary.topTopics : [];
+  // The miss rate from the two counts the summary carries, so it reads the same whatever unit the
+  // summary's own missRate is written in.
+  const missRate = questions > 0 ? Math.round((100 * missCount) / questions) : 0;
+  const topicCols = [
+    { header: tr("Topic"), render: r => <span style={{ fontWeight: 600, color: t.text }}>{r.name || ""}</span> },
+    { header: tr("Section"), tdStyle: { color: t.textSec }, render: r => r.sectionTitle || "" },
+    { header: tr("Questions"), align: "right", tdStyle: { color: t.textSec }, render: r => helpNum(r.count) },
+  ];
+  const missCols = [
+    { header: tr("When"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontSize: 12 }, render: m => helpWhen(m.askedAt) },
+    { header: tr("Question"), tdStyle: { minWidth: 220, maxWidth: 420 }, render: m => <div><div style={{ color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{m.question}</div><div style={{ marginTop: 4 }}><Bdg l={helpKindWord(m.kind)} c={m.kind === "notHelpful" ? OR : RD} /></div></div> },
+    { header: tr("Person"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: m => helpPersonLine(m.person) },
+    { header: tr("Language"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: m => m.locale ? langLabel(m.locale) : "-" },
+    { header: tr("App"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: m => helpAppWord(m.app) || "-" },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: m => (m.site && m.site.name) || "-" },
+    { header: tr("What was missing"), tdStyle: { color: t.text, minWidth: 180, maxWidth: 320, fontSize: 12 }, render: m => m.feedbackNote || "" },
+  ];
+  const peopleCols = [
+    { header: tr("Name"), render: p => <span style={{ fontWeight: 600, color: t.text }}>{p.name || ""}</span> },
+    { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: p => p.role ? roleWord(p.role) : "-" },
+    { header: tr("Questions"), align: "right", tdStyle: { color: t.textSec }, render: p => helpNum(p.questions) },
+    { header: tr("Missed"), align: "right", tdStyle: { color: RD }, render: p => helpNum(p.misses) },
+    { header: tr("Rated not helpful"), align: "right", tdStyle: { color: OR }, render: p => helpNum(p.helpfulNo) },
+    { header: tr("Last asked"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontSize: 12 }, render: p => helpWhen(p.lastAskedAt) },
+    { header: tr("Topics"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 280 }, render: p => helpTopicNames(p.topTopics) },
+  ];
+  return (<div>
+    <SecT t={t} action={tr("Refresh")} icon={RfI} onAction={load}>{tr("Help insights")}</SecT>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Site")} value={filters.siteId} onChange={e => setFilter("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Role")} value={filters.role} onChange={e => setFilter("role", e.target.value)} options={[{ v: "", l: tr("All roles") }, ...(getOpts ? getOpts("staff_roles", null, true) : [])]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Language")} value={filters.locale} onChange={e => setFilter("locale", e.target.value)} options={[{ v: "", l: tr("All languages") }, ...LANGUAGES.map(l => ({ v: l.id, l: l.label }))]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("App")} value={filters.app} onChange={e => setFilter("app", e.target.value)} options={[{ v: "", l: tr("All apps") }, { v: "portal", l: tr("Portal") }, { v: "dashboard", l: tr("Dashboard") }]} /></div>
+    </div>
+    {failed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {!failed && loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
+    {empty && <Crd t={t}><div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textSec }}>{tr("No questions in this range.")}</div></Crd>}
+    {!failed && !loading && summary && !empty && <>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10, marginBottom: 16 }}>
+        <MetricTile label={tr("Questions")} value={helpNum(summary.questions)} t={t} />
+        <MetricTile label={tr("People asking")} value={helpNum(summary.people)} t={t} />
+        <MetricTile label={tr("Answered")} value={helpNum(summary.answered)} color={GR} t={t} />
+        <MetricTile label={tr("Missed")} value={helpNum(summary.misses)} sub={tr("{0}% missed", missRate)} color={RD} t={t} />
+        <MetricTile label={tr("Rated helpful")} value={helpNum(summary.helpfulYes)} t={t} />
+        <MetricTile label={tr("Rated not helpful")} value={helpNum(summary.helpfulNo)} color={OR} t={t} />
+        <MetricTile label={tr("Typical reply time")} value={helpReplyWords(summary.medianReplyMs)} t={t} />
+      </div>
+      <div style={{ marginBottom: 16 }}>
+        <ChartCard title={tr("Questions by day")} t={t}>
+          {byDay.length > 0 ? <LineChartW t={t} categories={byDay.map(d => fmtBucketDate(d.day))} series={[{ name: tr("Questions"), data: byDay.map(d => Number(d.questions) || 0) }, { name: tr("Missed"), data: byDay.map(d => Number(d.misses) || 0) }]} colors={[GO, RD]} /> : <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No questions in this range.")}</div>}
+        </ChartCard>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12, marginBottom: 16 }}>
+        <HelpSmallTable t={t} title={tr("By language")} rows={byLanguage.map(r => ({ label: r.locale ? langLabel(r.locale) : "-", value: helpNum(r.questions) }))} />
+        <HelpSmallTable t={t} title={tr("By app")} rows={byApp.map(r => ({ label: helpAppWord(r.app) || "-", value: helpNum(r.questions) }))} />
+        <HelpSmallTable t={t} title={tr("By site")} rows={bySite.map(r => ({ label: r.siteName || "-", value: helpNum(r.questions) + (Number(r.misses) > 0 ? " (" + tr("{0} missed", helpNum(r.misses)) + ")" : "") }))} />
+      </div>
+      <SecT t={t}>{tr("What people ask about")}</SecT>
+      <div style={{ marginBottom: 16 }}><DataTable t={t} columns={topicCols} rows={topTopics} rowKey={r => (r.code || "") + "-" + (r.sectionRef || "")} empty={tr("No questions in this range.")} /></div>
+      <SecT t={t}>{tr("Questions Help could not answer")}</SecT>
+      <div style={{ marginBottom: 16 }}><DataTable t={t} columns={missCols} rows={misses} rowKey={m => m.messageId} empty={tr("No questions in this range.")} /></div>
+      <SecT t={t}>{tr("Everyone who asked")}</SecT>
+      <div style={{ marginBottom: 16 }}><DataTable t={t} columns={peopleCols} rows={people} rowKey={p => p.id} onRowClick={p => setPerson(p)} empty={tr("No questions in this range.")} /></div>
+    </>}
+    {person && <HelpPersonWindow af={af} t={t} person={person} query={query} onClose={() => setPerson(null)} />}
   </div>);
 }
 // ===== WHO GETS TOLD: the people and addresses told about each kind of report =====
@@ -7921,6 +8103,8 @@ const CAPABILITY_LABELS = {
   read_incident_reports: "Read filed incident reports",
   export_payroll: "ADP payroll export",
   manage_admins: "Change admin accounts (role, status, PIN)",
+  // Step 185: the Help insights page, routes/help-insights (STEP183_CONTRACT.md, section 4).
+  view_help_insights: "See Help insights",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
