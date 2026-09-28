@@ -132,6 +132,17 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       });
       return;
     }
+    // A route that answers bytes rather than JSON, an image the page fetches with the token and draws
+    // from a blob URL.
+    if (answer.bytes) {
+      await route.fulfill({
+        status: answer.status,
+        contentType: answer.contentType || "application/octet-stream",
+        headers: Object.assign({ "Access-Control-Allow-Origin": "*" }, answer.headers || {}),
+        body: answer.bytes,
+      });
+      return;
+    }
     await route.fulfill({
       status: answer.status,
       contentType: "application/json; charset=utf-8",
@@ -746,6 +757,23 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       }, labelFragment);
       await this.settle(260);
       return hit;
+    },
+
+    // A short path drawn with the mouse in the signature box inside the open window, the way a
+    // person signs: down, two strokes, up.
+    async drawSignature() {
+      const c = this.modal().locator("canvas").first();
+      if ((await c.count()) === 0) return false;
+      await c.scrollIntoViewIfNeeded();
+      const b = await c.boundingBox();
+      if (!b) return false;
+      await page.mouse.move(b.x + b.width * 0.15, b.y + b.height * 0.55);
+      await page.mouse.down();
+      await page.mouse.move(b.x + b.width * 0.4, b.y + b.height * 0.3, { steps: 6 });
+      await page.mouse.move(b.x + b.width * 0.7, b.y + b.height * 0.7, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForTimeout(120);
+      return true;
     },
 
     async closeModal() {

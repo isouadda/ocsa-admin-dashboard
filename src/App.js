@@ -46,6 +46,15 @@ async function apiDownload(path, token, fallbackName) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
+// A request whose body is files rather than JSON, sent as multipart form data. The token and the
+// refusal handling are apiFetch's, so a 401 signs out and a refusal arrives with the words the API
+// sent, its status and its code.
+async function apiMultipart(path, token, formData) {
+  const r = await apiRequest(API + path, { method: "POST", headers: { "Authorization": "Bearer " + token }, body: formData });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  return r.json();
+}
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
@@ -284,7 +293,9 @@ const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10p
 const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
 const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
 const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>; };
-const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
+// A tall window is the full height of the screen and scrolls inside itself, which is what a form
+// filled section by section needs; every other window is the card it has always been.
+const Mdl = ({ children, onClose: oc, t, tall }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: tall ? "hidden" : "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
@@ -8187,6 +8198,250 @@ const irSentLine = (d) => tr("Sent again: {0} and {1}, {2}.",
 const irWhen = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 const irDay = (d) => d ? new Date(d).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
 
+// ===== PHOTOS ON A FORM (Step 165) =====
+// A photos question carries the photos the API holds for it, [{ id, name, bytes, uploadedAt }], and
+// how many it takes in maxPhotos. Each image is fetched with the token and drawn from a blob URL,
+// which is revoked when the photo or the question leaves the screen. A refusal is drawn under the
+// question as the table's word for its code, and as the API's own words for a code the table does
+// not know.
+const PHOTO_REFUSAL_WORDS = {
+  "forms.photosFull": "This question is full.",
+  "forms.photoTooLarge": "That photo is too large.",
+  "forms.notAPhoto": "Only a photo can be added here.",
+  "forms.photoNotFound": "That photo is no longer on the form.",
+  "forms.photosForbidden": "You cannot change the photos on this question.",
+};
+const photoRefusalLine = (e) => (e && e.code && PHOTO_REFUSAL_WORDS[e.code] ? tr(PHOTO_REFUSAL_WORDS[e.code]) : ((e && e.message) || tr("Request failed")));
+const photoPath = (responseId, tail) => "/api/forms/responses/" + encodeURIComponent(responseId) + "/photos/" + tail;
+const photoBlobUrl = (u) => !!u && u !== "pending" && u !== "failed";
+
+function PhotoQuestion({ t, token, af, responseId, field, canWrite, onValue }) {
+  const photos = Array.isArray(field.value) ? field.value : [];
+  const max = Number(field.maxPhotos) > 0 ? Number(field.maxPhotos) : 0;
+  const full = canWrite && max > 0 && photos.length >= max;
+  const [thumbs, setThumbs] = useState({});
+  const thumbsRef = useRef({});
+  const [open, setOpen] = useState(null);
+  const openRef = useRef(null);
+  const [fullUrl, setFullUrl] = useState("");
+  const [busy, setBusy] = useState("");
+  const busyRef = useRef(false);
+  const [refusal, setRefusal] = useState("");
+  const fileRef = useRef(null);
+  const mounted = useRef(true);
+
+  // One thumbnail per photo, fetched once and kept while the photo is on the form. A thumbnail whose
+  // photo has gone is revoked, and so is every one when the question leaves the screen.
+  useEffect(() => {
+    const keep = {};
+    photos.forEach(p => { if (p && p.id) keep[p.id] = true; });
+    Object.keys(thumbsRef.current).forEach(k => {
+      if (keep[k]) return;
+      if (photoBlobUrl(thumbsRef.current[k])) URL.revokeObjectURL(thumbsRef.current[k]);
+      delete thumbsRef.current[k];
+    });
+    photos.forEach(p => {
+      if (!p || !p.id || thumbsRef.current[p.id]) return;
+      thumbsRef.current[p.id] = "pending";
+      apiDownload(photoPath(responseId, encodeURIComponent(p.id) + "/thumb"), token)
+        .then(f => {
+          const url = URL.createObjectURL(f.blob);
+          if (!mounted.current || !thumbsRef.current[p.id]) { URL.revokeObjectURL(url); return; }
+          thumbsRef.current[p.id] = url;
+          setThumbs(prev => Object.assign({}, prev, { [p.id]: url }));
+        })
+        .catch(() => { if (thumbsRef.current[p.id]) thumbsRef.current[p.id] = "failed"; if (mounted.current) setThumbs(prev => Object.assign({}, prev, { [p.id]: "failed" })); });
+    });
+  }, [photos, responseId, token]);
+  useEffect(() => () => {
+    mounted.current = false;
+    Object.keys(thumbsRef.current).forEach(k => { if (photoBlobUrl(thumbsRef.current[k])) URL.revokeObjectURL(thumbsRef.current[k]); });
+    thumbsRef.current = {};
+  }, []);
+
+  // The full image, in the window's own overlay. Escape closes the overlay and leaves the window
+  // open, so the window's own Escape does not see the press.
+  const closePhoto = () => {
+    openRef.current = null;
+    setFullUrl(prev => { if (prev) URL.revokeObjectURL(prev); return ""; });
+    setOpen(null);
+  };
+  const openPhoto = async (p) => {
+    openRef.current = p.id;
+    setOpen(p); setFullUrl(""); setRefusal("");
+    try {
+      const f = await apiDownload(photoPath(responseId, encodeURIComponent(p.id)), token);
+      if (!mounted.current || openRef.current !== p.id) return;
+      setFullUrl(URL.createObjectURL(f.blob));
+    } catch (e) { if (mounted.current) { closePhoto(); setRefusal(photoRefusalLine(e)); } }
+  };
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") { e.stopImmediatePropagation(); closePhoto(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open]);
+
+  // Every photo picked goes up at once, in one request. What the API answers replaces the question's
+  // photos, so the thumbnails are drawn from what it holds rather than from what was picked.
+  const upload = async (files) => {
+    if (busyRef.current || files.length === 0) return;
+    busyRef.current = true; setBusy("upload"); setRefusal("");
+    const fd = new FormData();
+    files.forEach(f => fd.append("photos", f, f.name));
+    try {
+      const d = await apiMultipart(photoPath(responseId, encodeURIComponent(field.key)), token, fd);
+      if (mounted.current && d && Array.isArray(d.value)) onValue(d.value);
+    } catch (e) { if (mounted.current) setRefusal(photoRefusalLine(e)); }
+    busyRef.current = false;
+    if (mounted.current) setBusy("");
+  };
+  const remove = async (p) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy("remove:" + p.id); setRefusal("");
+    try {
+      const d = await af(photoPath(responseId, encodeURIComponent(field.key) + "/" + encodeURIComponent(p.id)), { method: "DELETE" });
+      if (mounted.current && d && Array.isArray(d.value)) onValue(d.value);
+    } catch (e) { if (mounted.current) setRefusal(photoRefusalLine(e)); }
+    busyRef.current = false;
+    if (mounted.current) setBusy("");
+  };
+
+  const thumbBox = { width: 96, height: 96, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, display: "block" };
+  const smallBtn = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+  return (<div>
+    {photos.length === 0 && <div style={{ fontSize: 13, color: t.textMut, fontStyle: "italic" }}>{tr("No photos")}</div>}
+    {photos.length > 0 && <div data-photos={field.key} style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+      {photos.map(p => (<div key={p.id} style={{ width: 96 }}>
+        <button type="button" aria-label={tr("Open photo {0}", p.name || "")} onClick={() => openPhoto(p)} style={{ padding: 0, border: "none", background: "none", cursor: "pointer", minWidth: 44, minHeight: 44, display: "block" }}>
+          {photoBlobUrl(thumbs[p.id]) ? <img src={thumbs[p.id]} alt={p.name || ""} style={thumbBox} /> : <div style={thumbBox} />}
+        </button>
+        <div style={{ fontSize: 11, color: t.textSec, marginTop: 4, wordBreak: "break-word", lineHeight: 1.3 }}>{p.name || ""}</div>
+        {canWrite && <Btn t={t} v="ghost" onClick={() => remove(p)} disabled={!!busy} aria-label={tr("Remove photo|form") + ": " + (p.name || "")} style={Object.assign({}, smallBtn, { marginTop: 4, width: "100%", padding: "10px 6px" })}>{busy === "remove:" + p.id ? tr("Removing...") : tr("Remove photo|form")}</Btn>}
+      </div>))}
+    </div>}
+    {canWrite && <div style={{ marginTop: 8 }}>
+      {full
+        ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("This question is full.")}</div>
+        : <>
+          <input ref={fileRef} type="file" accept="image/*" multiple aria-label={field.label + ": " + tr("Add photos")} style={{ display: "none" }}
+            onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ""; upload(files); }} />
+          <Btn t={t} v="ghost" onClick={() => { if (fileRef.current) fileRef.current.click(); }} disabled={!!busy} style={smallBtn}>{busy === "upload" ? tr("Uploading...") : tr("Add photos")}</Btn>
+        </>}
+    </div>}
+    {refusal && <div data-photo-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    {open && <div role="dialog" aria-label={open.name || tr("Photo")} onClick={closePhoto} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 510, background: "rgba(0,0,0,0.88)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 16 }}>
+      {fullUrl
+        ? <img src={fullUrl} alt={open.name || ""} onClick={e => e.stopPropagation()} style={{ maxWidth: "100%", maxHeight: "calc(100% - 96px)", objectFit: "contain", borderRadius: 8 }} />
+        : <div style={{ color: "#F8F7F4", fontSize: 13 }}>{tr("Loading...")}</div>}
+      <div style={{ color: "#F8F7F4", fontSize: 12, textAlign: "center", wordBreak: "break-word" }}>{open.name || ""}</div>
+      <Btn t={t} v="ghost" onClick={closePhoto} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
+    </div>}
+  </div>);
+}
+
+// ===== SIGNING WITH THE MOUSE (Step 165) =====
+// A sign-off is made in a box a person draws in: a white canvas 420 wide and 160 tall, the whole
+// width under 480, with a baseline to write on. It listens to pointer events, so a mouse, a pen and
+// a finger all draw, and it is scaled to the device's pixels so a line is crisp on a phone. Sign
+// stays off until something is drawn, and the drawing goes to the API as a PNG data URL under
+// 300 KB, drawn again smaller when it is over.
+const SIGNATURE_WIDTH = 420;
+const SIGNATURE_HEIGHT = 160;
+const SIGNATURE_MAX_BYTES = 300 * 1024;
+const dataUrlBytes = (url) => Math.floor((String(url).split(",")[1] || "").length * 3 / 4);
+function SignatureBox({ t, label, busy, refusal, onSign, onCancel }) {
+  const canvasRef = useRef(null);
+  const [drawn, setDrawn] = useState(false);
+  const drawing = useRef(false);
+  const last = useRef(null);
+
+  // The canvas takes the width it has, up to 420, and is backed by the device's pixels. The
+  // baseline sits where a person writes on a paper form. A resize starts the box over.
+  const paint = () => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const r = c.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    const w = Math.max(1, r.width), h = Math.max(1, r.height);
+    c.width = Math.round(w * ratio); c.height = Math.round(h * ratio);
+    const ctx = c.getContext("2d");
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.fillStyle = "#FFFFFF"; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "#C9D1D9"; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(16, Math.round(h * 0.72) + 0.5); ctx.lineTo(w - 16, Math.round(h * 0.72) + 0.5); ctx.stroke();
+    ctx.setLineDash([]);
+    setDrawn(false);
+  };
+  useEffect(() => {
+    paint();
+    window.addEventListener("resize", paint);
+    return () => window.removeEventListener("resize", paint);
+  }, []);
+
+  const at = (e) => { const r = canvasRef.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const pen = () => { const ctx = canvasRef.current.getContext("2d"); ctx.strokeStyle = "#1B1B1B"; ctx.fillStyle = "#1B1B1B"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; return ctx; };
+  const down = (e) => {
+    if (busy) return;
+    e.preventDefault();
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* a browser without capture still draws */ }
+    drawing.current = true;
+    const p = at(e); last.current = p;
+    const ctx = pen(); ctx.beginPath(); ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2); ctx.fill();
+    setDrawn(true);
+  };
+  const move = (e) => {
+    if (!drawing.current) return;
+    e.preventDefault();
+    const p = at(e);
+    const ctx = pen(); ctx.beginPath(); ctx.moveTo(last.current.x, last.current.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last.current = p;
+  };
+  const up = () => { drawing.current = false; last.current = null; };
+  const exportPng = () => {
+    const c = canvasRef.current;
+    let url = c.toDataURL("image/png");
+    let scale = 1;
+    while (dataUrlBytes(url) > SIGNATURE_MAX_BYTES && scale > 0.25) {
+      scale -= 0.25;
+      const small = document.createElement("canvas");
+      small.width = Math.max(1, Math.round(c.width * scale)); small.height = Math.max(1, Math.round(c.height * scale));
+      small.getContext("2d").drawImage(c, 0, 0, small.width, small.height);
+      url = small.toDataURL("image/png");
+    }
+    return url;
+  };
+
+  return (<div data-signature-box="" style={{ marginTop: 8, padding: 12, borderRadius: 10, border: "1px solid " + t.border, background: t.hover, maxWidth: 480 }}>
+    <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>{label}</div>
+    <canvas ref={canvasRef} aria-label={tr("Sign with your mouse or finger")}
+      onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up}
+      style={{ display: "block", width: "100%", maxWidth: SIGNATURE_WIDTH, height: SIGNATURE_HEIGHT, borderRadius: 8, border: "1px solid " + t.borderSolid, background: "#FFFFFF", touchAction: "none", cursor: "crosshair" }} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Sign with your mouse or finger")}</div>
+    {refusal && <div data-signature-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
+    <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy} style={{ minHeight: 44, minWidth: 88 }}>{busy ? tr("Signing...") : tr("Sign")}</Btn>
+      <Btn t={t} v="ghost" onClick={paint} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Clear")}</Btn>
+      <Btn t={t} v="ghost" onClick={onCancel} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Cancel")}</Btn>
+    </div>
+  </div>);
+}
+// The signature a stamp carries, streamed by the API and drawn about 48 pixels high above the line
+// that says who signed. A stamp with no signature draws nothing here.
+function SignatureImage({ t, token, responseId, signKey }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    let alive = true;
+    let made = "";
+    apiDownload("/api/forms/responses/" + encodeURIComponent(responseId) + "/signatures/" + encodeURIComponent(signKey), token)
+      .then(f => { made = URL.createObjectURL(f.blob); if (alive) setUrl(made); else URL.revokeObjectURL(made); })
+      .catch(() => { if (alive) setUrl(""); });
+    return () => { alive = false; if (made) URL.revokeObjectURL(made); };
+  }, [responseId, signKey, token]);
+  if (!url) return null;
+  return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
+}
+
 function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -8205,6 +8460,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const fetchedRef = useRef(null);
   const [signing, setSigning] = useState("");
   const signingRef = useRef(false);
+  // The sign-off whose signature box is open, and what the API said when it refused the signature.
+  const [boxFor, setBoxFor] = useState(null);
+  const [signRefusal, setSignRefusal] = useState("");
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -8242,13 +8500,15 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // One press sends one request, and nothing is drawn until the API answers: the window is swapped
   // for the report the API sends back, stamp and all. The ref closes the gap before the disabled
   // button redraws, which is the guard the footer's Send again uses.
-  const sign = async (key) => {
+  // Since Step 165 the request carries the signature drawn in the box, as a PNG data URL, and a
+  // refusal is drawn in the box in the API's own words.
+  const sign = async (key, signature) => {
     if (signingRef.current) return;
-    signingRef.current = true; setSigning(key); setActionError(""); setSentLine("");
+    signingRef.current = true; setSigning(key); setSignRefusal(""); setActionError(""); setSentLine("");
     try {
-      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key } });
-      if (d && d.draft) setData(d);
-    } catch (e) { setActionError(e.message || tr("Request failed")); }
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/signoff", { method: "POST", body: { key, signature } });
+      if (d && d.draft) { setData(d); setBoxFor(null); }
+    } catch (e) { setSignRefusal(e.message || tr("Request failed")); }
     signingRef.current = false; setSigning("");
   };
 
@@ -8401,12 +8661,17 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   const canSign = data && Array.isArray(data.canSign) ? data.canSign : [];
   const canWriteSupervisor = !!(data && data.canWriteSupervisor);
   const supervisorMissing = data && Array.isArray(data.supervisorMissing) ? data.supervisorMissing : [];
-  const signoffRow = (f) => (<div key={f.key} style={{ marginBottom: 12 }}>
+  // A stamp draws its signature image above the line that says who signed, when it carries one.
+  // Sign opens the signature box under the row, and the box's own Sign sends the request.
+  const signoffRow = (f) => (<div key={f.key} data-question={f.key} style={{ marginBottom: 12 }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+    {f.value && f.value.at && f.value.signature && f.value.signature.id && <SignatureImage t={t} token={token} responseId={id} signKey={f.key} />}
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
       <div style={{ fontSize: 13, color: f.value && f.value.at ? t.text : t.textMut }}>{stampLine(f.value)}</div>
-      {canSign.indexOf(f.key) >= 0 && <Btn t={t} v="ghost" onClick={() => sign(f.key)} disabled={signing === f.key} style={{ minHeight: 44 }}>{signing === f.key ? tr("Signing...") : tr("Sign")}</Btn>}
+      {canSign.indexOf(f.key) >= 0 && boxFor !== f.key && <Btn t={t} v="ghost" onClick={() => { setBoxFor(f.key); setSignRefusal(""); }} disabled={!!signing} style={{ minHeight: 44 }}>{tr("Sign")}</Btn>}
     </div>
+    {boxFor === f.key && <SignatureBox t={t} label={f.label} busy={signing === f.key} refusal={signRefusal}
+      onSign={(png) => sign(f.key, png)} onCancel={() => { setBoxFor(null); setSignRefusal(""); }} />}
   </div>);
   // What the supervisor section holds right now: what was typed if anything was, and what the API
   // sent if nothing has been.
@@ -8442,10 +8707,25 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
     return <Inp t={t} aria-label={b.head + " " + c.label} type={c.type === "number" ? "number" : "text"}
       value={raw == null ? "" : String(raw)} onChange={e => setGridCell(f, b, c, e.target.value)} style={{ minHeight: 44, minWidth: 88 }} />;
   };
+  // A photos question: its thumbnails and the overlay on either half, and on a writable supervisor
+  // half Add photos and Remove photo. An upload and a removal are their own requests, answered with
+  // the question's photos, which replace the question's value here; a question that now holds a
+  // photo leaves the still-needed list.
+  const setPhotoValue = (key, v) => setData(prev => {
+    if (!prev) return prev;
+    const next = (prev.fields || []).map(x => (x.key === key ? Object.assign({}, x, { value: v }) : x));
+    const missing = Array.isArray(prev.supervisorMissing) && v.length > 0 ? prev.supervisorMissing.filter(m => m.key !== key) : prev.supervisorMissing;
+    return Object.assign({}, prev, { fields: next, supervisorMissing: missing });
+  });
+  const photosRow = (f, writable) => (<div key={f.key} data-question={f.key} style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+    <PhotoQuestion t={t} token={token} af={af} responseId={id} field={f} canWrite={writable} onValue={v => setPhotoValue(f.key, v)} />
+  </div>);
   // Each question in its own type, which is what a person expects to type into at a desk. A
   // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
   const supervisorInput = (f) => {
     if (f.type === "signoff") return signoffRow(f);
+    if (f.type === "photos") return photosRow(f, true);
     const cur = supValue(f);
     const box = (inner) => (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
@@ -8464,6 +8744,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   // The label comes from the API and is shown as sent: some carry required federal wording.
   const fieldRow = (f) => {
     if (f.type === "signoff") return signoffRow(f);
+    if (f.type === "photos") return photosRow(f, false);
     if (f.type === "grid") return (<div key={f.key} style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
       {gridTable(f)}
@@ -8539,7 +8820,488 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen, onClose }) {
+// ===== STARTING AND FILING A FORM FROM THE DASHBOARD (Step 166) =====
+// The staff portal's form screen, drawn at a desk from the same catalog view, through the same draft
+// routes: start, answer, sign off, submit. The rules below are the data twin of what the API
+// evaluates, read the way the portal reads them, so a question appears or disappears the moment the
+// answer that governs it does. A shape this cannot read counts as holding, so a rule the dashboard
+// does not understand shows the question rather than hiding it.
+function formRuleHolds(rule, answers) {
+  if (!rule || typeof rule !== "object" || Array.isArray(rule)) return true;
+  const a = answers || {};
+  if (Array.isArray(rule.any)) return rule.any.some(r => formRuleHolds(r, a));
+  if (Array.isArray(rule.all)) return rule.all.every(r => formRuleHolds(r, a));
+  if (typeof rule.key !== "string" || !Array.isArray(rule.anyOf)) return true;
+  const v = a[rule.key];
+  if (Array.isArray(v)) return v.some(x => rule.anyOf.indexOf(x) !== -1);
+  return rule.anyOf.indexOf(v) !== -1;
+}
+const formHasAnswer = (v) => {
+  if (v === undefined || v === null) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+};
+// Every question this person is asked for the answers so far. A prefilled question is already on
+// the draft and is never shown.
+const formFieldsInPlay = (form, answers) =>
+  (form && Array.isArray(form.fields) ? form.fields : []).filter(f => !f.prefilled && formRuleHolds(f.appliesWhen, answers));
+const formSectionOf = (f) => (f.section === null || f.section === undefined ? "" : String(f.section));
+// The sections in play, in the order they first appear. A section with no question in play is not
+// one of them.
+function formSectionsOf(fields) {
+  const out = [];
+  fields.forEach(f => { const k = formSectionOf(f); if (out.indexOf(k) === -1) out.push(k); });
+  return out;
+}
+// A section's title or help line, in the language the catalog was asked for, or as en and es read
+// in the screen's language and in English where there is no Spanish. A section with none has none.
+function formSectionText(form, key, which) {
+  const list = form && Array.isArray(form.sections) ? form.sections : [];
+  const s = list.find(x => x && String(x.key) === String(key));
+  if (!s) return "";
+  const pick = (v) => (typeof v === "string" ? v : v && typeof v === "object" ? (v[getLang()] || v.en || "") : "");
+  const own = pick(s[which]);
+  return String(own || (which === "title" ? pick({ en: s.en, es: s.es }) : "") || "").trim();
+}
+const formOptionLabel = (f, v) => {
+  const o = (f.options || []).find(x => String(x.value) === String(v));
+  return o ? o.label : String(v);
+};
+const formPlainValue = (v) => typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+// An answer as a person reads it: an option's label rather than the value behind it, a pick many
+// joined, and nothing when nothing was answered. An answer of a shape this cannot read says Answered.
+function formReadAnswer(f, v) {
+  if (!formHasAnswer(v)) return null;
+  if (Array.isArray(v)) {
+    if (!v.every(formPlainValue)) return tr("Answered|form");
+    const parts = v.map(x => formOptionLabel(f, x)).filter(x => x !== "");
+    return parts.length ? parts.join(", ") : null;
+  }
+  if (!formPlainValue(v)) return tr("Answered|form");
+  return formOptionLabel(f, v);
+}
+const formIsChecklist = (f) => Array.isArray(f.rows);
+// A sign-off on this screen is the filer's; a supervisor's is made in the review window, and the
+// draft keeps whatever it already carries for one this screen does not draw.
+const formDrawnHere = (f) => String(f.type || "") !== "signoff" || String(f.signer || "") === "filer";
+const formDraftOf = (r) => (r && r.draft ? r.draft : r);
+const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date", "time", "number", "grid", "signoff", "photos"];
+// What the API clips a stored answer to, so a long answer is stopped in the box rather than after.
+const FORM_VALUE_MAX = 4000;
+// Where a filing came from, as the table's word for the source the API stores.
+const formSourceWord = (code) => (code === "admin" ? tr("From the dashboard") : code ? tr("From the app") : "");
+// A form's questions the picker and the window read: a form the API lists with nobody in its
+// fillers is not one anyone here may start.
+const formStartable = (f) => !!f && (!Array.isArray(f.fillers) || f.fillers.length > 0);
+
+function FormFillWindow({ af, token, t, form, draft, onLeave }) {
+  const [current, setCurrent] = useState(draft);
+  const [values, setValues] = useState(() => Object.assign({}, draft.answers || {}));
+  const [dirty, setDirty] = useState({});
+  const [sectionKey, setSectionKey] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const [badKeys, setBadKeys] = useState([]);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [signingKey, setSigningKey] = useState(null);
+  const [boxFor, setBoxFor] = useState(null);
+  const [signErr, setSignErr] = useState("");
+  const [review, setReview] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendErr, setSendErr] = useState("");
+  const [sent, setSent] = useState(null);
+  const bodyRef = useRef(null);
+  const savingRef = useRef(false);
+  const sendingRef = useRef(false);
+
+  // Every question in play, which is what a save is judged against, and the ones this screen draws,
+  // which is what a person walks through.
+  const fields = formFieldsInPlay(form, values);
+  const shown = fields.filter(formDrawnHere);
+  const sections = formSectionsOf(shown);
+  const here = sections.indexOf(sectionKey) !== -1 ? sectionKey : (sections.length > 0 ? sections[0] : null);
+  const at = sections.indexOf(here);
+  const pageFields = shown.filter(f => formSectionOf(f) === here);
+  // A form with one section draws no section title: the form's own name already heads the window.
+  const titled = sections.length > 1;
+  const hereTitle = here === null || !titled ? "" : formSectionText(form, here, "title");
+  const hereHelp = hereTitle ? formSectionText(form, here, "help") : "";
+
+  // What is still unanswered is the API's judgement, never this screen's: it reads the same rules
+  // over the same answers. Where it names only keys, the form's own labels stand in.
+  const missing = Array.isArray(current.missing) ? current.missing : [];
+  const fieldByKey = (k) => (form && Array.isArray(form.fields) ? form.fields : []).find(f => f.key === k) || null;
+  const missingNamed = () => {
+    const named = Array.isArray(current.missingFields) ? current.missingFields : null;
+    if (named) return named.map(m => ({ key: m.key, label: m.label ? String(m.label) : String(m.key || ""), rows: Array.isArray(m.rows) ? m.rows.filter(Boolean) : [] }));
+    return missing.map(k => { const f = fieldByKey(k); return { key: k, label: f ? f.label : k, rows: [] }; });
+  };
+  const answered = Number(current.answered || 0);
+
+  const setVal = (key, v) => {
+    setValues(prev => {
+      const next = Object.assign({}, prev);
+      if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) delete next[key];
+      else next[key] = v;
+      return next;
+    });
+    setDirty(prev => Object.assign({}, prev, { [key]: true }));
+    setBadKeys(prev => prev.filter(k => k !== key));
+  };
+
+  // What one save sends: every answer that changed, and any answer anywhere that those changes have
+  // closed, since a question no longer asked must not keep an answer on the filing.
+  const changedAnswers = () => {
+    const out = {};
+    const inPlay = fields.map(f => f.key);
+    Object.keys(dirty).forEach(k => {
+      if (inPlay.indexOf(k) === -1) return;
+      out[k] = formHasAnswer(values[k]) ? values[k] : null;
+    });
+    (form && Array.isArray(form.fields) ? form.fields : []).forEach(f => {
+      if (f.prefilled || inPlay.indexOf(f.key) !== -1) return;
+      if (formHasAnswer(values[f.key]) || formHasAnswer((current.answers || {})[f.key])) out[f.key] = null;
+    });
+    return out;
+  };
+  // A refusal in the API's words, or the line for a request that never reached it.
+  const said = (e, fallback) => ((e && (e.status === undefined || e.status === null)) ? tr(fallback) : ((e && e.message) || tr("Request failed")));
+
+  // One PATCH. It answers with the whole draft, so the counts, the missing list and the answers on
+  // screen all come back from the API. Returns the answers afterwards, or null when nothing was
+  // written; with nothing changed it writes nothing and returns what is held.
+  const save = async () => {
+    const body = changedAnswers();
+    if (Object.keys(body).length === 0) { setSaveErr(""); setBadKeys([]); return values; }
+    if (savingRef.current) return null;
+    savingRef.current = true; setSaving(true); setSaveErr(""); setBadKeys([]);
+    try {
+      const r = await af("/api/forms/drafts/" + encodeURIComponent(current.id), { method: "PATCH", body: { answers: body } });
+      const d = formDraftOf(r);
+      const after = Object.assign({}, d.answers || {});
+      setCurrent(d); setValues(after); setDirty({});
+      savingRef.current = false; setSaving(false);
+      return after;
+    } catch (e) {
+      setSaveErr(said(e, "Not saved yet. Check your connection and try again."));
+      setBadKeys(Array.isArray(e && e.body && e.body.keys) ? e.body.keys : []);
+      savingRef.current = false; setSaving(false);
+      return null;
+    }
+  };
+
+  // A sign-off is its own request, with the drawing from the signature box, and nothing is drawn
+  // until the API answers with the stamp it made.
+  const sign = async (f, signature) => {
+    if (signingKey) return;
+    setSigningKey(f.key); setSignErr("");
+    try {
+      const r = await af("/api/forms/responses/" + encodeURIComponent(current.id) + "/signoff", { method: "POST", body: { key: f.key, signature } });
+      const d = formDraftOf(r && r.response ? r.response : r);
+      setCurrent(d);
+      // The answers come back from the API, and anything typed here and not saved yet stays put.
+      setValues(prev => {
+        const next = Object.assign({}, d.answers || {});
+        Object.keys(dirty).forEach(k => { if (formHasAnswer(prev[k])) next[k] = prev[k]; else delete next[k]; });
+        return next;
+      });
+      setBoxFor(null);
+    } catch (e) { setSignErr(said(e, "Not signed yet. Check your connection and try again.")); }
+    setSigningKey(null);
+  };
+
+  const toTop = () => { if (bodyRef.current) bodyRef.current.scrollTop = 0; };
+  const goNext = async () => {
+    if (saving) return;
+    const after = await save();
+    if (!after) return;
+    const list = formSectionsOf(formFieldsInPlay(form, after).filter(formDrawnHere));
+    const i = list.indexOf(here);
+    if (i === -1 || i + 1 >= list.length) { setSendErr(""); setReview(true); toTop(); return; }
+    setSectionKey(list[i + 1]); toTop();
+  };
+  const goBack = async () => {
+    if (saving) return;
+    if (review) { setReview(false); setSectionKey(sections[sections.length - 1] || null); toTop(); return; }
+    const after = await save();
+    if (!after) return;
+    const list = formSectionsOf(formFieldsInPlay(form, after).filter(formDrawnHere));
+    const i = list.indexOf(here);
+    if (i <= 0) return;
+    setSectionKey(list[i - 1]); toTop();
+  };
+  const editSection = (sk) => { setReview(false); setSendErr(""); setSectionKey(sk); toTop(); };
+
+  const submit = async () => {
+    setConfirmSend(false);
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setSendErr("");
+    try {
+      await af("/api/forms/drafts/" + encodeURIComponent(current.id) + "/submit", { method: "POST", body: {} });
+      setSent("sent");
+    } catch (e) {
+      if (e && e.status === 409) setSent("already");
+      // The API decides what is still unanswered, so a refusal naming keys replaces the list.
+      else if (e && e.status === 400 && Array.isArray(e.body && e.body.missing)) {
+        setCurrent(prev => Object.assign({}, prev, { missing: e.body.missing, missingFields: Array.isArray(e.body.missingFields) ? e.body.missingFields : null }));
+        setSendErr(e.message || tr("Request failed")); toTop();
+      } else setSendErr(said(e, "Not sent yet. Check your connection and try again."));
+    }
+    sendingRef.current = false; setSending(false);
+  };
+  // Whatever is not saved yet is sent first, and the person leaves either way: a refusal here would
+  // strand them on a form they asked to close.
+  const leave = async () => { setConfirmLeave(false); await save(); onLeave(); };
+
+  const labelSt = { fontSize: 13, fontWeight: 600, color: t.text, lineHeight: 1.45, fontFamily: FONT_HEAD, wordBreak: "break-word" };
+  const reqSt = { fontSize: 10, fontWeight: 600, color: t.textMut, marginLeft: 6, whiteSpace: "nowrap", textTransform: "uppercase" };
+  const helpSt = { fontSize: 11, color: t.textMut, marginTop: 4, lineHeight: 1.4 };
+  const errSt = { fontSize: 12, color: RD, marginTop: 6 };
+  const thCell = { textAlign: "left", padding: "7px 10px", fontSize: 11, fontWeight: 600, color: t.textMut, whiteSpace: "nowrap", borderBottom: "1px solid " + t.border };
+  const tdCell = { padding: "7px 10px", fontSize: 12, color: t.text, borderBottom: "1px solid " + t.border, verticalAlign: "top" };
+  const rowButton = { minHeight: 44, minWidth: 44, padding: "10px 14px", fontSize: 12 };
+  const footBtn = { minHeight: 44, minWidth: 96 };
+
+  // One control, for a question or for one cell of a table. A cell gets the input its type gets as
+  // a question. A pick one offers Not answered; a pick many is a row of boxes.
+  const control = (spec, v, onChange, name) => {
+    const kind = String(spec.type || "");
+    if (kind === "select") {
+      return <Sel t={t} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value === "" ? null : e.target.value)} style={{ minHeight: 44 }}
+        options={[{ v: "", l: tr("Not answered") }].concat((spec.options || []).map(o => ({ v: o.value, l: o.label })))} />;
+    }
+    if (kind === "multiselect") {
+      const chosen = Array.isArray(v) ? v : [];
+      return (<div role="group" aria-label={name}>
+        {(spec.options || []).map(o => {
+          const picked = chosen.indexOf(o.value) !== -1;
+          return (<label key={String(o.value)} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <input type="checkbox" aria-label={name + ": " + o.label} checked={picked} style={{ width: 22, height: 22, cursor: "pointer" }}
+              onChange={() => onChange(picked ? chosen.filter(x => x !== o.value) : chosen.concat([o.value]))} />
+            <span>{o.label}</span>
+          </label>);
+        })}
+      </div>);
+    }
+    if (kind === "textarea") return <TArea t={t} rows={4} maxLength={FORM_VALUE_MAX} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value)} style={{ minHeight: 104 }} />;
+    const input = kind === "date" || kind === "time" || kind === "number" ? kind : "text";
+    return <Inp t={t} type={input} maxLength={input === "text" ? FORM_VALUE_MAX : undefined} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value)} style={{ minHeight: 44 }} />;
+  };
+  // A cell inside a table, keyed by row then column. A ticked box is a box; the rest is a control.
+  const cellControl = (f, rowHead, col, raw, write) => {
+    const name = rowHead + " " + col.label;
+    if (col.type === "checkbox") {
+      return (<label style={{ display: "flex", minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <input type="checkbox" aria-label={name} checked={raw === true} onChange={e => write(e.target.checked ? true : null)} style={{ width: 22, height: 22, cursor: "pointer" }} />
+      </label>);
+    }
+    return control(col, raw, write, name);
+  };
+  // A column's help line, sent beside the label since the API's Step 153, is drawn once per table
+  // under its heading.
+  const columnHelp = (f) => (f.columns || []).filter(c => c.help).map(c => <div key={c.key} style={helpSt}>{c.label}: {c.help}</div>);
+  // A checklist: one row per item the form names, keyed by row then column.
+  const checklist = (f) => {
+    const all = (values[f.key] && typeof values[f.key] === "object" && !Array.isArray(values[f.key])) ? values[f.key] : {};
+    const write = (rowKey, colKey, v) => {
+      const next = Object.assign({}, all);
+      const row = Object.assign({}, next[rowKey] || {});
+      if (!formHasAnswer(v)) delete row[colKey]; else row[colKey] = v;
+      if (Object.keys(row).length === 0) delete next[rowKey]; else next[rowKey] = row;
+      setVal(f.key, Object.keys(next).length === 0 ? null : next);
+    };
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    return (<>
+      {columnHelp(f)}
+      <div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead><tr><th style={thCell}>{tr("Item")}</th>{cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}</tr></thead>
+          <tbody>{(f.rows || []).map(r => (<tr key={r.key}>
+            <td style={Object.assign({}, tdCell, { fontWeight: 500 })}>{r.label}</td>
+            {cols.map(c => <td key={c.key} style={tdCell}>{cellControl(f, r.label, c, (all[r.key] || {})[c.key], v => write(r.key, c.key, v))}</td>)}
+          </tr>))}</tbody>
+        </table>
+      </div>
+    </>);
+  };
+  // A table a person adds rows to, numbered, with a floor drawn from the start and Remove row above
+  // it. A row drawn for the floor and not written in is not an answer: nothing is saved for it.
+  const rowTable = (f) => {
+    const list = Array.isArray(values[f.key]) ? values[f.key] : [];
+    const floor = Math.max(0, Math.floor(Number(f.minRows)) || 0);
+    const rows = list.length < floor ? list.concat(Array.from({ length: floor - list.length }, () => ({}))) : list;
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    const put = (next) => setVal(f.key, next.length === 0 ? null : next);
+    const write = (i, colKey, v) => {
+      const next = rows.map((row, j) => (j === i ? Object.assign({}, row) : row));
+      if (!formHasAnswer(v)) delete next[i][colKey]; else next[i][colKey] = v;
+      put(next);
+    };
+    const removable = rows.length > floor;
+    const full = Number(f.maxRows) > 0 && rows.length >= Number(f.maxRows);
+    return (<>
+      {columnHelp(f)}
+      <div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead><tr><th style={thCell}>#</th>{cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}</tr></thead>
+          <tbody>{rows.map((row, i) => (<tr key={i}>
+            <td style={Object.assign({}, tdCell, { fontWeight: 500, whiteSpace: "nowrap" })}>{i + 1}</td>
+            {cols.map((c, ci) => <td key={c.key} style={tdCell}>{cellControl(f, String(i + 1), c, (row || {})[c.key], v => write(i, c.key, v))}
+              {removable && ci === cols.length - 1 && <div style={{ marginTop: 6 }}><Btn t={t} v="ghost" aria-label={tr("Row {0}", i + 1) + ", " + tr("Remove row")} onClick={() => put(rows.filter((r, j) => j !== i))} style={rowButton}>{tr("Remove row")}</Btn></div>}
+            </td>)}
+          </tr>))}
+          {rows.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>{tr("Nothing was added.")}</td></tr>}</tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        {full
+          ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("This table is full.")}</div>
+          : <Btn t={t} v="ghost" aria-label={f.label + ": " + tr("Add row")} onClick={() => put(rows.concat([{}]))} style={rowButton}>{tr("Add row")}</Btn>}
+      </div>
+    </>);
+  };
+  // The filer's sign-off: the stamp the API made, or Sign and the signature box.
+  const stampLine = (v) => {
+    if (!v || !v.at) return "";
+    const tz = clientConfig.company.timeZone;
+    const when = new Date(v.at);
+    return tr("Signed by {0} on {1} at {2}", v.name || tr("someone"),
+      when.toLocaleDateString(localeTag(), { timeZone: tz, month: "long", day: "numeric", year: "numeric" }),
+      when.toLocaleTimeString(localeTag(), { timeZone: tz, hour: "numeric", minute: "2-digit" }));
+  };
+  const signoff = (f) => {
+    const line = stampLine(values[f.key]);
+    if (line) return <div style={{ fontSize: 13, color: t.text, marginTop: 6 }}>{line}</div>;
+    return (<div style={{ marginTop: 6 }}>
+      {boxFor !== f.key && <Btn t={t} v="ghost" onClick={() => { setBoxFor(f.key); setSignErr(""); }} disabled={!!signingKey} style={{ minHeight: 44 }}>{tr("Sign")}</Btn>}
+      {boxFor === f.key && <SignatureBox t={t} label={f.label} busy={signingKey === f.key} refusal={signErr}
+        onSign={(png) => sign(f, png)} onCancel={() => { setBoxFor(null); setSignErr(""); }} />}
+    </div>);
+  };
+  const input = (f) => {
+    const kind = String(f.type || "");
+    if (FORM_TYPES_DRAWN.indexOf(kind) === -1) return <div style={helpSt}>{tr("This question cannot be answered here yet. Your supervisor will finish it.")}</div>;
+    if (kind === "grid") return formIsChecklist(f) ? checklist(f) : rowTable(f);
+    if (kind === "signoff") return signoff(f);
+    // A photo goes up on its own request and is never part of a save; what the API answers is what
+    // the question holds.
+    if (kind === "photos") return <PhotoQuestion t={t} token={token} af={af} responseId={current.id} field={Object.assign({}, f, { value: values[f.key] })} canWrite
+      onValue={(v) => setValues(prev => Object.assign({}, prev, { [f.key]: v }))} />;
+    return control(f, values[f.key], (next) => setVal(f.key, next), f.label);
+  };
+
+  const overlay = (children) => (<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 510, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: t.card, border: "1px solid " + t.border, borderRadius: 12, padding: 18, boxShadow: t.popShadow }}>{children}</div>
+  </div>);
+  // Closing asks only while something typed here is not saved yet; a window with nothing unsaved
+  // just closes, since the draft is already kept. Escape closes it the same way.
+  const askLeave = () => { if (!sent && Object.keys(dirty).length > 0) setConfirmLeave(true); else onLeave(); };
+  const askLeaveRef = useRef(askLeave);
+  askLeaveRef.current = askLeave;
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") askLeaveRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const formName = current.formName || (form && form.title) || tr("Untitled form");
+
+  return (<Mdl t={t} tall onClose={askLeave}>
+    <div data-form-window="" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: "1 1 0", minWidth: 0 }}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{formName}</div>
+            {!sent && sections.length > 0 && <div data-form-step="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{review ? tr("Review") : tr("Section {0} of {1}", at + 1, sections.length)}</div>}
+            {!sent && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{tr("{0} answered", answered)}</div>}
+          </div>
+          <button onClick={askLeave} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+        </div>
+      </div>
+
+      <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
+        {sent && (<div>
+          <div style={{ fontSize: 14, color: t.text, lineHeight: 1.55, marginBottom: 16 }}>{sent === "already" ? tr("This form was already sent.") : tr("Form sent. The people who handle these forms have been told.")}</div>
+          <Btn t={t} onClick={onLeave} style={footBtn}>{tr("Done")}</Btn>
+        </div>)}
+        {!sent && (review ? sendErr : saveErr) && <div data-form-refusal="" style={{ padding: "10px 12px", marginBottom: 16, borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, color: t.text, fontSize: 13, lineHeight: 1.5 }}>{review ? sendErr : saveErr}</div>}
+        {!sent && !form && <div style={{ fontSize: 13, color: t.textMut }}>{tr("This form could not be read. Close the window and try again.")}</div>}
+
+        {!sent && review && missing.length > 0 && (
+          <div style={{ padding: 14, marginBottom: 18, borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+            <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("These still need an answer")}</div>
+            <ul aria-label={tr("These still need an answer")} style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {missingNamed().map(m => {
+                const f = fieldByKey(m.key);
+                return <li key={m.key}><button onClick={() => editSection(f ? formSectionOf(f) : null)} style={{ width: "100%", minHeight: 44, marginBottom: 6, padding: "10px 12px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.card, color: t.text, fontSize: 13, cursor: "pointer", fontFamily: FONT_BODY }}>{m.rows.length > 0 ? m.label + ": " + m.rows.join(", ") : m.label}</button></li>;
+              })}
+            </ul>
+          </div>
+        )}
+        {!sent && review && sections.map((sk, i) => (
+          <div key={sk} style={{ marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <Lbl>{tr("Section {0}", i + 1)}</Lbl>
+              <div style={{ flex: 1 }} />
+              <Btn t={t} v="ghost" onClick={() => editSection(sk)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn>
+            </div>
+            {titled && formSectionText(form, sk, "title") && <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{formSectionText(form, sk, "title")}</div>}
+            {shown.filter(f => formSectionOf(f) === sk).map(f => {
+              const kind = String(f.type || "");
+              const read = kind === "signoff" ? stampLine(values[f.key]) : kind === "photos" ? (Array.isArray(values[f.key]) && values[f.key].length ? trn("{0} photo|count", values[f.key].length) : "") : formReadAnswer(f, values[f.key]);
+              return (<div key={f.key} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+                <div style={{ fontSize: 13, color: read ? t.text : t.textMut, fontStyle: read ? "normal" : "italic" }}>{read || tr(kind === "signoff" ? "Not signed" : "Not answered")}</div>
+              </div>);
+            })}
+          </div>
+        ))}
+
+        {!sent && !review && hereTitle && (
+          <div style={{ marginBottom: 16 }}>
+            <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{hereTitle}</div>
+            {hereHelp && <div style={helpSt}>{hereHelp}</div>}
+          </div>
+        )}
+        {!sent && !review && pageFields.map(f => (
+          <div key={f.key} data-question={f.key} style={{ marginBottom: 18 }}>
+            <div style={labelSt}>{f.label}{f.required && <span style={reqSt}>{tr("Required")}</span>}</div>
+            {f.help && <div style={helpSt}>{f.help}</div>}
+            <div style={{ marginTop: 6 }}>{input(f)}</div>
+            {badKeys.indexOf(f.key) !== -1 && <div style={errSt}>{tr("Check this answer")}</div>}
+          </div>
+        ))}
+      </div>
+
+      {!sent && <div style={{ display: "flex", gap: 8, padding: "12px 20px", borderTop: "1px solid " + t.border, flexShrink: 0, flexWrap: "wrap" }}>
+        {(review || at > 0) && <Btn t={t} v="ghost" onClick={goBack} disabled={saving || sending} style={footBtn}>{tr("Back|form")}</Btn>}
+        <div style={{ flex: 1 }} />
+        {!review && <Btn t={t} v="ghost" onClick={save} disabled={saving || Object.keys(dirty).length === 0} style={footBtn}>{saving ? tr("Saving...") : tr("Save")}</Btn>}
+        {review
+          ? <Btn t={t} onClick={() => setConfirmSend(true)} disabled={sending || missing.length > 0} style={footBtn}>{sending ? tr("Sending...") : tr("Send")}</Btn>
+          : <Btn t={t} onClick={goNext} disabled={saving} style={footBtn}>{saving ? tr("Saving...") : tr("Next")}</Btn>}
+      </div>}
+
+      {confirmSend && overlay(<>
+        <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16 }}>{tr("Send this form? You cannot change it after it is sent.")}</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Btn t={t} v="ghost" onClick={() => setConfirmSend(false)} style={footBtn}>{tr("Not yet")}</Btn>
+          <Btn t={t} onClick={submit} style={footBtn}>{tr("Send it")}</Btn>
+        </div>
+      </>)}
+      {confirmLeave && overlay(<>
+        <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16 }}>{tr("Leave this form? Your saved answers stay, and you can continue from Filed forms.")}</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Btn t={t} v="ghost" onClick={() => setConfirmLeave(false)} style={footBtn}>{tr("Keep filling")}</Btn>
+          <Btn t={t} onClick={leave} style={footBtn}>{tr("Leave")}</Btn>
+        </div>
+      </>)}
+    </div>
+  </Mdl>);
+}
+
+function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -8576,6 +9338,9 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
       setRows(prev => before ? [...prev, ...list] : list);
       setHasMore(list.length === IR_PAGE_SIZE);
       setError(null);
+      // The count on the tab: how many filings are unfinished, read off the unfinished list itself
+      // whenever it is loaded whole and unfiltered.
+      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(list.length);
     } catch (e) {
       if (!before) setRows([]);
       setError({ status: e && e.status, message: e.message || tr("Request failed") });
@@ -8583,18 +9348,76 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
     setLoading(false); setPaging(false);
   }, [af, query]);
   useEffect(() => { load(null); }, [load]);
+  // The count on the tab is read once when the tab opens, from the same list its Unfinished switch
+  // loads, so it is there before anyone switches, and again once a form window closes.
+  const counted = useRef(false);
+  const recount = useCallback(() => {
+    if (!onUnfinished) return;
+    af("/api/forms/responses?status=draft&limit=" + IR_PAGE_SIZE)
+      .then(d => onUnfinished(d && Array.isArray(d.responses) ? d.responses.length : 0))
+      .catch(e => { console.warn("Unfinished count:", e.message); });
+  }, [af, onUnfinished]);
+  useEffect(() => {
+    if (counted.current) return;
+    counted.current = true;
+    recount();
+  }, [recount]);
+
+  // Step 166: starting and continuing a form from here. The picker lists what the API lists, by
+  // title in the screen's language, read when it opens; a draft is resumed through the same routes
+  // the portal uses. Start a form is offered whenever the API lists a form this person may start.
+  const [picker, setPicker] = useState(null);
+  const [starting, setStarting] = useState("");
+  const [fill, setFill] = useState(null);
+  const [openError, setOpenError] = useState("");
+  const startable = forms.filter(formStartable);
+  const readCatalog = async () => { const d = await af("/api/forms"); return d && Array.isArray(d.forms) ? d.forms : []; };
+  const openPicker = async () => {
+    setPicker({ loading: true, forms: [], error: "" }); setOpenError("");
+    try { setPicker({ loading: false, forms: (await readCatalog()).filter(formStartable), error: "" }); }
+    catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
+  };
+  // The filing is marked as started from the dashboard by the source the API stores for it.
+  const startForm = async (f) => {
+    if (starting) return;
+    setStarting(f.code);
+    try {
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
+      setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
+    } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
+    setStarting("");
+  };
+  // A draft resumed from the list: the catalog in the screen's language and the draft itself, read
+  // together, and the window opened where the person left it.
+  const continueDraft = async (row) => {
+    if (starting) return;
+    setStarting(row.id); setOpenError("");
+    try {
+      const [list, r] = await Promise.all([readCatalog(), af("/api/forms/drafts/" + encodeURIComponent(row.id))]);
+      const draft = formDraftOf(r);
+      const form = list.find(f => String(f.code) === String(draft.formCode || row.formCode)) || null;
+      setFill({ form, draft });
+    } catch (e) { setOpenError(e.message || tr("Request failed")); }
+    setStarting("");
+  };
+  // A draft this person started, or one the list does not say whose it is. The API is the one that
+  // refuses a draft that is somebody else's.
+  const canContinue = (r) => !r.userId || !user || String(r.userId) === String(user.id);
+  const leaveFill = () => { setFill(null); load(null); recount(); };
 
   const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
 
+  // Where a filing came from, under its form name, when the API says.
+  const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}{r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: tr("Form"), render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: tr("Form"), render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
   ];
   const draftCols = [
     { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
-    { header: tr("Form"), render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: tr("Form"), render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Started by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
     { header: tr("Answered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => tr("{0} of {1}", Number(r.answered) || 0, (Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
@@ -8603,6 +9426,9 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
       const past = new Date(r.dueAt).getTime() < Date.now();
       return past ? <span style={{ color: RD, fontWeight: 600 }}>{tr("Past due {0}", irDay(r.dueAt))}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
     } },
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: r => (canContinue(r)
+      ? <Btn t={t} v="ghost" onClick={e => { e.stopPropagation(); continueDraft(r); }} disabled={!!starting} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{starting === r.id ? tr("Opening...") : tr("Continue")}</Btn>
+      : null) },
   ];
 
   const sw = (v, l) => (<button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (status === v ? GO : t.border), background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);
@@ -8612,13 +9438,33 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
       <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      {startable.length > 0 && <div style={{ marginLeft: "auto" }}><Btn t={t} onClick={openPicker} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Start a form")}</Btn></div>}
     </div>
+    {openError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{openError}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading reports...")}</div>}
     {!loading && error && error.status === 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{tr("Your account cannot read incident reports.")}</div>}
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
     {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} />}
+    {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
+        <button onClick={() => setPicker(null)} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      {picker.loading && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+      {picker.error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{picker.error}</div>}
+      {!picker.loading && !picker.error && picker.forms.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>{tr("No form to start.")}</div>}
+      <div role="list" aria-label={tr("Pick a form to start")}>
+        {picker.forms.map(f => (
+          <button key={f.code} role="listitem" onClick={() => startForm(f)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === f.code ? tr("Opening...") : formTitleName(f)}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+        <Btn t={t} v="ghost" onClick={() => setPicker(null)} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      </div>
+    </div></Mdl>)}
+    {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={leaveFill} />}
   </div>);
 }
 
@@ -8632,10 +9478,14 @@ const MISSING_COLS = ["Jotform Submission ID", "Submitted", "Submitter Name", "E
 const FAILURE_COLS = ["Submission ID", "Form", "Stage", "Reason", "Attempted", "Already Synced?", ""];
 const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added", "Added By", "Notes", ""];
 function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute }) {
-  // Everything on this page but the filed reports is the Jotform machinery, which is an admin's.
-  // Anyone else the API lets in lands on Filed forms and sees that tab alone.
+  // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
+  // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
+  // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
   const isAdmin = user?.role === "admin";
-  const [tab, setTab] = useState(() => (route[0] === "reports" || !isAdmin ? "incident_reports" : "library"));
+  const [tab, setTab] = useState("incident_reports");
+  const [jotSection, setJotSection] = useState("inbox");
+  // How many filings are unfinished, read by the Filed forms tab from the list it loads.
+  const [unfinishedCount, setUnfinishedCount] = useState(null);
   const [irOpenId, setIrOpenId] = useState(() => (route[0] === "reports" && route[1] ? route[1] : null));
   const [irOpenRow, setIrOpenRow] = useState(null);
   // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well. #forms alone
@@ -8667,7 +9517,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // Session 21 additions
   const [pdfAccessLog, setPdfAccessLog] = useState([]);
   const [pdfAccessTotal, setPdfAccessTotal] = useState(0);
-  const [pdfFilters, setPdfFilters] = useState({ access_type: "", success: "", date_start: "", date_end: "" });
+  const [pdfFilters, setPdfFilters] = useState({ access_type: "", success: "", date_start: "", date_end: "", source: "" });
   const [pdfOffset, setPdfOffset] = useState(0);
   const PDF_LIMIT = 50;
   const [diagnosticResult, setDiagnosticResult] = useState(null);
@@ -8785,6 +9635,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (pdfFilters.success) q.push("success=" + pdfFilters.success);
       if (pdfFilters.date_start) q.push("date_start=" + pdfFilters.date_start);
       if (pdfFilters.date_end) q.push("date_end=" + pdfFilters.date_end);
+      // Step 165: the log reads both kinds since the API's Step 163, and a source narrows it to one.
+      if (pdfFilters.source) q.push("source=" + pdfFilters.source);
       const d = await af("/api/jotform/pdf-access-log?" + q.join("&"));
       setPdfAccessLog(d.entries || []);
       setPdfAccessTotal(d.total || 0);
@@ -8970,21 +9822,26 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   }, [af, showToast, loadAliases]);
 
   useEffect(() => { if (isAdmin) loadConfig(); }, [loadConfig, isAdmin]);
-  useEffect(() => { if (tab === "library") loadForms(); }, [tab, libFilters]);
-  useEffect(() => { if (tab === "submissions") loadSubmissions(true); }, [tab, subFilters]);
+  // The three sections of the Jotform tab. Each loads what its screen loaded when it was a tab of
+  // its own, on the same calls; Maintenance is Settings, Sync Diagnostic and Aliases down one screen.
+  const inbox = tab === "jotform" && jotSection === "inbox";
+  const library = tab === "jotform" && jotSection === "forms";
+  const maintenance = tab === "jotform" && jotSection === "maintenance";
+  useEffect(() => { if (library) loadForms(); }, [library, libFilters]);
+  useEffect(() => { if (inbox) loadSubmissions(true); }, [inbox, subFilters]);
   useEffect(() => { if (tab === "pdf_access") loadPdfAccessLog(true); }, [tab, pdfFilters]);
-  useEffect(() => { if (tab === "settings") { loadConfig(); loadSyncLog(); } }, [tab]);
-  useEffect(() => { if (tab === "sync_diagnostic") { loadSyncDiagnostic(); loadFailures(); } }, [tab]);
-  // Session 27: Aliases tab loads on open. Also load users for the add-form dropdown
+  useEffect(() => { if (maintenance) { loadConfig(); loadSyncLog(); } }, [maintenance]);
+  useEffect(() => { if (maintenance) { loadSyncDiagnostic(); loadFailures(); } }, [maintenance]);
+  // Session 27: Aliases loads on open. Also load users for the add-form dropdown
   // if they haven't been fetched yet (mirrors the submission detail modal pattern).
   useEffect(() => {
-    if (tab === "aliases") {
+    if (maintenance) {
       loadAliases();
       if (usersForLinking.length === 0) {
         af("/api/jotform/users-for-linking").then(us => setUsersForLinking(us || [])).catch(() => {});
       }
     }
-  }, [tab]);
+  }, [maintenance]);
 
   const syncForms = async () => {
     if (!window.confirm(tr("Pull the latest forms from Jotform. Only forms whose title starts with 'OCSA Cleaning_' will be imported. Forms in the app that no longer match this prefix (including any Construction or MCFL forms) will be removed along with their submissions. Continue?"))) return;
@@ -9014,7 +9871,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       const d = await af("/api/jotform/submissions/sync", { method: "POST", body });
       showToast(tr("Synced {0} submissions ({1} new, {2} updated) across {3} form(s)", d.totalProcessed, d.totalCreated, d.totalUpdated, d.formsScanned));
       loadConfig(); loadForms();
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Sync failed: {0}", e.message), "error"); }
     setSyncingSubs(false);
   };
@@ -9026,7 +9883,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       const d = await af("/api/jotform/submissions/sync", { method: "POST", body: { full_refresh: true } });
       showToast(tr("Full refresh complete. Processed {0} submissions ({1} new, {2} updated) across {3} form(s)", d.totalProcessed, d.totalCreated, d.totalUpdated, d.formsScanned));
       loadConfig(); loadForms(); loadSyncLog();
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Full refresh failed: {0}", e.message), "error"); }
     setSyncingSubs(false);
   };
@@ -9051,7 +9908,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (s.queued_retry) parts.push(tr("Queued retry: {0}", s.queued_retry));
       if (s.unmatched) parts.push(tr("Unmatched: {0}", s.unmatched));
       showToast(parts.join(" "));
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Backfill failed: {0}", e.message), "error"); }
     setBackfillingPdfs(false);
   };
@@ -9089,7 +9946,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         tr("Errors: {0}", s.error || 0),
       ];
       showToast(parts.join(" "));
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Bulk upload failed: {0}", e.message), "error"); }
     setBulkUploading(false);
   };
@@ -9142,7 +9999,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         if (tierParts.length) parts.push(tr("(via {0})", tierParts.join(", ")));
       }
       showToast(parts.join(" "));
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Auto-link failed: {0}", e.message), "error"); }
     setAutoLinking(false);
   };
@@ -9302,7 +10159,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // A submission's status, an access event's kind and an alias's kind are drawn as the table's words
   // for their codes; a code the table does not know is drawn as it came.
   const statusWord = { new: tr("New|submission"), reviewed: tr("Reviewed"), linked: tr("Linked"), archived: tr("Archived") };
-  const accessWord = { view: tr("View"), download: tr("Download"), print: tr("Print") };
+  const accessWord = { view: tr("View"), download: tr("Download"), print: tr("Print"), email: tr("Email") };
+  // Where a PDF access row came from, drawn only when the API says: an app form's row names its
+  // form and the person the way a Jotform row names its submission and its submitter.
+  const sourceWord = (code) => (code === "app" ? tr("App form") : code === "jotform" ? tr("Jotform") : String(code));
   const aliasKindWord = { name: tr("name"), email: tr("email") };
   const statusBadge = (status) => {
     const colors = { new: BL, reviewed: t.textMut, linked: GR, archived: t.textMut };
@@ -9311,63 +10171,74 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // The kind of record a submission is linked to, as the table's word for its code.
   const entityWord = (code) => { const hit = ENTITY_TYPE_OPTS.find(o => o.v === code); return hit ? hit.l : String(code || "").replace(/_/g, " "); };
 
+  // Step 165: three tabs. Filed forms first and the default for everyone, with the count of unfinished
+  // filings the tab reads; Jotform, one tab holding Inbox, Forms and Maintenance, switched inside it;
+  // and the PDF access log, which reads both kinds since the API's Step 163.
   const TABS = [
-    { id: "library", l: tr("Form Library"), adminOnly: true },
-    { id: "submissions", l: tr("Submissions"), adminOnly: true },
-    { id: "pdf_access", l: tr("PDF Access Log"), adminOnly: true },
-    { id: "settings", l: tr("Settings"), adminOnly: true },
-    { id: "sync_diagnostic", l: tr("Sync Diagnostic"), adminOnly: true },
-    { id: "aliases", l: tr("Aliases"), adminOnly: true },
-    // The tab holds every filed form the API lists, whatever kind of form it is.
-    { id: "incident_reports", l: tr("Filed forms"), adminOnly: false },
+    { id: "incident_reports", l: unfinishedCount > 0 ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
+    { id: "jotform", l: tr("Jotform"), adminOnly: true },
+    { id: "pdf_access", l: tr("PDF access log"), adminOnly: true },
   ];
   const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
+  const SECTIONS = [
+    { id: "inbox", l: tr("Inbox") },
+    { id: "forms", l: tr("Forms") },
+    { id: "maintenance", l: tr("Maintenance") },
+  ];
+  const panelHead = { fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, margin: "18px 0 10px" };
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <SecT t={t}>{isAdmin ? tr("Forms & Jotform Integration") : tr("Filed forms")}</SecT>
-
-      {/* PII WARNING BANNER */}
-      {isAdmin && <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
-        <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
-      </div>}
+      <SecT t={t}>{tr("Forms")}</SecT>
 
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         {tabs.map(tb => (
           <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          {tab === "library" && <Btn t={t} v="ghost" onClick={syncForms} disabled={syncingForms} style={{ fontSize: 12, padding: "8px 14px" }}>{syncingForms ? tr("Syncing...") : tr("Sync Forms from Jotform")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={() => syncSubmissions(null)} disabled={syncingSubs} style={{ fontSize: 12, padding: "8px 14px" }}>{syncingSubs ? tr("Syncing...") : tr("Sync All Submissions")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={runAutoLink} disabled={autoLinking} style={{ fontSize: 12, padding: "8px 14px" }}>{autoLinking ? tr("Linking...") : tr("Re-run Auto-Link")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={runPdfBackfill} disabled={backfillingPdfs} style={{ fontSize: 12, padding: "8px 14px" }}>{backfillingPdfs ? tr("Backfilling...") : tr("Run PDF Backfill")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={handleBulkUploadClick} disabled={bulkUploading} style={{ fontSize: 12, padding: "8px 14px" }}>{bulkUploading ? tr("Uploading...") : tr("Bulk Upload PDFs")}</Btn>}
-        </div>
       </div>
 
-      {/* CONFIG STATUS STRIP */}
-      {isAdmin && config && (
-        <Crd t={t} style={{ marginBottom: 14, padding: 12 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", fontSize: 12 }}>
-            <div><span style={{ color: t.textMut }}>{tr("Key:")} </span>{config.hasKey ? (config.keyValid ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Valid|key")}</span> : <span style={{ color: RD, fontWeight: 600 }}>{tr("Invalid|key")}</span>) : <span style={{ color: RD, fontWeight: 600 }}>{tr("Not set|key")}</span>}</div>
-            {config.apiUserInfo && <div><span style={{ color: t.textMut }}>{tr("Jotform:")} </span><span style={{ color: t.text }}>{config.apiUserInfo.email}</span></div>}
-            <div><span style={{ color: t.textMut }}>{tr("Forms:")} </span><span style={{ color: t.text }}>{config.formsCount}</span> {tr("({0} enabled)", config.enabledCount)}</div>
-            <div><span style={{ color: t.textMut }}>{tr("Submissions:")} </span><span style={{ color: t.text }}>{config.submissionsCount}</span> {tr("({0} new)", config.newSubmissionsCount)}</div>
-            <div><span style={{ color: t.textMut }}>{tr("Last Sync:")} </span><span style={{ color: t.text }}>{fmtDT(config.lastFormSync)}</span></div>
+      {tab === "jotform" && (<>
+        {/* PII WARNING BANNER */}
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
+          <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
+        </div>
+
+        {/* THE SECTION SWITCH, with the buttons of the section that is open beside it */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+          {SECTIONS.map(sec => (
+            <button key={sec.id} onClick={() => setJotSection(sec.id)} aria-pressed={jotSection === sec.id} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (jotSection === sec.id ? GO : t.border), background: jotSection === sec.id ? t.goldBg : "transparent", color: jotSection === sec.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{sec.l}</button>
+          ))}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {inbox && <Btn t={t} v="ghost" onClick={runAutoLink} disabled={autoLinking} style={{ fontSize: 12, padding: "8px 14px" }}>{autoLinking ? tr("Linking...") : tr("Re-run Auto-Link")}</Btn>}
+            {inbox && <Btn t={t} v="ghost" onClick={runPdfBackfill} disabled={backfillingPdfs} style={{ fontSize: 12, padding: "8px 14px" }}>{backfillingPdfs ? tr("Backfilling...") : tr("Run PDF Backfill")}</Btn>}
+            {inbox && <Btn t={t} v="ghost" onClick={handleBulkUploadClick} disabled={bulkUploading} style={{ fontSize: 12, padding: "8px 14px" }}>{bulkUploading ? tr("Uploading...") : tr("Bulk Upload PDFs")}</Btn>}
           </div>
-        </Crd>
-      )}
+        </div>
 
-      {config && !config.hasKey && (
-        <Crd t={t} style={{ marginBottom: 14, padding: 14, borderLeft: "3px solid " + RD }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("JOTFORM_API_KEY not configured")}</div>
-          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Add the environment variable JOTFORM_API_KEY in Railway, then reload this page. Generate a Full Access key from jotform.com under Settings then API.")}</div>
-        </Crd>
-      )}
+        {/* CONFIG STATUS STRIP */}
+        {config && (
+          <Crd t={t} style={{ marginBottom: 14, padding: 12 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", fontSize: 12 }}>
+              <div><span style={{ color: t.textMut }}>{tr("Key:")} </span>{config.hasKey ? (config.keyValid ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Valid|key")}</span> : <span style={{ color: RD, fontWeight: 600 }}>{tr("Invalid|key")}</span>) : <span style={{ color: RD, fontWeight: 600 }}>{tr("Not set|key")}</span>}</div>
+              {config.apiUserInfo && <div><span style={{ color: t.textMut }}>{tr("Jotform:")} </span><span style={{ color: t.text }}>{config.apiUserInfo.email}</span></div>}
+              <div><span style={{ color: t.textMut }}>{tr("Forms:")} </span><span style={{ color: t.text }}>{config.formsCount}</span> {tr("({0} enabled)", config.enabledCount)}</div>
+              <div><span style={{ color: t.textMut }}>{tr("Submissions:")} </span><span style={{ color: t.text }}>{config.submissionsCount}</span> {tr("({0} new)", config.newSubmissionsCount)}</div>
+              <div><span style={{ color: t.textMut }}>{tr("Last Sync:")} </span><span style={{ color: t.text }}>{fmtDT(config.lastFormSync)}</span></div>
+            </div>
+          </Crd>
+        )}
 
-      {/* ================ LIBRARY TAB ================ */}
-      {tab === "library" && (
+        {config && !config.hasKey && (
+          <Crd t={t} style={{ marginBottom: 14, padding: 14, borderLeft: "3px solid " + RD }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("JOTFORM_API_KEY not configured")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Add the environment variable JOTFORM_API_KEY in Railway, then reload this page. Generate a Full Access key from jotform.com under Settings then API.")}</div>
+          </Crd>
+        )}
+      </>)}
+
+      {/* ================ JOTFORM, FORMS (the Form Library) ================ */}
+      {library && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 200 }}>
@@ -9405,13 +10276,13 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Click \"Sync Forms from Jotform\" to pull your account's forms.")}</div>}
+            {forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Press Sync Form Catalog under Maintenance to pull your account's forms.")}</div>}
           </div>
         </div>
       )}
 
-      {/* ================ SUBMISSIONS TAB ================ */}
-      {tab === "submissions" && (
+      {/* ================ JOTFORM, INBOX (the Submissions) ================ */}
+      {inbox && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 220 }}>
@@ -9450,7 +10321,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Click \"Sync All Submissions\" above to pull the latest.")}</div>}
+            {submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Press Sync All Submissions under Maintenance to pull the latest.")}</div>}
           </div>
 
           {submissionsTotal > submissions.length && (
@@ -9461,16 +10332,19 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ PDF ACCESS LOG TAB (Session 21) ================ */}
+      {/* ================ PDF ACCESS LOG TAB (Session 21, both kinds since Step 165) ================ */}
       {tab === "pdf_access" && (
         <div>
           <div style={{ padding: "10px 14px", borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14, lineHeight: 1.5 }}>
-            <strong>{tr("Proof of who opened each PDF.")}</strong> {tr("Every view, download, and print of an original Jotform PDF is recorded here with user, timestamp, IP, and success status. This log is append-only and survives submission deletion via text snapshots.")}
+            <strong>{tr("Proof of who opened or was sent each PDF.")}</strong> {tr("Every view, download, print and email of a form's PDF, from Jotform or from the app, is recorded here with the person, the time, the address it came from and whether it succeeded. This log is append-only and survives a submission's deletion through text snapshots.")}
           </div>
 
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 160 }}>
-              <Sel options={[{ v: "", l: tr("All actions") }, { v: "view", l: tr("View") }, { v: "download", l: tr("Download") }, { v: "print", l: tr("Print") }]} value={pdfFilters.access_type} onChange={e => setPdfFilters({ ...pdfFilters, access_type: e.target.value })} t={t} />
+              <Sel aria-label={tr("Source|pdf")} options={[{ v: "", l: tr("All|sources") }, { v: "jotform", l: tr("Jotform") }, { v: "app", l: tr("App forms") }]} value={pdfFilters.source} onChange={e => setPdfFilters({ ...pdfFilters, source: e.target.value })} t={t} />
+            </div>
+            <div style={{ minWidth: 160 }}>
+              <Sel options={[{ v: "", l: tr("All actions") }, { v: "view", l: tr("View") }, { v: "download", l: tr("Download") }, { v: "print", l: tr("Print") }, { v: "email", l: tr("Email") }]} value={pdfFilters.access_type} onChange={e => setPdfFilters({ ...pdfFilters, access_type: e.target.value })} t={t} />
             </div>
             <div style={{ minWidth: 160 }}>
               <Sel options={[{ v: "", l: tr("Any result") }, { v: "true", l: tr("Success only") }, { v: "false", l: tr("Failed only") }]} value={pdfFilters.success} onChange={e => setPdfFilters({ ...pdfFilters, success: e.target.value })} t={t} />
@@ -9489,9 +10363,9 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 <tr key={e.id} style={{ borderBottom: "1px solid " + t.border }}>
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{fmtDT(e.accessed_at)}</td>
                   <td style={{ padding: "10px 12px", color: t.text, fontSize: 12 }}>{e.first_name ? (e.first_name + " " + e.last_name) : <span style={{ color: t.textMut, fontStyle: "italic" }}>{tr("deleted user")}</span>}<div style={{ fontSize: 10, color: t.textMut }}>{e.user_email || ""}</div></td>
-                  <td style={{ padding: "10px 12px" }}><Bdg l={accessWord[e.access_type] || e.access_type} c={e.access_type === "view" ? BL : e.access_type === "download" ? GO : TL} /></td>
-                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.form_title || <span style={{ color: t.textMut, fontFamily: "monospace", fontSize: 10 }}>{e.jotform_form_id}</span>}</td>
-                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.submitter_name || <span style={{ color: t.textMut }}>--</span>}</td>
+                  <td style={{ padding: "10px 12px" }}><Bdg l={accessWord[e.access_type] || e.access_type} c={e.access_type === "view" ? BL : e.access_type === "download" ? GO : e.access_type === "email" ? OR : TL} /></td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.form_title || <span style={{ color: t.textMut, fontFamily: "monospace", fontSize: 10 }}>{e.jotform_form_id}</span>}{e.source ? <div style={{ fontSize: 10, color: t.textMut }}>{sourceWord(e.source)}</div> : null}</td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.submitter_name || e.person_name || <span style={{ color: t.textMut }}>--</span>}</td>
                   <td style={{ padding: "10px 12px" }}>{e.success ? <Bdg l={tr("success")} c={GR} /> : <Bdg l={tr("failed")} c={RD} />}{!e.success && e.error_message && <div style={{ fontSize: 10, color: RD, marginTop: 2, maxWidth: 280 }}>{e.error_message}</div>}</td>
                   <td style={{ padding: "10px 12px", color: t.textMut, fontSize: 11, fontFamily: "monospace" }}>{e.ip_address || "--"}</td>
                 </tr>
@@ -9508,9 +10382,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ SETTINGS TAB ================ */}
-      {tab === "settings" && (
+      {/* ================ JOTFORM, MAINTENANCE: SETTINGS ================ */}
+      {maintenance && (
         <div>
+          <div style={Object.assign({}, panelHead, { marginTop: 0 })}>{tr("Settings")}</div>
           <Crd t={t} style={{ marginBottom: 14, padding: 16 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("API Connection")}</div>
             {config && (
@@ -9626,9 +10501,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ SYNC DIAGNOSTIC TAB (Session 26) ================ */}
-      {tab === "sync_diagnostic" && (
+      {/* ================ JOTFORM, MAINTENANCE: SYNC DIAGNOSTIC (Session 26) ================ */}
+      {maintenance && (
         <div>
+          <div style={panelHead}>{tr("Sync Diagnostic")}</div>
           {/* HEADER WITH REFRESH BUTTON AND TIMESTAMP */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: t.textMut }}>
@@ -9826,11 +10702,13 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ SESSION 27: ALIASES TAB ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {/* ================ FILED FORMS ================ */}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
-      {tab === "aliases" && (
+      {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
+      {maintenance && (
         <div>
+          <div style={panelHead}>{tr("Aliases")}</div>
           {/* HEADER */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: t.textMut }}>

@@ -210,12 +210,16 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
   }
 
   // ---- Sign ------------------------------------------------------------
+  // Since Step 165 Sign opens the signature box, and the request goes once something is drawn in it
+  // and the box's own Sign is pressed.
   {
     stubs.reset();
     await d.reload();
     await openLog(d);
     const mark = d.mark();
-    const pressed = await d.clickText("Sign", { inModal: true, exact: true });
+    const opened = await d.clickText("Sign", { inModal: true, exact: true });
+    await d.drawSignature();
+    const pressed = opened && await d.clickText("Sign", { inModal: true, exact: true });
     await d.settle(600);
     const sent = d.callsSince(mark).filter((c) => c.method === "POST" && /\/signoff$/.test(c.path));
     const text = await d.modalText();
@@ -238,7 +242,9 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     stubs.setDelay("/signoff", 1200);
     await openLog(d);
     await d.clickText("Sign", { inModal: true, exact: true });
-    await d.settle(250);
+    await d.drawSignature();
+    await d.clickText("Sign", { inModal: true, exact: true, settle: 0 });
+    await d.page.waitForTimeout(250);
     const mid = await d.modalText();
     check("filed-forms/sign-waits-for-the-answer",
       mid.indexOf(REVIEW_STAMP) < 0 && /Signing/i.test(mid),
@@ -252,6 +258,8 @@ async function run({ d, results, inventory, stubs, width, theme, textSize }) {
     await d.reload();
     stubs.setDelay("/signoff", 900);
     await openLog(d);
+    await d.clickText("Sign", { inModal: true, exact: true });
+    await d.drawSignature();
     const mark = d.mark();
     const clicks = await d.page.evaluate(() => {
       const b = Array.from(document.querySelectorAll("button")).find((x) => (x.innerText || "").trim() === "Sign");

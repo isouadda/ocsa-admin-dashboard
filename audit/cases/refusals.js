@@ -34,8 +34,12 @@ const openLog = async (d) => {
   await d.clickText("Filed forms", { exact: false });
   return d.clickRow(1);
 };
+// Since Step 165 Sign opens the signature box; the request goes once something is drawn and the
+// box's own Sign is pressed.
 const openLogAndSign = async (d) => {
   await openLog(d);
+  await d.clickText("Sign", { inModal: true, exact: true });
+  await d.drawSignature();
   return d.clickText("Sign", { inModal: true, exact: true });
 };
 const openLogAndSave = async (d) => {
@@ -169,6 +173,13 @@ const REFUSALS = {
   },
   "refusals/signoff-already-signed": {
     status: 409, error: "This part is already signed",
+    arm: { method: "POST", path: "/signoff" },
+    act: openLogAndSign,
+    whereShown: "window",
+    staysOpen: true,
+  },
+  "refusals/signoff-signature-required": {
+    status: 400, code: "forms.signatureRequired", error: "Draw your signature before you sign",
     arm: { method: "POST", path: "/signoff" },
     act: openLogAndSign,
     whereShown: "window",

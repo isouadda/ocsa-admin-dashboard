@@ -218,7 +218,8 @@ const PRINTS = {
   },
   "exports/submission-pdf-print": {
     act: async (d) => {
-      await d.goto("forms"); await d.clickText("Submissions", { exact: true });
+      // Since Step 165 the submissions are the Inbox of the Jotform tab.
+      await d.goto("forms"); await d.clickText("Jotform", { exact: true }); await d.clickText("Inbox", { exact: true });
       await d.clickText("View", { exact: true });
       return d.clickText("Print", { inModal: true, exact: false });
     },

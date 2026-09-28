@@ -24,7 +24,7 @@ const PAGES = [
   { id: "schedule", label: "Schedule", expect: "Week", gated: false },
   { id: "marketplace", label: "Shift Pickup", expect: "Shift Pickup Board", gated: false },
   { id: "reports", label: "Reports", expect: "Reports", gated: false },
-  { id: "forms", label: "Forms", expect: "Form Library", gated: true },
+  { id: "forms", label: "Forms", expect: "Jotform", gated: true },
   { id: "settings", label: "Settings", expect: "Company", gated: true },
   { id: "chat", label: "Messages", expect: "Private conversations", gated: false },
   { id: "help", label: "Help", expect: "Help", gated: false },
@@ -68,14 +68,20 @@ const VIEWS = [
   { id: "settings/permissions-matrix", page: "settings", click: ["Roles and Permissions", "Role reference"], expect: "Access each role has in the platform today" },
   { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told", adminOnly: true },
 
-  // The six Jotform tabs are an admin's; a supervisor the filed list lets in sees Filed forms alone.
-  { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report", adminOnly: true },
-  { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Sync All Submissions", adminOnly: true },
-  { id: "forms/pdf_access", page: "forms", click: "PDF Access Log", expect: "access", adminOnly: true },
-  { id: "forms/settings", page: "forms", click: "Settings", expect: "Jotform", adminOnly: true },
-  { id: "forms/sync_diagnostic", page: "forms", click: "Sync Diagnostic", expect: "Diagnostic", adminOnly: true },
-  { id: "forms/aliases", page: "forms", click: "Aliases", expect: "Alias", adminOnly: true },
+  // Since Step 165 the page opens on Filed forms for everyone. The Jotform tab and the PDF access
+  // log are an admin's; a supervisor the filed list lets in sees Filed forms alone. Inside the
+  // Jotform tab, Inbox is the old Submissions, Forms the old Form Library, and Maintenance holds the
+  // old Settings, Sync Diagnostic and Aliases down one screen, so each of the seven views counted
+  // before is still counted. The section named Forms is pressed by its exact word, since the Filed
+  // forms tab carries the word too.
   { id: "forms/incident_reports", page: "forms", click: "Filed forms", expect: "report" },
+  { id: "forms/jotform", page: "forms", click: "Jotform", expect: "Inbox", adminOnly: true },
+  { id: "forms/jotform/inbox", page: "forms", click: ["Jotform", "Inbox"], expect: "Re-run Auto-Link", adminOnly: true },
+  { id: "forms/jotform/forms", page: "forms", click: ["Jotform", "Forms"], exact: true, expect: "Incident report", adminOnly: true },
+  { id: "forms/jotform/maintenance", page: "forms", click: ["Jotform", "Maintenance"], expect: "API Connection", adminOnly: true },
+  { id: "forms/jotform/maintenance/diagnostic", page: "forms", click: ["Jotform", "Maintenance"], expect: "Diagnostic", adminOnly: true },
+  { id: "forms/jotform/maintenance/aliases", page: "forms", click: ["Jotform", "Maintenance"], expect: "Alias", adminOnly: true },
+  { id: "forms/pdf_access", page: "forms", click: "PDF access log", expect: "access", adminOnly: true },
 
   { id: "hr/employees", page: "hr", click: "Employees", expect: "Employees" },
   { id: "hr/documents", page: "hr", click: "Documents", expect: "Document" },
@@ -116,80 +122,83 @@ const VIEWS = [
 // Two entries carry two lines because the app renders one window from two places.
 // ---------------------------------------------------------------------------
 const WINDOWS = [
-  { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1511] },
-  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1512] },
-  { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1566] },
-  { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1572] },
-  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1579] },
-  { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1629] },
-  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1638] },
+  { id: "staff/timeline-loading", page: "staff", title: "Loading record details", lines: [1522] },
+  { id: "staff/timeline-detail", page: "staff", title: "Record Detail", lines: [1523] },
+  { id: "staff/reset-pin", page: "staff", title: "Reset PIN", lines: [1577] },
+  { id: "staff/assign-site", page: "staff", title: "Assign to Site", lines: [1583] },
+  { id: "staff/add-cert", page: "staff", title: "Add Certification", lines: [1590] },
+  { id: "staff/add", page: "staff", title: "Add New Staff", lines: [1640] },
+  { id: "staff/edit", page: "staff", title: "Edit Staff Info", lines: [1649] },
 
-  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [2224] },
-  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [2321] },
-  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [2358] },
-  { id: "sites/add-task", page: "sites", title: "Add Task", lines: [2380] },
-  { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [2394] },
-  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2410] },
-  { id: "sites/add", page: "sites", title: "Add Site", lines: [2452] },
+  { id: "sites/add-supply", page: "sites", title: "Add Supply to Site", lines: [2235] },
+  { id: "sites/timeline-detail", page: "sites", title: "Record Detail", lines: [2332] },
+  { id: "sites/edit", page: "sites", title: "Edit Site Details", lines: [2369] },
+  { id: "sites/add-task", page: "sites", title: "Add Task", lines: [2391] },
+  { id: "sites/edit-task", page: "sites", title: "Edit Task", lines: [2405] },
+  { id: "sites/delete-confirm", page: "sites", title: "Permanently Delete Site", lines: [2421] },
+  { id: "sites/add", page: "sites", title: "Add Site", lines: [2463] },
 
-  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2527] },
-  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2552] },
+  { id: "issues/detail", page: "issues", title: "Issue Detail", lines: [2538] },
+  { id: "issues/assign-task", page: "issues", title: "Assign Issue as Task", lines: [2563] },
 
-  { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2596] },
-  { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2597] },
-  { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [2598] },
+  { id: "supplies/add", page: "supplies", title: "Add Supply", lines: [2607] },
+  { id: "supplies/edit", page: "supplies", title: "Edit Supply", lines: [2608] },
+  { id: "supplies/handle-request", page: "supplies", title: "Request", lines: [2609] },
 
-  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [4371] },
-  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [4396] },
-  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [4403] },
+  { id: "assigned/detail", page: "assigned", title: "Task detail", lines: [4382] },
+  { id: "assigned/reassign", page: "assigned", title: "Reassign", lines: [4407] },
+  { id: "assigned/create", page: "assigned", title: "Create Assigned Task", lines: [4414] },
 
-  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [4547] },
-  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [4555] },
-  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [4611] },
-  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [4619] },
-  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [4634] },
+  { id: "vendors/add", page: "vendors", title: "Add Vendor", lines: [4558] },
+  { id: "vendors/detail", page: "vendors", title: "Tallow Ridge Supply", lines: [4566] },
+  { id: "vendors/edit", page: "vendors", title: "Edit Vendor", lines: [4622] },
+  { id: "vendors/add-eval", page: "vendors", title: "Evaluation", lines: [4630] },
+  { id: "vendors/link-supply", page: "vendors", title: "Link Supply", lines: [4645] },
 
-  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4749] },
-  { id: "services/add", page: "services", title: "Add Service", lines: [4803] },
-  { id: "services/edit", page: "services", title: "Edit Service", lines: [4811] },
-  { id: "services/link-site", page: "services", title: "Link Site", lines: [4819] },
+  { id: "services/detail", page: "services", title: "Daily janitorial", lines: [4760] },
+  { id: "services/add", page: "services", title: "Add Service", lines: [4814] },
+  { id: "services/edit", page: "services", title: "Edit Service", lines: [4822] },
+  { id: "services/link-site", page: "services", title: "Link Site", lines: [4830] },
 
-  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4918] },
-  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [5102] },
-  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5596] },
-  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5655] },
-  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5697] },
-  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5713] },
-  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5729] },
+  { id: "schedule/pattern-window", page: "schedule", title: "Weekly pattern", lines: [4929] },
+  { id: "schedule/time-off-window", page: "schedule", title: "Time off request", lines: [5113] },
+  { id: "schedule/create-shift", page: "schedule", title: "Schedule Shift", lines: [5607] },
+  { id: "schedule/edit-shift", page: "schedule", title: "Edit Scheduled Shift", lines: [5666] },
+  { id: "schedule/started-detail", page: "schedule", title: "Started Shift", lines: [5708] },
+  { id: "schedule/inspection-detail", page: "schedule", title: "Inspection Details", lines: [5724] },
+  { id: "schedule/pickup-detail", page: "schedule", title: "Shift Drop Request", lines: [5740] },
 
-  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [6336] },
-  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [6367] },
-  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [6399] },
+  { id: "marketplace/create", page: "marketplace", title: "Post Open Shift", lines: [6347] },
+  { id: "marketplace/convert", page: "marketplace", title: "Convert", lines: [6378] },
+  { id: "marketplace/shift-detail", page: "marketplace", title: "Shift Details", lines: [6410] },
 
   // One window, rendered from the template detail view and again from the tab view.
-  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6902, 7238] },
-  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7230] },
-  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7249] },
+  { id: "inspections/edit-scheduled", page: "inspections", title: "Edit Scheduled Inspection", lines: [6913, 7249] },
+  { id: "inspections/new-template", page: "inspections", title: "New Inspection Template", lines: [7241] },
+  { id: "inspections/schedule", page: "inspections", title: "Schedule Inspection", lines: [7260] },
 
-  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7975] },
-  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7983] },
-  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [7991] },
-  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [8005] },
-  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8019] },
-  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8030] },
+  { id: "settings/add-category", page: "settings", title: "Add Category", lines: [7986] },
+  { id: "settings/edit-category", page: "settings", title: "Edit Category", lines: [7994] },
+  { id: "settings/add-value", page: "settings", title: "Add Value to", lines: [8002] },
+  { id: "settings/edit-value", page: "settings", title: "Edit Value", lines: [8016] },
+  { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8030] },
+  { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8041] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8479] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [9984] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10037] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10152] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10189] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8760] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10862] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10915] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11030] },
+  // Step 166: the picker Start a form opens, and the window a form is filled in.
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9450] },
+  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [9210] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [11067] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [10792] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [11670] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11301] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11323] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11357] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11598] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [12179] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [12201] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12235] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12476] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -315,6 +324,7 @@ const REFUSALS = [
   { id: "refusals/signoff-not-filed-yet", status: 409, error: "The supervisor section opens once the report is filed" },
   { id: "refusals/signoff-voided", status: 409, error: "This report was voided" },
   { id: "refusals/signoff-already-signed", status: 409, error: "This part is already signed" },
+  { id: "refusals/signoff-signature-required", status: 400, error: "Draw your signature before you sign" },
   { id: "refusals/supervisor-not-found", status: 404, error: "Report not found" },
   { id: "refusals/supervisor-not-filed-yet", status: 409, error: "The supervisor section opens once the report is filed" },
   { id: "refusals/supervisor-voided", status: 409, error: "This report was voided" },
@@ -585,4 +595,59 @@ const FILED_FORM_STATES = [
   { id: "filed-forms/the-filter-names-the-batch-two-forms", name: "The filter names the five batch two forms by the table's word" },
 ];
 
-module.exports = { PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, TRAINING_ROOM, PICKERS };
+// ---------------------------------------------------------------------------
+// Step 165: photos on a filed form, and the signature box. Each is driven in English and in
+// Spanish, since the refusals under a question and the words in the box come from the table.
+// ---------------------------------------------------------------------------
+const FILED_PHOTO_STATES = [
+  { id: "filed-photos/thumbnails-are-drawn", name: "A photos question draws one thumbnail per photo with its name under it" },
+  { id: "filed-photos/no-photos-reads-so", name: "A photos question with nothing on it reads No photos" },
+  { id: "filed-photos/the-overlay-opens", name: "A tap on a thumbnail opens the full image in the window's own overlay with Close" },
+  { id: "filed-photos/the-overlay-closes", name: "Close puts the overlay away and leaves the window open" },
+  { id: "filed-photos/a-writer-is-offered-add-photos", name: "A writer of the supervisor half is offered Add photos on its photos question and nothing on the filed half's" },
+  { id: "filed-photos/a-writer-uploads", name: "Picking two photos sends one multipart request and draws the two the API answered" },
+  { id: "filed-photos/uploading-reads-so", name: "While the upload is in flight the button reads Uploading..." },
+  { id: "filed-photos/the-full-line", name: "At maxPhotos the line This question is full. stands where Add photos was" },
+  { id: "filed-photos/a-writer-removes", name: "Remove photo sends one request with the photo's id and draws what the API answered" },
+  { id: "filed-photos/a-non-writer-sees-no-add-photos", name: "A person who may not write the supervisor half sees the thumbnails and no Add photos or Remove photo" },
+  { id: "filed-photos/the-controls-fit", name: "Every control on a photos question is at least 44 by 44 and the window does not run off the side" },
+  { id: "filed-photos/refusal/forms.photosFull", name: "The refusal forms.photosFull is drawn under the question in the table's words" },
+  { id: "filed-photos/refusal/forms.photoTooLarge", name: "The refusal forms.photoTooLarge is drawn under the question in the table's words" },
+  { id: "filed-photos/refusal/forms.notAPhoto", name: "The refusal forms.notAPhoto is drawn under the question in the table's words" },
+  { id: "filed-photos/refusal/forms.photosForbidden", name: "The refusal forms.photosForbidden is drawn under the question in the table's words" },
+  { id: "filed-photos/refusal/forms.photoNotFound", name: "The refusal forms.photoNotFound is drawn under the question in the table's words on a removal" },
+  { id: "filed-photos/refusal/unknown-code", name: "A refusal with a code the table does not know is drawn in the API's own words" },
+  { id: "filed-signature/the-box-is-drawn", name: "Sign opens the box: the sign-off's label, a white canvas, the baseline, the hint, Clear and a Sign that is off" },
+  { id: "filed-signature/refused-empty", name: "With nothing drawn Sign cannot be pressed and no request goes" },
+  { id: "filed-signature/a-path-turns-sign-on", name: "A pointer path in the box turns Sign on, and Clear turns it off again" },
+  { id: "filed-signature/accepted-with-a-pointer-path", name: "Sign sends the key and the drawing as a PNG data URL under 300 KB, and the stamp is drawn after the answer" },
+  { id: "filed-signature/the-stamp-image-is-drawn", name: "A stamp that carries a signature draws its image about 48 pixels high above Signed by" },
+  { id: "filed-signature/a-stamp-without-one-draws-nothing", name: "A stamp with no signature draws no image" },
+  { id: "filed-signature/the-api-refusal-is-in-the-box", name: "A refused signature is drawn in the box in the API's own words, with the box still open" },
+  { id: "filed-signature/the-box-fits-a-phone", name: "At 390 the canvas takes the whole width and every control in the box is 44 by 44" },
+];
+
+// ---------------------------------------------------------------------------
+// Step 166: starting and filing a form from the dashboard, in English and in Spanish.
+// ---------------------------------------------------------------------------
+const START_FORM = [
+  { id: "start-form/the-button-is-offered", name: "Filed forms offers Start a form to a person the API lists a startable form for" },
+  { id: "start-form/the-picker-lists-what-the-api-lists", name: "The picker lists the startable forms the API lists, by title in the screen's language, and nothing else" },
+  { id: "start-form/nothing-for-a-person-with-none", name: "A person the API lists no startable form for is offered no Start a form" },
+  { id: "start-form/a-form-is-started", name: "Picking a form starts it with the dashboard as its source and opens the window on section one" },
+  { id: "start-form/two-sections-answered-and-saved", name: "Two sections are answered and each saved through the draft route, with a governed question appearing on its answer" },
+  { id: "start-form/a-required-question-left-blank-is-named", name: "A required question left blank is named on the review and holds Send off" },
+  { id: "start-form/a-table-row-added", name: "A row added to a table is saved with what was typed in it" },
+  { id: "start-form/a-photo-added", name: "A photo picked on the form goes up on its own request and is drawn" },
+  { id: "start-form/the-sign-off-is-drawn-and-made", name: "The filer's sign-off is made in the signature box and its stamp drawn" },
+  { id: "start-form/the-filing-is-sent", name: "Send asks first, sends the filing, says so, and the filing is listed under Submitted with its source" },
+  { id: "start-form/a-draft-is-resumed", name: "A window closed part way saves and keeps its draft, which Unfinished lists with Continue and reopens where it was" },
+  { id: "start-form/refusal/start", name: "A refused start is drawn in the picker in the API's words" },
+  { id: "start-form/refusal/save", name: "A refused save is drawn in the window in the API's words, with Check this answer under the question it names" },
+  { id: "start-form/refusal/send", name: "A Send the API would refuse is held off by the missing list the API answers" },
+  { id: "start-form/refusal/sign", name: "A refused sign-off is drawn in the box in the API's words" },
+  { id: "start-form/refusal/photo", name: "A refused photo is drawn under the question in the table's words for its code" },
+  { id: "start-form/refusal/continue", name: "A draft the API will not hand over is refused on the tab in the API's words" },
+];
+
+module.exports = { START_FORM, PAGES, VIEWS, WINDOWS, TABLES, REPORTS, EXPORTS, DECISIONS, REFUSALS, HOUSE_STYLE, ASCII_ONLY, WORD_TABLE, WORD_SLOTS, FINDER_PRINTS, DONE_PAGES_READ_NO_ENGLISH, TODO_NAMES_PRINTS, LANGUAGE_HEADER, LANGUAGE_LOCALE, DISPLAY_FIELDS, HELP_FIT, HELP_STREAM, CHECKLIST_EDITOR, FORMS_MENU, HR_ROLES, QUESTIONS, ZONE_CHIPS, PRINTS, REPORT_SCREENS, WINDOW_STATES, FILED_FORM_STATES, FILED_PHOTO_STATES, TRAINING_ROOM, PICKERS };
