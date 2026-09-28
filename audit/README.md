@@ -256,6 +256,23 @@ override. The bell opens a chat notice and a tag on their chat and an announceme
 alerts, from the name menu and the phone's More menu, shows the settings the API sent, sends each change
 as a PATCH of its own, held to a body written out by hand, and says so when a change is refused.
 
+**A service category is a plain word, or the list's own label.** Since Step 181 a service category is
+one of six plain words, Cleaning, Quality checks, Management, Green cleaning, Safety, and Staff and
+training, keyed by the codes the API stores, and a page that reads the `cims_categories` list draws the
+list's shown label for a code the list holds. The `categories` suite reads, in both languages, every
+place a category is drawn twice: with the list as the stub serves it, and with SD left off it, which
+`setListGap` does. On the Service Catalog that is each card's badge and line, a service's window, Edit
+Service's list, which offers the words and sends the code, and the export, which writes the English
+word; on Inspections, the pills on a template's items and on an inspection's items and its printed
+report, the Reports tab's breakdown and lowest items and their printed page, and the two files, which
+write the list's English label or the English word; on Staff Management and Sites, a task's Record
+Detail window and printed page, whose row reads Service category. The stub answers the detail route for
+a task with the task's row, the way `routes/users.js` does, and for a service with found false, so Staff
+Management's window draws a created service's metadata, whose category line is held too; `setTimeline`
+hands a person's timeline those two entries. The suite also holds the issue reports on Reports, saved
+under the framework's old category, to the heading Issues, a new report's Category to empty with its
+example, and every screen, page and file it read to carry the framework's name nowhere.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -422,7 +439,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories` and `house-style`.
 
 ## How much is left in English
 

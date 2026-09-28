@@ -31,6 +31,8 @@ function createStubs() {
   let listGap = null;
   // What GET /api/shift-sessions/by-site answers in place of the seed's sessions, when a case sets it.
   let shiftSessions = null;
+  // What a person's timeline answers in place of the seed's four entries, when a case sets it.
+  let personTimeline = null;
   let signedInAs = "admin";
   // A browser reads Content-Disposition off a cross-origin response only when the server exposes it.
   // The API does; a case turns it off to drive the name the dashboard falls back to.
@@ -1673,6 +1675,25 @@ function createStubs() {
   ];
   // hand: 4 timeline entries, in four categories: clock, issues, tasks and supplies.
 
+  // GET /api/users/timeline-detail/task/:id the way routes/users.js answers it: the task_templates row
+  // with its site's name and its display in the language the call asked for, and the task's active
+  // assignments, each with the person's first and last name. The row carries the task's service
+  // category as the code the API stores. A task the route cannot find answers found false.
+  const taskDetail = (id, lang) => {
+    const t0 = ASSIGNED_TASKS.find((x) => x.id === id);
+    if (!t0) return { found: false, record: null, photos: [], relatedItems: [] };
+    const who = seed.STAFF.find((p) => p.id === t0.user_id) || {};
+    const record = withDisplay({
+      id: t0.id, site_id: t0.site_id, label: t0.label, zone: t0.zone, cims_category: t0.cims_category, priority: t0.priority,
+      frequency: "per_visit", sort_order: 0, is_active: true, created_at: t0.task_created_at, resolution_status: t0.resolution_status,
+      resolution_note: t0.resolution_note || null, resolved_at: t0.resolved_at || null, description: t0.description || null,
+      due_date: t0.due_date, due_time: t0.due_time + ":00", has_details: false, building_name: t0.building_name,
+      floor_number: t0.floor_number, task_type: "assigned", site_name: t0.site_name,
+    }, lang);
+    return { found: true, record, photos: [], relatedItems: [{ id: "ta-" + t0.id, task_template_id: t0.id, user_id: t0.user_id,
+      is_active: true, assigned_at: t0.task_created_at, assigned_by: seed.PEOPLE.admin.id, first_name: who.first_name, last_name: who.last_name }] };
+  };
+
   const userProfile = (id) => {
     const u = state.staff.find((s) => s.id === id) || state.staff[0];
     return {
@@ -1836,6 +1857,13 @@ function createStubs() {
     if (path.startsWith("/api/users/profile/photo")) return ok({ url: "" });
     if (path.startsWith("/api/users/profile/")) return ok(userProfile(idAfter("/api/users/profile/")));
     if (path.startsWith("/api/users/timeline-detail/")) {
+      // By the kind of record the entry names, the way routes/users.js switches on it: a task is its
+      // row. A service is a kind the route has no case for, so it answers found false and nothing
+      // else, and the window draws what the entry's own metadata says. Any other kind answers the
+      // issue below.
+      const kind = path.split("/")[4];
+      if (kind === "task") return ok(taskDetail(path.split("/")[5], q("locale") || lang));
+      if (kind === "service") return ok({ found: false, record: null, photos: [], relatedItems: [] });
       return ok({
         found: true,
         entry: timelineRows("Tomasz Wisniewski")[1],
@@ -1845,7 +1873,7 @@ function createStubs() {
       });
     }
     if (path.startsWith("/api/users/timeline/")) {
-      const rows = timelineRows(person().firstName + " " + person().lastName);
+      const rows = personTimeline ? clone(personTimeline) : timelineRows(person().firstName + " " + person().lastName);
       const cat = q("category");
       const filtered = cat && cat !== "all" ? rows.filter((r) => r.actionType.indexOf(cat.replace(/s$/, "")) >= 0) : rows;
       return ok({ entries: filtered, total: filtered.length });
@@ -3123,6 +3151,8 @@ function createStubs() {
     setTrim: (t) => { trim = t; },
     setListGap: (g) => { listGap = g || null; },
     setShiftSessions: (s) => { shiftSessions = s || null; },
+    // The entries a person's timeline answers: the rows given, or the seed's four again with null.
+    setTimeline: (rows) => { personTimeline = rows ? clone(rows) : null; },
     // The issues the API answers: the rows given, or the seed's rows again with null.
     setIssues: (rows) => { state.issues = rows ? rows : clone(seed.ISSUES); },
     // What the daily service log's payload carries beyond what the suite has always read.
@@ -3167,7 +3197,7 @@ function createStubs() {
       // No builder form published, and the reports filed on them as they were.
       state.published = []; state.builderReports = null; builderSeq = 0;
       filedExtras = { rows: false, sections: false };
-      delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
+      delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null; personTimeline = null;
       agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};
       openSessions = {};
       // Step 179: no chat unread and nothing sent, the announcements as seeded, the alert settings on
