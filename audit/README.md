@@ -145,6 +145,14 @@ Add Supply and a card that opens nothing, and one on the defaults, who finds bot
 Permissions it holds the line an admin's account carries, the line one's own account carries, and
 the manage_admins row, which only a holder can grant, each with nothing to press. Both languages.
 
+**A code the API writes is drawn as a word.** The `codes` suite reads, in both languages, the Jotform
+sync log, where each sync's type and status, one of every type and status the API writes, `partial`
+included, is the table's word, and the unresolved failures, where each stage is; a weekly pattern's
+change, whose answer lists the dates kept and skipped with a reason and a code each, drawn as the
+table's word for the reason; the Started Shift window, which draws the person's role as the
+`staff_roles` list's shown label; and a document whose file the API refuses with a JSON error, where
+the toast carries the error the API wrote. Every word is written out in the suite by hand.
+
 **Four leftovers.** The `leftovers` suite reads, in both languages, Staff Management's list, where
 the one row the stub sends with `isTestAccount` carries the Test account mark and no other row does;
 Supplies, where every card's QR image is a data URL of the PNG `GET /api/supplies/:id/qr.png`
@@ -288,7 +296,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes` and `house-style`.
 
 ## How much is left in English
 

@@ -1062,18 +1062,19 @@ function createStubs() {
     date: seed.TODAY,
     sites: [
       { siteId: S[0].id, siteName: S[0].name, people: [
-        { sessionId: "ss-1", userId: "u-staff-5", name: "Tomasz Wisniewski", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T22:05:00Z", buildingName: "North Wing", floorNumber: "3", tasksCompleted: 6, tasksTotal: 8 },
-        { sessionId: "ss-2", userId: "u-staff-9", name: "Yuki Tanabe", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T22:10:00Z", buildingName: "South Wing", floorNumber: "2", tasksCompleted: 3, tasksTotal: 7 },
+        { sessionId: "ss-1", userId: "u-staff-5", name: "Tomasz Wisniewski", role: "custodial_lead", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T22:05:00Z", buildingName: "North Wing", floorNumber: "3", tasksCompleted: 6, tasksTotal: 8 },
+        { sessionId: "ss-2", userId: "u-staff-9", name: "Yuki Tanabe", role: "custodial_lead", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T22:10:00Z", buildingName: "South Wing", floorNumber: "2", tasksCompleted: 3, tasksTotal: 7 },
       ] },
       { siteId: S[1].id, siteName: S[1].name, people: [
-        { sessionId: "ss-3", userId: "u-staff-6", name: "Ngozi Okonkwo", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T10:30:00Z", buildingName: "Clinic", floorNumber: "1", tasksCompleted: 9, tasksTotal: 9 },
+        { sessionId: "ss-3", userId: "u-staff-6", name: "Ngozi Okonkwo", role: "custodial_laborer", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T10:30:00Z", buildingName: "Clinic", floorNumber: "1", tasksCompleted: 9, tasksTotal: 9 },
       ] },
       { siteId: S[2].id, siteName: S[2].name, people: [
-        { sessionId: "ss-4", userId: "u-staff-7", name: "Elena Barbosa", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T23:00:00Z", buildingName: "Dock A", floorNumber: "1", tasksCompleted: 1, tasksTotal: 5 },
+        { sessionId: "ss-4", userId: "u-staff-7", name: "Elena Barbosa", role: "day_porter", sessionDate: seed.TODAY, startedAt: seed.shift(0) + "T23:00:00Z", buildingName: "Dock A", floorNumber: "1", tasksCompleted: 1, tasksTotal: 5 },
       ] },
     ],
   };
-  // hand: 4 people started today, which is OVERVIEW.clockedInNow.
+  // hand: 4 people started today, which is OVERVIEW.clockedInNow. Each carries the role
+  // routes/shiftSessions.js reads off the person, the seed's role for them.
 
   // Keyed on task_id, with resolution_status, which is what the Assigned Tasks page reads.
   const ASSIGNED_TASKS = [
@@ -1552,7 +1553,13 @@ function createStubs() {
       const p = state.patterns.find((x) => x.id === id);
       if (p && body) Object.assign(p, body);
       if (method === "DELETE") { state.patterns = state.patterns.filter((x) => x.id !== id); return ok({ message: "Pattern ended" }); }
-      return ok({ pattern: p, message: "Pattern updated", changed: 4 });
+      // What a change answers since Step 179 (routes/shiftPatterns.js at ocsa-api 1c3fb42): the shifts
+      // added and removed, and each date kept or skipped with its reason in English and its code.
+      const reason = (days, code, en) => ({ date: seed.shift(days), reason: en, code: code });
+      const kept = [reason(3, "patterns.keptCancelled", "cancelled"), reason(5, "patterns.keptChangedByHand", "changed by hand"),
+        reason(7, "patterns.keptPostedOpen", "posted as an open shift"), reason(0, "patterns.keptReferenced", "referenced by site_sessions")];
+      const skipped = [reason(10, "patterns.skippedClash", "already scheduled at that time")];
+      return ok({ pattern: p, created: 2, removed: 3, kept: kept, skipped: skipped, keptCount: kept.length, skippedCount: skipped.length });
     }
     if (/^\/api\/schedule\/[^/]+$/.test(path) && method === "DELETE") {
       if (!state.schedule) state.schedule = clone(SCHEDULE);
@@ -1872,10 +1879,21 @@ function createStubs() {
     if (path.startsWith("/api/jotform/diagnostic")) {
       return ok({ forms: JOTFORM_FORMS.map((f) => ({ form_id: f.form_id, title: f.title, cached: f.submission_count, upstream: f.submission_count, missing: 0 })), checkedAt: seed.NOW_ISO });
     }
-    if (path.startsWith("/api/jotform/sync-log")) return ok([{ id: "sl-1", ran_at: seed.shift(0) + "T19:00:00Z", kind: "submissions", result: "ok", detail: "2 submissions" }]);
+    // The sync log and the failures in the columns routes/jotform.js sends at ocsa-api 1c3fb42: one sync
+    // of each type the API writes, in each status it writes, and a failure at two of its stages.
+    if (path.startsWith("/api/jotform/sync-log")) return ok([
+      { id: "sl-1", started_at: seed.shift(0) + "T19:00:00Z", sync_type: "forms", form_title: null, status: "success", records_processed: 2, records_created: 0, records_updated: 2, error_message: null, triggered_by_name: "Dana Whitlock" },
+      { id: "sl-2", started_at: seed.shift(0) + "T18:00:00Z", sync_type: "submissions", form_title: JOTFORM_FORMS[0].title, status: "failed", records_processed: 0, records_created: 0, records_updated: 0, error_message: "The upstream answered 502", triggered_by_name: null },
+      { id: "sl-3", started_at: seed.shift(0) + "T17:00:00Z", sync_type: "failure_retry", form_title: JOTFORM_FORMS[1].title, status: "running", records_processed: 1, records_created: 1, records_updated: 0, error_message: null, triggered_by_name: null },
+      { id: "sl-4", started_at: seed.shift(-1) + "T17:00:00Z", sync_type: "force_fetch", form_title: JOTFORM_FORMS[0].title, status: "partial", records_processed: 4, records_created: 3, records_updated: 0, error_message: null, triggered_by_name: "Dana Whitlock" },
+    ]);
     if (path.startsWith("/api/jotform/submission-failures")) {
       if (method !== "GET") return ok({ message: "Marked resolved" });
-      return ok([{ id: "sf-1", form_id: JOTFORM_FORMS[0].form_id, form_title: JOTFORM_FORMS[0].title, submission_id: "600000000000009", reason: "Answer set was empty", failed_at: seed.shift(-3) + "T08:00:00Z", is_resolved: false }]);
+      const failures = [
+        { id: "sf-1", jotform_submission_id: "600000000000009", form_title: JOTFORM_FORMS[0].title, failure_stage: "fetch", failure_reason: "Answer set was empty", attempted_at: seed.shift(-3) + "T08:00:00Z", exists_in_submissions: false },
+        { id: "sf-2", jotform_submission_id: "600000000000010", form_title: JOTFORM_FORMS[1].title, failure_stage: "parse", failure_reason: "A date did not read", attempted_at: seed.shift(-2) + "T08:00:00Z", exists_in_submissions: false },
+      ];
+      return ok({ failures, total: failures.length, limit: 200, offset: 0 });
     }
     if (path === "/api/jotform/user-aliases" && method === "GET") return ok([{ id: "al-1", user_id: state.staff[4].id, user_name: state.staff[4].name, alias: "t.wisniewski", source: "manual" }]);
     if (path.startsWith("/api/jotform/user-aliases")) return ok({ message: "Alias saved" });

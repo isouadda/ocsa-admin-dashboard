@@ -75,6 +75,10 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Words, codes and addresses since Step 181: the sync log, a failure's stage, a pattern's result and
+  // the Started Shift role drawn as words, and a refused file read in the API's words, in both languages.
+  { name: "codes", mod: "./cases/codes", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Scout 141's leftovers since Step 185: the test account's mark, the supplies' QR images from the API,
   // the certification counts and a notice's link to a record, in both languages.
   { name: "leftovers", mod: "./cases/leftovers", widths: ["wide"],
