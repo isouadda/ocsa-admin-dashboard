@@ -297,7 +297,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     },
 
     async text() {
-      return (await page.locator("body").innerText()).replace(/ /g, " ");
+      return (await page.locator("body").innerText()).replace(/\u00a0/g, " ");
     },
     async has(s) { return (await this.text()).indexOf(s) >= 0; },
     async absent(s) { return (await this.text()).indexOf(s) < 0; },
@@ -647,7 +647,7 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     },
     async modalText() {
       if (!(await this.modalOpen())) return "";
-      return (await this.modal().innerText()).replace(/ /g, " ");
+      return (await this.modal().innerText()).replace(/\u00a0/g, " ");
     },
     async modalButtons() {
       if (!(await this.modalOpen())) return [];
