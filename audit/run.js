@@ -37,6 +37,10 @@ const SUITES = [
   // question and the words in the box are the table's.
   { name: "filed-photos", mod: "./cases/filed-photos", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Starting and filing a form from the dashboard, in both languages, since the picker's titles and
+  // every word in the window come from the catalog and the table.
+  { name: "start-form", mod: "./cases/start-form", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },
