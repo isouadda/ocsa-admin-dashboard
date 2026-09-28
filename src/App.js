@@ -9349,17 +9349,19 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
   }, [af, query]);
   useEffect(() => { load(null); }, [load]);
   // The count on the tab is read once when the tab opens, from the same list its Unfinished switch
-  // loads, so it is there before anyone switches.
+  // loads, so it is there before anyone switches, and again once a form window closes.
   const counted = useRef(false);
-  useEffect(() => {
-    if (counted.current || !onUnfinished) return undefined;
-    counted.current = true;
-    let alive = true;
+  const recount = useCallback(() => {
+    if (!onUnfinished) return;
     af("/api/forms/responses?status=draft&limit=" + IR_PAGE_SIZE)
-      .then(d => { if (alive) onUnfinished(d && Array.isArray(d.responses) ? d.responses.length : 0); })
+      .then(d => onUnfinished(d && Array.isArray(d.responses) ? d.responses.length : 0))
       .catch(e => { console.warn("Unfinished count:", e.message); });
-    return () => { alive = false; };
   }, [af, onUnfinished]);
+  useEffect(() => {
+    if (counted.current) return;
+    counted.current = true;
+    recount();
+  }, [recount]);
 
   // Step 166: starting and continuing a form from here. The picker lists what the API lists, by
   // title in the screen's language, read when it opens; a draft is resumed through the same routes
@@ -9385,19 +9387,37 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
     } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
     setStarting("");
   };
-  const leaveFill = () => { setFill(null); load(null); };
+  // A draft resumed from the list: the catalog in the screen's language and the draft itself, read
+  // together, and the window opened where the person left it.
+  const continueDraft = async (row) => {
+    if (starting) return;
+    setStarting(row.id); setOpenError("");
+    try {
+      const [list, r] = await Promise.all([readCatalog(), af("/api/forms/drafts/" + encodeURIComponent(row.id))]);
+      const draft = formDraftOf(r);
+      const form = list.find(f => String(f.code) === String(draft.formCode || row.formCode)) || null;
+      setFill({ form, draft });
+    } catch (e) { setOpenError(e.message || tr("Request failed")); }
+    setStarting("");
+  };
+  // A draft this person started, or one the list does not say whose it is. The API is the one that
+  // refuses a draft that is somebody else's.
+  const canContinue = (r) => !r.userId || !user || String(r.userId) === String(user.id);
+  const leaveFill = () => { setFill(null); load(null); recount(); };
 
   const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
 
+  // Where a filing came from, under its form name, when the API says.
+  const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}{r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: tr("Form"), render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: tr("Form"), render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
   ];
   const draftCols = [
     { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
-    { header: tr("Form"), render: r => <span style={{ color: t.text }}>{r.formName}</span> },
+    { header: tr("Form"), render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Started by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
     { header: tr("Answered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => tr("{0} of {1}", Number(r.answered) || 0, (Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
@@ -9406,6 +9426,9 @@ function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, o
       const past = new Date(r.dueAt).getTime() < Date.now();
       return past ? <span style={{ color: RD, fontWeight: 600 }}>{tr("Past due {0}", irDay(r.dueAt))}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
     } },
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: r => (canContinue(r)
+      ? <Btn t={t} v="ghost" onClick={e => { e.stopPropagation(); continueDraft(r); }} disabled={!!starting} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{starting === r.id ? tr("Opening...") : tr("Continue")}</Btn>
+      : null) },
   ];
 
   const sw = (v, l) => (<button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (status === v ? GO : t.border), background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{l}</button>);

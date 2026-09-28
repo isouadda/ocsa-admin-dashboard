@@ -185,20 +185,20 @@ const WINDOWS = [
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8041] },
 
   { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8760] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10839] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10892] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11007] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10862] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10915] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11030] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
-  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9427] },
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9450] },
   { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [9210] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [11044] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [11067] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [11647] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [11670] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [12156] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [12178] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12212] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12453] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [12179] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [12201] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12235] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12476] },
 ];
 
 // ---------------------------------------------------------------------------
