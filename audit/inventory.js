@@ -24,7 +24,7 @@ const PAGES = [
   { id: "schedule", label: "Schedule", expect: "Week", gated: false },
   { id: "marketplace", label: "Shift Pickup", expect: "Shift Pickup Board", gated: false },
   { id: "reports", label: "Reports", expect: "Reports", gated: false },
-  { id: "forms", label: "Forms", expect: "Form Library", gated: true },
+  { id: "forms", label: "Forms", expect: "Jotform", gated: true },
   { id: "settings", label: "Settings", expect: "Company", gated: true },
   { id: "chat", label: "Messages", expect: "Private conversations", gated: false },
   { id: "help", label: "Help", expect: "Help", gated: false },
@@ -68,14 +68,20 @@ const VIEWS = [
   { id: "settings/permissions-matrix", page: "settings", click: ["Roles and Permissions", "Role reference"], expect: "Access each role has in the platform today" },
   { id: "settings/recipients", page: "settings", click: "Who gets told", expect: "told", adminOnly: true },
 
-  // The six Jotform tabs are an admin's; a supervisor the filed list lets in sees Filed forms alone.
-  { id: "forms/library", page: "forms", click: "Form Library", expect: "Incident report", adminOnly: true },
-  { id: "forms/submissions", page: "forms", click: "Submissions", expect: "Sync All Submissions", adminOnly: true },
-  { id: "forms/pdf_access", page: "forms", click: "PDF Access Log", expect: "access", adminOnly: true },
-  { id: "forms/settings", page: "forms", click: "Settings", expect: "Jotform", adminOnly: true },
-  { id: "forms/sync_diagnostic", page: "forms", click: "Sync Diagnostic", expect: "Diagnostic", adminOnly: true },
-  { id: "forms/aliases", page: "forms", click: "Aliases", expect: "Alias", adminOnly: true },
+  // Since Step 165 the page opens on Filed forms for everyone. The Jotform tab and the PDF access
+  // log are an admin's; a supervisor the filed list lets in sees Filed forms alone. Inside the
+  // Jotform tab, Inbox is the old Submissions, Forms the old Form Library, and Maintenance holds the
+  // old Settings, Sync Diagnostic and Aliases down one screen, so each of the seven views counted
+  // before is still counted. The section named Forms is pressed by its exact word, since the Filed
+  // forms tab carries the word too.
   { id: "forms/incident_reports", page: "forms", click: "Filed forms", expect: "report" },
+  { id: "forms/jotform", page: "forms", click: "Jotform", expect: "Inbox", adminOnly: true },
+  { id: "forms/jotform/inbox", page: "forms", click: ["Jotform", "Inbox"], expect: "Re-run Auto-Link", adminOnly: true },
+  { id: "forms/jotform/forms", page: "forms", click: ["Jotform", "Forms"], exact: true, expect: "Incident report", adminOnly: true },
+  { id: "forms/jotform/maintenance", page: "forms", click: ["Jotform", "Maintenance"], expect: "API Connection", adminOnly: true },
+  { id: "forms/jotform/maintenance/diagnostic", page: "forms", click: ["Jotform", "Maintenance"], expect: "Diagnostic", adminOnly: true },
+  { id: "forms/jotform/maintenance/aliases", page: "forms", click: ["Jotform", "Maintenance"], expect: "Alias", adminOnly: true },
+  { id: "forms/pdf_access", page: "forms", click: "PDF access log", expect: "access", adminOnly: true },
 
   { id: "hr/employees", page: "hr", click: "Employees", expect: "Employees" },
   { id: "hr/documents", page: "hr", click: "Documents", expect: "Document" },
@@ -179,17 +185,17 @@ const WINDOWS = [
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8039] },
 
   { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8758] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10263] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10316] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10431] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10468] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [10310] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [10363] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [10478] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [10515] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [11071] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [11118] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [11580] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [11602] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11636] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11877] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [11627] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [11649] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [11683] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [11924] },
 ];
 
 // ---------------------------------------------------------------------------

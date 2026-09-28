@@ -19,7 +19,7 @@ async function openView(d, v) {
   // A view behind a tab and then a second switch is reached the same way a person reaches it, one
   // control after another.
   for (const step of [].concat(v.click)) {
-    const clicked = await d.clickText(step, { exact: false });
+    const clicked = await d.clickText(step, { exact: v.exact === true });
     if (!clicked) return { ok: false, why: "no control reading " + JSON.stringify(step) };
   }
   return { ok: true };
@@ -85,7 +85,7 @@ async function run({ d, results, inventory }) {
     if (v.page === "forms" && opensForms) {
       if (v.id === "forms/incident_reports") continue;
       const buttons = await d.visibleButtons();
-      if (buttons.indexOf(v.click) >= 0) leaked.push(v.id);
+      if (buttons.indexOf([].concat(v.click)[0]) >= 0) leaked.push(v.id);
       continue;
     }
     const body = (await d.bodyText()).toLowerCase();

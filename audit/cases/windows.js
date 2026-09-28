@@ -224,19 +224,20 @@ const ROUTES = {
   "forms/incident-report-window": {
     open: async (d) => { await d.goto("forms"); await d.clickText("Filed forms", { exact: false }); return d.clickRow(0); },
   },
+  // Since Step 165 the Jotform screens sit under one tab: Forms, Inbox and Maintenance.
   "forms/edit-form": {
-    open: async (d) => { await d.goto("forms"); return d.clickText("Edit", { exact: true }); },
+    open: async (d) => { await d.goto("forms"); await d.clickText("Jotform", { exact: true }); await d.clickText("Forms", { exact: true }); return d.clickText("Edit", { exact: true }); },
   },
   "forms/submission-detail": {
-    open: async (d) => { await d.goto("forms"); await d.clickText("Submissions", { exact: true }); return d.clickText("View", { exact: true }); },
+    open: async (d) => { await d.goto("forms"); await d.clickText("Jotform", { exact: true }); await d.clickText("Inbox", { exact: true }); return d.clickText("View", { exact: true }); },
   },
   "forms/full-refresh": {
-    open: async (d) => { await d.goto("forms"); await d.clickText("Settings", { exact: true }); return d.clickText("Full Refresh", { exact: false }); },
+    open: async (d) => { await d.goto("forms"); await d.clickText("Jotform", { exact: true }); await d.clickText("Maintenance", { exact: true }); return d.clickText("Full Refresh", { exact: true }); },
   },
   "forms/link-user": {
     // The link window opens from inside the submission detail, for a submission nobody linked yet.
     open: async (d) => {
-      await d.goto("forms"); await d.clickText("Submissions", { exact: true });
+      await d.goto("forms"); await d.clickText("Jotform", { exact: true }); await d.clickText("Inbox", { exact: true });
       await d.clickText("View", { exact: true });
       return d.clickText("Link to Record", { inModal: true, exact: false });
     },

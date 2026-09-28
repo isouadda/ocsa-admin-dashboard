@@ -8818,7 +8818,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen, onClose }) {
+function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -8855,6 +8855,9 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
       setRows(prev => before ? [...prev, ...list] : list);
       setHasMore(list.length === IR_PAGE_SIZE);
       setError(null);
+      // The count on the tab: how many filings are unfinished, read off the unfinished list itself
+      // whenever it is loaded whole and unfiltered.
+      if (!before && status === "draft" && !formCode && !siteId && onUnfinished) onUnfinished(list.length);
     } catch (e) {
       if (!before) setRows([]);
       setError({ status: e && e.status, message: e.message || tr("Request failed") });
@@ -8862,6 +8865,18 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
     setLoading(false); setPaging(false);
   }, [af, query]);
   useEffect(() => { load(null); }, [load]);
+  // The count on the tab is read once when the tab opens, from the same list its Unfinished switch
+  // loads, so it is there before anyone switches.
+  const counted = useRef(false);
+  useEffect(() => {
+    if (counted.current || !onUnfinished) return undefined;
+    counted.current = true;
+    let alive = true;
+    af("/api/forms/responses?status=draft&limit=" + IR_PAGE_SIZE)
+      .then(d => { if (alive) onUnfinished(d && Array.isArray(d.responses) ? d.responses.length : 0); })
+      .catch(e => { console.warn("Unfinished count:", e.message); });
+    return () => { alive = false; };
+  }, [af, onUnfinished]);
 
   const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
 
@@ -8911,10 +8926,14 @@ const MISSING_COLS = ["Jotform Submission ID", "Submitted", "Submitter Name", "E
 const FAILURE_COLS = ["Submission ID", "Form", "Stage", "Reason", "Attempted", "Already Synced?", ""];
 const ALIAS_COLS = ["Type", "Value", "Source", "Matches", "Last Matched", "Added", "Added By", "Notes", ""];
 function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [], onRoute }) {
-  // Everything on this page but the filed reports is the Jotform machinery, which is an admin's.
-  // Anyone else the API lets in lands on Filed forms and sees that tab alone.
+  // Everything on this page but the filed forms is the Jotform machinery, which is an admin's.
+  // Since Step 165 the page opens on Filed forms for everyone; an admin also has the Jotform tab,
+  // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
   const isAdmin = user?.role === "admin";
-  const [tab, setTab] = useState(() => (route[0] === "reports" || !isAdmin ? "incident_reports" : "library"));
+  const [tab, setTab] = useState("incident_reports");
+  const [jotSection, setJotSection] = useState("inbox");
+  // How many filings are unfinished, read by the Filed forms tab from the list it loads.
+  const [unfinishedCount, setUnfinishedCount] = useState(null);
   const [irOpenId, setIrOpenId] = useState(() => (route[0] === "reports" && route[1] ? route[1] : null));
   const [irOpenRow, setIrOpenRow] = useState(null);
   // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well. #forms alone
@@ -8946,7 +8965,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // Session 21 additions
   const [pdfAccessLog, setPdfAccessLog] = useState([]);
   const [pdfAccessTotal, setPdfAccessTotal] = useState(0);
-  const [pdfFilters, setPdfFilters] = useState({ access_type: "", success: "", date_start: "", date_end: "" });
+  const [pdfFilters, setPdfFilters] = useState({ access_type: "", success: "", date_start: "", date_end: "", source: "" });
   const [pdfOffset, setPdfOffset] = useState(0);
   const PDF_LIMIT = 50;
   const [diagnosticResult, setDiagnosticResult] = useState(null);
@@ -9064,6 +9083,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (pdfFilters.success) q.push("success=" + pdfFilters.success);
       if (pdfFilters.date_start) q.push("date_start=" + pdfFilters.date_start);
       if (pdfFilters.date_end) q.push("date_end=" + pdfFilters.date_end);
+      // Step 165: the log reads both kinds since the API's Step 163, and a source narrows it to one.
+      if (pdfFilters.source) q.push("source=" + pdfFilters.source);
       const d = await af("/api/jotform/pdf-access-log?" + q.join("&"));
       setPdfAccessLog(d.entries || []);
       setPdfAccessTotal(d.total || 0);
@@ -9249,21 +9270,26 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   }, [af, showToast, loadAliases]);
 
   useEffect(() => { if (isAdmin) loadConfig(); }, [loadConfig, isAdmin]);
-  useEffect(() => { if (tab === "library") loadForms(); }, [tab, libFilters]);
-  useEffect(() => { if (tab === "submissions") loadSubmissions(true); }, [tab, subFilters]);
+  // The three sections of the Jotform tab. Each loads what its screen loaded when it was a tab of
+  // its own, on the same calls; Maintenance is Settings, Sync Diagnostic and Aliases down one screen.
+  const inbox = tab === "jotform" && jotSection === "inbox";
+  const library = tab === "jotform" && jotSection === "forms";
+  const maintenance = tab === "jotform" && jotSection === "maintenance";
+  useEffect(() => { if (library) loadForms(); }, [library, libFilters]);
+  useEffect(() => { if (inbox) loadSubmissions(true); }, [inbox, subFilters]);
   useEffect(() => { if (tab === "pdf_access") loadPdfAccessLog(true); }, [tab, pdfFilters]);
-  useEffect(() => { if (tab === "settings") { loadConfig(); loadSyncLog(); } }, [tab]);
-  useEffect(() => { if (tab === "sync_diagnostic") { loadSyncDiagnostic(); loadFailures(); } }, [tab]);
-  // Session 27: Aliases tab loads on open. Also load users for the add-form dropdown
+  useEffect(() => { if (maintenance) { loadConfig(); loadSyncLog(); } }, [maintenance]);
+  useEffect(() => { if (maintenance) { loadSyncDiagnostic(); loadFailures(); } }, [maintenance]);
+  // Session 27: Aliases loads on open. Also load users for the add-form dropdown
   // if they haven't been fetched yet (mirrors the submission detail modal pattern).
   useEffect(() => {
-    if (tab === "aliases") {
+    if (maintenance) {
       loadAliases();
       if (usersForLinking.length === 0) {
         af("/api/jotform/users-for-linking").then(us => setUsersForLinking(us || [])).catch(() => {});
       }
     }
-  }, [tab]);
+  }, [maintenance]);
 
   const syncForms = async () => {
     if (!window.confirm(tr("Pull the latest forms from Jotform. Only forms whose title starts with 'OCSA Cleaning_' will be imported. Forms in the app that no longer match this prefix (including any Construction or MCFL forms) will be removed along with their submissions. Continue?"))) return;
@@ -9293,7 +9319,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       const d = await af("/api/jotform/submissions/sync", { method: "POST", body });
       showToast(tr("Synced {0} submissions ({1} new, {2} updated) across {3} form(s)", d.totalProcessed, d.totalCreated, d.totalUpdated, d.formsScanned));
       loadConfig(); loadForms();
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Sync failed: {0}", e.message), "error"); }
     setSyncingSubs(false);
   };
@@ -9305,7 +9331,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       const d = await af("/api/jotform/submissions/sync", { method: "POST", body: { full_refresh: true } });
       showToast(tr("Full refresh complete. Processed {0} submissions ({1} new, {2} updated) across {3} form(s)", d.totalProcessed, d.totalCreated, d.totalUpdated, d.formsScanned));
       loadConfig(); loadForms(); loadSyncLog();
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Full refresh failed: {0}", e.message), "error"); }
     setSyncingSubs(false);
   };
@@ -9330,7 +9356,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       if (s.queued_retry) parts.push(tr("Queued retry: {0}", s.queued_retry));
       if (s.unmatched) parts.push(tr("Unmatched: {0}", s.unmatched));
       showToast(parts.join(" "));
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Backfill failed: {0}", e.message), "error"); }
     setBackfillingPdfs(false);
   };
@@ -9368,7 +9394,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         tr("Errors: {0}", s.error || 0),
       ];
       showToast(parts.join(" "));
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Bulk upload failed: {0}", e.message), "error"); }
     setBulkUploading(false);
   };
@@ -9421,7 +9447,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         if (tierParts.length) parts.push(tr("(via {0})", tierParts.join(", ")));
       }
       showToast(parts.join(" "));
-      if (tab === "submissions") loadSubmissions(true);
+      if (inbox) loadSubmissions(true);
     } catch (e) { showToast(tr("Auto-link failed: {0}", e.message), "error"); }
     setAutoLinking(false);
   };
@@ -9581,7 +9607,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // A submission's status, an access event's kind and an alias's kind are drawn as the table's words
   // for their codes; a code the table does not know is drawn as it came.
   const statusWord = { new: tr("New|submission"), reviewed: tr("Reviewed"), linked: tr("Linked"), archived: tr("Archived") };
-  const accessWord = { view: tr("View"), download: tr("Download"), print: tr("Print") };
+  const accessWord = { view: tr("View"), download: tr("Download"), print: tr("Print"), email: tr("Email") };
+  // Where a PDF access row came from, drawn only when the API says: an app form's row names its
+  // form and the person the way a Jotform row names its submission and its submitter.
+  const sourceWord = (code) => (code === "app" ? tr("App form") : code === "jotform" ? tr("Jotform") : String(code));
   const aliasKindWord = { name: tr("name"), email: tr("email") };
   const statusBadge = (status) => {
     const colors = { new: BL, reviewed: t.textMut, linked: GR, archived: t.textMut };
@@ -9590,63 +9619,74 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // The kind of record a submission is linked to, as the table's word for its code.
   const entityWord = (code) => { const hit = ENTITY_TYPE_OPTS.find(o => o.v === code); return hit ? hit.l : String(code || "").replace(/_/g, " "); };
 
+  // Step 165: three tabs. Filed forms first and the default for everyone, with the count of unfinished
+  // filings the tab reads; Jotform, one tab holding Inbox, Forms and Maintenance, switched inside it;
+  // and the PDF access log, which reads both kinds since the API's Step 163.
   const TABS = [
-    { id: "library", l: tr("Form Library"), adminOnly: true },
-    { id: "submissions", l: tr("Submissions"), adminOnly: true },
-    { id: "pdf_access", l: tr("PDF Access Log"), adminOnly: true },
-    { id: "settings", l: tr("Settings"), adminOnly: true },
-    { id: "sync_diagnostic", l: tr("Sync Diagnostic"), adminOnly: true },
-    { id: "aliases", l: tr("Aliases"), adminOnly: true },
-    // The tab holds every filed form the API lists, whatever kind of form it is.
-    { id: "incident_reports", l: tr("Filed forms"), adminOnly: false },
+    { id: "incident_reports", l: unfinishedCount > 0 ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
+    { id: "jotform", l: tr("Jotform"), adminOnly: true },
+    { id: "pdf_access", l: tr("PDF access log"), adminOnly: true },
   ];
   const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
+  const SECTIONS = [
+    { id: "inbox", l: tr("Inbox") },
+    { id: "forms", l: tr("Forms") },
+    { id: "maintenance", l: tr("Maintenance") },
+  ];
+  const panelHead = { fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, margin: "18px 0 10px" };
 
   return (
     <div style={{ animation: "fadeIn 0.3s ease" }}>
-      <SecT t={t}>{isAdmin ? tr("Forms & Jotform Integration") : tr("Filed forms")}</SecT>
-
-      {/* PII WARNING BANNER */}
-      {isAdmin && <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
-        <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
-      </div>}
+      <SecT t={t}>{tr("Forms")}</SecT>
 
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         {tabs.map(tb => (
           <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          {tab === "library" && <Btn t={t} v="ghost" onClick={syncForms} disabled={syncingForms} style={{ fontSize: 12, padding: "8px 14px" }}>{syncingForms ? tr("Syncing...") : tr("Sync Forms from Jotform")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={() => syncSubmissions(null)} disabled={syncingSubs} style={{ fontSize: 12, padding: "8px 14px" }}>{syncingSubs ? tr("Syncing...") : tr("Sync All Submissions")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={runAutoLink} disabled={autoLinking} style={{ fontSize: 12, padding: "8px 14px" }}>{autoLinking ? tr("Linking...") : tr("Re-run Auto-Link")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={runPdfBackfill} disabled={backfillingPdfs} style={{ fontSize: 12, padding: "8px 14px" }}>{backfillingPdfs ? tr("Backfilling...") : tr("Run PDF Backfill")}</Btn>}
-          {tab === "submissions" && <Btn t={t} v="ghost" onClick={handleBulkUploadClick} disabled={bulkUploading} style={{ fontSize: 12, padding: "8px 14px" }}>{bulkUploading ? tr("Uploading...") : tr("Bulk Upload PDFs")}</Btn>}
-        </div>
       </div>
 
-      {/* CONFIG STATUS STRIP */}
-      {isAdmin && config && (
-        <Crd t={t} style={{ marginBottom: 14, padding: 12 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", fontSize: 12 }}>
-            <div><span style={{ color: t.textMut }}>{tr("Key:")} </span>{config.hasKey ? (config.keyValid ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Valid|key")}</span> : <span style={{ color: RD, fontWeight: 600 }}>{tr("Invalid|key")}</span>) : <span style={{ color: RD, fontWeight: 600 }}>{tr("Not set|key")}</span>}</div>
-            {config.apiUserInfo && <div><span style={{ color: t.textMut }}>{tr("Jotform:")} </span><span style={{ color: t.text }}>{config.apiUserInfo.email}</span></div>}
-            <div><span style={{ color: t.textMut }}>{tr("Forms:")} </span><span style={{ color: t.text }}>{config.formsCount}</span> {tr("({0} enabled)", config.enabledCount)}</div>
-            <div><span style={{ color: t.textMut }}>{tr("Submissions:")} </span><span style={{ color: t.text }}>{config.submissionsCount}</span> {tr("({0} new)", config.newSubmissionsCount)}</div>
-            <div><span style={{ color: t.textMut }}>{tr("Last Sync:")} </span><span style={{ color: t.text }}>{fmtDT(config.lastFormSync)}</span></div>
+      {tab === "jotform" && (<>
+        {/* PII WARNING BANNER */}
+        <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
+          <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
+        </div>
+
+        {/* THE SECTION SWITCH, with the buttons of the section that is open beside it */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+          {SECTIONS.map(sec => (
+            <button key={sec.id} onClick={() => setJotSection(sec.id)} aria-pressed={jotSection === sec.id} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (jotSection === sec.id ? GO : t.border), background: jotSection === sec.id ? t.goldBg : "transparent", color: jotSection === sec.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{sec.l}</button>
+          ))}
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {inbox && <Btn t={t} v="ghost" onClick={runAutoLink} disabled={autoLinking} style={{ fontSize: 12, padding: "8px 14px" }}>{autoLinking ? tr("Linking...") : tr("Re-run Auto-Link")}</Btn>}
+            {inbox && <Btn t={t} v="ghost" onClick={runPdfBackfill} disabled={backfillingPdfs} style={{ fontSize: 12, padding: "8px 14px" }}>{backfillingPdfs ? tr("Backfilling...") : tr("Run PDF Backfill")}</Btn>}
+            {inbox && <Btn t={t} v="ghost" onClick={handleBulkUploadClick} disabled={bulkUploading} style={{ fontSize: 12, padding: "8px 14px" }}>{bulkUploading ? tr("Uploading...") : tr("Bulk Upload PDFs")}</Btn>}
           </div>
-        </Crd>
-      )}
+        </div>
 
-      {config && !config.hasKey && (
-        <Crd t={t} style={{ marginBottom: 14, padding: 14, borderLeft: "3px solid " + RD }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("JOTFORM_API_KEY not configured")}</div>
-          <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Add the environment variable JOTFORM_API_KEY in Railway, then reload this page. Generate a Full Access key from jotform.com under Settings then API.")}</div>
-        </Crd>
-      )}
+        {/* CONFIG STATUS STRIP */}
+        {config && (
+          <Crd t={t} style={{ marginBottom: 14, padding: 12 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "center", fontSize: 12 }}>
+              <div><span style={{ color: t.textMut }}>{tr("Key:")} </span>{config.hasKey ? (config.keyValid ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Valid|key")}</span> : <span style={{ color: RD, fontWeight: 600 }}>{tr("Invalid|key")}</span>) : <span style={{ color: RD, fontWeight: 600 }}>{tr("Not set|key")}</span>}</div>
+              {config.apiUserInfo && <div><span style={{ color: t.textMut }}>{tr("Jotform:")} </span><span style={{ color: t.text }}>{config.apiUserInfo.email}</span></div>}
+              <div><span style={{ color: t.textMut }}>{tr("Forms:")} </span><span style={{ color: t.text }}>{config.formsCount}</span> {tr("({0} enabled)", config.enabledCount)}</div>
+              <div><span style={{ color: t.textMut }}>{tr("Submissions:")} </span><span style={{ color: t.text }}>{config.submissionsCount}</span> {tr("({0} new)", config.newSubmissionsCount)}</div>
+              <div><span style={{ color: t.textMut }}>{tr("Last Sync:")} </span><span style={{ color: t.text }}>{fmtDT(config.lastFormSync)}</span></div>
+            </div>
+          </Crd>
+        )}
 
-      {/* ================ LIBRARY TAB ================ */}
-      {tab === "library" && (
+        {config && !config.hasKey && (
+          <Crd t={t} style={{ marginBottom: 14, padding: 14, borderLeft: "3px solid " + RD }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 4 }}>{tr("JOTFORM_API_KEY not configured")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("Add the environment variable JOTFORM_API_KEY in Railway, then reload this page. Generate a Full Access key from jotform.com under Settings then API.")}</div>
+          </Crd>
+        )}
+      </>)}
+
+      {/* ================ JOTFORM, FORMS (the Form Library) ================ */}
+      {library && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 200 }}>
@@ -9684,13 +9724,13 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Click \"Sync Forms from Jotform\" to pull your account's forms.")}</div>}
+            {forms.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No forms found. Press Sync Form Catalog under Maintenance to pull your account's forms.")}</div>}
           </div>
         </div>
       )}
 
-      {/* ================ SUBMISSIONS TAB ================ */}
-      {tab === "submissions" && (
+      {/* ================ JOTFORM, INBOX (the Submissions) ================ */}
+      {inbox && (
         <div>
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 220 }}>
@@ -9729,7 +9769,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 </tr>
               ))}</tbody>
             </table>
-            {submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Click \"Sync All Submissions\" above to pull the latest.")}</div>}
+            {submissions.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No submissions found. Press Sync All Submissions under Maintenance to pull the latest.")}</div>}
           </div>
 
           {submissionsTotal > submissions.length && (
@@ -9740,16 +9780,19 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ PDF ACCESS LOG TAB (Session 21) ================ */}
+      {/* ================ PDF ACCESS LOG TAB (Session 21, both kinds since Step 165) ================ */}
       {tab === "pdf_access" && (
         <div>
           <div style={{ padding: "10px 14px", borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 11, color: GR, marginBottom: 14, lineHeight: 1.5 }}>
-            <strong>{tr("Proof of who opened each PDF.")}</strong> {tr("Every view, download, and print of an original Jotform PDF is recorded here with user, timestamp, IP, and success status. This log is append-only and survives submission deletion via text snapshots.")}
+            <strong>{tr("Proof of who opened or was sent each PDF.")}</strong> {tr("Every view, download, print and email of a form's PDF, from Jotform or from the app, is recorded here with the person, the time, the address it came from and whether it succeeded. This log is append-only and survives a submission's deletion through text snapshots.")}
           </div>
 
           <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
             <div style={{ minWidth: 160 }}>
-              <Sel options={[{ v: "", l: tr("All actions") }, { v: "view", l: tr("View") }, { v: "download", l: tr("Download") }, { v: "print", l: tr("Print") }]} value={pdfFilters.access_type} onChange={e => setPdfFilters({ ...pdfFilters, access_type: e.target.value })} t={t} />
+              <Sel aria-label={tr("Source|pdf")} options={[{ v: "", l: tr("All|sources") }, { v: "jotform", l: tr("Jotform") }, { v: "app", l: tr("App forms") }]} value={pdfFilters.source} onChange={e => setPdfFilters({ ...pdfFilters, source: e.target.value })} t={t} />
+            </div>
+            <div style={{ minWidth: 160 }}>
+              <Sel options={[{ v: "", l: tr("All actions") }, { v: "view", l: tr("View") }, { v: "download", l: tr("Download") }, { v: "print", l: tr("Print") }, { v: "email", l: tr("Email") }]} value={pdfFilters.access_type} onChange={e => setPdfFilters({ ...pdfFilters, access_type: e.target.value })} t={t} />
             </div>
             <div style={{ minWidth: 160 }}>
               <Sel options={[{ v: "", l: tr("Any result") }, { v: "true", l: tr("Success only") }, { v: "false", l: tr("Failed only") }]} value={pdfFilters.success} onChange={e => setPdfFilters({ ...pdfFilters, success: e.target.value })} t={t} />
@@ -9768,9 +9811,9 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 <tr key={e.id} style={{ borderBottom: "1px solid " + t.border }}>
                   <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{fmtDT(e.accessed_at)}</td>
                   <td style={{ padding: "10px 12px", color: t.text, fontSize: 12 }}>{e.first_name ? (e.first_name + " " + e.last_name) : <span style={{ color: t.textMut, fontStyle: "italic" }}>{tr("deleted user")}</span>}<div style={{ fontSize: 10, color: t.textMut }}>{e.user_email || ""}</div></td>
-                  <td style={{ padding: "10px 12px" }}><Bdg l={accessWord[e.access_type] || e.access_type} c={e.access_type === "view" ? BL : e.access_type === "download" ? GO : TL} /></td>
-                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.form_title || <span style={{ color: t.textMut, fontFamily: "monospace", fontSize: 10 }}>{e.jotform_form_id}</span>}</td>
-                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.submitter_name || <span style={{ color: t.textMut }}>--</span>}</td>
+                  <td style={{ padding: "10px 12px" }}><Bdg l={accessWord[e.access_type] || e.access_type} c={e.access_type === "view" ? BL : e.access_type === "download" ? GO : e.access_type === "email" ? OR : TL} /></td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.form_title || <span style={{ color: t.textMut, fontFamily: "monospace", fontSize: 10 }}>{e.jotform_form_id}</span>}{e.source ? <div style={{ fontSize: 10, color: t.textMut }}>{sourceWord(e.source)}</div> : null}</td>
+                  <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 12 }}>{e.submitter_name || e.person_name || <span style={{ color: t.textMut }}>--</span>}</td>
                   <td style={{ padding: "10px 12px" }}>{e.success ? <Bdg l={tr("success")} c={GR} /> : <Bdg l={tr("failed")} c={RD} />}{!e.success && e.error_message && <div style={{ fontSize: 10, color: RD, marginTop: 2, maxWidth: 280 }}>{e.error_message}</div>}</td>
                   <td style={{ padding: "10px 12px", color: t.textMut, fontSize: 11, fontFamily: "monospace" }}>{e.ip_address || "--"}</td>
                 </tr>
@@ -9787,9 +9830,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ SETTINGS TAB ================ */}
-      {tab === "settings" && (
+      {/* ================ JOTFORM, MAINTENANCE: SETTINGS ================ */}
+      {maintenance && (
         <div>
+          <div style={Object.assign({}, panelHead, { marginTop: 0 })}>{tr("Settings")}</div>
           <Crd t={t} style={{ marginBottom: 14, padding: 16 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("API Connection")}</div>
             {config && (
@@ -9905,9 +9949,10 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ SYNC DIAGNOSTIC TAB (Session 26) ================ */}
-      {tab === "sync_diagnostic" && (
+      {/* ================ JOTFORM, MAINTENANCE: SYNC DIAGNOSTIC (Session 26) ================ */}
+      {maintenance && (
         <div>
+          <div style={panelHead}>{tr("Sync Diagnostic")}</div>
           {/* HEADER WITH REFRESH BUTTON AND TIMESTAMP */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: t.textMut }}>
@@ -10105,11 +10150,13 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
         </div>
       )}
 
-      {/* ================ SESSION 27: ALIASES TAB ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {/* ================ FILED FORMS ================ */}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
-      {tab === "aliases" && (
+      {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
+      {maintenance && (
         <div>
+          <div style={panelHead}>{tr("Aliases")}</div>
           {/* HEADER */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <div style={{ fontSize: 11, color: t.textMut }}>
