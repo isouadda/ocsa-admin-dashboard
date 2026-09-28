@@ -803,7 +803,8 @@ export default function AdminDashboard() {
                 </div>
               );
             } else {
-              // No label: show each item icon individually
+              // No label: show each item icon individually. Messages sits in a group with no label, so
+              // its unread total is drawn on its own icon, the way a labelled group draws it on the group's.
               return (
                 <div key={gi} style={{ marginBottom: 2 }}>
                   {group.items.map(item => {
@@ -811,8 +812,9 @@ export default function AdminDashboard() {
                     const NavI = item.i;
                     return (
                       <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
+                        style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
+                        {item.id === "chat" && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                       </button>
                     );
                   })}
