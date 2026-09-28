@@ -1239,8 +1239,9 @@ function createStubs() {
   // questions and two problems. The last two are numbered 040 and 041, after the three builder forms
   // the catalog above serves, 037 to 039. A definition is held in the engine's shape, every line in
   // both languages, and read through a copy of the API's catalog for its preview and of the part of
-  // its check these definitions reach for its problems, in the API's paths and words. Every title,
-  // question and note is invented.
+  // its check these definitions reach for its problems, in the API's paths and words. A turn is
+  // answered from what the draft's script holds next, in the language the call names, the way the
+  // model's answer is cleaned, checked and stored. Every title, question, note and reply is invented.
   const FB_BOOT_NOTE = "Copied in from the code at boot";
   const fbLine = (en, es) => ({ en, es });
   const fbOpt = (value, en, es) => ({ value, en, es });
@@ -1262,12 +1263,28 @@ function createStubs() {
   const FB_LADDER = { title: fbLine("Ladder Inspection Checklist", "Lista de revisi\u00f3n de escaleras"), apps: ["portal"], fillers: "everyone", readers: ["manage_tasks"], fields: [
     { key: "ladder_no", half: "agent", type: "text", en: "Ladder number", es: "N\u00famero de la escalera", required: true },
   ] };
-  // The floor buffer sign-out's draft: offered in no app, and a pick with no choices, which are the
-  // two problems the check names.
+  // The floor buffer sign-out before the turn: offered in no app, and a pick with no choices, which
+  // are the two problems the check names. After the turn: the staff app, the pick's two choices, the
+  // buffer taken, and two questions a damaged buffer opens, one a photos question whose maxPhotos is
+  // 0, which is the one problem left.
   const FB_BUFFER_1 = { title: fbLine("Floor Buffer Sign-out", "Registro de salida de la pulidora"), apps: [], fillers: "everyone", readers: ["manage_tasks"], fields: [
     { key: "taken_by", half: "agent", type: "text", en: "Who is taking the buffer", es: "Qui\u00e9n se lleva la pulidora", required: true },
     { key: "condition", half: "agent", type: "select", en: "How it came back", es: "C\u00f3mo regres\u00f3", required: true },
   ] };
+  const FB_BUFFER_2 = Object.assign({}, FB_BUFFER_1, { apps: ["portal"], fields: [
+    FB_BUFFER_1.fields[0],
+    { key: "buffer", half: "agent", type: "select", en: "Which buffer", es: "Cu\u00e1l pulidora", required: true,
+      options: [fbOpt("north", "North closet buffer", "Pulidora del cuarto norte"), fbOpt("south", "South closet buffer", "Pulidora del cuarto sur")] },
+    Object.assign({}, FB_BUFFER_1.fields[1], { options: [fbOpt("fine", "In working order", "Funcionando bien"), fbOpt("damaged", "Damaged", "Da\u00f1ada")] }),
+    { key: "damage_notes", half: "agent", type: "textarea", en: "What was wrong with it", es: "Qu\u00e9 le pasaba", required: true, appliesWhen: { key: "condition", anyOf: ["damaged"] } },
+    { key: "damage_photos", half: "agent", type: "photos", en: "Photos of the damage", es: "Fotos del da\u00f1o", required: false, maxPhotos: 0, appliesWhen: { key: "condition", anyOf: ["damaged"] } },
+  ] });
+  const FB_BUFFER_REPLY = {
+    en: "I gave How it came back two choices and added two questions for a damaged buffer: what was wrong with it, and photos of the damage. The staff app offers the form now.",
+    es: "Le di dos opciones a C\u00f3mo regres\u00f3 y agregu\u00e9 dos preguntas para una pulidora da\u00f1ada: qu\u00e9 le pasaba y fotos del da\u00f1o. La aplicaci\u00f3n del personal ofrece el formulario ahora.",
+  };
+  // What a turn answers once the script holds nothing more: the definition as it stands.
+  const FB_KEPT_REPLY = { en: "I kept the form as it is.", es: "Dej\u00e9 el formulario como est\u00e1." };
   // Draft ids are uuids, the way the table keys its rows; a new draft takes the next one.
   const FB_ID = "5b0e2c4a-7d31-4f8e-9a60-0000000000";
   const FB_DRAFT_COMPLAINT = FB_ID + "01";
@@ -1285,13 +1302,14 @@ function createStubs() {
       drafts: [
         { id: FB_DRAFT_COMPLAINT, code: "OCSA-FRM-009", version: 3, status: "draft", source: "builder", definition: clone(FB_COMPLAINT_3),
           recipients: [{ userId: seed.PEOPLE.supervisor.id, viaEmail: true, viaInApp: true }, { email: "complaints@example.invalid", viaEmail: true, viaInApp: false }],
-          delivery: "pdf", draftedBy: seed.PEOPLE.supervisor.id, updatedAt: "2026-03-16T19:40:00Z",
+          delivery: "pdf", draftedBy: seed.PEOPLE.supervisor.id, updatedAt: "2026-03-16T19:40:00Z", script: [],
           conversation: [
             { role: "user", text: "Ask for a number to call back, only when the customer wants a call back.", at: "2026-03-16T19:40:00Z" },
             { role: "assistant", text: "I added Number to call back. It is asked only when the customer wants a call back.", at: "2026-03-16T19:40:00Z" },
           ] },
         { id: FB_DRAFT_BUFFER, code: "OCSA-FRM-041", version: 1, status: "draft", source: "builder", definition: clone(FB_BUFFER_1),
           recipients: null, delivery: null, draftedBy: seed.PEOPLE.admin.id, updatedAt: "2026-03-17T22:02:00Z",
+          script: [{ definition: FB_BUFFER_2, reply: FB_BUFFER_REPLY }],
           conversation: [
             { role: "user", text: "A sign-out sheet for the floor buffers, filled by whoever takes one out.", at: "2026-03-17T22:02:00Z" },
             { role: "assistant", text: "I started the form with who is taking the buffer and how it came back. Which app should offer it?", at: "2026-03-17T22:02:00Z" },
@@ -1305,9 +1323,18 @@ function createStubs() {
   const FB_WORDS = {
     "access.insufficientPermissions": ["Insufficient permissions", "No tiene permiso para hacer esto"],
     "builder.notFound": ["Form or draft not found", "No se encontr\u00f3 el formulario o el borrador"],
+    "builder.hasProblems": ["The draft has problems to fix before it can be published", "El borrador tiene problemas que corregir antes de publicarlo"],
     "builder.adminOnly": ["Only an administrator can publish or retire a form", "Solo un administrador puede publicar o retirar un formulario"],
+    "builder.changeNoteRequired": ["Write a change note", "Escriba una nota de cambio"],
+    "builder.changeNoteTooLong": ["The change note is over {max} characters", "La nota de cambio tiene m\u00e1s de {max} caracteres"],
+    "builder.notADraft": ["This is no longer a draft", "Esto ya no es un borrador"],
     "builder.retireReasonRequired": ["Write the reason for retiring the form", "Escriba el motivo para retirar el formulario"],
     "builder.retireReasonTooLong": ["The reason is over {max} characters", "El motivo tiene m\u00e1s de {max} caracteres"],
+    "builder.textRequired": ["Write a message for the builder", "Escriba un mensaje para el constructor"],
+    "builder.textTooLong": ["The message is over {max} characters", "El mensaje tiene m\u00e1s de {max} caracteres"],
+    "builder.nothingToChange": ["Send recipients, delivery or both", "Env\u00ede recipients, delivery o ambos"],
+    "builder.recipientsShape": ["Send recipients as a list, or null to keep the form's own", "Env\u00ede recipients como una lista, o null para conservar los del formulario"],
+    "builder.badDelivery": ["Choose app_link or pdf", "Elija app_link o pdf"],
     "builder.recipientUnknown": ["The recipient {who} is not an active staff member or a usable email address", "El destinatario {who} no es un empleado activo ni una direcci\u00f3n de correo utilizable"],
   };
   const fbFill = (text, vars) => String(text).replace(/\{([a-zA-Z]+)\}/g, (m, k) => (vars && Object.prototype.hasOwnProperty.call(vars, k) ? String(vars[k]) : m));
@@ -3035,9 +3062,9 @@ function createStubs() {
     }
 
     // --- the form builder (Step 186) ----------------------------------------
-    // Every route is a holder's of build_forms, and retire is the admin role's whatever the
-    // capabilities say, the way routes/formBuilder.js gates them. Each answer and refusal is in the
-    // language the call names on its address, which is where the API reads it from first.
+    // Every route is a holder's of build_forms, and publish and retire are the admin role's whatever
+    // the capabilities say, the way routes/formBuilder.js gates them. Each answer and refusal is in
+    // the language the call names on its address, which is where the API reads it from first.
     if (path.startsWith("/api/form-builder/")) {
       const said = q("locale") === "es" || q("locale") === "en" ? q("locale") : lang;
       const me = person();
@@ -3057,18 +3084,80 @@ function createStubs() {
         w.seq += 1;
         const row = { id: FB_ID + String(w.seq).padStart(2, "0"), code: useCode, version: fbLastNumber(useCode) + 1, status: "draft", source: "builder",
           definition: code ? clone(fbLatest(code).definition) : { title: { en: "", es: "" }, apps: [], fillers: [], readers: [], fields: [] },
-          recipients: null, delivery: null, draftedBy: me.id, updatedAt: seed.NOW_ISO, conversation: [] };
+          recipients: null, delivery: null, draftedBy: me.id, updatedAt: seed.NOW_ISO, script: [], conversation: [] };
         w.drafts.push(row);
         const view = fbDraftView(row);
         return created({ draft: view.draft, problems: view.problems, resumed: false });
       }
-      // The draft, its problems, its preview in the language the call names, and its conversation. Any
-      // row reads, so a discarded or published draft still opens by its id.
-      const onDraft = /^\/api\/form-builder\/drafts\/([^/]+)$/.exec(path);
-      if (onDraft && method === "GET") {
+      const onDraft = /^\/api\/form-builder\/drafts\/([^/]+)(?:\/(message|pdf|publish|discard))?$/.exec(path);
+      if (onDraft) {
+        const part = onDraft[2] || "";
+        if (part === "publish" && method === "POST" && !admin) return fbRefusal(403, "builder.adminOnly", said);
         const row = w.drafts.find((x) => x.id === decodeURIComponent(onDraft[1]));
         if (!row) return fbRefusal(404, "builder.notFound", said);
-        return ok(fbReadView(row, said));
+        // The draft, its problems, its preview in the language the call names, and its conversation.
+        // Any row reads, so a discarded or published draft still opens by its id.
+        if (!part && method === "GET") return ok(fbReadView(row, said));
+        // The sample, helpers/formSample.js: the page in the language ?locale= names, English with none.
+        if (part === "pdf" && method === "GET") {
+          const name = row.code + (q("locale") === "es" ? "-sample-es.pdf" : "-sample.pdf");
+          return { status: 200, pdf: true, headers: { "Content-Disposition": 'attachment; filename="' + name + '"', "Access-Control-Expose-Headers": "Content-Disposition" },
+            json: "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n" };
+        }
+        if (row.status !== "draft") return fbRefusal(409, "builder.notADraft", said, null, { status: row.status });
+        // Who gets the filled report, set by a screen: the whole list or null, app_link or pdf or null,
+        // checked before anything is written and answered in the read's shape.
+        if (!part && method === "PATCH") {
+          const b = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+          const hasList = Object.prototype.hasOwnProperty.call(b, "recipients");
+          const hasDelivery = Object.prototype.hasOwnProperty.call(b, "delivery");
+          if (!hasList && !hasDelivery) return fbRefusal(400, "builder.nothingToChange", said);
+          if (hasList && b.recipients !== null && !Array.isArray(b.recipients)) return fbRefusal(400, "builder.recipientsShape", said);
+          if (hasDelivery && b.delivery !== null && b.delivery !== "app_link" && b.delivery !== "pdf") return fbRefusal(400, "builder.badDelivery", said);
+          if (hasList && b.recipients !== null) {
+            const checked = fbRecipients(Object.assign({}, row, { recipients: b.recipients }));
+            if (checked.problems.length) return fbRefusal(400, "builder.recipientUnknown", said, { who: checked.bad[0].who }, { problems: checked.problems });
+          }
+          if (hasList) row.recipients = b.recipients === null ? null : fbNormalize(b.recipients);
+          if (hasDelivery) row.delivery = b.delivery;
+          row.updatedAt = seed.NOW_ISO;
+          return ok(fbReadView(row, said));
+        }
+        // One turn: the reply in the language the call names, the definition the script holds next,
+        // cleaned and checked, and both words stored with the draft.
+        if (part === "message" && method === "POST") {
+          const text = body && typeof body.text === "string" ? body.text.trim() : "";
+          if (!text) return fbRefusal(400, "builder.textRequired", said);
+          if (text.length > 4000) return fbRefusal(400, "builder.textTooLong", said, { max: 4000 });
+          const next = row.script.shift();
+          if (next) row.definition = clone(next.definition);
+          const reply = (next ? next.reply : FB_KEPT_REPLY)[said === "es" ? "es" : "en"];
+          row.conversation.push({ role: "user", text, at: seed.NOW_ISO }, { role: "assistant", text: reply, at: seed.NOW_ISO });
+          row.updatedAt = seed.NOW_ISO;
+          const view = fbDraftView(row);
+          return ok({ reply, draft: view.draft, problems: view.problems, preview: fbPreview(view.draft.definition, said), flags: [] });
+        }
+        // Admin only, a change note of 500 at most, and no problems: the draft becomes the next
+        // published version, and its delivery the form's.
+        if (part === "publish" && method === "POST") {
+          const note = body && typeof body.changeNote === "string" ? body.changeNote.trim() : "";
+          if (!note) return fbRefusal(400, "builder.changeNoteRequired", said);
+          if (note.length > 500) return fbRefusal(400, "builder.changeNoteTooLong", said, { max: 500 });
+          const view = fbDraftView(row);
+          if (view.problems.length) return fbRefusal(422, "builder.hasProblems", said, null, { problems: view.problems });
+          const version = fbLastNumber(row.code) + 1;
+          const def = fbDefinition(row);
+          def.version = String(version);
+          w.store[row.code] = (w.store[row.code] || []).concat([{ version, status: "published", source: "builder", definition: def, publishedAt: seed.NOW_ISO, publishedBy: me.id, changeNote: note }]);
+          row.status = "published";
+          row.version = version;
+          if (row.delivery === "pdf" || row.delivery === "app_link") state.formDelivery[row.code] = row.delivery;
+          return ok({ form: fbListRow(row.code) });
+        }
+        if (part === "discard" && method === "POST") {
+          row.status = "discarded";
+          return ok({ id: row.id, code: row.code, status: "discarded" });
+        }
       }
       // Admin only, a published form and a reason of 500 at most: every published version is retired.
       const retiring = /^\/api\/form-builder\/forms\/([^/]+)\/retire$/.exec(path);

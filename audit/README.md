@@ -304,6 +304,23 @@ for an admin alone, to the question, the reason sent and the row read again as r
 form to the draft opened or started and kept in the hash; a list that does not load, and an empty one,
 to their lines; and the capability's name on Roles and Permissions. Both languages.
 
+**The builder draws what the API answered.** A form's Edit opens the builder on the draft the API
+holds, `GET /api/form-builder/drafts/:id`, and the stub answers every route it calls the way
+`routes/formBuilder.js` does: the read with its preview in the language the address names, a turn from
+what the draft's script holds next, the sample PDF, who gets the filled report, publish and discard,
+each refusal in the API's words. The `builder` suite has the draft's read refused and holds the page to
+This did not load. with Back and Try again; opens the floor buffer sign-out's draft and holds the
+header, the stored turns with their times, the problems and the Staff app's questions to the read;
+sends a turn, held open, and sees Send off and The builder is working...; holds the conversation, the
+preview and the problems to the answer, and Publish off while a problem is left; has the next turn
+refused and holds the API's words under the person's line, with the words back in the box; switches
+the preview to the other language and holds its questions to the read with that `locale=`; presses Try
+it, answers the governing question and sees the governed one appear, with no route reached; reads the
+sample in its frame with Download PDF; and discards the draft after its question. On the complaint
+log's draft it changes the delivery and holds the `PATCH` to the whole list, then publishes as an admin
+and reads Published as version 3. with the form's title; a supervisor holding `build_forms` reads Only
+an admin can publish. Both languages.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -470,7 +487,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating`, `corrections`, `load-failed`, `dates`, `void`, `messages`, `catalog`, `folder-reports`, `categories`, `forty-four`, `form-builder`, `builder` and `house-style`.
 
 ## How much is left in English
 

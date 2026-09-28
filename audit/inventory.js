@@ -125,6 +125,8 @@ const VIEWS = [
   { id: "help-insights/single", page: "help-insights", click: null, expect: "Everyone who asked" },
   { id: "announcements/single", page: "announcements", click: null, expect: "New announcement" },
   { id: "form-builder/list", page: "form-builder", click: null, expect: "Every form the apps offer" },
+  // Step 187: the builder, which a form's Edit swaps in for the list.
+  { id: "form-builder/builder", page: "form-builder", click: "Edit", expect: "Needs fixing before it can be published" },
 ];
 
 // ---------------------------------------------------------------------------

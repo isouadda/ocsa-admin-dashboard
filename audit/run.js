@@ -115,6 +115,10 @@ const SUITES = [
   // list the API answers, a row's history, Retire form for an admin alone, Edit and New form, in both languages.
   { name: "form-builder", mod: "./cases/form-builder", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The builder since Step 187: a draft read, a turn and its answer, a refused turn, the other language,
+  // Try it, the sample, Discard, who gets the report and Publish for an admin alone, in both languages.
+  { name: "builder", mod: "./cases/builder", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
   // holder of what guards it, by role or by override, in both languages.
   { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],
