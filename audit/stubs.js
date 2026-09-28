@@ -51,7 +51,10 @@ function createStubs() {
   // hand: employment types in the order of the seed, every fifth person with none; a rate from the
   // fifth person on; each person at the one site the seed gives them.
   const EMPLOYMENT = ["full_time", "full_time", "part_time", "supplemental", null];
+  // Since Step 175 every row says whether the account is a test account, isTestAccount, and one on the
+  // list's first page is.
   const staffRows = () => clone(seed.STAFF).map((p, i) => Object.assign(p, {
+    isTestAccount: p.id === "u-staff-10",
     employeeId: p.employee_id,
     badgeNumber: p.badge_number, badgeSource: p.badge_number ? "adp" : null,
     employmentType: EMPLOYMENT[i % EMPLOYMENT.length],
@@ -451,6 +454,15 @@ function createStubs() {
     expiredTraining: [HR_TRAINING[0]],
     expiringTraining: [HR_TRAINING[2]],
     onboardingProgress: seed.STAFF.slice(4, 8).map((p, i) => ({ user_id: p.id, user_name: p.name, completed_steps: 3 + (i % 2), total_steps: 5 })),
+    // The certifications Step 183 added, in the columns routes/hr.js selects: active ones due in the
+    // next 30 days, and active ones already past their expiry.
+    expiringCerts: [
+      { id: "cert-11", user_id: seed.STAFF[6].id, cert_name: "Aerial lift operation", cert_type: "license", issuing_body: "In-house", issued_date: seed.shift(-700), expiry_date: seed.shift(9), status: "active", user_name: seed.STAFF[6].name },
+      { id: "cert-12", user_id: seed.STAFF[7].id, cert_name: "First aid and CPR", cert_type: "certification", issuing_body: "In-house", issued_date: seed.shift(-340), expiry_date: seed.shift(21), status: "active", user_name: seed.STAFF[7].name },
+    ],
+    expiredCerts: [
+      { id: "cert-13", user_id: seed.STAFF[8].id, cert_name: "Scissor lift safety", cert_type: "certification", issuing_body: "In-house", issued_date: seed.shift(-400), expiry_date: seed.shift(-12), status: "active", user_name: seed.STAFF[8].name },
+    ],
     staffSummary: seed.STAFF.map((p) => ({
       id: p.id, user_name: p.name, role: p.role,
       doc_count: 3, training_count: 2, jotform_count: 1, alias_count: 0,
@@ -460,7 +472,8 @@ function createStubs() {
     })),
   };
   // hand: expired docs 1, expired training 1, expiring 2 + 1 = 3 in the 30-day tile,
-  // onboarding 4 people, staff summary 12 rows.
+  // onboarding 4 people, staff summary 12 rows. Certifications: 2 expiring (March 26 and April 7,
+  // both within 30 days of March 17) and 1 expired (March 5).
 
   const SETTINGS = {
     id: "set-1",
@@ -1414,6 +1427,9 @@ function createStubs() {
     // --- supplies ---------------------------------------------------------
     if (path === "/api/supplies" && method === "GET") { if (!state.supplies) state.supplies = clone(SUPPLIES); return ok(state.supplies); }
     if (path === "/api/supplies" && method === "POST") { if (!state.supplies) state.supplies = clone(SUPPLIES); const row = Object.assign({ id: "sp-new", is_active: true, current_stock: 0 }, body || {}); state.supplies.push(row); return created({ message: "Supply added", supply: row }); }
+    // A supply's QR image, a PNG the page fetches with the token, the way routes/supplies.js sends it
+    // since Step 183.
+    if (/^\/api\/supplies\/[^/]+\/qr\.png$/.test(path) && method === "GET") return imageAnswer();
     if (path === "/api/supplies/requests" && method === "GET") { if (!state.supplyRequests) state.supplyRequests = clone(SUPPLY_REQUESTS); return ok(state.supplyRequests); }
     if (/^\/api\/supplies\/requests\/[^/]+$/.test(path)) {
       if (!state.supplyRequests) state.supplyRequests = clone(SUPPLY_REQUESTS);

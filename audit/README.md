@@ -145,6 +145,14 @@ Add Supply and a card that opens nothing, and one on the defaults, who finds bot
 Permissions it holds the line an admin's account carries, the line one's own account carries, and
 the manage_admins row, which only a holder can grant, each with nothing to press. Both languages.
 
+**Four leftovers.** The `leftovers` suite reads, in both languages, Staff Management's list, where
+the one row the stub sends with `isTestAccount` carries the Test account mark and no other row does;
+Supplies, where every card's QR image is a data URL of the PNG `GET /api/supplies/:id/qr.png`
+answered, one read per supply and none of the outside QR service; HR Compliance, where Certifications
+expiring soon counts 2 and Expired certifications counts 1, worked out by hand from the stub's
+`expiringCerts` and `expiredCerts`, each listed with its expiry; and the bell, where a notice whose
+link is `#forms/reports/ir-1` opens Forms on that report, in the same tab, with the report read.
+
 **Settings saves what it saves in English.** The stub answers the Dropdown Options lists and the
 company's settings in the API's shapes and puts the settings back on a reset. The `settings` suite
 reads every value of the first list, in English and in Spanish at 1024: the English it was saved in,
@@ -280,7 +288,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers` and `house-style`.
 
 ## How much is left in English
 

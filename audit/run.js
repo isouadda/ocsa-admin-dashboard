@@ -75,6 +75,10 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Scout 141's leftovers since Step 185: the test account's mark, the supplies' QR images from the API,
+  // the certification counts and a notice's link to a record, in both languages.
+  { name: "leftovers", mod: "./cases/leftovers", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
   // holder of what guards it, by role or by override, in both languages.
   { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],
