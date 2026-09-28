@@ -432,6 +432,8 @@ export default function AdminDashboard() {
     return want;
   });
   const chooseLang = (id) => { setLang(id); setLangState(id); try { localStorage.setItem("ocsa-lang", id); } catch {} };
+  // The browser tab's title, in the language of the screen.
+  useEffect(() => { try { document.title = clientConfig.company.brandTag + " " + tr("Admin Dashboard"); } catch (e) { /* no document */ } }, [lang]);
   useEffect(() => { try { document.documentElement.lang = lang; } catch (e) {} }, [lang]);
   const zoom = textSizeFactor(textSize);
   // At Standard the property is left off the root altogether, so the page is what it always was.
@@ -969,14 +971,14 @@ export default function AdminDashboard() {
 
 function LoginForm({ onLogin, loading, t }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
-  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("2150000000 or name@email.com")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
+  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
     <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
 
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
-const DataTable = ({ columns, rows, rowKey, onRowClick, empty = "No records found.", footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
+const DataTable = ({ columns, rows, rowKey, onRowClick, empty = tr("No records found."), footer, t }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}><thead><tr style={{ background: t.cardAlt }}>{columns.map((c, i) => <th key={i} style={{ padding: "12px 16px", fontFamily: FONT_HEAD, fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: "uppercase", color: t.textMut, whiteSpace: "nowrap", textAlign: c.align || "left" }}>{c.header}</th>)}</tr></thead><tbody>{rows.length === 0 && <tr><td colSpan={columns.length} style={{ padding: 34, textAlign: "center", color: t.textMut }}>{empty}</td></tr>}{rows.map((row, ri) => <tr key={rowKey ? rowKey(row) : ri} onClick={onRowClick ? () => onRowClick(row) : undefined} style={{ borderTop: "1px solid " + t.border, cursor: onRowClick ? "pointer" : "default", transition: "background 0.12s" }} onMouseEnter={onRowClick ? e => e.currentTarget.style.background = t.hover : undefined} onMouseLeave={onRowClick ? e => e.currentTarget.style.background = "transparent" : undefined}>{columns.map((c, ci) => <td key={ci} style={{ padding: "12px 16px", textAlign: c.align || "left", ...(c.tdStyle || {}) }}>{c.render(row)}</td>)}</tr>)}</tbody></table></div>{footer}</Crd>;
 
 const Pagination = ({ page, perPage, total, onPage, t }) => { const totalPages = Math.max(1, Math.ceil(total / perPage)); const cur = Math.min(page, totalPages); const from = total === 0 ? 0 : (cur - 1) * perPage + 1; const to = Math.min(total, cur * perPage); return <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderTop: "1px solid " + t.border, flexWrap: "wrap", gap: 10 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Showing {0} to {1} of {2}", from, to, total)}</span><div style={{ display: "flex", gap: 6, alignItems: "center" }}><button onClick={() => onPage(Math.max(1, cur - 1))} disabled={cur <= 1} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur <= 1 ? t.textMut : t.text, cursor: cur <= 1 ? "default" : "pointer", fontSize: 12, opacity: cur <= 1 ? 0.5 : 1 }}>{tr("Prev")}</button><span style={{ fontSize: 12, color: t.textSec, fontFamily: FONT_HEAD, fontWeight: 600 }}>{tr("Page {0} / {1}", cur, totalPages)}</span><button onClick={() => onPage(Math.min(totalPages, cur + 1))} disabled={cur >= totalPages} style={{ minHeight: 44, minWidth: 44, padding: "6px 12px", borderRadius: 7, border: "1px solid " + t.border, background: t.card, color: cur >= totalPages ? t.textMut : t.text, cursor: cur >= totalPages ? "default" : "pointer", fontSize: 12, opacity: cur >= totalPages ? 0.5 : 1 }}>{tr("Next")}</button></div></div>; };
 
@@ -1135,13 +1137,13 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Same pattern used in HRRecordsPage.
   const viewDoc = async (docId) => {
     try {
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -1789,6 +1791,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const [showAddSupply, setShowAddSupply] = useState(false);
   const [availableSupplies, setAvailableSupplies] = useState([]);
   const [addSupplyLoading, setAddSupplyLoading] = useState(false);
+  const shiftNameShown = lkMap("shift_names", true);
   const cimsLabels = lkMap("cims_categories", true);
   // The words for the codes a site and its tasks carry. The code is what the API sent and what is
   // sent back; these are only what the screen says. A code with no word here is drawn as it arrives.
@@ -1949,7 +1952,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const submitSite = async () => {
     if (!addSite.name || !addSite.address) { showToast(tr("Name and address required"), "error"); return; }
     try {
-      await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || "Philadelphia", state: addSite.state || "PA", zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } });
+      await af("/api/sites", { method: "POST", body: { name: addSite.name, addressLine1: addSite.address, city: addSite.city || clientConfig.company.city, state: addSite.state || clientConfig.company.state, zipCode: addSite.zip, clientName: addSite.client, contractType: addSite.contract, primeContractor: addSite.prime } });
       showToast(tr("Site created")); setAddSite(null); load();
     } catch (e) { showToast(e.message, "error"); }
   };
@@ -2223,7 +2226,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
               {st2.profile_photo_url ? <img src={st2.profile_photo_url} alt="" style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }} /> : <Ini name={st2.first_name + " " + st2.last_name} sz={32} />}
               <div><div style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{st2.first_name} {st2.last_name}</div><div style={{ fontSize: 10, color: t.textMut }}>{roleOf(st2)}</div></div>
             </div>
-            {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
+            {st2.shift_name && <div style={{ fontSize: 10, color: t.textSec }}>{shiftNameShown[st2.shift_name] || st2.shift_name}{st2.shift_start ? " " + st2.shift_start + " - " + st2.shift_end : ""}</div>}
           </div>)}
           {sp.staff.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No staff assigned")}</div>}
         </Crd>
@@ -2525,7 +2528,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
 
   // ---- LIST VIEW ----
   return (<div>
-    <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: "Philadelphia", state: "PA", zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
+    <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search site, address, contract")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
@@ -4877,10 +4880,10 @@ function VendorsPage({ af, showToast, canManageVendors = false, t }) {
   const emptyForm = { name: "", contactName: "", contactPhone: "", contactEmail: "", website: "", addressLine1: "", city: "", state: "", zipCode: "", productsServices: "", certificationStatus: "", contractTerms: "", approvalStatus: "pending", lastReviewDate: "" };
 
   const renderFormFields = (form, setForm) => (<>
-    <div style={{ marginBottom: 12 }}><Lbl>{tr("Vendor Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. {0}", "Spartan Chemical Company")} /></div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Vendor Name *")}</Lbl><Inp t={t} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={tr("e.g. {0}", "Supply Co")} /></div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={form.contactName} onChange={e => setForm({ ...form, contactName: e.target.value })} /></div>
-      <div><Lbl>{tr("Contact Phone")}</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder="2155550000" /></div>
+      <div><Lbl>{tr("Contact Phone")}</Lbl><Inp t={t} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder={tr("10 digits")} /></div>
     </div>
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
       <div><Lbl>{tr("Contact Email")}</Lbl><Inp t={t} value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} type="email" /></div>
@@ -5366,8 +5369,8 @@ function PatternWindow({ af, t, id, sites, allStaff, onClose, onChanged, onOpenO
     {error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{error}</div>}
     {result && <div style={{ fontSize: 12, color: t.text, marginBottom: 10 }}>
       <div style={{ fontWeight: 600, marginBottom: 4 }}>{tr("{0} added, {1} removed, {2} kept", result.created, result.removed, result.keptCount)}</div>
-      {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
-      {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {k.reason}</div>)}
+      {result.kept.map((k, i) => <div key={"k" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {patternReasonWord(k)}</div>)}
+      {result.skipped.map((k, i) => <div key={"s" + i} style={{ color: t.textSec }}>{patternDate(k.date)}: {patternReasonWord(k)}</div>)}
     </div>}
     <div style={{ display: "flex", justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn></div>
   </div></Mdl>);
@@ -5572,7 +5575,7 @@ function TimeOffView({ af, t, allStaff = [], myId, showToast, onCountChange }) {
     { header: tr("Asked"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => patternDate(r.createdAt) },
   ];
   const statusBtn = (v, l) => <button key={v} onClick={() => setStatus(v)} style={{ minHeight: 44, padding: "0 14px", borderRadius: 6, fontSize: 12, fontWeight: status === v ? 700 : 500, background: status === v ? t.goldBg : "transparent", color: status === v ? t.goldText : t.textMut, border: "1px solid " + (status === v ? t.goldBorder : t.border), cursor: "pointer", fontFamily: FONT_BODY }}>{tr(l)}</button>;
-  const empty = status === "requested" ? "No time off is waiting for a decision." : "No time off requests to show.";
+  const empty = status === "requested" ? tr("No time off is waiting for a decision.") : tr("No time off requests to show.");
 
   return (<div>
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
@@ -5599,7 +5602,19 @@ const serviceWordOf = (lkMap) => {
   return (v) => (v == null || v === "" ? v : (shown[v] || byLabel[v] || v));
 };
 
+// A pattern's kept and skipped reasons, as the API says them today. A code the API adds later is
+// drawn through the table under its code, and anything else as it was sent.
+const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand": "changed by hand", "posted as an open shift": "posted as an open shift", "referenced by site_sessions": "started|pattern", "already scheduled at that time": "already scheduled at that time" };
+const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
 function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaff, user, getOpts, lkMap, lkColorMap }) {
+  // A code on this page is drawn as a word: a role and a pickup's reason read the pick list's shown
+  // label, then the table's word; a pickup's and an inspection's status read the table's word.
+  const staffRoleShown = lkMap("staff_roles", true);
+  const roleOf = (r) => (r ? (staffRoleShown[r] || roleWord(r)) : "");
+  const originShown = lkMap("shift_origins", true);
+  const originWordS = (o) => (o ? (originShown[o] || ({ callout: tr("Callout"), no_show: tr("No-Show"), extra_coverage: tr("Extra Coverage"), voluntary_drop: tr("Voluntary Drop"), new_shift: tr("New Shift") })[o] || o) : "");
+  const pickupStatusWord = { open: tr("Open|shift"), claimed: tr("Claimed|shift"), approved: tr("Approved|shift"), filled: tr("Filled|shift"), expired: tr("Expired|shift"), cancelled: tr("Cancelled|shift"), requested: tr("Drop Request") };
+  const inspStatusWord = { scheduled: tr("scheduled|inspection"), in_progress: tr("in progress"), completed: tr("completed|inspection"), cancelled: tr("cancelled|inspection") };
   // The service list shows each choice's shown label and sends its code, the way it always has, and a
   // shift's saved service is drawn by its shown word.
   const SERVICE_CATS = [{ v: "", l: tr("No specific service") }, ...getOpts("service_categories", undefined, true)];
@@ -5826,7 +5841,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       if (createForm.repeat && createForm.repeatDays.length > 0) {
         const body = { user_id: createForm.userId, site_id: createForm.siteId, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined, repeat_days: createForm.repeatDays, start_date: createModal.date };
         if (createForm.repeatMode === "until" && createForm.repeatUntil) body.repeat_until = createForm.repeatUntil; else body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
-        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(d.message);
+        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(tr("{0} shifts scheduled", Number(d && d.count) || 0));
       } else {
         await af("/api/schedule", { method: "POST", body: { user_id: createForm.userId, site_id: createForm.siteId, scheduled_date: createModal.date, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined }});
         showToast(tr("Shift scheduled"));
@@ -5935,7 +5950,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     <div style={{ display: "flex", flexDirection: "column" }}>
     {pagedStaff.length === 0 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No staff to show for this filter.")}</div>}
     {pagedStaff.map(staff => (<div key={staff.id} style={{ display: "grid", gridTemplateColumns: "140px repeat(7, 1fr)", gap: 1, marginBottom: 6, paddingBottom: 6, alignItems: "stretch", borderBottom: "1px solid " + t.border }}>
-      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, background: t.cardAlt, borderRadius: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={30} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>{staff.role && <div style={{ fontSize: 9, color: t.textMut, textTransform: "capitalize", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.role}</div>}</div></div>
+      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 9, background: t.cardAlt, borderRadius: 6 }}><Ini name={staff.name || (staff.firstName + " " + staff.lastName)} sz={30} /><div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{staff.name || (staff.firstName + " " + staff.lastName)}</div>{staff.role && <div style={{ fontSize: 9, color: t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{roleOf(staff.role)}</div>}</div></div>
       {weekDays.map(d => {
         const { hasAny, items } = dayItems(staff, d);
         return (<div key={d} onClick={() => !hasAny && openCreate(d, staff.onRoster ? staff.id : "")} style={{ padding: 5, minHeight: 52, background: isToday(d) ? t.goldBg : t.hover, borderRadius: 4, cursor: hasAny ? "default" : "pointer", border: "1px solid " + (isToday(d) ? t.goldBorder : "transparent"), display: "flex", flexDirection: "column" }}>
@@ -6108,7 +6123,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
           <div style={{ fontSize: 10, color: t.textMut, marginBottom: 10 }}>{tr("The scheduled shift will be cancelled and posted as an open shift for eligible staff to claim.")}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
             <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertPickup.origin} onChange={e => setConvertPickup({ ...convertPickup, origin: e.target.value })} options={getOpts("shift_origins", undefined, true)} /></div>
-            <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder={tr("e.g. Marcus called out")} /></div>
+            <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertPickup.notes} onChange={e => setConvertPickup({ ...convertPickup, notes: e.target.value })} placeholder={tr("e.g. Called out")} /></div>
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <Btn t={t} v="ghost" onClick={() => setConvertPickup(null)} style={{ fontSize: 11, padding: "6px 12px" }}>{tr("Cancel")}</Btn>
@@ -6148,7 +6163,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       <div style={{ padding: 12, borderRadius: 8, background: BL + "0A", border: "1px solid " + BL + "20", marginBottom: 16 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{inspModal.template_name}</div>
         <div style={{ fontSize: 12, color: t.textSec }}>{inspModal.site_name}</div>
-        <Bdg l={inspModal.status || "scheduled"} c={inspModal.status === "completed" ? GR : BL} />
+        <Bdg l={inspStatusWord[inspModal.status || "scheduled"] || inspModal.status} c={inspModal.status === "completed" ? GR : BL} />
       </div>
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned Supervisor")}</Lbl><Sel t={t} value={inspForm.assigned_to} onChange={e => setInspForm({ ...inspForm, assigned_to: e.target.value })} options={[{ v: "", l: tr("Unassigned") }, ...(Array.isArray(schedSupervisors) ? schedSupervisors : []).map(s => ({ v: s.id, l: (s.firstName || s.first_name) + " " + (s.lastName || s.last_name) }))]} /></div>
       <div style={{ marginBottom: 20 }}><Lbl>{tr("Scheduled Date *")}</Lbl><Inp t={t} type="date" value={inspForm.scheduled_date} onChange={e => setInspForm({ ...inspForm, scheduled_date: e.target.value })} /></div>
@@ -6165,12 +6180,12 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       {pickupDetail.status === "open" && <div style={{ padding: "8px 12px", borderRadius: 6, background: GO + "18", border: "1px solid " + GO + "40", fontSize: 11, color: t.goldText, fontWeight: 600, marginBottom: 14 }}>{tr("This shift is open in the marketplace and available for staff to claim.")}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.site_name}</div></div>
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{(pickupDetail.status || "unknown").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Status")}</div><div style={{ fontSize: 14, fontWeight: 600, color: pickupDetail.status === "requested" ? "#F1C40F" : pickupDetail.status === "open" ? GO : pickupDetail.status === "claimed" ? BL : pickupDetail.status === "approved" ? GR : OR }}>{pickupStatusWord[pickupDetail.status] || pickupDetail.status || ""}</div></div>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{pickupDetail.scheduled_date ? new Date(typeof pickupDetail.scheduled_date === "string" ? pickupDetail.scheduled_date.slice(0, 10) + "T00:00:00" : pickupDetail.scheduled_date).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : ""}</div></div>
         <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Time")}</div><div style={{ fontSize: 13, color: t.text }}>{String(pickupDetail.start_time).slice(0, 5)} - {String(pickupDetail.end_time).slice(0, 5)}</div></div>
         {pickupDetail.status === "requested" && pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Requested By")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{pickupDetail.original_user_name}</div></div>}
         {pickupDetail.status === "claimed" && pickupDetail.claimed_by_name && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Claimed By")}</div><div style={{ fontSize: 14, fontWeight: 600, color: BL }}>{pickupDetail.claimed_by_name}</div></div>}
-        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{(pickupDetail.origin || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</div></div>
+        <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Reason")}</div><div style={{ fontSize: 13, color: t.text }}>{originWordS(pickupDetail.origin)}</div></div>
         {pickupDetail.original_user_name && pickupDetail.original_user_name.trim() && pickupDetail.status !== "requested" && <div><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Originally Assigned")}</div><div style={{ fontSize: 13, color: t.textSec }}>{pickupDetail.original_user_name}</div></div>}
       </div>
       {pickupDetail.ot_warning && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, fontWeight: 600, marginBottom: 14 }}>{tr("Overtime risk: claiming this shift may push the worker past 40 weekly hours.")}</div>}
@@ -6813,7 +6828,7 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
         <div><Lbl>{tr("Reason")}</Lbl><Sel t={t} value={convertOrigin} onChange={e => setConvertOrigin(e.target.value)} options={[{ v: "callout", l: tr("Callout") }, { v: "no_show", l: tr("No-Show") }, { v: "voluntary_drop", l: tr("Voluntary Drop") }, { v: "extra_coverage", l: tr("Extra Coverage") }]} /></div>
-        <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder={tr("e.g. Marcus called out sick")} /></div>
+        <div><Lbl>{tr("Notes")}</Lbl><Inp t={t} value={convertNotes} onChange={e => setConvertNotes(e.target.value)} placeholder={tr("e.g. Called out sick")} /></div>
       </div>
 
       <div style={{ maxHeight: 300, overflow: "auto" }}>
@@ -8596,7 +8611,7 @@ function JotformPickerField({ af, form, setForm, t }) {
         <div style={{ padding: "8px 12px", fontSize: 11, color: t.textMut }}>{tr("Loading submissions...")}</div>
       )}
       {form.user_id && noKey && (
-        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("Jotform is not configured. Use the manual entry below.")}</div>
+        <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("The forms connection is not set up. Ask your administrator.")}</div>
       )}
       {form.user_id && !loading && !noKey && pickerOptions.length === 0 && (
         <div style={{ padding: "8px 12px", borderRadius: 6, background: t.hover, fontSize: 11, color: t.textMut }}>{tr("No unlinked Jotform submissions for this employee. Sync the Forms page if needed, or use manual entry.")}</div>
@@ -9526,7 +9541,7 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
     setSigningKey(null);
   };
 
-  // Step 169: a customer's signature on a form OCSA fills, made on this device with the customer
+  // Step 169: a customer's signature on a form the company fills, made on this device with the customer
   // present: a typed name, an optional role and the drawing from the signature box, sent to its own
   // route, which answers with the whole report. It is never part of a save. Clear opens the pad
   // again while the draft is open, and the next Save signature replaces the drawing on the draft.
@@ -10667,7 +10682,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   }, [maintenance]);
 
   const syncForms = async () => {
-    if (!window.confirm(tr("Pull the latest forms from Jotform. Only forms whose title starts with 'OCSA Cleaning_' will be imported. Forms in the app that no longer match this prefix (including any Construction or MCFL forms) will be removed along with their submissions. Continue?"))) return;
+    if (!window.confirm(tr("Pull the latest forms from Jotform. Only forms whose title starts with {0} are imported. Forms in the app that no longer match are switched off and kept, with their submissions. Continue?", "'" + clientConfig.forms.titlePrefix + "'"))) return;
     setSyncingForms(true);
     try {
       const d = await af("/api/jotform/forms/sync", { method: "POST" });
@@ -10677,7 +10692,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       ];
       if (d.purgedForms > 0) parts.push(tr("{0} purged ({1} submissions removed)", d.purgedForms, d.purgedSubmissions));
       if (d.skippedWrongPrefix > 0) parts.push(tr("{0} skipped (wrong prefix)", d.skippedWrongPrefix));
-      showToast(tr("Synced {0} OCSA Cleaning forms. {1}.", d.total, parts.join(", ")));
+      showToast(tr("Synced {0} forms. {1}.", d.total, parts.join(", ")));
       loadForms(); loadConfig();
     } catch (e) {
       showToast(tr("Sync failed: {0}", e.message), "error");
@@ -10712,11 +10727,11 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   };
 
   // Session 24, Step 6: trigger the PDF backfill that sweeps the
-  // jotform@ocsaco.com inbox for all PDF emails (not just unread).
+  // the forms mailbox for all PDF emails (not just unread).
   // This may take several minutes. Run multiple times if the result
   // shows processed === maxMessages (more emails remain).
   const runPdfBackfill = async () => {
-    if (!window.confirm(tr("Run PDF backfill?\n\nThis sweeps the entire jotform@ocsaco.com inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached."))) return;
+    if (!window.confirm(tr("Run PDF backfill?\n\nThis sweeps the entire {0} inbox and ingests any PDFs that have not yet been captured. May take a few minutes. Run again if the result shows the max was reached.", clientConfig.forms.mailbox))) return;
     setBackfillingPdfs(true);
     try {
       const d = await af("/api/jotform/pdf-backfill", { method: "POST", body: { maxMessages: 500 } });
@@ -10745,7 +10760,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
     try {
       const fd = new FormData();
       for (const f of files) fd.append("pdfs", f);
-      const apiBase = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app");
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/pdf-bulk-upload", {
         method: "POST",
         headers: { "Authorization": "Bearer " + token },
@@ -10794,12 +10809,12 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   };
 
   // Session 24, end-of-session: re-run the auto-link pass that ties
-  // unlinked submissions to existing OCSA users by email or exact name.
+  // unlinked submissions to existing users by email or exact name.
   // Original auto-link ran once during Session 21 migration and never
   // again, so submissions from existing users (e.g., Sadon Powell)
   // accumulate as "Unmatched" until this button is clicked.
   const runAutoLink = async () => {
-    if (!window.confirm(tr("Re-run Auto-Link?\n\nThis scans every unlinked submission and matches it against the OCSA users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.\n\nThis action is safe to run any number of times."))) return;
+    if (!window.confirm(tr("Re-run Auto-Link?\n\nThis scans every unlinked submission and matches it against the users table by employee ID, email, or exact full name. Ambiguous matches (multiple users) are left unlinked for manual review. Submitters that don't exist in the users table will also remain unlinked.\n\nThis action is safe to run any number of times."))) return;
     setAutoLinking(true);
     try {
       const d = await af("/api/jotform/auto-link", { method: "POST" });
@@ -10917,7 +10932,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
   // Session 21: fetch PDF as blob (binary payload, bypasses af which expects JSON)
   const fetchPdfBlob = async (submissionId, action) => {
-    const url = (process.env.REACT_APP_API_URL || "https://ocsa-api-production.up.railway.app") +
+    const url = API +
       "/api/jotform/submissions/" + submissionId + "/pdf?action=" + action;
     const r = await apiRequest(url, { headers: { "Authorization": "Bearer " + token } });
     if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
@@ -11024,7 +11039,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {tab === "jotform" && (<>
         {/* PII WARNING BANNER */}
         <div style={{ padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder, fontSize: 11, color: OR, marginBottom: 14, lineHeight: 1.5 }}>
-          <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. OCSA caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
+          <strong>{tr("Privacy note.")}</strong> {tr("Submission content (SSN, bank info, dates of birth) is stored only in Jotform. The dashboard caches metadata only. Opening a submission detail below fetches the full answers from Jotform in real time. Close the modal when done.")}
         </div>
 
         {/* THE SECTION SWITCH, with the buttons of the section that is open beside it */}
@@ -11245,7 +11260,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
               <Btn t={t} v="ghost" onClick={runDiagnostic} disabled={runningDiagnostic} style={{ fontSize: 12, padding: "6px 14px" }}>{runningDiagnostic ? tr("Probing...") : tr("Run Diagnostic")}</Btn>
             </div>
             <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10, lineHeight: 1.5 }}>
-              {tr("Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how we filter the platform to show OCSA Cleaning forms only (separate from OCSA Construction and My Choice for Living).")}
+              {tr("Probes the Jotform API to determine which filtering mechanism this account supports: labels, folders, or keyword-based fallback. The recommendation drives how this business's forms are told apart from the other businesses' forms on the same account.")}
             </div>
 
             {diagnosticResult && (
@@ -11293,7 +11308,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 )}
 
                 <details style={{ marginTop: 10 }}>
-                  <summary style={{ cursor: "pointer", fontSize: 11, color: t.textMut }}>{tr("Raw JSON (paste this back to Claude for Step 2 implementation)")}</summary>
+                  <summary style={{ cursor: "pointer", fontSize: 11, color: t.textMut }}>{tr("Raw result")}</summary>
                   <pre style={{ marginTop: 8, padding: 12, borderRadius: 8, background: t.bg, border: "1px solid " + t.border, fontSize: 10, color: t.textSec, overflow: "auto", maxHeight: 400, fontFamily: "monospace" }}>{JSON.stringify(diagnosticResult, null, 2)}</pre>
                 </details>
               </div>
@@ -11310,9 +11325,9 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                 <tbody>{syncLog.map(l => (
                   <tr key={l.id} style={{ borderBottom: "1px solid " + t.border }}>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{fmtDT(l.started_at)}</td>
-                    <td style={{ padding: "8px 10px", color: t.text, fontSize: 11 }}>{l.sync_type}</td>
+                    <td style={{ padding: "8px 10px", color: t.text, fontSize: 11 }}>{({ forms: tr("Forms"), submissions: tr("Submissions"), failure_retry: tr("Failed retry"), force_fetch: tr("Forced fetch") })[l.sync_type] || l.sync_type}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.form_title || "--"}</td>
-                    <td style={{ padding: "8px 10px" }}><Bdg l={l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
+                    <td style={{ padding: "8px 10px" }}><Bdg l={({ success: tr("success"), failed: tr("failed"), running: tr("running|sync") })[l.status] || l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_processed}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_created}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_updated}</td>
@@ -11506,7 +11521,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       <tr key={fl.id} style={{ borderBottom: "1px solid " + t.border }}>
                         <td style={{ padding: "10px 12px", color: t.text, fontFamily: "monospace", fontSize: 10 }}>{fl.jotform_submission_id}</td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fl.form_title || "--"}</td>
-                        <td style={{ padding: "10px 12px" }}><Bdg l={fl.failure_stage} c={fl.failure_stage === "fetch" ? OR : RD} /></td>
+                        <td style={{ padding: "10px 12px" }}><Bdg l={({ fetch: tr("fetch|stage"), parse: tr("parse|stage"), store: tr("store|stage") })[fl.failure_stage] || fl.failure_stage} c={fl.failure_stage === "fetch" ? OR : RD} /></td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fl.failure_reason}>{fl.failure_reason}</td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fmtDT(fl.attempted_at)}</td>
                         <td style={{ padding: "10px 12px" }}>{fl.exists_in_submissions ? <Bdg l={tr("Yes")} c={GR} /> : <Bdg l={tr("No")} c={RD} />}</td>
@@ -11641,7 +11656,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                         <span style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{g.first_name} {g.last_name}</span>
                         {g.employee_id && <span style={{ marginLeft: 8, fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{g.employee_id}</span>}
                         {g.email && <span style={{ marginLeft: 10, fontSize: 11, color: t.textMut }}>{g.email}</span>}
-                        {g.user_status !== "active" && <Bdg l={g.user_status} c={OR} />}
+                        {g.user_status !== "active" && <Bdg l={g.user_status === "terminated" ? tr("terminated|person") : personStateOf(g.user_status)} c={OR} />}
                       </div>
                       <span style={{ fontSize: 11, color: t.textMut }}>{trn("{0} alias|count", g.rows.length)}</span>
                     </div>
@@ -12162,7 +12177,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
     try {
       // Use raw fetch because apiFetch assumes JSON. PDF endpoint streams a binary blob.
       // The token comes from the App-level React state via props, matching how FormsPage handles its binary fetches.
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/submissions/" + submissionUuid + "/pdf", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
@@ -12173,8 +12188,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         return;
       }
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("PDF fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("PDF fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -12189,13 +12204,13 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   // Mirrors viewPdf above but for employee_documents rows in the folder timeline.
   const viewDoc = async (docId) => {
     try {
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -12589,13 +12604,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   // Uses raw fetch (not af) because the response is a binary blob, not JSON.
   const viewDoc = async (docId) => {
     try {
-      const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+      const apiBase = API;
       const resp = await apiRequest(apiBase + "/api/jotform/employee-documents/" + docId + "/file?action=view", {
         headers: { Authorization: "Bearer " + (token || "") }
       });
       if (!resp.ok) {
-        const errText = await resp.text().catch(() => "");
-        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+        const errBody = await resp.json().catch(() => ({}));
+        throw new Error(tr("File fetch failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
       }
       const blob = await resp.blob();
       const url = URL.createObjectURL(blob);
@@ -12627,7 +12642,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       } else {
         // Create new document: requires a file upload via multipart
         if (!file) { showToast(tr("Please choose a file to upload"), "error"); return; }
-        const apiBase = (typeof window !== "undefined" && window.OCSA_API_BASE) || "https://ocsa-api-production.up.railway.app";
+        const apiBase = API;
         const fd = new FormData();
         fd.append("file", file);
         fd.append("category", form.category);
@@ -12639,8 +12654,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           body: fd
         });
         if (!resp.ok) {
-          const errText = await resp.text().catch(() => "");
-          throw new Error(tr("Upload failed ({0}): {1}", resp.status, errText.slice(0, 200)));
+          const errBody = await resp.json().catch(() => ({}));
+          throw new Error(tr("Upload failed ({0}): {1}", resp.status, (errBody && errBody.error) || tr("Request failed")));
         }
         docResult = await resp.json();
         showToast(tr("Document added"));
