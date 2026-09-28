@@ -293,7 +293,9 @@ const Inp = ({ t, ...p }) => <input {...p} style={{ width: "100%", padding: "10p
 const Sel = ({ options: o, t, ...p }) => <select {...p} style={{ width: "100%", padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 13, fontFamily: FONT_BODY, ...p.style }}>{o.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select>;
 const Btn = ({ children, v = "primary", t, ...p }) => <button {...p} style={{ padding: "10px 18px", borderRadius: R.sm, border: (v === "primary" || v === "danger") ? "none" : "1px solid " + t.borderSolid, background: v === "primary" ? "linear-gradient(135deg," + GO + "," + GL + ")" : v === "danger" ? RD : t.btnGhost, color: v === "primary" ? NAVY : v === "danger" ? "#F8F7F4" : t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, boxShadow: v === "primary" ? "0 6px 16px -8px " + GO : "none", transition: "transform .12s ease", ...p.style }}>{children}</button>;
 const Lbl = ({ children }) => { const t = useT(); return <label style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, display: "block", marginBottom: 6, fontFamily: FONT_BODY }}>{children}</label>; };
-const Mdl = ({ children, onClose: oc, t }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: 540, width: "100%", maxHeight: "calc(85vh / var(--zoom, 1))", overflow: "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
+// A tall window is the full height of the screen and scrolls inside itself, which is what a form
+// filled section by section needs; every other window is the card it has always been.
+const Mdl = ({ children, onClose: oc, t, tall }) => <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: t.modalOverlay, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)", zIndex: 500, display: "flex", alignItems: "center", justifyContent: "center", padding: tall ? 12 : 20 }} onClick={oc}><div style={{ background: t.card, borderRadius: 16, border: "1px solid " + t.border, maxWidth: tall ? 760 : 540, width: "100%", height: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : undefined, maxHeight: tall ? "calc(100vh / var(--zoom, 1) - 24px)" : "calc(85vh / var(--zoom, 1))", overflow: tall ? "hidden" : "auto", boxShadow: t.popShadow }} onClick={e => e.stopPropagation()}>{children}</div></div>;
 const Ini = ({ name: n, sz = 36, color: c = GO }) => { const t = useT(); return <div style={{ width: sz, height: sz, borderRadius: "50%", background: "rgba(231,176,23,0.14)", border: "1.5px solid " + c, display: "flex", alignItems: "center", justifyContent: "center", fontSize: sz * 0.36, fontWeight: 600, color: goldToText(t, c), flexShrink: 0, fontFamily: FONT_HEAD }}>{n?.split(" ").map(x => x[0]).join("")}</div>; };
 const SC = ({ label, value, sub, color: c = GO, icon: I, delta, deltaUp, t }) => <Crd t={t} style={{ flex: "1 1 150px", minWidth: 150 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}><div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{label}</div><div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: goldToText(t, c) }}>{value}</div>{delta != null && <span style={{ fontSize: 12, fontWeight: 600, color: deltaUp ? GR : RD }}>{deltaUp ? "+" : "-"}{delta}</span>}</div>{sub && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{sub}</div>}</div>{I && <div style={{ width: 34, height: 34, borderRadius: R.sm, background: c + "1f", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><I sz={17} c={goldToText(t, c)} /></div>}</div></Crd>;
 const PUBLIC_BASE = process.env.PUBLIC_URL || "";
@@ -8818,7 +8820,488 @@ function IncidentReportWindow({ af, token, t, id, row, onClose }) {
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen, onClose, onUnfinished }) {
+// ===== STARTING AND FILING A FORM FROM THE DASHBOARD (Step 166) =====
+// The staff portal's form screen, drawn at a desk from the same catalog view, through the same draft
+// routes: start, answer, sign off, submit. The rules below are the data twin of what the API
+// evaluates, read the way the portal reads them, so a question appears or disappears the moment the
+// answer that governs it does. A shape this cannot read counts as holding, so a rule the dashboard
+// does not understand shows the question rather than hiding it.
+function formRuleHolds(rule, answers) {
+  if (!rule || typeof rule !== "object" || Array.isArray(rule)) return true;
+  const a = answers || {};
+  if (Array.isArray(rule.any)) return rule.any.some(r => formRuleHolds(r, a));
+  if (Array.isArray(rule.all)) return rule.all.every(r => formRuleHolds(r, a));
+  if (typeof rule.key !== "string" || !Array.isArray(rule.anyOf)) return true;
+  const v = a[rule.key];
+  if (Array.isArray(v)) return v.some(x => rule.anyOf.indexOf(x) !== -1);
+  return rule.anyOf.indexOf(v) !== -1;
+}
+const formHasAnswer = (v) => {
+  if (v === undefined || v === null) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+};
+// Every question this person is asked for the answers so far. A prefilled question is already on
+// the draft and is never shown.
+const formFieldsInPlay = (form, answers) =>
+  (form && Array.isArray(form.fields) ? form.fields : []).filter(f => !f.prefilled && formRuleHolds(f.appliesWhen, answers));
+const formSectionOf = (f) => (f.section === null || f.section === undefined ? "" : String(f.section));
+// The sections in play, in the order they first appear. A section with no question in play is not
+// one of them.
+function formSectionsOf(fields) {
+  const out = [];
+  fields.forEach(f => { const k = formSectionOf(f); if (out.indexOf(k) === -1) out.push(k); });
+  return out;
+}
+// A section's title or help line, in the language the catalog was asked for, or as en and es read
+// in the screen's language and in English where there is no Spanish. A section with none has none.
+function formSectionText(form, key, which) {
+  const list = form && Array.isArray(form.sections) ? form.sections : [];
+  const s = list.find(x => x && String(x.key) === String(key));
+  if (!s) return "";
+  const pick = (v) => (typeof v === "string" ? v : v && typeof v === "object" ? (v[getLang()] || v.en || "") : "");
+  const own = pick(s[which]);
+  return String(own || (which === "title" ? pick({ en: s.en, es: s.es }) : "") || "").trim();
+}
+const formOptionLabel = (f, v) => {
+  const o = (f.options || []).find(x => String(x.value) === String(v));
+  return o ? o.label : String(v);
+};
+const formPlainValue = (v) => typeof v === "string" || typeof v === "number" || typeof v === "boolean";
+// An answer as a person reads it: an option's label rather than the value behind it, a pick many
+// joined, and nothing when nothing was answered. An answer of a shape this cannot read says Answered.
+function formReadAnswer(f, v) {
+  if (!formHasAnswer(v)) return null;
+  if (Array.isArray(v)) {
+    if (!v.every(formPlainValue)) return tr("Answered|form");
+    const parts = v.map(x => formOptionLabel(f, x)).filter(x => x !== "");
+    return parts.length ? parts.join(", ") : null;
+  }
+  if (!formPlainValue(v)) return tr("Answered|form");
+  return formOptionLabel(f, v);
+}
+const formIsChecklist = (f) => Array.isArray(f.rows);
+// A sign-off on this screen is the filer's; a supervisor's is made in the review window, and the
+// draft keeps whatever it already carries for one this screen does not draw.
+const formDrawnHere = (f) => String(f.type || "") !== "signoff" || String(f.signer || "") === "filer";
+const formDraftOf = (r) => (r && r.draft ? r.draft : r);
+const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date", "time", "number", "grid", "signoff", "photos"];
+// What the API clips a stored answer to, so a long answer is stopped in the box rather than after.
+const FORM_VALUE_MAX = 4000;
+// Where a filing came from, as the table's word for the source the API stores.
+const formSourceWord = (code) => (code === "admin" ? tr("From the dashboard") : code ? tr("From the app") : "");
+// A form's questions the picker and the window read: a form the API lists with nobody in its
+// fillers is not one anyone here may start.
+const formStartable = (f) => !!f && (!Array.isArray(f.fillers) || f.fillers.length > 0);
+
+function FormFillWindow({ af, token, t, form, draft, onLeave }) {
+  const [current, setCurrent] = useState(draft);
+  const [values, setValues] = useState(() => Object.assign({}, draft.answers || {}));
+  const [dirty, setDirty] = useState({});
+  const [sectionKey, setSectionKey] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState("");
+  const [badKeys, setBadKeys] = useState([]);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [signingKey, setSigningKey] = useState(null);
+  const [boxFor, setBoxFor] = useState(null);
+  const [signErr, setSignErr] = useState("");
+  const [review, setReview] = useState(false);
+  const [confirmSend, setConfirmSend] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [sendErr, setSendErr] = useState("");
+  const [sent, setSent] = useState(null);
+  const bodyRef = useRef(null);
+  const savingRef = useRef(false);
+  const sendingRef = useRef(false);
+
+  // Every question in play, which is what a save is judged against, and the ones this screen draws,
+  // which is what a person walks through.
+  const fields = formFieldsInPlay(form, values);
+  const shown = fields.filter(formDrawnHere);
+  const sections = formSectionsOf(shown);
+  const here = sections.indexOf(sectionKey) !== -1 ? sectionKey : (sections.length > 0 ? sections[0] : null);
+  const at = sections.indexOf(here);
+  const pageFields = shown.filter(f => formSectionOf(f) === here);
+  // A form with one section draws no section title: the form's own name already heads the window.
+  const titled = sections.length > 1;
+  const hereTitle = here === null || !titled ? "" : formSectionText(form, here, "title");
+  const hereHelp = hereTitle ? formSectionText(form, here, "help") : "";
+
+  // What is still unanswered is the API's judgement, never this screen's: it reads the same rules
+  // over the same answers. Where it names only keys, the form's own labels stand in.
+  const missing = Array.isArray(current.missing) ? current.missing : [];
+  const fieldByKey = (k) => (form && Array.isArray(form.fields) ? form.fields : []).find(f => f.key === k) || null;
+  const missingNamed = () => {
+    const named = Array.isArray(current.missingFields) ? current.missingFields : null;
+    if (named) return named.map(m => ({ key: m.key, label: m.label ? String(m.label) : String(m.key || ""), rows: Array.isArray(m.rows) ? m.rows.filter(Boolean) : [] }));
+    return missing.map(k => { const f = fieldByKey(k); return { key: k, label: f ? f.label : k, rows: [] }; });
+  };
+  const answered = Number(current.answered || 0);
+
+  const setVal = (key, v) => {
+    setValues(prev => {
+      const next = Object.assign({}, prev);
+      if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) delete next[key];
+      else next[key] = v;
+      return next;
+    });
+    setDirty(prev => Object.assign({}, prev, { [key]: true }));
+    setBadKeys(prev => prev.filter(k => k !== key));
+  };
+
+  // What one save sends: every answer that changed, and any answer anywhere that those changes have
+  // closed, since a question no longer asked must not keep an answer on the filing.
+  const changedAnswers = () => {
+    const out = {};
+    const inPlay = fields.map(f => f.key);
+    Object.keys(dirty).forEach(k => {
+      if (inPlay.indexOf(k) === -1) return;
+      out[k] = formHasAnswer(values[k]) ? values[k] : null;
+    });
+    (form && Array.isArray(form.fields) ? form.fields : []).forEach(f => {
+      if (f.prefilled || inPlay.indexOf(f.key) !== -1) return;
+      if (formHasAnswer(values[f.key]) || formHasAnswer((current.answers || {})[f.key])) out[f.key] = null;
+    });
+    return out;
+  };
+  // A refusal in the API's words, or the line for a request that never reached it.
+  const said = (e, fallback) => ((e && (e.status === undefined || e.status === null)) ? tr(fallback) : ((e && e.message) || tr("Request failed")));
+
+  // One PATCH. It answers with the whole draft, so the counts, the missing list and the answers on
+  // screen all come back from the API. Returns the answers afterwards, or null when nothing was
+  // written; with nothing changed it writes nothing and returns what is held.
+  const save = async () => {
+    const body = changedAnswers();
+    if (Object.keys(body).length === 0) { setSaveErr(""); setBadKeys([]); return values; }
+    if (savingRef.current) return null;
+    savingRef.current = true; setSaving(true); setSaveErr(""); setBadKeys([]);
+    try {
+      const r = await af("/api/forms/drafts/" + encodeURIComponent(current.id), { method: "PATCH", body: { answers: body } });
+      const d = formDraftOf(r);
+      const after = Object.assign({}, d.answers || {});
+      setCurrent(d); setValues(after); setDirty({});
+      savingRef.current = false; setSaving(false);
+      return after;
+    } catch (e) {
+      setSaveErr(said(e, "Not saved yet. Check your connection and try again."));
+      setBadKeys(Array.isArray(e && e.body && e.body.keys) ? e.body.keys : []);
+      savingRef.current = false; setSaving(false);
+      return null;
+    }
+  };
+
+  // A sign-off is its own request, with the drawing from the signature box, and nothing is drawn
+  // until the API answers with the stamp it made.
+  const sign = async (f, signature) => {
+    if (signingKey) return;
+    setSigningKey(f.key); setSignErr("");
+    try {
+      const r = await af("/api/forms/responses/" + encodeURIComponent(current.id) + "/signoff", { method: "POST", body: { key: f.key, signature } });
+      const d = formDraftOf(r && r.response ? r.response : r);
+      setCurrent(d);
+      // The answers come back from the API, and anything typed here and not saved yet stays put.
+      setValues(prev => {
+        const next = Object.assign({}, d.answers || {});
+        Object.keys(dirty).forEach(k => { if (formHasAnswer(prev[k])) next[k] = prev[k]; else delete next[k]; });
+        return next;
+      });
+      setBoxFor(null);
+    } catch (e) { setSignErr(said(e, "Not signed yet. Check your connection and try again.")); }
+    setSigningKey(null);
+  };
+
+  const toTop = () => { if (bodyRef.current) bodyRef.current.scrollTop = 0; };
+  const goNext = async () => {
+    if (saving) return;
+    const after = await save();
+    if (!after) return;
+    const list = formSectionsOf(formFieldsInPlay(form, after).filter(formDrawnHere));
+    const i = list.indexOf(here);
+    if (i === -1 || i + 1 >= list.length) { setSendErr(""); setReview(true); toTop(); return; }
+    setSectionKey(list[i + 1]); toTop();
+  };
+  const goBack = async () => {
+    if (saving) return;
+    if (review) { setReview(false); setSectionKey(sections[sections.length - 1] || null); toTop(); return; }
+    const after = await save();
+    if (!after) return;
+    const list = formSectionsOf(formFieldsInPlay(form, after).filter(formDrawnHere));
+    const i = list.indexOf(here);
+    if (i <= 0) return;
+    setSectionKey(list[i - 1]); toTop();
+  };
+  const editSection = (sk) => { setReview(false); setSendErr(""); setSectionKey(sk); toTop(); };
+
+  const submit = async () => {
+    setConfirmSend(false);
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setSendErr("");
+    try {
+      await af("/api/forms/drafts/" + encodeURIComponent(current.id) + "/submit", { method: "POST", body: {} });
+      setSent("sent");
+    } catch (e) {
+      if (e && e.status === 409) setSent("already");
+      // The API decides what is still unanswered, so a refusal naming keys replaces the list.
+      else if (e && e.status === 400 && Array.isArray(e.body && e.body.missing)) {
+        setCurrent(prev => Object.assign({}, prev, { missing: e.body.missing, missingFields: Array.isArray(e.body.missingFields) ? e.body.missingFields : null }));
+        setSendErr(e.message || tr("Request failed")); toTop();
+      } else setSendErr(said(e, "Not sent yet. Check your connection and try again."));
+    }
+    sendingRef.current = false; setSending(false);
+  };
+  // Whatever is not saved yet is sent first, and the person leaves either way: a refusal here would
+  // strand them on a form they asked to close.
+  const leave = async () => { setConfirmLeave(false); await save(); onLeave(); };
+
+  const labelSt = { fontSize: 13, fontWeight: 600, color: t.text, lineHeight: 1.45, fontFamily: FONT_HEAD, wordBreak: "break-word" };
+  const reqSt = { fontSize: 10, fontWeight: 600, color: t.textMut, marginLeft: 6, whiteSpace: "nowrap", textTransform: "uppercase" };
+  const helpSt = { fontSize: 11, color: t.textMut, marginTop: 4, lineHeight: 1.4 };
+  const errSt = { fontSize: 12, color: RD, marginTop: 6 };
+  const thCell = { textAlign: "left", padding: "7px 10px", fontSize: 11, fontWeight: 600, color: t.textMut, whiteSpace: "nowrap", borderBottom: "1px solid " + t.border };
+  const tdCell = { padding: "7px 10px", fontSize: 12, color: t.text, borderBottom: "1px solid " + t.border, verticalAlign: "top" };
+  const rowButton = { minHeight: 44, minWidth: 44, padding: "10px 14px", fontSize: 12 };
+  const footBtn = { minHeight: 44, minWidth: 96 };
+
+  // One control, for a question or for one cell of a table. A cell gets the input its type gets as
+  // a question. A pick one offers Not answered; a pick many is a row of boxes.
+  const control = (spec, v, onChange, name) => {
+    const kind = String(spec.type || "");
+    if (kind === "select") {
+      return <Sel t={t} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value === "" ? null : e.target.value)} style={{ minHeight: 44 }}
+        options={[{ v: "", l: tr("Not answered") }].concat((spec.options || []).map(o => ({ v: o.value, l: o.label })))} />;
+    }
+    if (kind === "multiselect") {
+      const chosen = Array.isArray(v) ? v : [];
+      return (<div role="group" aria-label={name}>
+        {(spec.options || []).map(o => {
+          const picked = chosen.indexOf(o.value) !== -1;
+          return (<label key={String(o.value)} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <input type="checkbox" aria-label={name + ": " + o.label} checked={picked} style={{ width: 22, height: 22, cursor: "pointer" }}
+              onChange={() => onChange(picked ? chosen.filter(x => x !== o.value) : chosen.concat([o.value]))} />
+            <span>{o.label}</span>
+          </label>);
+        })}
+      </div>);
+    }
+    if (kind === "textarea") return <TArea t={t} rows={4} maxLength={FORM_VALUE_MAX} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value)} style={{ minHeight: 104 }} />;
+    const input = kind === "date" || kind === "time" || kind === "number" ? kind : "text";
+    return <Inp t={t} type={input} maxLength={input === "text" ? FORM_VALUE_MAX : undefined} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value)} style={{ minHeight: 44 }} />;
+  };
+  // A cell inside a table, keyed by row then column. A ticked box is a box; the rest is a control.
+  const cellControl = (f, rowHead, col, raw, write) => {
+    const name = rowHead + " " + col.label;
+    if (col.type === "checkbox") {
+      return (<label style={{ display: "flex", minHeight: 44, minWidth: 44, alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+        <input type="checkbox" aria-label={name} checked={raw === true} onChange={e => write(e.target.checked ? true : null)} style={{ width: 22, height: 22, cursor: "pointer" }} />
+      </label>);
+    }
+    return control(col, raw, write, name);
+  };
+  // A column's help line, sent beside the label since the API's Step 153, is drawn once per table
+  // under its heading.
+  const columnHelp = (f) => (f.columns || []).filter(c => c.help).map(c => <div key={c.key} style={helpSt}>{c.label}: {c.help}</div>);
+  // A checklist: one row per item the form names, keyed by row then column.
+  const checklist = (f) => {
+    const all = (values[f.key] && typeof values[f.key] === "object" && !Array.isArray(values[f.key])) ? values[f.key] : {};
+    const write = (rowKey, colKey, v) => {
+      const next = Object.assign({}, all);
+      const row = Object.assign({}, next[rowKey] || {});
+      if (!formHasAnswer(v)) delete row[colKey]; else row[colKey] = v;
+      if (Object.keys(row).length === 0) delete next[rowKey]; else next[rowKey] = row;
+      setVal(f.key, Object.keys(next).length === 0 ? null : next);
+    };
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    return (<>
+      {columnHelp(f)}
+      <div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead><tr><th style={thCell}>{tr("Item")}</th>{cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}</tr></thead>
+          <tbody>{(f.rows || []).map(r => (<tr key={r.key}>
+            <td style={Object.assign({}, tdCell, { fontWeight: 500 })}>{r.label}</td>
+            {cols.map(c => <td key={c.key} style={tdCell}>{cellControl(f, r.label, c, (all[r.key] || {})[c.key], v => write(r.key, c.key, v))}</td>)}
+          </tr>))}</tbody>
+        </table>
+      </div>
+    </>);
+  };
+  // A table a person adds rows to, numbered, with a floor drawn from the start and Remove row above
+  // it. A row drawn for the floor and not written in is not an answer: nothing is saved for it.
+  const rowTable = (f) => {
+    const list = Array.isArray(values[f.key]) ? values[f.key] : [];
+    const floor = Math.max(0, Math.floor(Number(f.minRows)) || 0);
+    const rows = list.length < floor ? list.concat(Array.from({ length: floor - list.length }, () => ({}))) : list;
+    const cols = Array.isArray(f.columns) ? f.columns : [];
+    const put = (next) => setVal(f.key, next.length === 0 ? null : next);
+    const write = (i, colKey, v) => {
+      const next = rows.map((row, j) => (j === i ? Object.assign({}, row) : row));
+      if (!formHasAnswer(v)) delete next[i][colKey]; else next[i][colKey] = v;
+      put(next);
+    };
+    const removable = rows.length > floor;
+    const full = Number(f.maxRows) > 0 && rows.length >= Number(f.maxRows);
+    return (<>
+      {columnHelp(f)}
+      <div style={{ overflowX: "auto", marginTop: 4, border: "1px solid " + t.border, borderRadius: 8 }}>
+        <table style={{ borderCollapse: "collapse", width: "100%" }}>
+          <thead><tr><th style={thCell}>#</th>{cols.map(c => <th key={c.key} style={thCell}>{c.label}</th>)}</tr></thead>
+          <tbody>{rows.map((row, i) => (<tr key={i}>
+            <td style={Object.assign({}, tdCell, { fontWeight: 500, whiteSpace: "nowrap" })}>{i + 1}</td>
+            {cols.map((c, ci) => <td key={c.key} style={tdCell}>{cellControl(f, String(i + 1), c, (row || {})[c.key], v => write(i, c.key, v))}
+              {removable && ci === cols.length - 1 && <div style={{ marginTop: 6 }}><Btn t={t} v="ghost" aria-label={tr("Row {0}", i + 1) + ", " + tr("Remove row")} onClick={() => put(rows.filter((r, j) => j !== i))} style={rowButton}>{tr("Remove row")}</Btn></div>}
+            </td>)}
+          </tr>))}
+          {rows.length === 0 && <tr><td style={tdCell} colSpan={cols.length + 1}>{tr("Nothing was added.")}</td></tr>}</tbody>
+        </table>
+      </div>
+      <div style={{ marginTop: 8 }}>
+        {full
+          ? <div style={{ fontSize: 11, color: t.textMut }}>{tr("This table is full.")}</div>
+          : <Btn t={t} v="ghost" aria-label={f.label + ": " + tr("Add row")} onClick={() => put(rows.concat([{}]))} style={rowButton}>{tr("Add row")}</Btn>}
+      </div>
+    </>);
+  };
+  // The filer's sign-off: the stamp the API made, or Sign and the signature box.
+  const stampLine = (v) => {
+    if (!v || !v.at) return "";
+    const tz = clientConfig.company.timeZone;
+    const when = new Date(v.at);
+    return tr("Signed by {0} on {1} at {2}", v.name || tr("someone"),
+      when.toLocaleDateString(localeTag(), { timeZone: tz, month: "long", day: "numeric", year: "numeric" }),
+      when.toLocaleTimeString(localeTag(), { timeZone: tz, hour: "numeric", minute: "2-digit" }));
+  };
+  const signoff = (f) => {
+    const line = stampLine(values[f.key]);
+    if (line) return <div style={{ fontSize: 13, color: t.text, marginTop: 6 }}>{line}</div>;
+    return (<div style={{ marginTop: 6 }}>
+      {boxFor !== f.key && <Btn t={t} v="ghost" onClick={() => { setBoxFor(f.key); setSignErr(""); }} disabled={!!signingKey} style={{ minHeight: 44 }}>{tr("Sign")}</Btn>}
+      {boxFor === f.key && <SignatureBox t={t} label={f.label} busy={signingKey === f.key} refusal={signErr}
+        onSign={(png) => sign(f, png)} onCancel={() => { setBoxFor(null); setSignErr(""); }} />}
+    </div>);
+  };
+  const input = (f) => {
+    const kind = String(f.type || "");
+    if (FORM_TYPES_DRAWN.indexOf(kind) === -1) return <div style={helpSt}>{tr("This question cannot be answered here yet. Your supervisor will finish it.")}</div>;
+    if (kind === "grid") return formIsChecklist(f) ? checklist(f) : rowTable(f);
+    if (kind === "signoff") return signoff(f);
+    // A photo goes up on its own request and is never part of a save; what the API answers is what
+    // the question holds.
+    if (kind === "photos") return <PhotoQuestion t={t} token={token} af={af} responseId={current.id} field={Object.assign({}, f, { value: values[f.key] })} canWrite
+      onValue={(v) => setValues(prev => Object.assign({}, prev, { [f.key]: v }))} />;
+    return control(f, values[f.key], (next) => setVal(f.key, next), f.label);
+  };
+
+  const overlay = (children) => (<div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 510, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 360, background: t.card, border: "1px solid " + t.border, borderRadius: 12, padding: 18, boxShadow: t.popShadow }}>{children}</div>
+  </div>);
+  // Closing asks only while something typed here is not saved yet; a window with nothing unsaved
+  // just closes, since the draft is already kept. Escape closes it the same way.
+  const askLeave = () => { if (!sent && Object.keys(dirty).length > 0) setConfirmLeave(true); else onLeave(); };
+  const askLeaveRef = useRef(askLeave);
+  askLeaveRef.current = askLeave;
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") askLeaveRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const formName = current.formName || (form && form.title) || tr("Untitled form");
+
+  return (<Mdl t={t} tall onClose={askLeave}>
+    <div data-form-window="" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: "1 1 0", minWidth: 0 }}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{formName}</div>
+            {!sent && sections.length > 0 && <div data-form-step="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{review ? tr("Review") : tr("Section {0} of {1}", at + 1, sections.length)}</div>}
+            {!sent && <div style={{ fontSize: 11, color: t.textSec, marginTop: 4 }}>{tr("{0} answered", answered)}</div>}
+          </div>
+          <button onClick={askLeave} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>
+        </div>
+      </div>
+
+      <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 20 }}>
+        {sent && (<div>
+          <div style={{ fontSize: 14, color: t.text, lineHeight: 1.55, marginBottom: 16 }}>{sent === "already" ? tr("This form was already sent.") : tr("Form sent. The people who handle these forms have been told.")}</div>
+          <Btn t={t} onClick={onLeave} style={footBtn}>{tr("Done")}</Btn>
+        </div>)}
+        {!sent && (review ? sendErr : saveErr) && <div data-form-refusal="" style={{ padding: "10px 12px", marginBottom: 16, borderRadius: 8, background: t.redSubtle, border: "1px solid " + t.redBorder, color: t.text, fontSize: 13, lineHeight: 1.5 }}>{review ? sendErr : saveErr}</div>}
+        {!sent && !form && <div style={{ fontSize: 13, color: t.textMut }}>{tr("This form could not be read. Close the window and try again.")}</div>}
+
+        {!sent && review && missing.length > 0 && (
+          <div style={{ padding: 14, marginBottom: 18, borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+            <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("These still need an answer")}</div>
+            <ul aria-label={tr("These still need an answer")} style={{ margin: 0, padding: 0, listStyle: "none" }}>
+              {missingNamed().map(m => {
+                const f = fieldByKey(m.key);
+                return <li key={m.key}><button onClick={() => editSection(f ? formSectionOf(f) : null)} style={{ width: "100%", minHeight: 44, marginBottom: 6, padding: "10px 12px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.card, color: t.text, fontSize: 13, cursor: "pointer", fontFamily: FONT_BODY }}>{m.rows.length > 0 ? m.label + ": " + m.rows.join(", ") : m.label}</button></li>;
+              })}
+            </ul>
+          </div>
+        )}
+        {!sent && review && sections.map((sk, i) => (
+          <div key={sk} style={{ marginBottom: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <Lbl>{tr("Section {0}", i + 1)}</Lbl>
+              <div style={{ flex: 1 }} />
+              <Btn t={t} v="ghost" onClick={() => editSection(sk)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn>
+            </div>
+            {titled && formSectionText(form, sk, "title") && <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{formSectionText(form, sk, "title")}</div>}
+            {shown.filter(f => formSectionOf(f) === sk).map(f => {
+              const kind = String(f.type || "");
+              const read = kind === "signoff" ? stampLine(values[f.key]) : kind === "photos" ? (Array.isArray(values[f.key]) && values[f.key].length ? trn("{0} photo|count", values[f.key].length) : "") : formReadAnswer(f, values[f.key]);
+              return (<div key={f.key} style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
+                <div style={{ fontSize: 13, color: read ? t.text : t.textMut, fontStyle: read ? "normal" : "italic" }}>{read || tr(kind === "signoff" ? "Not signed" : "Not answered")}</div>
+              </div>);
+            })}
+          </div>
+        ))}
+
+        {!sent && !review && hereTitle && (
+          <div style={{ marginBottom: 16 }}>
+            <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{hereTitle}</div>
+            {hereHelp && <div style={helpSt}>{hereHelp}</div>}
+          </div>
+        )}
+        {!sent && !review && pageFields.map(f => (
+          <div key={f.key} data-question={f.key} style={{ marginBottom: 18 }}>
+            <div style={labelSt}>{f.label}{f.required && <span style={reqSt}>{tr("Required")}</span>}</div>
+            {f.help && <div style={helpSt}>{f.help}</div>}
+            <div style={{ marginTop: 6 }}>{input(f)}</div>
+            {badKeys.indexOf(f.key) !== -1 && <div style={errSt}>{tr("Check this answer")}</div>}
+          </div>
+        ))}
+      </div>
+
+      {!sent && <div style={{ display: "flex", gap: 8, padding: "12px 20px", borderTop: "1px solid " + t.border, flexShrink: 0, flexWrap: "wrap" }}>
+        {(review || at > 0) && <Btn t={t} v="ghost" onClick={goBack} disabled={saving || sending} style={footBtn}>{tr("Back|form")}</Btn>}
+        <div style={{ flex: 1 }} />
+        {!review && <Btn t={t} v="ghost" onClick={save} disabled={saving || Object.keys(dirty).length === 0} style={footBtn}>{saving ? tr("Saving...") : tr("Save")}</Btn>}
+        {review
+          ? <Btn t={t} onClick={() => setConfirmSend(true)} disabled={sending || missing.length > 0} style={footBtn}>{sending ? tr("Sending...") : tr("Send")}</Btn>
+          : <Btn t={t} onClick={goNext} disabled={saving} style={footBtn}>{saving ? tr("Saving...") : tr("Next")}</Btn>}
+      </div>}
+
+      {confirmSend && overlay(<>
+        <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16 }}>{tr("Send this form? You cannot change it after it is sent.")}</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Btn t={t} v="ghost" onClick={() => setConfirmSend(false)} style={footBtn}>{tr("Not yet")}</Btn>
+          <Btn t={t} onClick={submit} style={footBtn}>{tr("Send it")}</Btn>
+        </div>
+      </>)}
+      {confirmLeave && overlay(<>
+        <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16 }}>{tr("Leave this form? Your saved answers stay, and you can continue from Filed forms.")}</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Btn t={t} v="ghost" onClick={() => setConfirmLeave(false)} style={footBtn}>{tr("Keep filling")}</Btn>
+          <Btn t={t} onClick={leave} style={footBtn}>{tr("Leave")}</Btn>
+        </div>
+      </>)}
+    </div>
+  </Mdl>);
+}
+
+function IncidentReportsTab({ af, token, t, user, sites = [], openId, openRow, onOpen, onClose, onUnfinished }) {
   const [status, setStatus] = useState("submitted");
   const [formCode, setFormCode] = useState("");
   const [siteId, setSiteId] = useState("");
@@ -8878,6 +9361,32 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
     return () => { alive = false; };
   }, [af, onUnfinished]);
 
+  // Step 166: starting and continuing a form from here. The picker lists what the API lists, by
+  // title in the screen's language, read when it opens; a draft is resumed through the same routes
+  // the portal uses. Start a form is offered whenever the API lists a form this person may start.
+  const [picker, setPicker] = useState(null);
+  const [starting, setStarting] = useState("");
+  const [fill, setFill] = useState(null);
+  const [openError, setOpenError] = useState("");
+  const startable = forms.filter(formStartable);
+  const readCatalog = async () => { const d = await af("/api/forms"); return d && Array.isArray(d.forms) ? d.forms : []; };
+  const openPicker = async () => {
+    setPicker({ loading: true, forms: [], error: "" }); setOpenError("");
+    try { setPicker({ loading: false, forms: (await readCatalog()).filter(formStartable), error: "" }); }
+    catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
+  };
+  // The filing is marked as started from the dashboard by the source the API stores for it.
+  const startForm = async (f) => {
+    if (starting) return;
+    setStarting(f.code);
+    try {
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
+      setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
+    } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
+    setStarting("");
+  };
+  const leaveFill = () => { setFill(null); load(null); };
+
   const loadMore = () => { const last = rows[rows.length - 1]; if (!last) return; load(status === "submitted" ? last.submittedAt : last.createdAt); };
 
   const submittedCols = [
@@ -8906,13 +9415,33 @@ function IncidentReportsTab({ af, token, t, sites = [], openId, openRow, onOpen,
       <div style={{ display: "flex", gap: 8 }}>{sw("submitted", tr("Submitted"))}{sw("draft", tr("Unfinished"))}</div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
+      {startable.length > 0 && <div style={{ marginLeft: "auto" }}><Btn t={t} onClick={openPicker} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Start a form")}</Btn></div>}
     </div>
+    {openError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{openError}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading reports...")}</div>}
     {!loading && error && error.status === 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{tr("Your account cannot read incident reports.")}</div>}
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
     {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} />}
+    {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>
+        <button onClick={() => setPicker(null)} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      {picker.loading && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+      {picker.error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{picker.error}</div>}
+      {!picker.loading && !picker.error && picker.forms.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>{tr("No form to start.")}</div>}
+      <div role="list" aria-label={tr("Pick a form to start")}>
+        {picker.forms.map(f => (
+          <button key={f.code} role="listitem" onClick={() => startForm(f)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === f.code ? tr("Opening...") : formTitleName(f)}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+        <Btn t={t} v="ghost" onClick={() => setPicker(null)} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      </div>
+    </div></Mdl>)}
+    {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={leaveFill} />}
   </div>);
 }
 
@@ -10151,7 +10680,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ FILED FORMS ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} sites={sites} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
       {maintenance && (

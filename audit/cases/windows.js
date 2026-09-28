@@ -234,6 +234,16 @@ const ROUTES = {
   "forms/full-refresh": {
     open: async (d) => { await d.goto("forms"); await d.clickText("Jotform", { exact: true }); await d.clickText("Maintenance", { exact: true }); return d.clickText("Full Refresh", { exact: true }); },
   },
+  // Step 166: the picker Start a form opens, and the window the complaint log is filled in.
+  "forms/start-picker": {
+    open: async (d) => { await d.goto("forms"); await d.clickText("Filed forms", { exact: false }); return d.clickText("Start a form", { exact: true }); },
+  },
+  "forms/fill-window": {
+    open: async (d) => {
+      await d.goto("forms"); await d.clickText("Filed forms", { exact: false }); await d.clickText("Start a form", { exact: true });
+      return d.clickText("Complaint log", { inModal: true, exact: true });
+    },
+  },
   "forms/link-user": {
     // The link window opens from inside the submission detail, for a submission nobody linked yet.
     open: async (d) => {

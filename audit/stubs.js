@@ -678,6 +678,73 @@ function createStubs() {
     { code: "OCSA-FRM-036", title: "Form 036 as the API titles it" },
   ];
   const canListFiledForms = () => person().role === "admin" || person().readsFiledForms === true;
+
+  // Step 166: a form a person starts at a desk, with every type the window draws, shaped the way
+  // GET /api/forms sends a form: fields with a section key, an appliesWhen rule, help on a field
+  // and on a column, sections with a title and a help line, and fillers. The forms above carry no
+  // fillers, so only this one is startable; with startable off, neither is.
+  let startable = true;
+  const DESK_CODE = "desk-complaint";
+  const desk = (en, es, lang) => (lang === "es" ? es : en);
+  const deskForm = (lang) => ({
+    code: DESK_CODE, title: desk("Complaint log", "Registro de quejas", lang), fillers: startable ? ["admin", "supervisor"] : [],
+    sections: [
+      { key: "where", title: desk("Where it came from", "De d\u00f3nde vino", lang), help: desk("As the caller gave it.", "Tal como lo dio quien llam\u00f3.", lang) },
+      { key: "what", title: desk("What was said", "Lo que se dijo", lang) },
+      { key: "record", title: desk("The record", "El registro", lang) },
+    ],
+    fields: [
+      { key: "site", label: desk("Site", "Sitio", lang), type: "text", required: true, section: "where", help: desk("Type the site's name as it reads on the contract.", "Escriba el nombre del sitio tal como aparece en el contrato.", lang) },
+      { key: "received_on", label: desk("Received on", "Recibida el", lang), type: "date", required: true, section: "where" },
+      { key: "received_at", label: desk("Received at", "Recibida a las", lang), type: "time", required: false, section: "where" },
+      { key: "channel", label: desk("How it came in", "C\u00f3mo lleg\u00f3", lang), type: "select", required: true, section: "where",
+        options: [{ value: "phone", label: desk("By phone", "Por tel\u00e9fono", lang) }, { value: "email", label: desk("By email", "Por correo", lang) }, { value: "in_person", label: desk("In person", "En persona", lang) }] },
+      { key: "callers", label: desk("How many people called", "Cu\u00e1ntas personas llamaron", lang), type: "number", required: false, section: "where" },
+      { key: "summary", label: desk("What the caller said", "Lo que dijo quien llam\u00f3", lang), type: "textarea", required: true, section: "what" },
+      { key: "areas", label: desk("Areas named", "\u00c1reas mencionadas", lang), type: "multiselect", required: false, section: "what",
+        options: [{ value: "lobby", label: desk("Lobby", "Vest\u00edbulo", lang) }, { value: "restrooms", label: desk("Restrooms", "Ba\u00f1os", lang) }, { value: "dock", label: desk("Dock", "Muelle", lang) }] },
+      { key: "follow_up", label: desk("Does the caller want a call back", "Quiere quien llam\u00f3 que le devuelvan la llamada", lang), type: "select", required: false, section: "what",
+        options: [{ value: "yes", label: desk("Yes", "S\u00ed", lang) }, { value: "no", label: desk("No", "No", lang) }] },
+      { key: "call_back", label: desk("Number to call back", "N\u00famero al que devolver la llamada", lang), type: "text", required: true, section: "what", appliesWhen: { key: "follow_up", anyOf: ["yes"] } },
+      { key: "checks", label: desk("Steps taken on the call", "Pasos dados en la llamada", lang), type: "grid", required: false, section: "record",
+        rows: [{ key: "logged", label: desk("Logged the call", "Se registr\u00f3 la llamada", lang) }, { key: "thanked", label: desk("Thanked the caller", "Se agradeci\u00f3 a quien llam\u00f3", lang) }],
+        columns: [{ key: "done", label: desk("Done", "Hecho", lang), type: "checkbox", required: false }, { key: "note", label: desk("Note", "Nota", lang), type: "text", required: false, help: desk("Anything said on the call.", "Cualquier cosa dicha en la llamada.", lang) }] },
+      { key: "actions", label: desk("Actions taken", "Acciones tomadas", lang), type: "grid", required: true, section: "record", rows: null, minRows: 0, maxRows: 3,
+        columns: [{ key: "what", label: desk("What was done", "Qu\u00e9 se hizo", lang), type: "text", required: true }, { key: "when", label: desk("Done on", "Hecho el", lang), type: "date", required: false }] },
+      { key: "evidence", label: desk("Photos", "Fotos", lang), type: "photos", required: false, section: "record", maxPhotos: 3 },
+      { key: "filer_signoff", label: desk("Filed by", "Presentado por", lang), type: "signoff", signer: "filer", required: true, section: "record" },
+      { key: "reviewer_signoff", label: desk("Reviewed by", "Revisado por", lang), type: "signoff", signer: "supervisor", required: false, section: "record" },
+    ],
+  });
+  // The rules the API evaluates, read the same way here so the missing list is the API's judgement.
+  const ruleHolds = (rule, answers) => {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule)) return true;
+    if (Array.isArray(rule.any)) return rule.any.some((r) => ruleHolds(r, answers));
+    if (Array.isArray(rule.all)) return rule.all.every((r) => ruleHolds(r, answers));
+    if (typeof rule.key !== "string" || !Array.isArray(rule.anyOf)) return true;
+    const v = (answers || {})[rule.key];
+    return Array.isArray(v) ? v.some((x) => rule.anyOf.indexOf(x) >= 0) : rule.anyOf.indexOf(v) >= 0;
+  };
+  const hasAnswer = (v) => !(v === undefined || v === null || (typeof v === "string" && v.trim() === "") || (Array.isArray(v) && v.length === 0));
+  // A draft as GET /api/forms/drafts/:id answers it: the answers, the counts, and what is missing
+  // by key and by label, in the language asked for. hand: a new draft has 7 required questions in
+  // play (site, received_on, channel, summary, actions, filer_signoff, and call_back only when the
+  // caller wants a call back), so it starts 0 answered and 6 to go.
+  const deskView = (r, lang) => {
+    const form = deskForm(lang);
+    const answers = r.answers || {};
+    const inPlay = form.fields.filter((f) => ruleHolds(f.appliesWhen, answers) && String(f.signer || "") !== "supervisor");
+    const missing = inPlay.filter((f) => f.required && !hasAnswer(answers[f.key]));
+    return {
+      id: r.id, formCode: r.formCode, formName: form.title, status: r.status, source: r.source, siteId: r.siteId, siteName: r.siteName,
+      userId: r.userId, userName: r.userName, createdAt: r.createdAt, submittedAt: r.submittedAt || null, answers: answers,
+      answered: inPlay.filter((f) => hasAnswer(answers[f.key])).length, remaining: missing.length,
+      missing: missing.map((f) => f.key), missingFields: missing.map((f) => ({ key: f.key, label: f.label })),
+    };
+  };
+  const deskFields = (r, lang) => deskForm(lang).fields.map((f, i) => Object.assign({ id: "dk-" + (i + 1), half: String(f.signer || "") === "supervisor" ? "supervisor" : "agent", value: (r.answers || {})[f.key] === undefined ? null : (r.answers || {})[f.key], displayValue: "" }, f));
+  let deskSeq = 0;
+  const deskDraft = (r) => r && r.formCode === DESK_CODE;
   const INCIDENT_FIELDS = (r) => [
     { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
       value: r.siteName || "", displayValue: r.siteName || "" },
@@ -691,7 +758,7 @@ function createStubs() {
   // What the read answers, and what the sign-off and supervisor routes answer back.
   const reportPayload = (r, lang) => {
     const isLog = r.id === SERVICE_LOG_ID;
-    const fields = isLog ? serviceLogFields() : INCIDENT_FIELDS(r);
+    const fields = isLog ? serviceLogFields() : deskDraft(r) ? deskFields(r, lang) : INCIDENT_FIELDS(r);
     const mine = String(r.userId || "") === String(person().id);
     const signed = !!filedState().signed.review_signoff;
     const sup = filedState().supervisor;
@@ -1623,14 +1690,50 @@ function createStubs() {
     if (/^\/api\/jotform\/employees\/[^/]+\/documents$/.test(path) && method === "POST") {
       return created({ id: "doc-new-1", user_id: idAfter("/api/jotform/employees/"), category: "uncategorized", created_at: seed.NOW_ISO });
     }
-    if (path === "/api/forms") return ok({ forms: FORM_LIST });
+    if (path === "/api/forms") return ok({ forms: FORM_LIST.map((f) => Object.assign({ fillers: [] }, f)).concat([deskForm(lang)]) });
+    // Step 166: the draft routes the portal calls, for a form started at a desk. Starting records
+    // the source the body names; a save merges the answers, a null taking one off; Send refuses with
+    // the missing list until every required question in play is answered, then files it.
+    if (/^\/api\/forms\/[^/]+\/drafts$/.test(path) && method === "POST") {
+      const code = decodeURIComponent(path.split("/")[3]);
+      if (code !== DESK_CODE || !startable) return { status: 403, json: { error: lang === "es" ? "No puede iniciar este formulario" : "You cannot start this form", code: "forms.cannotStart" } };
+      deskSeq += 1;
+      const row = { id: "fr-new-" + deskSeq, formCode: DESK_CODE, formName: deskForm(lang).title, status: "draft", siteId: null, siteName: null,
+        userId: person().id, userName: person().firstName + " " + person().lastName, createdAt: seed.NOW_ISO, submittedAt: null, dueAt: null,
+        source: (body && body.source) || "app", answers: {} };
+      INCIDENT_REPORTS.push(row);
+      return created({ draft: deskView(row, lang) });
+    }
+    if (/^\/api\/forms\/drafts\/[^/]+(\/submit)?$/.test(path)) {
+      const r = INCIDENT_REPORTS.find((x) => x.id === decodeURIComponent(path.split("/")[4]));
+      if (!r || !deskDraft(r)) return { status: 404, json: { error: lang === "es" ? "No se encontr\u00f3 el borrador" : "Draft not found" } };
+      if (String(r.userId || "") !== String(person().id)) return { status: 403, json: { error: lang === "es" ? "Este borrador es de otra persona" : "This draft is somebody else's" } };
+      if (method === "GET") return ok({ draft: deskView(r, lang) });
+      if (r.status !== "draft") return { status: 409, json: { error: lang === "es" ? "Este formulario ya se envi\u00f3" : "This form was already sent" } };
+      if (method === "PATCH") {
+        const answers = body && body.answers;
+        if (!answers || typeof answers !== "object" || Array.isArray(answers)) return { status: 400, json: { error: "Send answers as an object of key and value" } };
+        const keys = deskForm("en").fields.map((f) => f.key);
+        const outside = Object.keys(answers).filter((k) => keys.indexOf(k) < 0);
+        if (outside.length) return { status: 400, json: { error: lang === "es" ? "Una respuesta no corresponde a este formulario" : "An answer is not a question on this form", keys: outside } };
+        Object.keys(answers).forEach((k) => { if (answers[k] === null) delete r.answers[k]; else r.answers[k] = answers[k]; });
+        return ok({ draft: deskView(r, lang) });
+      }
+      if (method === "POST" && /\/submit$/.test(path)) {
+        const view = deskView(r, lang);
+        if (view.missing.length) return { status: 400, json: { error: lang === "es" ? "Faltan respuestas" : "Some answers are still missing", missing: view.missing, missingFields: view.missingFields } };
+        r.status = "submitted"; r.submittedAt = seed.NOW_ISO; r.answered = view.answered; r.remaining = 0;
+        return ok({ draft: deskView(r, lang) });
+      }
+    }
     if (path === "/api/forms/responses") {
       // Who may list decides who may open Forms at all. An admin always may; anyone else may when
       // a form names a capability they hold in its readers, which the seed marks on the person.
       if (!canListFiledForms()) return { status: 403, json: { error: "Insufficient permissions" } };
       const status = q("status") || "submitted";
       const code = q("formCode") || "";
-      const rows = INCIDENT_REPORTS.filter((r) => r.status === status && (!code || r.formCode === code));
+      const rows = INCIDENT_REPORTS.filter((r) => r.status === status && (!code || r.formCode === code))
+        .map((r) => (deskDraft(r) ? Object.assign({}, r, deskView(r, lang), { answers: undefined }) : r));
       return ok({ responses: rows });
     }
     if (/^\/api\/forms\/responses\/[^/]+\/pdf$/.test(path) && method === "GET") {
@@ -1658,6 +1761,19 @@ function createStubs() {
       const payload = reportPayload(r, lang);
       const keys = payload.fields.filter((f) => f.type === "signoff").map((f) => f.key);
       if (keys.indexOf(key) < 0) return { status: 400, json: { error: "That is not a sign-off on this form" } };
+      // Step 166: the filer's own sign-off on a form started at a desk, made by the filer while the
+      // form is still a draft, with the signature the box drew.
+      if (deskDraft(r)) {
+        if (key !== "filer_signoff" || String(r.userId || "") !== String(person().id)) return { status: 403, json: { error: "You cannot sign this part of the form" } };
+        if (r.status !== "draft") return { status: 409, json: { error: "This report was already submitted" } };
+        if (r.answers[key]) return { status: 409, json: { error: "This part is already signed" } };
+        const sig = body && body.signature;
+        if (typeof sig !== "string" || sig.indexOf("data:image/png;base64,") !== 0) {
+          return { status: 400, json: { error: lang === "es" ? "Firme antes de enviar" : "Draw your signature before you sign", code: "forms.signatureRequired" } };
+        }
+        r.answers[key] = Object.assign(stampNow(), { signature: { id: "sig-" + key } });
+        return ok({ draft: deskView(r, lang) });
+      }
       if (String(r.userId || "") === String(person().id)) return { status: 403, json: { error: "You cannot sign off on your own report" } };
       if (filedState().signed[key]) return { status: 409, json: { error: "This part is already signed" } };
       if (payload.canSign.indexOf(key) < 0) return { status: 403, json: { error: "You cannot sign this part of the form" } };
@@ -1705,13 +1821,16 @@ function createStubs() {
       const payload = reportPayload(r, lang);
       const f = payload.fields.find((x) => x.key === key);
       if (!f || f.type !== "photos") return photoRefusal("notAPhotoQuestion", lang);
-      if (f.half !== "supervisor" || !payload.canWriteSupervisor) return photoRefusal("photosForbidden", lang);
-      const have = (filedState().photos[key] || []).slice();
+      // Step 166: on a form started at a desk the photos are the filer's while it is a draft.
+      const onDraft = deskDraft(r);
+      if (onDraft ? (r.status !== "draft" || String(r.userId || "") !== String(person().id)) : (f.half !== "supervisor" || !payload.canWriteSupervisor)) return photoRefusal("photosForbidden", lang);
+      const held = () => (onDraft ? r.answers[key] : filedState().photos[key]) || [];
+      const keep = (arr) => { if (onDraft) { if (arr.length) r.answers[key] = arr; else delete r.answers[key]; } else filedState().photos[key] = arr; return arr; };
+      const have = held().slice();
       if (method === "DELETE") {
         const photoId = decodeURIComponent(path.split("/")[7] || "");
         if (!have.some((p) => p.id === photoId)) return photoRefusal("photoNotFound", lang);
-        filedState().photos[key] = have.filter((p) => p.id !== photoId);
-        return ok({ value: filedState().photos[key] });
+        return ok({ value: keep(have.filter((p) => p.id !== photoId)) });
       }
       const raw = String(body || "");
       const names = [];
@@ -1719,8 +1838,7 @@ function createStubs() {
       if (names.length === 0) return photoRefusal("notAPhoto", lang);
       if (Number(f.maxPhotos) > 0 && have.length + names.length > Number(f.maxPhotos)) return photoRefusal("photosFull", lang);
       names.forEach((name, i) => { photoSeq += 1; have.push({ id: "ph-" + photoSeq, name, bytes: 4096 * (i + 1), uploadedAt: seed.NOW_ISO }); });
-      filedState().photos[key] = have;
-      return ok({ value: have });
+      return ok({ value: keep(have) });
     }
     if (path.startsWith("/api/forms/responses/")) {
       const id = idAfter("/api/forms/responses/");
@@ -1910,6 +2028,8 @@ function createStubs() {
     setIssues: (rows) => { state.issues = rows ? rows : clone(seed.ISSUES); },
     // What the daily service log's payload carries beyond what the suite has always read.
     setFiledFormExtras: (x) => { filedExtras = Object.assign({ rows: false, sections: false }, x || {}); },
+    // Whether the API lists a form this person may start. Off, every form's fillers are empty.
+    setStartable: (v) => { startable = v !== false; },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
     reset: () => {
@@ -1925,6 +2045,9 @@ function createStubs() {
       state.formDelivery = {};
       state.filedForms = { signed: {}, supervisor: {}, photos: {} };
       photoSeq = 10;
+      // The forms started at a desk since the last reset, and the switch that lets one be started.
+      for (let i = INCIDENT_REPORTS.length - 1; i >= 0; i -= 1) { if (deskDraft(INCIDENT_REPORTS[i])) INCIDENT_REPORTS.splice(i, 1); }
+      deskSeq = 0; startable = true;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};
