@@ -107,8 +107,9 @@ async function run({ d, results, inventory, stubs, lang }) {
     await pause(700);
     const started = bodyOf(d.callsSince(mark), "POST", /\/api\/forms\/desk-complaint\/drafts$/);
     const w0 = await window_(d);
+    // The API sets a draft's source itself and reads none from the body, so the start sends none.
     check("start-form/a-form-is-started",
-      picked && !!started && started.body && started.body.source === "admin" && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
+      picked && !!started && started.body && !Object.prototype.hasOwnProperty.call(started.body, "source") && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
         && ["site", "received_on", "received_at", "channel", "callers"].every((k) => w0.questions.indexOf(k) >= 0),
       !picked ? "nothing in the picker to press" : "starting sent " + JSON.stringify(started ? started.body : null) + " and the window is " + JSON.stringify(w0 ? { step: w0.step, questions: w0.questions } : null));
 
@@ -205,7 +206,8 @@ async function run({ d, results, inventory, stubs, lang }) {
         && !!w5 && w5.text.indexOf(say("Signed by {0} on {1} at {2}").split("{0}")[0].trim()) >= 0 && !w5.buttons.some((b) => b.text === say("Sign")),
       !signOpened ? "no Sign on the filer's sign-off" : "Sign sent " + JSON.stringify(signed ? Object.keys(signed.body || {}) : null) + " and the window reads " + JSON.stringify(w5 ? w5.text.slice(-160) : null));
 
-    // Sent, and under Submitted with its source.
+    // Sent, and under Submitted. The list the API sends carries no source, so the row names the form
+    // and nothing under it.
     await pressIn(d, say("Next"));
     await pause(700);
     const review1 = await window_(d);
@@ -223,7 +225,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const listed = await rowWith(d, title);
     check("start-form/the-filing-is-sent",
       sendOn && asked && !!sent && !!w6 && w6.text.indexOf(say("Form sent. The people who handle these forms have been told.")) >= 0
-        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) >= 0,
+        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) < 0 && listed.indexOf(say("From the app")) < 0,
       "on the review Send was " + (sendOn ? "on" : "off") + ", the question " + (asked ? "was asked" : "was not asked") + ", " + (sent ? "the filing went" : "nothing went")
         + ", the window read " + JSON.stringify(w6 ? w6.text.slice(0, 80) : null) + " and the row that names the form reads " + JSON.stringify(listed));
   }
@@ -326,12 +328,13 @@ async function run({ d, results, inventory, stubs, lang }) {
     check("start-form/refusal/sign", boxLine === signWords, "the box reads " + JSON.stringify(boxLine));
     stubs.clearRefusals();
 
-    // A photo refused: under the question, by its code.
-    stubs.setRefusal({ method: "POST", path: "/photos/", status: 409, code: "forms.photosFull", error: "The API's own words" });
+    // A photo refused: under the question, in the API's own words as sent.
+    const photoWords = lang === "es" ? "Esta pregunta acepta como máximo 3 fotos." : "This question takes 3 photos at most.";
+    stubs.setRefusal({ method: "POST", path: "/photos/", status: 400, code: "forms.photoLimit", error: photoWords, body: { max: 3 } });
     await d.modal().locator("input[type=file]").setInputFiles([{ name: "late.png", mimeType: "image/png", buffer: PNG }]);
     await pause(700);
     const photoLine = await d.page.evaluate((sel) => (document.querySelector(sel + " [data-question='evidence'] [data-photo-refusal]") || { innerText: "" }).innerText.trim(), MODAL);
-    check("start-form/refusal/photo", photoLine === say("This question is full."), "the line under the photos question reads " + JSON.stringify(photoLine));
+    check("start-form/refusal/photo", photoLine === photoWords, "the line under the photos question reads " + JSON.stringify(photoLine) + " where the API said " + JSON.stringify(photoWords));
     stubs.clearRefusals();
 
     // Continuing somebody else's draft: the API refuses and the tab says so.
@@ -349,6 +352,113 @@ async function run({ d, results, inventory, stubs, lang }) {
     check("start-form/refusal/continue", body.indexOf(otherWords) >= 0 && !(await d.modalOpen()),
       "the tab reads " + JSON.stringify(body.slice(0, 160)));
     stubs.clearRefusals();
+    stubs.reset();
+  }
+
+  // ---- the customer's signature on a form filled here (Step 169) --------------
+  // The complaint log carries a customer acknowledgement in its last section: a card with Name and
+  // Role and the signature pad, whose Save signature sends the key, the name, the role and the
+  // drawing to the customer signature route. The card then draws the drawing and the line that says
+  // who signed; Clear opens the pad again; each refusal is drawn under the card in the API's words;
+  // and a draft save never carries the question.
+  {
+    stubs.reset();
+    await d.goto("overview");
+    await openFiled(d);
+    await d.clickText(say("Start a form"), { exact: true });
+    await pause(300);
+    await d.page.evaluate((sel) => { const b = document.querySelector(sel + " [role=list] button"); if (b) b.click(); }, MODAL);
+    await pause(700);
+    await pressIn(d, say("Next"));
+    await pause(600);
+    await pressIn(d, say("Next"));
+    await pause(600);
+    const labelAck = lang === "es" ? "Reconocimiento del cliente" : "Customer acknowledgement";
+    const card = () => d.page.evaluate((sel) => {
+      const c = document.querySelector(sel + " [data-customer-signature='customer_ack']");
+      if (!c) return null;
+      const img = c.querySelector("img[data-signature-image]");
+      return {
+        text: c.innerText.replace(/\s+/g, " ").trim(),
+        inputs: Array.from(c.querySelectorAll("input")).map((i) => i.getAttribute("aria-label")),
+        canvas: !!c.querySelector("canvas"),
+        buttons: Array.from(c.querySelectorAll("button")).filter((b) => b.offsetParent !== null).map((b) => ({ text: (b.innerText || "").trim(), off: b.disabled })),
+        image: !!img && String(img.getAttribute("src") || "").indexOf("blob:") === 0,
+        refusal: (c.querySelector("[data-customer-refusal]") || { innerText: "" }).innerText.trim(),
+      };
+    }, MODAL);
+    const c0 = await card();
+    check("start-form/customer-signature/the-card-is-drawn",
+      !!c0 && c0.inputs.join("|") === [labelAck + ": " + say("Name"), labelAck + ": " + say("Role")].join("|") && c0.canvas
+        && c0.buttons.some((b) => b.text === say("Save signature") && b.off) && c0.buttons.some((b) => b.text === say("Clear")) && !c0.buttons.some((b) => b.text === say("Cancel")),
+      !c0 ? "no card for the customer acknowledgement in the third section" : "the card draws " + JSON.stringify(c0));
+
+    await field(d, labelAck + ": " + say("Name")).fill("Rosalind Achterberg");
+    await field(d, labelAck + ": " + say("Role")).fill("Facilities manager");
+    await d.drawSignature();
+    const mark = d.mark();
+    await pressIn(d, say("Save signature"));
+    await pause(800);
+    const sent = bodyOf(d.callsSince(mark), "POST", /\/api\/forms\/drafts\/fr-new-1\/customer-signature$/);
+    const body = sent ? sent.body : null;
+    const c1 = await card();
+    check("start-form/customer-signature/saved",
+      !!body && body.key === "customer_ack" && body.name === "Rosalind Achterberg" && body.role === "Facilities manager" && String(body.signature || "").indexOf("data:image/png;base64,") === 0 && Object.keys(body).length === 4,
+      "Save signature sent " + JSON.stringify(body ? Object.assign({}, body, { signature: String(body.signature || "").slice(0, 22) }) : null));
+    const line = say("Signed by {0} on {1} at {2}").split("{0}")[0].trim() + " Rosalind Achterberg, Facilities manager";
+    check("start-form/customer-signature/shown",
+      !!c1 && c1.image && c1.text.indexOf(line) >= 0 && !c1.canvas && c1.buttons.some((b) => b.text === say("Clear")) && !c1.buttons.some((b) => b.text === say("Save signature")),
+      "after the answer the card draws " + JSON.stringify(c1));
+
+    // Nothing for it in a save: another answer typed and saved, and the body names only that one.
+    await d.modal().locator("input[aria-label='" + (lang === "es" ? "Se registró la llamada Nota" : "Logged the call Note") + "']").fill("Called the caller back");
+    const mark2 = d.mark();
+    await pressIn(d, say("Save"));
+    await pause(700);
+    const saved = bodyOf(d.callsSince(mark2), "PATCH", /\/api\/forms\/drafts\/fr-new-1$/);
+    const keys = saved && saved.body && saved.body.answers ? Object.keys(saved.body.answers) : null;
+    check("start-form/customer-signature/never-in-a-save", !!keys && keys.indexOf("customer_ack") < 0 && keys.length > 0,
+      "Save sent the keys " + JSON.stringify(keys));
+
+    // Clear, and signed again: a second request, and the new drawing drawn.
+    await pressIn(d, say("Clear"));
+    await pause(200);
+    const c2 = await card();
+    await d.drawSignature();
+    const mark3 = d.mark();
+    await pressIn(d, say("Save signature"));
+    await pause(800);
+    const again = bodyOf(d.callsSince(mark3), "POST", /\/customer-signature$/);
+    const c3 = await card();
+    check("start-form/customer-signature/cleared-and-saved-again",
+      !!c2 && c2.canvas && !!again && again.body && again.body.name === "Rosalind Achterberg" && !!c3 && c3.image && !c3.canvas,
+      "Clear drew the pad " + (c2 && c2.canvas ? "again" : "not at all") + ", the second Save signature " + (again ? "sent the request" : "sent nothing") + " and the card draws " + JSON.stringify(c3 ? [c3.image, c3.canvas] : null));
+
+    // Each refusal, under the card, in the API's own words.
+    const REFUSALS = [
+      { code: "customer.nameRequired", status: 400, en: "Give your name.", es: "Escriba su nombre." },
+      { code: "forms.signatureRequired", status: 400, en: "Draw your signature before you sign", es: "Firme antes de enviar" },
+      { code: "forms.signatureTooLarge", status: 400, en: "The signature is over 300 KB.", es: "La firma pesa más de 300 KB." },
+      { code: "forms.notACustomerSignature", status: 400, en: "That question is not a customer signature", es: "Esa pregunta no es una firma del cliente" },
+      { code: "forms.draftNotFound", status: 404, en: "Draft not found", es: "No se encontró el reporte" },
+    ];
+    for (const r of REFUSALS) {
+      const words = lang === "es" ? r.es : r.en;
+      stubs.setRefusal({ method: "POST", path: "/customer-signature", status: r.status, code: r.code, error: words });
+      await pressIn(d, say("Clear"));
+      await pause(200);
+      await d.drawSignature();
+      await pressIn(d, say("Save signature"));
+      await pause(700);
+      const c = await card();
+      check("start-form/customer-signature/refusal/" + r.code, !!c && c.refusal === words && c.canvas && (await d.modalOpen()),
+        "the line under the card reads " + JSON.stringify(c ? c.refusal : null) + " where the API said " + JSON.stringify(words));
+      stubs.clearRefusals();
+    }
+    await pressIn(d, say("Close"));
+    await pause(200);
+    await pressIn(d, say("Leave"));
+    await pause(500);
     stubs.reset();
   }
 

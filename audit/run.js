@@ -41,6 +41,10 @@ const SUITES = [
   // every word in the window come from the catalog and the table.
   { name: "start-form", mod: "./cases/start-form", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Customer links and their QR codes, and a customer's filings in Filed forms, in both languages,
+  // since every word in the window and on the printed sheet comes from the table or the API.
+  { name: "customer-links", mod: "./cases/customer-links", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },

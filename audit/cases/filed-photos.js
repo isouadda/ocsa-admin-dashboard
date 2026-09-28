@@ -4,7 +4,8 @@
 // and the supervisor's, empty until a writer adds some. What the window draws for each is read, the
 // overlay is opened and closed, a writer uploads and removes, a person who may not write the half
 // is shown no control, and each refusal the API can answer with is drawn under the question in the
-// table's words for its code. Everything runs in English and in Spanish.
+// API's own words, as sent, matched on its code only to place the line. Everything runs in English
+// and in Spanish.
 "use strict";
 
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
@@ -135,7 +136,8 @@ async function run({ d, results, inventory, stubs, lang }) {
     stubs.clearDelays();
     const sent = d.callsSince(mark).filter((c) => c.method === "POST" && /\/photos\/verification_photos$/.test(c.path));
     const raw = sent.length ? String(sent[0].body || "") : "";
-    const answered = sent.length && sent[0].json && Array.isArray(sent[0].json.value) ? sent[0].json.value : [];
+    // The API answers { key, photos }, never { value }: what the question draws is that list.
+    const answered = sent.length && sent[0].json && Array.isArray(sent[0].json.photos) ? sent[0].json.photos : [];
     const q1 = await question(d, "verification_photos");
     check("filed-photos/a-writer-uploads",
       sent.length === 1 && raw.indexOf('name="photos"; filename="v1.png"') >= 0 && raw.indexOf('name="photos"; filename="v2.png"') >= 0
@@ -174,26 +176,25 @@ async function run({ d, results, inventory, stubs, lang }) {
     stubs.reset();
   }
 
-  // ---- each refusal, under the question, in the table's words for its code ----
-  // The question stays empty through a refused upload, so one window takes every code.
+  // ---- each refusal, under the question, in the API's own words as sent ----
+  // The codes are routes/forms.js's own (Step 169). The words are the case's, different in each
+  // language, so a line drawn from a table of the dashboard's own would not match. The question
+  // stays empty through a refused upload, so one window takes every code.
   {
     await openLog(d);
     await pause(400);
-    const REFUSALS = [
-      { code: "forms.photosFull", word: "This question is full." },
-      { code: "forms.photoTooLarge", word: "That photo is too large." },
-      { code: "forms.notAPhoto", word: "Only a photo can be added here." },
-      { code: "forms.photosForbidden", word: "You cannot change the photos on this question." },
-    ];
-    for (const r of REFUSALS) {
-      stubs.setRefusal({ method: "POST", path: "/photos/", status: 409, code: r.code, error: "The API's own words for " + r.code });
+    const UPLOAD_CODES = ["forms.photoTooLarge", "forms.photoType", "forms.photoHeic", "forms.photoUnreadable", "forms.photoLimit",
+      "forms.photoNoFile", "forms.notAPhotosQuestion", "forms.photosByRoute"];
+    const wordsFor = (code) => (lang === "es" ? "Las palabras propias de la API para " : "The API's own words for ") + code;
+    for (const code of UPLOAD_CODES) {
+      stubs.setRefusal({ method: "POST", path: "/photos/", status: 400, code: code, error: wordsFor(code), body: code === "forms.photoLimit" ? { max: 2 } : undefined });
       await pick(["late.png"]);
       await pause(700);
       const q = await question(d, "verification_photos");
-      check("filed-photos/refusal/" + r.code, !!q && q.refusal === say(r.word) && q.names.length === 0 && (await d.modalOpen()),
-        "the line under the question reads " + JSON.stringify(q ? q.refusal : null) + " where the table says " + JSON.stringify(say(r.word)));
+      check("filed-photos/refusal/" + code, !!q && q.refusal === wordsFor(code) && q.names.length === 0 && (await d.modalOpen()),
+        "the line under the question reads " + JSON.stringify(q ? q.refusal : null) + " where the API said " + JSON.stringify(wordsFor(code)));
     }
-    // A code the table does not know: the API's words, as sent, in the language the call asked for.
+    // A code nobody listed: the API's words, as sent, the same way.
     const own = lang === "es" ? "Las palabras propias de la API" : "The API's own words";
     stubs.setRefusal({ method: "POST", path: "/photos/", status: 422, code: "forms.somethingNew", error: own });
     await pick(["late.png"]);
@@ -205,11 +206,11 @@ async function run({ d, results, inventory, stubs, lang }) {
     stubs.clearRefusals();
     await pick(["v1.png"]);
     await pause(700);
-    stubs.setRefusal({ method: "DELETE", path: "/photos/", status: 404, code: "forms.photoNotFound", error: "The API's own words" });
+    stubs.setRefusal({ method: "DELETE", path: "/photos/", status: 404, code: "forms.photoNotFound", error: wordsFor("forms.photoNotFound") });
     await press(d, say("Remove photo|form") + ": v1.png", "[data-question='verification_photos']");
     await pause(700);
     const q3 = await question(d, "verification_photos");
-    check("filed-photos/refusal/forms.photoNotFound", !!q3 && q3.refusal === say("That photo is no longer on the form.") && q3.names.length === 1,
+    check("filed-photos/refusal/forms.photoNotFound", !!q3 && q3.refusal === wordsFor("forms.photoNotFound") && q3.names.length === 1,
       "the line under the question reads " + JSON.stringify(q3 ? q3.refusal : null) + " and the question draws " + JSON.stringify(q3 ? q3.names : null));
     await d.closeModal();
     stubs.reset();

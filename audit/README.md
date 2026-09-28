@@ -225,6 +225,25 @@ document is sent to their id, and an inspection sends its supervisor's id. The s
 upload the way `routes/jotform.js` does. It reads the same pickers as an admin, whose list the stub
 answers, and notes what each offers. Both languages, at 1024.
 
+**A customer link is made, switched and printed, and a customer's filing is read.** Since Step 169 an
+administrator, anyone holding `manage_settings`, makes the links customers open from a QR code posted
+in the building, for the two forms the API accepts. The stub serves three links, one live, one switched
+off and one unused past its clock, and two filings a customer made through a link, with no account:
+`userId` null and the customer's name and role where an account's name goes. The `customer-links`
+suite opens the window from Filed forms, reads every row's title in the screen's language, its site,
+its state word and its counts, makes a link and reads the request, asks for the pair again and sees
+the link that exists open instead, turns one off and on, reads a refused switch under its row in the
+API's own words, opens the QR screen, copies the address into a clipboard kept on the page, prints
+the sheet and reads what the window was given: the logo, the site, the form's title in both
+languages, the image at 512 and the scan line in both languages. A supervisor is offered no button.
+It then reads the customer's filing in Filed forms: Customer in the filed-by column, the customer's
+name and role in the header, the customer's signature drawn above its line, a number box that sends
+a number, and the survey's section averages and overall. Each in English and in Spanish, and the
+window once more at 390 wide. The `start-form` suite signs a customer's acknowledgement on a form
+filled at a desk: Name, Role and the pad, Save signature sending the four keys, the drawing and the
+line drawn after, Clear and a second signature, every refusal under the card in the API's words, and
+a save that carries nothing for it.
+
 ## How to run less of it
 
 ```
@@ -239,7 +258,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links` and `house-style`.
 
 ## How much is left in English
 
