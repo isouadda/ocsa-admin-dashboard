@@ -75,6 +75,10 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Rating an answer since Step 185: Yes, No with a note, a rating read back, and a source by its name,
+  // in both languages.
+  { name: "help-rating", mod: "./cases/help-rating", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Help insights since Step 185: who finds the page, its three reads with the range and every filter on
   // the address, every figure and a person's questions, in both languages.
   { name: "help-insights", mod: "./cases/help-insights", widths: ["wide"],

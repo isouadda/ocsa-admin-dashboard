@@ -145,6 +145,15 @@ Add Supply and a card that opens nothing, and one on the defaults, who finds bot
 Permissions it holds the line an admin's account carries, the line one's own account carries, and
 the manage_admins row, which only a holder can grant, each with nothing to press. Both languages.
 
+**An answer can be rated, and names its sources.** Since Step 185 an answer that carries its id, from
+done or from the conversation, is followed by Was this helpful? with Yes and No. The stub stores an
+answer with its id and the names of what it cited, and answers `POST /api/agent/messages/:id/feedback`
+the way `routes/agent.js` does. The `help-rating` suite asks two questions in each language: the first
+answer's line names its two sources by the names the API sent, and Yes posts `{ helpful: true }`; the
+second answer's No opens What was missing?, and Send posts `{ helpful: false, note }`. Each draws the
+thanks line. It then resumes a report whose conversation holds an answer rated No with a note, and
+holds the buttons and the line under them to the stored rating.
+
 **Help insights reads what the API counted, with every filter on the address.** Since Step 185 a page
 for whoever holds `view_help_insights` reads `GET /api/help-insights/summary`, `/misses` and `/people`,
 and a person's own questions from `/people/:id`. The stub holds seven answers Help gave and counts every
@@ -308,7 +317,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights`, `help-rating` and `house-style`.
 
 ## How much is left in English
 

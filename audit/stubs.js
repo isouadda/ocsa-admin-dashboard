@@ -969,6 +969,8 @@ function createStubs() {
   let agentTalk = {};
   let agentPending = {};
   let agentPhotos = 0;
+  // Step 183: the rating each answer carries once its person rates it, by the answer's id.
+  let agentFeedback = {};
   function agentAnswer(body) {
     const s = agentStream || { pieces: ["Here is what ", "the dashboard shows ", "for that."] };
     agentStream = null;
@@ -992,6 +994,10 @@ function createStubs() {
     if (!s.error) {
       const answer = { role: "assistant", text: done.reply };
       ["citedDocs", "degraded", "noProcedure"].forEach((k) => { if (done[k] !== undefined) answer[k] = done[k]; });
+      // Since Step 183 an answer is stored with its id and the names of what it cited, which the
+      // conversation route reads back beside it.
+      if (done.messageId !== undefined) answer.id = done.messageId;
+      if (done.citedNames !== undefined) answer.citedNames = done.citedNames;
       agentTalk[conversationId] = (agentTalk[conversationId] || []).concat([{ role: "user", text: (body && body.text) || "" }]);
       if (s.storedAfterReads) agentPending[conversationId] = { message: answer, reads: s.storedAfterReads };
       else agentTalk[conversationId].push(answer);
@@ -1006,7 +1012,10 @@ function createStubs() {
       if (pending.reads > 0) pending.reads -= 1;
       else { agentTalk[id] = (agentTalk[id] || []).concat([pending.message]); delete agentPending[id]; }
     }
-    return (AGENT_CONVERSATIONS[id] || []).concat(agentTalk[id] || []);
+    // An answer rated since it was stored carries its rating, the way the conversation route reads
+    // feedback_helpful, feedback_note and feedback_at off the row.
+    return (AGENT_CONVERSATIONS[id] || []).concat(agentTalk[id] || [])
+      .map((r) => (r.id && agentFeedback[r.id] ? Object.assign({}, r, { feedback: agentFeedback[r.id] }) : r));
   }
 
   // ---- Step 183: Help insights ---------------------------------------------------------------------
@@ -2304,6 +2313,18 @@ function createStubs() {
         feedback: r.helpful === null ? null : { helpful: r.helpful, note: r.note, at: r.at },
       })) });
     }
+    // Step 183: POST /api/agent/messages/:id/feedback, a rating of one answer, the way routes/agent.js
+    // takes it: helpful is a boolean, a note is 500 characters at most, and the answer's rating is what
+    // it answers.
+    if (/^\/api\/agent\/messages\/[^/]+\/feedback$/.test(path) && method === "POST") {
+      const b = body || {};
+      if (typeof b.helpful !== "boolean") return { status: 400, json: { error: lang === "es" ? "Diga si la respuesta le sirvi\u00f3." : "Say whether the answer helped.", code: "help.feedbackInvalid" } };
+      const note = b.note === undefined || b.note === null ? null : String(b.note).trim() || null;
+      if (note && note.length > 500) return { status: 400, json: { error: lang === "es" ? "Escriba la nota en 500 caracteres o menos." : "Keep the note to 500 characters or fewer.", code: "help.noteTooLong" } };
+      const id = decodeURIComponent(path.split("/")[4] || "");
+      agentFeedback[id] = { helpful: b.helpful, note: note, at: seed.NOW_ISO };
+      return ok({ ok: true, feedback: agentFeedback[id] });
+    }
     if (path === "/api/agent/drafts" && method === "GET") return ok(AGENT_DRAFTS);
     if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });
     // Help keeps only the path of a photo it uploads, so that bucket answers with one.
@@ -2447,7 +2468,7 @@ function createStubs() {
       deskSeq = 0; customerSigSeq = 0; startable = true;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
-      agentStream = null; agentTalk = {}; agentPending = {};
+      agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};
       openSessions = {};
     },
     fixtures: {
