@@ -2373,6 +2373,7 @@ e.g. Called out,p. ej. se reportó ausente,"Schedule, Convert Callout, the notes
 Failed retry,Reintento de fallos,"Forms, Jotform, the sync log's type"
 Forced fetch,Descarga forzada,"Forms, Jotform, the sync log's type"
 running,en curso,"Forms, Jotform, the sync log's status"
+partial,parcial,"Forms, Jotform, the sync log's status"
 fetch,descarga,"Forms, Jotform, a failure's stage"
 parse,lectura,"Forms, Jotform, a failure's stage"
 store,guardado,"Forms, Jotform, a failure's stage"

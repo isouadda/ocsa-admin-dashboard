@@ -2018,6 +2018,7 @@ export const WORDS = {
   "of {0} active": { es: "de {0} activos" },
   "on {0}": { es: "el {0}" },
   "parse|stage": { es: "lectura" },
+  "partial|sync": { es: "parcial" },
   "pending": { es: "pendiente" },
   "posted as an open shift": { es: "publicado como turno abierto" },
   "prompts text input": { es: "muestra un cuadro de texto" },

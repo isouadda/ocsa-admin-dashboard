@@ -12347,7 +12347,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{fmtDT(l.started_at)}</td>
                     <td style={{ padding: "8px 10px", color: t.text, fontSize: 11 }}>{({ forms: tr("Forms"), submissions: tr("Submissions"), failure_retry: tr("Failed retry"), force_fetch: tr("Forced fetch") })[l.sync_type] || l.sync_type}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.form_title || "--"}</td>
-                    <td style={{ padding: "8px 10px" }}><Bdg l={({ success: tr("success"), failed: tr("failed"), running: tr("running|sync") })[l.status] || l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
+                    <td style={{ padding: "8px 10px" }}><Bdg l={({ success: tr("success"), failed: tr("failed"), running: tr("running|sync"), partial: tr("partial|sync") })[l.status] || l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_processed}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_created}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_updated}</td>
