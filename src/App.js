@@ -10494,7 +10494,7 @@ function FormBuilderPage({ af, token, t, user, allStaff = [], lkMap, route = [],
     {published && <div style={{ padding: "10px 12px", marginBottom: 12, borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 13, color: t.text }}>{tr("Published as version {0}.", published.latestVersion || published.version || "")} {builderTitle(published)}</div>}
     {startErr && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{startErr}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
-    {!loading && failed && <LoadFailed t={t} text={failed} onRetry={load} />}
+    {!loading && failed && <LoadFailed t={t} onRetry={load} />}
     {!loading && !failed && <DataTable t={t} columns={cols} rows={forms} rowKey={f => f.code} onRowClick={f => setHistory(f)} empty={tr("No forms yet. New form starts one.")} />}
     {history && <FormVersionHistoryWindow af={af} t={t} form={history} isAdmin={isAdmin} onClose={() => setHistory(null)} onRetired={() => { setHistory(null); load(); }} />}
   </div>);
@@ -10768,7 +10768,7 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
   const cardHead = { fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 };
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
-  if (failed) return (<div><Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44, marginBottom: 12 }}>{tr("Back")}</Btn><LoadFailed t={t} text={failed} onRetry={load} /></div>);
+  if (failed) return (<div><Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44, marginBottom: 12 }}>{tr("Back")}</Btn><LoadFailed t={t} onRetry={load} /></div>);
   return (<div data-form-builder="">
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
       <Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44 }}>{tr("Back")}</Btn>
