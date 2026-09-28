@@ -266,6 +266,15 @@ const ROUTES = {
     },
   },
 
+  // Step 185: a person's questions, from the one table on Help insights whose rows open something.
+  "help-insights/person": {
+    open: async (d) => {
+      await d.goto("help-insights"); await d.settle(500);
+      await d.page.evaluate(() => { const row = Array.from(document.querySelectorAll("table tbody tr")).find((tr) => tr.style.cursor === "pointer"); if (row) row.click(); });
+      await d.settle(500);
+      return d.modalOpen();
+    },
+  },
   "cases/window": {
     open: async (d) => { await d.goto("cases"); return d.clickRow(0); },
   },

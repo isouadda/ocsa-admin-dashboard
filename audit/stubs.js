@@ -1009,6 +1009,52 @@ function createStubs() {
     return (AGENT_CONVERSATIONS[id] || []).concat(agentTalk[id] || []);
   }
 
+  // ---- Step 183: Help insights ---------------------------------------------------------------------
+  // Answers Help gave, one row each, the way routes/helpInsights.js reads agent_messages at ocsa-api
+  // 1c3fb42: the question, who asked and in which role, where, in which language and app, what kind of
+  // answer it was, how long it took, the documents it cited and any rating. Every figure the three
+  // routes answer is counted from these rows through the filters the address names, the way the API
+  // counts it, the language filter included, which the API reads from locale=, the same name every
+  // signed-in call carries its own language under. Every value is invented.
+  const HELP_DOCS = {
+    "DOC-SUPPLY-2": { en: "Supply room procedure", es: "Procedimiento del cuarto de suministros", ref: "2", title: "Restocking" },
+    "DOC-FLOOR-1": { en: "Floor care procedure", es: "Procedimiento de cuidado de pisos", ref: "1", title: "Buffing" },
+  };
+  const HELP_ROWS = [
+    { id: "hm-1", at: "2026-03-16T14:00:00Z", question: "Where do I log a soap refill?", answer: "Log it on Supplies, under the site.", person: "u-staff-5", role: "custodial_lead", site: "s-1", locale: "en", app: "portal", kind: "answer", ms: 4000, cited: ["DOC-SUPPLY-2"], helpful: true, note: null },
+    { id: "hm-2", at: "2026-03-16T15:00:00Z", question: "Who signs the dock log?", answer: "No procedure covers that yet.", person: "u-staff-5", role: "custodial_lead", site: "s-1", locale: "en", app: "portal", kind: "noProcedure", ms: 6000, cited: [], helpful: null, note: null },
+    { id: "hm-3", at: "2026-03-15T10:00:00Z", question: "\u00bfCu\u00e1nto cloro lleva la mezcla?", answer: "Una medida por cubeta.", person: "u-staff-6", role: "custodial_laborer", site: "s-2", locale: "es", app: "portal", kind: "answer", ms: 5000, cited: ["DOC-SUPPLY-2"], helpful: false, note: "Faltaba el paso del enjuague" },
+    { id: "hm-4", at: "2026-03-15T11:00:00Z", question: "\u00bfC\u00f3mo se pule el pasillo?", answer: "Con la almohadilla roja.", person: "u-staff-6", role: "custodial_laborer", site: "s-2", locale: "es", app: "portal", kind: "answer", ms: 3000, cited: ["DOC-FLOOR-1"], helpful: null, note: null },
+    { id: "hm-5", at: "2026-03-14T09:00:00Z", question: "Can a shift end early?", answer: "Help could not reach the library.", person: "u-staff-7", role: "day_porter", site: "s-3", locale: "en", app: "portal", kind: "degraded", ms: 8000, cited: [], helpful: null, note: null },
+    { id: "hm-6", at: "2026-03-17T20:00:00Z", question: "Which floors buff tonight?", answer: "Floors two and three.", person: "u-sup-1", role: "supervisor", site: "s-2", locale: "en", app: "dashboard", kind: "answer", ms: 2000, cited: ["DOC-FLOOR-1"], helpful: true, note: null },
+    { id: "hm-7", at: "2026-03-10T09:00:00Z", question: "\u00bfD\u00f3nde est\u00e1n las bolsas?", answer: "En el cuarto de suministros.", person: "u-staff-7", role: "day_porter", site: "s-3", locale: "es", app: "portal", kind: "answer", ms: 7000, cited: ["DOC-SUPPLY-2"], helpful: null, note: null },
+  ];
+  // hand, the last 30 days ending March 17 with no filter: 7 questions from 4 people, 2 misses (hm-2
+  // and hm-5), so 5 answered and round(200 / 7) = 29 percent missed; rated helpful 2, not helpful 1;
+  // the reply times 2000 3000 4000 5000 6000 7000 8000 have the median 5000, "5.0 sec". By language
+  // en 4 and es 3; by app portal 6 and dashboard 1; by site s-2 3, s-1 2 (1 missed), s-3 2 (1 missed);
+  // topics the supply procedure 3 and the floor procedure 2.
+  // With the language filter en, which is what the API reads when an English screen asks for all
+  // languages: 4 questions from 3 people, 2 misses, 2 answered, 50 percent, helpful 2, not helpful 0,
+  // times 2000 4000 6000 8000 with the median 5000; by language en 4 alone.
+  // With es: 3 questions from 2 people, no miss, 3 answered, 0 percent, helpful 0, not helpful 1,
+  // times 3000 5000 7000 with the median 5000; by language es 3 alone.
+  const helpDay = (at) => new Date(at).toLocaleDateString("en-CA", { timeZone: seed.TIMEZONE });
+  const helpIsMiss = (r) => r.kind === "noProcedure" || r.kind === "degraded";
+  const helpWindow = (q) => ({
+    from: q("from") || seed.shift(-29), to: q("to") || seed.TODAY, site: q("siteId") || null, role: q("role") || null,
+    locale: q("locale") === "en" || q("locale") === "es" ? q("locale") : null,
+    app: q("app") === "portal" || q("app") === "dashboard" ? q("app") : null,
+  });
+  const helpRowsIn = (w) => HELP_ROWS.filter((r) => {
+    const day = helpDay(r.at);
+    return day >= w.from && day <= w.to && (!w.site || r.site === w.site) && (!w.role || r.role === w.role) && (!w.locale || r.locale === w.locale) && (!w.app || r.app === w.app);
+  });
+  const helpDocName = (code, lang) => (HELP_DOCS[code] ? HELP_DOCS[code][lang === "es" ? "es" : "en"] : code);
+  const helpPerson = (id) => state.staff.find((x) => x.id === id) || {};
+  const helpSiteName = (id) => (state.sites.find((x) => x.id === id) || {}).name || null;
+  const helpCount = (rows, key) => { const m = {}; rows.forEach((r) => { m[r[key]] = (m[r[key]] || 0) + 1; }); return m; };
+
   // What GET /api/notification-recipients sends as types: the API's own list, helpers/notify.js,
   // type for type and name for name.
   const NOTIFICATION_TYPES = [
@@ -2194,6 +2240,69 @@ function createStubs() {
       const a = agentAnswer(body);
       if (a.error) return { status: a.error.status || 500, json: { error: a.error.error }, delayMs: a.total };
       return { status: 200, json: a.done, delayMs: a.total };
+    }
+    // Step 183: GET /api/help-insights/summary, /misses, /people and /people/:id, for a holder of
+    // view_help_insights, each answered in the language the address names, as routes/helpInsights.js
+    // answers them.
+    if (path.startsWith("/api/help-insights/") && method === "GET") {
+      const me = person();
+      const map = effectiveMap(me, state.overrides[me.id]);
+      if (!me.isSuperAdmin && !map.view_help_insights) return { status: 403, json: { error: lang === "es" ? "No tiene permiso para hacer esto" : "Insufficient permissions", code: "access.insufficientPermissions" } };
+      const w = helpWindow(q);
+      const said = q("locale") === "es" || q("locale") === "en" ? q("locale") : lang;
+      const rows = helpRowsIn(w).slice().sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+      if (path === "/api/help-insights/summary") {
+        const questions = rows.length;
+        const misses = rows.filter(helpIsMiss).length;
+        const ms = rows.map((r) => r.ms).sort((a, b) => a - b);
+        const median = ms.length === 0 ? null : ms.length % 2 ? ms[(ms.length - 1) / 2] : (ms[ms.length / 2 - 1] + ms[ms.length / 2]) / 2;
+        const days = {};
+        rows.forEach((r) => { const k = helpDay(r.at); days[k] = days[k] || { day: k, questions: 0, misses: 0 }; days[k].questions += 1; if (helpIsMiss(r)) days[k].misses += 1; });
+        const order = (m) => Object.keys(m).sort((a, b) => m[b] - m[a] || (a < b ? -1 : 1));
+        const byLocale = helpCount(rows, "locale");
+        const byApp = helpCount(rows, "app");
+        const bySite = helpCount(rows, "site");
+        const topics = {};
+        rows.forEach((r) => r.cited.forEach((c) => { topics[c] = (topics[c] || 0) + 1; }));
+        return ok({
+          from: w.from, to: w.to, questions, people: new Set(rows.map((r) => r.person)).size, answered: questions - misses, misses,
+          missRate: questions > 0 ? Math.round((misses / questions) * 1000) / 1000 : 0,
+          helpfulYes: rows.filter((r) => r.helpful === true).length, helpfulNo: rows.filter((r) => r.helpful === false).length,
+          medianReplyMs: median === null ? null : Math.round(median),
+          byDay: Object.keys(days).sort().map((k) => days[k]),
+          byLanguage: order(byLocale).map((k) => ({ locale: k, questions: byLocale[k] })),
+          byApp: order(byApp).map((k) => ({ app: k, questions: byApp[k] })),
+          bySite: Object.keys(bySite).sort((a, b) => bySite[b] - bySite[a] || String(helpSiteName(a)).localeCompare(String(helpSiteName(b))))
+            .map((k) => ({ siteId: k, siteName: helpSiteName(k), questions: bySite[k], misses: rows.filter((r) => r.site === k && helpIsMiss(r)).length })),
+          topTopics: order(topics).map((k) => ({ code: k, name: helpDocName(k, said), sectionRef: HELP_DOCS[k].ref, sectionTitle: HELP_DOCS[k].title, count: topics[k] })),
+        });
+      }
+      if (path === "/api/help-insights/misses") {
+        return ok({ from: w.from, to: w.to, misses: rows.filter((r) => helpIsMiss(r) || r.helpful === false).map((r) => ({
+          messageId: r.id, askedAt: r.at, question: r.question, locale: r.locale, app: r.app, kind: helpIsMiss(r) ? r.kind : "notHelpful",
+          person: { id: r.person, name: helpPerson(r.person).name, role: r.role }, site: { id: r.site, name: helpSiteName(r.site) }, feedbackNote: r.note,
+        })) });
+      }
+      if (path === "/api/help-insights/people") {
+        const ids = Array.from(new Set(rows.map((r) => r.person)));
+        const people = ids.map((id) => {
+          const mine = rows.filter((r) => r.person === id);
+          const cited = {};
+          mine.forEach((r) => r.cited.forEach((c) => { cited[c] = (cited[c] || 0) + 1; }));
+          return { id, name: helpPerson(id).name, role: helpPerson(id).role, questions: mine.length, misses: mine.filter(helpIsMiss).length,
+            helpfulNo: mine.filter((r) => r.helpful === false).length, lastAskedAt: mine[0].at,
+            topTopics: Object.keys(cited).sort((a, b) => cited[b] - cited[a] || (a < b ? -1 : 1)).slice(0, 3).map((c) => ({ code: c, name: helpDocName(c, said), count: cited[c] })) };
+        }).sort((a, b) => b.questions - a.questions || (a.lastAskedAt < b.lastAskedAt ? 1 : -1));
+        return ok({ from: w.from, to: w.to, people });
+      }
+      const id = decodeURIComponent(path.split("/")[4] || "");
+      const who = state.staff.find((x) => x.id === id);
+      if (!who) return { status: 404, json: { error: lang === "es" ? "No se encontr\u00f3 a la persona" : "Person not found", code: "insights.personNotFound" } };
+      return ok({ from: w.from, to: w.to, person: { id: who.id, name: who.name, role: who.role }, turns: rows.filter((r) => r.person === id).map((r) => ({
+        messageId: r.id, askedAt: r.at, question: r.question, answer: r.answer, kind: r.kind, locale: r.locale, app: r.app,
+        citedNames: r.cited.map((c) => ({ code: c, name: helpDocName(c, said) })),
+        feedback: r.helpful === null ? null : { helpful: r.helpful, note: r.note, at: r.at },
+      })) });
     }
     if (path === "/api/agent/drafts" && method === "GET") return ok(AGENT_DRAFTS);
     if (path.startsWith("/api/agent/drafts")) return ok({ message: "Draft saved" });

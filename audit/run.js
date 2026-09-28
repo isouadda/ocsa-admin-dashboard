@@ -75,6 +75,10 @@ const SUITES = [
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Help insights since Step 185: who finds the page, its three reads with the range and every filter on
+  // the address, every figure and a person's questions, in both languages.
+  { name: "help-insights", mod: "./cases/help-insights", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Words, codes and addresses since Step 181: the sync log, a failure's stage, a pattern's result and
   // the Started Shift role drawn as words, and a refused file read in the API's words, in both languages.
   { name: "codes", mod: "./cases/codes", widths: ["wide"],

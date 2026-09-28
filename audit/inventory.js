@@ -28,6 +28,8 @@ const PAGES = [
   { id: "settings", label: "Settings", expect: "Company", gated: true },
   { id: "chat", label: "Messages", expect: "Private conversations", gated: false },
   { id: "help", label: "Help", expect: "Help", gated: false },
+  // Step 185: for a holder of view_help_insights, whom the API names by default among admins only.
+  { id: "help-insights", label: "Help insights", expect: "Everyone who asked", gated: true },
 ];
 
 // ---------------------------------------------------------------------------
@@ -115,6 +117,7 @@ const VIEWS = [
   { id: "cases/list", page: "cases", click: null, expect: "Cases" },
   { id: "chat/single", page: "chat", click: null, expect: "Private conversations" },
   { id: "help/single", page: "help", click: null, expect: "Help" },
+  { id: "help-insights/single", page: "help-insights", click: null, expect: "Everyone who asked" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -195,6 +198,9 @@ const WINDOWS = [
   { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [12894] },
   // Step 169: the customer links window, from Filed forms, listing the links and showing a QR code.
   { id: "forms/customer-links", page: "forms", title: "Customer links", lines: [11077] },
+
+  // Step 185: a person's questions, opened from Everyone who asked on Help insights.
+  { id: "help-insights/person", page: "help-insights", title: "Their questions", lines: [3614] },
 
   { id: "cases/window", page: "cases", title: "Case", lines: [13562] },
 

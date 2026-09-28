@@ -145,6 +145,18 @@ Add Supply and a card that opens nothing, and one on the defaults, who finds bot
 Permissions it holds the line an admin's account carries, the line one's own account carries, and
 the manage_admins row, which only a holder can grant, each with nothing to press. Both languages.
 
+**Help insights reads what the API counted, with every filter on the address.** Since Step 185 a page
+for whoever holds `view_help_insights` reads `GET /api/help-insights/summary`, `/misses` and `/people`,
+and a person's own questions from `/people/:id`. The stub holds seven answers Help gave and counts every
+figure from them through the filters the address names, the way `routes/helpInsights.js` counts, with
+the totals worked out by hand beside the rows. The `help-insights` suite holds a supervisor, who is not
+named, to no side panel item and no read behind the address; an admin, who is, to the item, the three
+reads with the last 30 days on the address, every tile and table to what the routes answered, a
+person's questions under the line Opening this is recorded, and each filter, site, role, app and
+language, on the address of all three. The case that holds All languages to every language is a known
+failure: the filter and the language every call names are one parameter, `locale=`, which the API
+reads as both.
+
 **A code the API writes is drawn as a word.** The `codes` suite reads, in both languages, the Jotform
 sync log, where each sync's type and status, one of every type and status the API writes, `partial`
 included, is the table's word, and the unresolved failures, where each stage is; a weekly pattern's
@@ -296,7 +308,7 @@ Every pass prints how long it took under its `run` line, so a pass that grows is
 The suites are `pages`, `views`, `windows`, `tables`, `refusals`, `reports`, `exports`, `decisions`,
 `permissions`, `notices`, `report-actions`, `language`, `help-fit`, `help-stream`, `checklist`,
 `forms-menu`, `hr-roles`, `staff-cases`, `settings`, `questions`, `zone-chips`, `prints`, `report-screens`,
-`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes` and `house-style`.
+`training`, `pickers`, `before-training`, `small-things`, `customer-links`, `staff-pins`, `capabilities`, `leftovers`, `codes`, `help-insights` and `house-style`.
 
 ## How much is left in English
 
