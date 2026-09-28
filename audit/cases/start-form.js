@@ -107,9 +107,10 @@ async function run({ d, results, inventory, stubs, lang }) {
     await pause(700);
     const started = bodyOf(d.callsSince(mark), "POST", /\/api\/forms\/desk-complaint\/drafts$/);
     const w0 = await window_(d);
-    // The API sets a draft's source itself and reads none from the body, so the start sends none.
+    // Since Step 181 a form started here says so: the start sends source admin, which the API stores
+    // for an admin or a supervisor.
     check("start-form/a-form-is-started",
-      picked && !!started && started.body && !Object.prototype.hasOwnProperty.call(started.body, "source") && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
+      picked && !!started && started.body && started.body.source === "admin" && Object.keys(started.body).length === 1 && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
         && ["site", "received_on", "received_at", "channel", "callers"].every((k) => w0.questions.indexOf(k) >= 0),
       !picked ? "nothing in the picker to press" : "starting sent " + JSON.stringify(started ? started.body : null) + " and the window is " + JSON.stringify(w0 ? { step: w0.step, questions: w0.questions } : null));
 
@@ -206,8 +207,9 @@ async function run({ d, results, inventory, stubs, lang }) {
         && !!w5 && w5.text.indexOf(say("Signed by {0} on {1} at {2}").split("{0}")[0].trim()) >= 0 && !w5.buttons.some((b) => b.text === say("Sign")),
       !signOpened ? "no Sign on the filer's sign-off" : "Sign sent " + JSON.stringify(signed ? Object.keys(signed.body || {}) : null) + " and the window reads " + JSON.stringify(w5 ? w5.text.slice(-160) : null));
 
-    // Sent, and under Submitted. The list the API sends carries no source, so the row names the form
-    // and nothing under it.
+    // Sent, and under Submitted. Since Step 175 the list the API sends carries each filing's source, and
+    // since Step 181 the row says under the form's name where a filing came from: this one, from the
+    // dashboard.
     await pressIn(d, say("Next"));
     await pause(700);
     const review1 = await window_(d);
@@ -225,7 +227,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const listed = await rowWith(d, title);
     check("start-form/the-filing-is-sent",
       sendOn && asked && !!sent && !!w6 && w6.text.indexOf(say("Form sent. The people who handle these forms have been told.")) >= 0
-        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) < 0 && listed.indexOf(say("From the app")) < 0,
+        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) >= 0 && listed.indexOf(say("From the app")) < 0,
       "on the review Send was " + (sendOn ? "on" : "off") + ", the question " + (asked ? "was asked" : "was not asked") + ", " + (sent ? "the filing went" : "nothing went")
         + ", the window read " + JSON.stringify(w6 ? w6.text.slice(0, 80) : null) + " and the row that names the form reads " + JSON.stringify(listed));
   }
@@ -389,12 +391,12 @@ async function run({ d, results, inventory, stubs, lang }) {
     }, MODAL);
     const c0 = await card();
     check("start-form/customer-signature/the-card-is-drawn",
-      !!c0 && c0.inputs.join("|") === [labelAck + ": " + say("Name"), labelAck + ": " + say("Role")].join("|") && c0.canvas
+      !!c0 && c0.inputs.join("|") === [labelAck + ": " + say("Name"), labelAck + ": " + say("Role|customer")].join("|") && c0.canvas
         && c0.buttons.some((b) => b.text === say("Save signature") && b.off) && c0.buttons.some((b) => b.text === say("Clear")) && !c0.buttons.some((b) => b.text === say("Cancel")),
       !c0 ? "no card for the customer acknowledgement in the third section" : "the card draws " + JSON.stringify(c0));
 
     await field(d, labelAck + ": " + say("Name")).fill("Rosalind Achterberg");
-    await field(d, labelAck + ": " + say("Role")).fill("Facilities manager");
+    await field(d, labelAck + ": " + say("Role|customer")).fill("Facilities manager");
     await d.drawSignature();
     const mark = d.mark();
     await pressIn(d, say("Save signature"));

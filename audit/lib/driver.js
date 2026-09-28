@@ -246,8 +246,11 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     // A render exception drops the whole app behind src/index.js's boundary. The suite reports the
     // case that caused it and then reloads and signs back in, so one broken screen does not blank
     // every case after it.
+    // Since Step 181 the crash screen is drawn in the screen's language, so it is looked for in both.
     async crashed() {
-      return this.has("Something went wrong and the page needs reloading");
+      const text = await this.text();
+      return text.indexOf("Something went wrong and the page needs reloading") >= 0
+        || text.indexOf(say("Something went wrong and the page needs reloading.", tongue).replace(/\.$/, "")) >= 0;
     },
     async crashDetail() {
       if (!(await this.crashed())) return "";
@@ -592,14 +595,16 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
     },
 
     // ---- the permissions editor -------------------------------------------
-    // One capability row, read by the label the API sent for it.
+    // One capability row, read by the name it is drawn under. A row with no buttons says why in a
+    // line of its own: Locked on, or since Step 181 the line on manage_admins for a person who does
+    // not hold it, so the climb stops there rather than in the group that holds other rows' buttons.
     async capabilityRow(label) {
-      return page.evaluate((lbl) => {
+      return page.evaluate(([lbl, onlyHolder]) => {
         const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
         const spans = Array.from(box.querySelectorAll("span")).filter((s0) => (s0.innerText || "").trim() === lbl);
         if (!spans.length) return null;
         let row = spans[0];
-        while (row && !(row.querySelector("button") || (row.innerText || "").indexOf("Locked on") >= 0)) row = row.parentElement;
+        while (row && !(row.querySelector("button") || (row.innerText || "").indexOf("Locked on") >= 0 || (row.innerText || "").indexOf(onlyHolder) >= 0)) row = row.parentElement;
         if (!row) return null;
         const txt = (row.innerText || "");
         const buttons = Array.from(row.querySelectorAll("button")).map((b) => (b.innerText || "").trim());
@@ -613,8 +618,8 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
             if (t0 === "allow" || t0 === "deny" || t0 === "default") state = t0;
           }
         });
-        return { currently: currentlyLine, buttons, state, locked: txt.indexOf("Locked on") >= 0 };
-      }, label);
+        return { currently: currentlyLine, buttons, state, locked: txt.indexOf("Locked on") >= 0, onlyHolder: txt.indexOf(onlyHolder) >= 0 };
+      }, [label, say("Only someone who holds this can grant it.", tongue)]);
     },
 
     async setCapability(label, which) {
@@ -689,18 +694,20 @@ async function createDriver({ browser, origin, stubs, viewport, theme, textSize,
       return true;
     },
 
-    // One cell of the Schedule week or month grid, found by the text inside it.
+    // One cell of the Schedule week or month grid, found by the text inside it. Since Step 181 every
+    // chip on the week, a shift, a start, an open shift, a drop request, a claim and an inspection, is
+    // a button; the month's day cells and the week grid's empty cells are still divs a person presses.
     async clickGridCell(pattern, notPattern) {
       const re = pattern instanceof RegExp ? pattern : new RegExp(pattern);
       const clicked = await page.evaluate((src) => {
         const rx = new RegExp(src[0], src[1]);
         const box = document.querySelector("div[style*='padding: 16px 24px 30px'], div[style*='padding: 12px 16px 30px']") || document.body;
-        const cands = Array.from(box.querySelectorAll("div")).filter((el) => {
+        const cands = Array.from(box.querySelectorAll("div, button")).filter((el) => {
           if (el.offsetParent === null) return false;
           const txt = (el.innerText || "").trim();
           if (!rx.test(txt) || txt.length > 160) return false;
           if (src[2] && new RegExp(src[2]).test(txt)) return false;
-          return (el.getAttribute("style") || "").indexOf("cursor: pointer") >= 0;
+          return el.tagName === "BUTTON" || (el.getAttribute("style") || "").indexOf("cursor: pointer") >= 0;
         });
         if (!cands.length) return false;
         cands[cands.length - 1].click();

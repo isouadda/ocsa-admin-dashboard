@@ -22,6 +22,18 @@ const BARE = "Pressure wash dock apron";
 const CHOICE = { id: "lv-1", english: "Service Delivery", spanish: "Prestaci\u00f3n del servicio" };
 const PRIORITY = { code: "urgent", english: "Urgent", spanish: "Urgente" };
 
+// The fields of the open window that hold the English an item or a choice was saved in. Since Step 185
+// the window also carries the Spanish the portal draws, in a box of its own headed Shown in Spanish as,
+// which is left out here and read by the corrections suite.
+const englishFields = (d, sel) => d.modal().locator(sel).evaluateAll((els, head) => els.filter((e) => {
+  for (let p = e.parentElement; p; p = p.parentElement) {
+    const first = p.firstElementChild;
+    if (first && first !== e && !first.contains(e) && (first.textContent || "").trim() === head) return false;
+    if ((p.getAttribute("style") || "").indexOf("z-index: 500") >= 0) break;
+  }
+  return true;
+}).map((e) => e.value), d.say("Shown in Spanish as"));
+
 async function run({ d, results, inventory, stubs }) {
   const ids = {};
   inventory.DISPLAY_FIELDS.forEach((x) => { ids[x.id.split("/")[1]] = x.id; });
@@ -84,7 +96,8 @@ async function run({ d, results, inventory, stubs }) {
   await d.clickRow(0);
   await d.clickText(d.say("Service Details"), { exact: false });
   if (await d.clickText(ITEM.english, { exact: false }).catch(() => false)) {
-    const values = await d.modal().locator("input, textarea").evaluateAll((els) => els.map((e) => e.value));
+    await d.settle(300);
+    const values = await englishFields(d, "input, textarea");
     const mark = d.mark();
     await d.clickText(d.say("Save Changes"), { inModal: true });
     const sent = d.callsSince(mark).filter((c) => c.method === "PATCH" && c.path.indexOf("/tasks/" + ITEM.id) >= 0).pop();
@@ -107,7 +120,8 @@ async function run({ d, results, inventory, stubs }) {
   await d.goto("settings");
   await d.clickText(d.say("Dropdown Options"), { exact: false });
   if (await d.clickText(d.say("Edit"), { exact: true, nth: 1 }).catch(() => false)) {
-    const values = await d.modal().locator("input").evaluateAll((els) => els.map((e) => e.value));
+    await d.settle(300);
+    const values = await englishFields(d, "input");
     const mark = d.mark();
     await d.clickText(d.say("Save"), { inModal: true, exact: true });
     const sent = d.callsSince(mark).filter((c) => c.method === "PATCH" && c.path.indexOf("/api/lookups/values/" + CHOICE.id) >= 0).pop();
@@ -215,9 +229,10 @@ async function run({ d, results, inventory, stubs }) {
   }
   results.check("language", ids["an-inventory-choice-reads-its-label-and-sends-its-code"], invOk, invWhy);
 
-  // A service's category on the catalog's cards is the table's word for its label, read by the label
-  // table Sites reads it by. The API serves the English label too, as a lookup's label, so the
-  // English check alone would let it through.
+  // A service's category on the catalog's cards is the service_categories lookup's shown label for its
+  // code, and the table's word for the code's plain word when the lookup does not hold it, since Step
+  // 181 (67b7a28). The API serves the English label too, as a lookup's label, so the English check
+  // alone would let it through.
   const appText = fs.readFileSync(path.resolve(__dirname, "..", "..", "src", "App.js"), "utf8");
   const labelLine = appText.split("\n").find((l) => l.indexOf("const CIMS_LABELS = {") === 0) || "";
   const labels = {};
@@ -227,7 +242,10 @@ async function run({ d, results, inventory, stubs }) {
   await d.goto("services");
   const badges = await d.page.evaluate(() => Array.from(document.querySelectorAll("span[style*='text-transform: uppercase']"))
     .filter((x) => x.offsetParent !== null).map((x) => x.textContent.trim()));
-  const wantWords = stubs.fixtures.SERVICES.map((x) => d.say(labels[x.cims_category] || x.cims_category));
+  const lookupsServed = stubs.calls.filter((c) => c.path === "/api/lookups/all" && Array.isArray(c.json)).pop();
+  const catList = lookupsServed ? (lookupsServed.json.find((x) => x.slug === "cims_categories") || {}).values || [] : [];
+  const shownFor = (code) => { const v = catList.find((x) => x.value === code); return v ? (v.displayLabel || v.label) : null; };
+  const wantWords = stubs.fixtures.SERVICES.map((x) => shownFor(x.cims_category) || d.say(labels[x.cims_category] || x.cims_category));
   const missingWords = wantWords.filter((w) => badges.indexOf(w) < 0);
   const english = stubs.fixtures.SERVICES.map((x) => labels[x.cims_category]).filter((w) => w && d.say(w) !== w && badges.indexOf(w) >= 0);
   results.check("language", ids["a-service-category-reads-the-table"], wantWords.length > 0 && missingWords.length === 0 && english.length === 0,
