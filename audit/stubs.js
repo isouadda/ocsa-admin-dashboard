@@ -723,6 +723,10 @@ function createStubs() {
       { key: "evidence", label: desk("Photos", "Fotos", lang), type: "photos", required: false, section: "record", maxPhotos: 3 },
       { key: "filer_signoff", label: desk("Filed by", "Presentado por", lang), type: "signoff", signer: "filer", required: true, section: "record" },
       { key: "reviewer_signoff", label: desk("Reviewed by", "Revisado por", lang), type: "signoff", signer: "supervisor", required: false, section: "record" },
+      // Step 169: a customer's acknowledgement, signed on this device with the customer present,
+      // through its own route and never through a save. Last, where a paper form puts it, so the
+      // filer's own sign-off box is the first canvas on screen when it opens.
+      { key: "customer_ack", label: desk("Customer acknowledgement", "Reconocimiento del cliente", lang), type: "customer_signature", required: false, section: "record" },
     ],
   });
   // The rules the API evaluates, read the same way here so the missing list is the API's judgement.
@@ -753,6 +757,7 @@ function createStubs() {
   };
   const deskFields = (r, lang) => deskForm(lang).fields.map((f, i) => Object.assign({ id: "dk-" + (i + 1), half: String(f.signer || "") === "supervisor" ? "supervisor" : "agent", value: (r.answers || {})[f.key] === undefined ? null : (r.answers || {})[f.key], displayValue: "" }, f));
   let deskSeq = 0;
+  let customerSigSeq = 0;
   const deskDraft = (r) => r && r.formCode === DESK_CODE;
   const INCIDENT_FIELDS = (r) => [
     { id: "f-1", key: "where", label: "Where did it happen", half: "agent", type: "text",
@@ -1847,6 +1852,25 @@ function createStubs() {
       INCIDENT_REPORTS.push(row);
       return created({ draft: deskView(row, lang) });
     }
+    // Step 169: POST /api/forms/drafts/:id/customer-signature { key, name, role, signature }, by
+    // the person filling the draft, answered with the whole report the way routes/forms.js
+    // answers it. The refusals are the API's codes and words.
+    if (/^\/api\/forms\/drafts\/[^/]+\/customer-signature$/.test(path) && method === "POST") {
+      const r = INCIDENT_REPORTS.find((x) => x.id === decodeURIComponent(path.split("/")[4]));
+      if (!r || !deskDraft(r) || String(r.userId || "") !== String(person().id)) return { status: 404, json: { error: lang === "es" ? "No se encontr\u00f3 el reporte" : "Draft not found", code: "forms.draftNotFound" } };
+      if (r.status !== "draft") return { status: 409, json: { error: lang === "es" ? "Este reporte ya se hab\u00eda enviado" : "This report was already submitted", code: "forms.alreadySubmitted" } };
+      const key = String((body && body.key) || "");
+      const f = deskForm("en").fields.find((x) => x.key === key && x.type === "customer_signature");
+      if (!f) return { status: 400, json: { error: lang === "es" ? "Esa pregunta no es una firma del cliente" : "That question is not a customer signature", code: "forms.notACustomerSignature" } };
+      const name = String((body && body.name) || "").trim();
+      if (!name) return { status: 400, json: { error: lang === "es" ? "Escriba su nombre." : "Give your name.", code: "customer.nameRequired" } };
+      const sig = body && body.signature;
+      if (typeof sig !== "string" || sig.indexOf("data:image/png;base64,") !== 0) return { status: 400, json: { error: lang === "es" ? "Firme antes de enviar" : "Draw your signature before you sign", code: "forms.signatureRequired" } };
+      if (Math.floor((sig.split(",")[1] || "").length * 3 / 4) > 300 * 1024) return { status: 400, json: { error: lang === "es" ? "La firma pesa m\u00e1s de 300 KB." : "The signature is over 300 KB.", code: "forms.signatureTooLarge" } };
+      customerSigSeq += 1;
+      r.answers[key] = { name, role: String((body && body.role) || "").trim() || null, signatureId: "csig-new-" + customerSigSeq, at: seed.NOW_ISO };
+      return ok(Object.assign(reportPayload(r, lang), { draft: deskView(r, lang) }));
+    }
     if (/^\/api\/forms\/drafts\/[^/]+(\/submit)?$/.test(path)) {
       const r = INCIDENT_REPORTS.find((x) => x.id === decodeURIComponent(path.split("/")[4]));
       if (!r || !deskDraft(r)) return { status: 404, json: { error: lang === "es" ? "No se encontr\u00f3 el borrador" : "Draft not found" } };
@@ -1859,6 +1883,10 @@ function createStubs() {
         const keys = deskForm("en").fields.map((f) => f.key);
         const outside = Object.keys(answers).filter((k) => keys.indexOf(k) < 0);
         if (outside.length) return { status: 400, json: { error: lang === "es" ? "Una respuesta no corresponde a este formulario" : "An answer is not a question on this form", keys: outside } };
+        // Step 169: a customer's signature is written by its own route, the way the API refuses one
+        // in a save.
+        const byRoute = Object.keys(answers).filter((k) => deskForm("en").fields.some((f) => f.key === k && f.type === "customer_signature"));
+        if (byRoute.length) return { status: 400, json: { error: lang === "es" ? "El cliente firma con el bot\u00f3n de firma del cliente" : "The customer signs with the Customer signature button", code: "forms.customerSignatureByRoute", keys: byRoute } };
         Object.keys(answers).forEach((k) => { if (answers[k] === null) delete r.answers[k]; else r.answers[k] = answers[k]; });
         return ok({ draft: deskView(r, lang) });
       }
@@ -2237,7 +2265,7 @@ function createStubs() {
       state.customerLinks = null; linkSeq = 0;
       // The forms started at a desk since the last reset, and the switch that lets one be started.
       for (let i = INCIDENT_REPORTS.length - 1; i >= 0; i -= 1) { if (deskDraft(INCIDENT_REPORTS[i])) INCIDENT_REPORTS.splice(i, 1); }
-      deskSeq = 0; startable = true;
+      deskSeq = 0; customerSigSeq = 0; startable = true;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null;
       agentStream = null; agentTalk = {}; agentPending = {};

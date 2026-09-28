@@ -8355,7 +8355,9 @@ const SIGNATURE_WIDTH = 420;
 const SIGNATURE_HEIGHT = 160;
 const SIGNATURE_MAX_BYTES = 300 * 1024;
 const dataUrlBytes = (url) => Math.floor((String(url).split(",")[1] || "").length * 3 / 4);
-function SignatureBox({ t, label, busy, refusal, onSign, onCancel }) {
+// Since Step 169 the box takes the word for its sending button and its busy line, so a customer's
+// signature card can read Save signature, and draws Cancel only when it is given somewhere to go.
+function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, busyWord }) {
   const canvasRef = useRef(null);
   const [drawn, setDrawn] = useState(false);
   const drawing = useRef(false);
@@ -8425,9 +8427,9 @@ function SignatureBox({ t, label, busy, refusal, onSign, onCancel }) {
     <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Sign with your mouse or finger")}</div>
     {refusal && <div data-signature-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
     <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy} style={{ minHeight: 44, minWidth: 88 }}>{busy ? tr("Signing...") : tr("Sign")}</Btn>
+      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy} style={{ minHeight: 44, minWidth: 88 }}>{busy ? (busyWord || tr("Signing...")) : (signWord || tr("Sign"))}</Btn>
       <Btn t={t} v="ghost" onClick={paint} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Clear")}</Btn>
-      <Btn t={t} v="ghost" onClick={onCancel} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Cancel")}</Btn>
+      {onCancel && <Btn t={t} v="ghost" onClick={onCancel} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Cancel")}</Btn>}
     </div>
   </div>);
 }
@@ -8925,7 +8927,7 @@ const formIsChecklist = (f) => Array.isArray(f.rows);
 // draft keeps whatever it already carries for one this screen does not draw.
 const formDrawnHere = (f) => String(f.type || "") !== "signoff" || String(f.signer || "") === "filer";
 const formDraftOf = (r) => (r && r.draft ? r.draft : r);
-const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date", "time", "number", "grid", "signoff", "photos"];
+const FORM_TYPES_DRAWN = ["", "text", "textarea", "select", "multiselect", "date", "time", "number", "grid", "signoff", "photos", "customer_signature"];
 // What the API clips a stored answer to, so a long answer is stopped in the box rather than after.
 const FORM_VALUE_MAX = 4000;
 // Where a filing came from, as the table's word for the source the API stores.
@@ -9001,6 +9003,8 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
     });
     (form && Array.isArray(form.fields) ? form.fields : []).forEach(f => {
       if (f.prefilled || inPlay.indexOf(f.key) !== -1) return;
+      // A customer's signature is written by its own route and never by a save, Step 169.
+      if (String(f.type || "") === "customer_signature") return;
       if (formHasAnswer(values[f.key]) || formHasAnswer((current.answers || {})[f.key])) out[f.key] = null;
     });
     return out;
@@ -9049,6 +9053,63 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
       setBoxFor(null);
     } catch (e) { setSignErr(said(e, "Not signed yet. Check your connection and try again.")); }
     setSigningKey(null);
+  };
+
+  // Step 169: a customer's signature on a form OCSA fills, made on this device with the customer
+  // present: a typed name, an optional role and the drawing from the signature box, sent to its own
+  // route, which answers with the whole report. It is never part of a save. Clear opens the pad
+  // again while the draft is open, and the next Save signature replaces the drawing on the draft.
+  const [cust, setCust] = useState({});
+  const custOf = (key) => cust[key] || {};
+  const setCustOf = (key, patch) => setCust(prev => Object.assign({}, prev, { [key]: Object.assign({}, prev[key] || {}, patch) }));
+  const customerSigned = (v) => !!(v && typeof v === "object" && v.signatureId && v.at);
+  const customerLine = (v) => {
+    if (!customerSigned(v)) return "";
+    const tz = clientConfig.company.timeZone;
+    const when = new Date(v.at);
+    return tr("Signed by {0} on {1} at {2}", [v.name, v.role].filter(Boolean).join(", ") || tr("Customer"),
+      when.toLocaleDateString(localeTag(), { timeZone: tz, month: "long", day: "numeric", year: "numeric" }),
+      when.toLocaleTimeString(localeTag(), { timeZone: tz, hour: "numeric", minute: "2-digit" }));
+  };
+  const saveCustomerSignature = async (f, signature) => {
+    const c = custOf(f.key);
+    if (c.busy) return;
+    setCustOf(f.key, { busy: true, refusal: "" });
+    try {
+      const r = await af("/api/forms/drafts/" + encodeURIComponent(current.id) + "/customer-signature", { method: "POST", body: { key: f.key, name: c.name || "", role: c.role || "", signature } });
+      const d = formDraftOf(r);
+      setCurrent(d);
+      // The answers come back from the API, and anything typed here and not saved yet stays put.
+      setValues(prev => {
+        const next = Object.assign({}, d.answers || {});
+        Object.keys(dirty).forEach(k => { if (formHasAnswer(prev[k])) next[k] = prev[k]; else delete next[k]; });
+        return next;
+      });
+      setCustOf(f.key, { busy: false, open: false });
+    } catch (e) { setCustOf(f.key, { busy: false, refusal: said(e, "Not signed yet. Check your connection and try again.") }); }
+  };
+  const customerCard = (f) => {
+    const c = custOf(f.key);
+    const v = values[f.key];
+    const signed = customerSigned(v) && !c.open;
+    return (<div data-customer-signature={f.key} style={{ marginTop: 6, padding: 12, borderRadius: 10, border: "1px solid " + t.border, background: t.hover, maxWidth: 480 }}>
+      {signed ? (<>
+        <SignatureImage key={v.signatureId} t={t} token={token} responseId={current.id} signKey={f.key} />
+        <div style={{ fontSize: 13, color: t.text }}>{customerLine(v)}</div>
+        <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" onClick={() => setCustOf(f.key, { open: true, refusal: "", name: v.name || "", role: v.role || "" })} style={{ minHeight: 44, minWidth: 88 }}>{tr("Clear")}</Btn></div>
+      </>) : (<>
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{tr("Name")}</div>
+          <Inp t={t} aria-label={f.label + ": " + tr("Name")} maxLength={FORM_VALUE_MAX} value={c.name || ""} onChange={e => setCustOf(f.key, { name: e.target.value })} style={{ minHeight: 44 }} />
+        </div>
+        <div style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{tr("Role")}</div>
+          <Inp t={t} aria-label={f.label + ": " + tr("Role")} maxLength={FORM_VALUE_MAX} value={c.role || ""} onChange={e => setCustOf(f.key, { role: e.target.value })} style={{ minHeight: 44 }} />
+        </div>
+        <SignatureBox t={t} label={f.label} busy={!!c.busy} signWord={tr("Save signature")} busyWord={tr("Saving...")} onSign={(png) => saveCustomerSignature(f, png)} />
+      </>)}
+      {c.refusal && <div data-customer-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{c.refusal}</div>}
+    </div>);
   };
 
   const toTop = () => { if (bodyRef.current) bodyRef.current.scrollTop = 0; };
@@ -9224,6 +9285,7 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
     if (FORM_TYPES_DRAWN.indexOf(kind) === -1) return <div style={helpSt}>{tr("This question cannot be answered here yet. Your supervisor will finish it.")}</div>;
     if (kind === "grid") return formIsChecklist(f) ? checklist(f) : rowTable(f);
     if (kind === "signoff") return signoff(f);
+    if (kind === "customer_signature") return customerCard(f);
     // A photo goes up on its own request and is never part of a save; what the API answers is what
     // the question holds.
     if (kind === "photos") return <PhotoQuestion t={t} token={token} af={af} responseId={current.id} field={Object.assign({}, f, { value: values[f.key] })} canWrite
@@ -9288,10 +9350,10 @@ function FormFillWindow({ af, token, t, form, draft, onLeave }) {
             {titled && formSectionText(form, sk, "title") && <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{formSectionText(form, sk, "title")}</div>}
             {shown.filter(f => formSectionOf(f) === sk).map(f => {
               const kind = String(f.type || "");
-              const read = kind === "signoff" ? stampLine(values[f.key]) : kind === "photos" ? (Array.isArray(values[f.key]) && values[f.key].length ? trn("{0} photo|count", values[f.key].length) : "") : formReadAnswer(f, values[f.key]);
+              const read = kind === "signoff" ? stampLine(values[f.key]) : kind === "customer_signature" ? customerLine(values[f.key]) : kind === "photos" ? (Array.isArray(values[f.key]) && values[f.key].length ? trn("{0} photo|count", values[f.key].length) : "") : formReadAnswer(f, values[f.key]);
               return (<div key={f.key} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 11, color: t.textMut, marginBottom: 3 }}>{f.label}</div>
-                <div style={{ fontSize: 13, color: read ? t.text : t.textMut, fontStyle: read ? "normal" : "italic" }}>{read || tr(kind === "signoff" ? "Not signed" : "Not answered")}</div>
+                <div style={{ fontSize: 13, color: read ? t.text : t.textMut, fontStyle: read ? "normal" : "italic" }}>{read || tr(kind === "signoff" || kind === "customer_signature" ? "Not signed" : "Not answered")}</div>
               </div>);
             })}
           </div>

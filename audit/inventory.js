@@ -184,23 +184,23 @@ const WINDOWS = [
   { id: "settings/add-site-value", page: "settings", title: "Add ", lines: [8036] },
   { id: "settings/edit-site-value", page: "settings", title: "Edit Site Lookup", lines: [8047] },
 
-  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8796] },
-  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [11135] },
-  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [11188] },
-  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11340] },
+  { id: "forms/incident-report-window", page: "forms", title: "Incident report", lines: [8798] },
+  { id: "forms/edit-form", page: "forms", title: "Edit Form", lines: [11197] },
+  { id: "forms/submission-detail", page: "forms", title: "Submission Detail", lines: [11250] },
+  { id: "forms/full-refresh", page: "forms", title: "Full Refresh", lines: [11402] },
   // Step 166: the picker Start a form opens, and the window a form is filled in.
-  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9722] },
-  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [9249] },
-  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [11303] },
+  { id: "forms/start-picker", page: "forms", title: "Pick a form to start", lines: [9784] },
+  { id: "forms/fill-window", page: "forms", title: "Complaint log", lines: [9311] },
+  { id: "forms/link-user", page: "forms", title: "Link Submission to Record", lines: [11365] },
   // Step 169: the customer links window, from Filed forms, listing the links and showing a QR code.
-  { id: "forms/customer-links", page: "forms", title: "Customer links", lines: [9517] },
+  { id: "forms/customer-links", page: "forms", title: "Customer links", lines: [9579] },
 
-  { id: "cases/window", page: "cases", title: "Case", lines: [11943] },
+  { id: "cases/window", page: "cases", title: "Case", lines: [12005] },
 
-  { id: "hr/document-window", page: "hr", title: "Document", lines: [12452] },
-  { id: "hr/training-window", page: "hr", title: "Training", lines: [12474] },
-  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12508] },
-  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12749] },
+  { id: "hr/document-window", page: "hr", title: "Document", lines: [12514] },
+  { id: "hr/training-window", page: "hr", title: "Training", lines: [12536] },
+  { id: "hr/onboarding-step-window", page: "hr", title: "Add Custom Onboarding Step", lines: [12570] },
+  { id: "hr/training-room-window", page: "hr", title: "Log training for several people", lines: [12811] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -656,6 +656,17 @@ const START_FORM = [
   { id: "start-form/refusal/sign", name: "A refused sign-off is drawn in the box in the API's words" },
   { id: "start-form/refusal/photo", name: "A refused photo is drawn under the question in the API's own words as sent" },
   { id: "start-form/refusal/continue", name: "A draft the API will not hand over is refused on the tab in the API's words" },
+  // Step 169: the customer's signature on a form filled at a desk.
+  { id: "start-form/customer-signature/the-card-is-drawn", name: "A customer signature question draws a card: Name, Role, the pad, Save signature off until something is drawn, and Clear" },
+  { id: "start-form/customer-signature/saved", name: "Save signature sends the key, the name, the role and the drawing to the customer signature route, and nothing else" },
+  { id: "start-form/customer-signature/shown", name: "After the answer the card draws the drawing and the line that says who signed, with Clear" },
+  { id: "start-form/customer-signature/never-in-a-save", name: "A draft save carries nothing for the customer's signature" },
+  { id: "start-form/customer-signature/cleared-and-saved-again", name: "Clear opens the pad again and Save signature sends a second request, whose drawing is drawn" },
+  { id: "start-form/customer-signature/refusal/customer.nameRequired", name: "The refusal customer.nameRequired is drawn under the card in the API's words" },
+  { id: "start-form/customer-signature/refusal/forms.signatureRequired", name: "The refusal forms.signatureRequired is drawn under the card in the API's words" },
+  { id: "start-form/customer-signature/refusal/forms.signatureTooLarge", name: "The refusal forms.signatureTooLarge is drawn under the card in the API's words" },
+  { id: "start-form/customer-signature/refusal/forms.notACustomerSignature", name: "The refusal forms.notACustomerSignature is drawn under the card in the API's words" },
+  { id: "start-form/customer-signature/refusal/forms.draftNotFound", name: "The refusal forms.draftNotFound is drawn under the card in the API's words" },
 ];
 
 // ---------------------------------------------------------------------------

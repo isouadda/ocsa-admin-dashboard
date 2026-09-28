@@ -2448,6 +2448,7 @@ export const WORDS = {
   "Customer": { es: "Cliente" },
   "Section averages": { es: "Promedios por secci\u00f3n" },
   "Overall": { es: "General" },
+  "Save signature": { es: "Guardar firma" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
