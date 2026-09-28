@@ -22,6 +22,9 @@ function createStubs() {
   // Every read of a site's checklist the run makes, with its query, which no reset clears either.
   const checklistReads = [];
   let refusals = [];
+  // The people added since the last reset, so each one POST /api/users makes has an id of its own, the
+  // first u-new-1, as the database gives every row its own.
+  let newUserSeq = 0;
   // A path held open on purpose, so a window that shows a loading state can be caught in it.
   let delays = [];
   // A list route cut to a fixed number of rows, so a table can be driven empty and with one row.
@@ -1932,7 +1935,8 @@ function createStubs() {
       return ok({ message: "Staff updated" });
     }
     if (path === "/api/users" && method === "POST") {
-      const row = Object.assign({ id: "u-new-1", status: "pending", name: ((body && body.firstName) || "New") + " " + ((body && body.lastName) || "Person") }, body || {});
+      newUserSeq += 1;
+      const row = Object.assign({ id: "u-new-" + newUserSeq, status: "pending", name: ((body && body.firstName) || "New") + " " + ((body && body.lastName) || "Person") }, body || {});
       state.staff.push(row);
       // The page tells the admin the new person's first PIN, from tempPin.
       return created({ message: "Staff added", user: row, tempPin: "5307" });
@@ -3202,6 +3206,7 @@ function createStubs() {
       state.voided = {}; filedSources = false;
       // No builder form published, and the reports filed on them as they were.
       state.published = []; state.builderReports = null; builderSeq = 0;
+      newUserSeq = 0;
       filedExtras = { rows: false, sections: false };
       delays = []; trim = null; listGap = null; exposeDisposition = true; shiftSessions = null; personTimeline = null;
       agentStream = null; agentTalk = {}; agentPending = {}; agentFeedback = {};
