@@ -42,10 +42,11 @@ const issueConfig = (bucket, severity, sla) => ({
 });
 const SAVES = [
   // A new report, named, narrowed to high severity by month, with the category left empty. Since Step
-  // 181 the category starts empty and its example is only the box's placeholder.
+  // 181 the category starts empty and its example is only the box's placeholder, and an empty category
+  // is saved as Custom, as it always has been.
   { id: "a-new-report-saves-the-same-body", what: "a new report",
     method: "POST", path: /^\/api\/report-engine\/definitions$/,
-    body: { name: "Audit weekly watch", description: "", category: "", source: "issues_timing",
+    body: { name: "Audit weekly watch", description: "", category: "Custom", source: "issues_timing",
       config: issueConfig("month", "high", false), is_template: true },
     act: async (d) => {
       await d.goto("reports");
