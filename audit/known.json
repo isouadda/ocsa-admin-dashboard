@@ -1,4 +1,11 @@
 {
   "note": "Failures the app has today that the commit adding the case does not fix. Each prints on every run and does not fail the run. A known failure that starts passing DOES fail the run, so a fix is never merged without its entry coming off this list. An entry matches a case id exactly through `case`, or by a regular expression through `match` when one finding shows up under several case ids.",
-  "failures": []
+  "failures": [
+    {
+      "match": "^page/help-insights/all-languages-reads-every-language/",
+      "shows": "Help insights with All languages draws the screen's own language alone: By language lists English alone on an English screen and Espanol alone on a Spanish one, and every tile counts that language's questions only.",
+      "why": "The Language filter and the language every signed-in call names are one parameter on the address, locale=, and the API reads it as the filter (routes/helpInsights.js readWindow) as well as the answer's language (helpers/language.js). The dashboard cannot leave the language off: every signed-in call names it, and the audit turns away one that does not. The API has to read the filter under a name of its own; the page then sends that name.",
+      "where": "src/App.js HelpInsightsPage (the query it builds) and withLocale; ocsa-api routes/helpInsights.js readWindow"
+    }
+  ]
 }

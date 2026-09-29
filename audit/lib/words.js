@@ -12,6 +12,7 @@ const parser = require("@babel/parser");
 const ROOT = path.resolve(__dirname, "..", "..");
 const WORDS_JS = path.join(ROOT, "src", "words.js");
 const CSV = path.join(ROOT, "translation", "dashboard_words.csv");
+const APP_JS = path.join(ROOT, "src", "App.js");
 
 // The table as a plain object, read out of the parsed file rather than by running it, since the
 // suite is CommonJS and the app is a module.
@@ -187,4 +188,37 @@ function slotCheck() {
   return wrong;
 }
 
-module.exports = { readTable, readCsv, expectedPairs, compare, slotCheck, say, localeTagFor, spanishValues, baseOf, WORDS_JS, CSV };
+// Every key src/App.js hands tr() or trn() as written, with the line it is on, that the table holds no
+// Spanish for. Such a key still reads, in English, so nothing on a Spanish screen marks it; only the
+// source does. A key built as the page runs, tr(x), is the finder's to count.
+function keyCheck() {
+  const table = readTable() || {};
+  const ast = parser.parse(fs.readFileSync(APP_JS, "utf8"), {
+    sourceType: "module",
+    plugins: ["jsx", "optionalChaining", "nullishCoalescingOperator", "classProperties", "objectRestSpread"],
+  });
+  const missing = [];
+  let keys = 0;
+  const visit = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!node.type) return;
+    const name = node.type === "CallExpression" && node.callee.type === "Identifier" ? node.callee.name : null;
+    const first = node.arguments && node.arguments[0];
+    if ((name === "tr" || name === "trn") && first && first.type === "StringLiteral") {
+      keys += 1;
+      const es = (table[first.value] || {}).es;
+      // tr() reads a string; trn() reads a string or the forms a count picks from.
+      const held = name === "tr" ? typeof es === "string" && es !== "" : (typeof es === "string" ? es !== "" : !!es);
+      if (!held) missing.push({ key: first.value, line: node.loc.start.line, call: name });
+    }
+    Object.keys(node).forEach((k) => {
+      if (k === "loc" || k === "leadingComments" || k === "trailingComments" || k === "extra") return;
+      visit(node[k]);
+    });
+  };
+  visit(ast.program);
+  return { keys, missing };
+}
+
+module.exports = { readTable, readCsv, expectedPairs, compare, slotCheck, keyCheck, say, localeTagFor, spanishValues, baseOf, WORDS_JS, CSV };

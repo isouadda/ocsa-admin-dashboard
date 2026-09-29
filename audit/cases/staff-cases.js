@@ -100,7 +100,11 @@ async function run({ d, results, seed, stubs, lang }) {
   const statusWords = pageTable("statusLabel");
   Object.keys(statusWords).forEach((k) => { CASE_STATE[k] = statusWords[k]; });
   const ACTION = pageTable("actionLabel");
-  const p0 = seed.STAFF[0];
+  // The first person on the list an admin may change. Since Step 181 an admin's account is changed
+  // only by a holder of manage_admins, which no admin holds by default, and the list's first row is an
+  // admin, so the first person here is the supervisor on the second row.
+  const p0 = seed.STAFF[1];
+  const P0_ROW = 1;
   stubs.reset();
   await d.signOutHard();
   await d.signIn("admin");
@@ -153,7 +157,7 @@ async function run({ d, results, seed, stubs, lang }) {
           : rows.length + " rows carry the badge the list sent, " + withBadge + " of the " + people.length + " people served have one");
 
   // The first person's banner: the role, the employment type in brackets, and the status.
-  await d.clickRow(0);
+  await d.clickRow(P0_ROW);
   await d.settle(500);
   const first = people.find((p) => p.id === p0.id) || p0;
   const banner = await d.page.evaluate((name) => {
@@ -227,7 +231,7 @@ async function run({ d, results, seed, stubs, lang }) {
   };
   const openFirst = async (tab) => {
     await d.goto("staff");
-    await d.clickRow(0);
+    await d.clickRow(P0_ROW);
     await d.settle(500);
     if (tab) { await d.clickText(d.say(tab), { exact: true }); await d.settle(300); }
   };
@@ -274,7 +278,7 @@ async function run({ d, results, seed, stubs, lang }) {
   const u = profileCall ? profileCall.json.user : {};
   mark = d.mark();
   await d.clickText(d.say("Edit"), { exact: true });
-  await pickByLabel(d, d.say("Role"), "supervisor");
+  await pickByLabel(d, d.say("Role"), "day_porter");
   await pickByLabel(d, d.say("Employment Type"), "part_time");
   await pickByLabel(d, d.say("Preferred Language"), "en");
   await d.fillByLabel(d.say("City"), "Riverton");
@@ -282,7 +286,7 @@ async function run({ d, results, seed, stubs, lang }) {
   await d.settle(400);
   hold("profile", sentSince(d, mark, "PATCH", new RegExp("^/api/users/" + p0.id + "$")), {
     firstName: p0.first_name, lastName: p0.last_name, phone: p0.phone, email: p0.email,
-    role: "supervisor", employmentType: "part_time", employeeId: p0.employee_id, hourlyRate: u.hourlyRate || "",
+    role: "day_porter", employmentType: "part_time", employeeId: p0.employee_id, hourlyRate: u.hourlyRate || "",
     birthday: "", addressLine1: "", addressLine2: "", city: "Riverton", state: "", zipCode: "",
     emergencyContactName: u.emergencyContactName || "", emergencyContactPhone: u.emergencyContactPhone || "",
     preferredLanguage: "en", personalNotes: "",

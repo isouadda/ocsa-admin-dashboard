@@ -3,10 +3,10 @@
 // Settings edits the company's own records, so every value it saves is exactly what it saves in
 // English. A pass saves the company's settings with the time zone and the pay period's first day
 // chosen by the words the lists show for them, adds, edits and turns off a list and a list value,
-// moves a value, deletes one, and adds and edits a site's value with its type chosen by its word,
+// moves a value, removes one from the list, and adds and edits a site's value with its type chosen by its word,
 // and holds each body the page sends to one written out here by hand. The bodies are the same in both
 // languages: every list sends the code or the English of the choice whatever word it shows, and a
-// value a person typed is sent as typed. A question the page asks before it deletes is the table's.
+// value a person typed is sent as typed. A question the page asks before it removes is the table's.
 //
 // The Dropdown Options editor draws each value as the English it was saved in, which is what Edit
 // changes, and on a screen in another language the words that language draws it with, the
@@ -118,16 +118,17 @@ async function run({ d, results, seed, stubs, lang }) {
   const lists = stubs.calls.filter((c) => c.method === "GET" && c.path === "/api/lookups/all" && Array.isArray(c.json)).pop();
   const first = lists && lists.json[0];
   const values = first ? first.values.slice().sort((a, b) => a.sort_order - b.sort_order) : [];
-  // Each value's lines: its label, then its code in a monospace line, which also says when the value
-  // asks for text. A list's own rows carry their slug the same way and never match a value's label.
-  const rows = await d.page.evaluate(() => Array.from(document.querySelectorAll("div[style*='monospace']"))
-    .map((el) => (el.parentElement ? Array.from(el.parentElement.children).map((x) => x.textContent.trim()) : []))
-    .filter((lines) => lines.length >= 2));
+  // Each value's lines: its label, in another language the words that language draws it with, then
+  // its code in a monospace line, which also says when the value asks for text. Since Step 181 a
+  // system list's values carry no code line, only the line saying a value asks for text.
+  const rows = await d.page.evaluate(() => Array.from(document.querySelectorAll("div[style*='font-size: 12px'][style*='font-weight: 500']"))
+    .map((el) => (el.parentElement ? Array.from(el.parentElement.children).map((x) => x.textContent.trim()) : [])));
   const shownAs = d.say("Shown as: {0}");
+  const system = !!(first && first.is_system);
   const wrongRows = [];
   values.forEach((v, i) => {
-    const code = v.value + (v.show_other_input ? " | " + d.say("prompts text input") : "");
-    const want = lang === "en" ? [v.label, code] : [v.label, shownAs.replace("{0}", v.displayLabel || v.label), code];
+    const code = system ? (v.show_other_input ? [d.say("prompts text input")] : []) : [v.value + (v.show_other_input ? " | " + d.say("prompts text input") : "")];
+    const want = (lang === "en" ? [v.label] : [v.label, shownAs.replace("{0}", v.displayLabel || v.label)]).concat(code);
     const got = rows.find((lines) => lines[0] === v.label);
     if (!got) wrongRows.push("value " + (i + 1) + " is not drawn as " + JSON.stringify(v.label));
     else if (JSON.stringify(got) !== JSON.stringify(want)) {
@@ -219,17 +220,18 @@ async function run({ d, results, seed, stubs, lang }) {
     items: [{ id: "lv-1", sort_order: 2 }, { id: "lv-2", sort_order: 1 }],
   });
 
-  // The first value, deleted after the table's question.
+  // The first value, removed from the list after the table's question. Since Step 181 nothing is
+  // deleted: the button reads Remove from this list and the API keeps the row, switched off.
   await d.setConfirmAnswer(true);
   const asked = (await d.confirms()).length;
   mark = d.mark();
-  await pressInRow(d, "Service Delivery", d.say("Del"));
+  await pressInRow(d, "Service Delivery", d.say("Remove from this list"));
   const question = (await d.confirms()).slice(asked)[0] || null;
   const deleted = sentSince(d, mark, "DELETE", /^\/api\/lookups\/values\/lv-1$/);
-  results.check("page", "page/settings/saves/delete-value/" + lang, question === d.say("Delete this value?") && !!deleted,
-    question !== d.say("Delete this value?") ? "the page asked " + JSON.stringify(question) + " where the table says " + JSON.stringify(d.say("Delete this value?"))
+  results.check("page", "page/settings/saves/remove-value/" + lang, question === d.say("Remove this value from this list?") && !!deleted,
+    question !== d.say("Remove this value from this list?") ? "the page asked " + JSON.stringify(question) + " where the table says " + JSON.stringify(d.say("Remove this value from this list?"))
       : deleted ? "" : "no DELETE was sent");
-  saves.push("delete-value");
+  saves.push("remove-value");
 
   // A site's value, its type chosen by the word the list shows for building.
   stubs.reset();

@@ -14,8 +14,9 @@ const notAPickup = (d) => new RegExp(["OPEN", "CLAIMED", "DROP REQ"].map((w) => 
 // the week grid starts with its hours: the first site's shift tonight is a single one, and the
 // second site's this morning was written by a weekly pattern.
 const QUESTIONS = [
-  { id: "page/schedule/question/delete-shift", key: "Delete this scheduled shift? This cannot be undone.",
-    ask: async (d) => { await d.goto("schedule"); return (await d.clickGridCell(/^18:00-02:00/, notAPickup(d))) && d.clickText(d.say("Delete"), { inModal: true }); } },
+  // Since Step 181 nothing is deleted: the window's Delete is Cancel shift, and its question says so.
+  { id: "page/schedule/question/cancel-shift", key: "Cancel this scheduled shift?",
+    ask: async (d) => { await d.goto("schedule"); return (await d.clickGridCell(/^18:00-02:00/, notAPickup(d))) && d.clickText(d.say("Cancel shift"), { inModal: true, exact: true }); } },
   { id: "page/schedule/question/cancel-pattern-date", key: "Cancel this shift? The pattern will not add it again.",
     ask: async (d) => { await d.goto("schedule"); return (await d.clickGridCell(/^06:00-14:00/, notAPickup(d))) && d.clickText(d.say("Cancel this date"), { inModal: true }); } },
   { id: "page/schedule/question/cancel-inspection", key: "Cancel this inspection?",

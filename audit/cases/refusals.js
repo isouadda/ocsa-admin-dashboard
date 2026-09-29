@@ -411,13 +411,15 @@ const REFUSALS = {
     },
     whereShown: "toast",
   },
+  // Since Step 181 nothing is deleted: the saved report's button reads Deactivate, and it still sends
+  // DELETE, which the API answers by switching the report off.
   "refusals/report-delete-refused": {
     status: 409, error: "A template report cannot be deleted",
     arm: { method: "DELETE", path: "/api/report-engine/definitions/" },
     act: async (d) => {
       await d.goto("reports");
       await d.setConfirmAnswer(true);
-      return d.clickText("Delete", { exact: true });
+      return d.clickText("Deactivate", { exact: true });
     },
     whereShown: "toast",
   },

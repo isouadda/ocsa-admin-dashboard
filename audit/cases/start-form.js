@@ -107,16 +107,17 @@ async function run({ d, results, inventory, stubs, lang }) {
     await pause(700);
     const started = bodyOf(d.callsSince(mark), "POST", /\/api\/forms\/desk-complaint\/drafts$/);
     const w0 = await window_(d);
-    // The API sets a draft's source itself and reads none from the body, so the start sends none.
+    // Since Step 181 a form started here says so: the start sends source admin, which the API stores
+    // for an admin or a supervisor.
     check("start-form/a-form-is-started",
-      picked && !!started && started.body && !Object.prototype.hasOwnProperty.call(started.body, "source") && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
+      picked && !!started && started.body && started.body.source === "admin" && Object.keys(started.body).length === 1 && !!w0 && w0.text.indexOf(title) >= 0 && w0.step === say("Section {0} of {1}").replace("{0}", "1").replace("{1}", "3")
         && ["site", "received_on", "received_at", "channel", "callers"].every((k) => w0.questions.indexOf(k) >= 0),
       !picked ? "nothing in the picker to press" : "starting sent " + JSON.stringify(started ? started.body : null) + " and the window is " + JSON.stringify(w0 ? { step: w0.step, questions: w0.questions } : null));
 
     // Section one: the site is typed, the date and the channel picked.
     const labelSite = lang === "es" ? "Sitio" : "Site";
     const labelDate = lang === "es" ? "Recibida el" : "Received on";
-    const labelChannel = lang === "es" ? "Cómo llegó" : "How it came in";
+    const labelChannel = lang === "es" ? "C\u00f3mo lleg\u00f3" : "How it came in";
     await field(d, labelSite).fill("Harbor Point Center");
     await field(d, labelDate).fill("2026-03-17");
     await field(d, labelChannel).selectOption("phone");
@@ -129,16 +130,16 @@ async function run({ d, results, inventory, stubs, lang }) {
     const w1 = await window_(d);
     // Section two: the summary typed, two areas ticked, and a call back asked for, which opens the
     // number question the rule governs.
-    const labelSummary = lang === "es" ? "Lo que dijo quien llamó" : "What the caller said";
-    const labelFollow = lang === "es" ? "Quiere quien llamó que le devuelvan la llamada" : "Does the caller want a call back";
+    const labelSummary = lang === "es" ? "Lo que dijo quien llam\u00f3" : "What the caller said";
+    const labelFollow = lang === "es" ? "Quiere quien llam\u00f3 que le devuelvan la llamada" : "Does the caller want a call back";
     const before = w1 ? w1.questions.slice() : [];
     await field(d, labelSummary).fill("The lobby floor was still wet at nine.");
-    await d.modal().locator("input[type=checkbox][aria-label$=': " + (lang === "es" ? "Vestíbulo" : "Lobby") + "']").check();
+    await d.modal().locator("input[type=checkbox][aria-label$=': " + (lang === "es" ? "Vest\u00edbulo" : "Lobby") + "']").check();
     await d.modal().locator("input[type=checkbox][aria-label$=': " + (lang === "es" ? "Muelle" : "Dock") + "']").check();
     await field(d, labelFollow).selectOption("yes");
     await pause(150);
     const w1b = await window_(d);
-    await field(d, lang === "es" ? "Número al que devolver la llamada" : "Number to call back").fill("2155550199");
+    await field(d, lang === "es" ? "N\u00famero al que devolver la llamada" : "Number to call back").fill("2155550199");
     const mark2 = d.mark();
     await pressIn(d, say("Save"));
     await pause(700);
@@ -175,7 +176,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     await pause(300);
     const addPressed = await pressIn(d, labelActions + ": " + say("Add row"));
     await pause(150);
-    await d.modal().locator("input[aria-label='1 " + (lang === "es" ? "Qué se hizo" : "What was done") + "']").fill("Sent the lead back to mop");
+    await d.modal().locator("input[aria-label='1 " + (lang === "es" ? "Qu\u00e9 se hizo" : "What was done") + "']").fill("Sent the lead back to mop");
     const mark3 = d.mark();
     await pressIn(d, say("Save"));
     await pause(700);
@@ -206,8 +207,9 @@ async function run({ d, results, inventory, stubs, lang }) {
         && !!w5 && w5.text.indexOf(say("Signed by {0} on {1} at {2}").split("{0}")[0].trim()) >= 0 && !w5.buttons.some((b) => b.text === say("Sign")),
       !signOpened ? "no Sign on the filer's sign-off" : "Sign sent " + JSON.stringify(signed ? Object.keys(signed.body || {}) : null) + " and the window reads " + JSON.stringify(w5 ? w5.text.slice(-160) : null));
 
-    // Sent, and under Submitted. The list the API sends carries no source, so the row names the form
-    // and nothing under it.
+    // Sent, and under Submitted. Since Step 175 the list the API sends carries each filing's source, and
+    // since Step 181 the row says under the form's name where a filing came from: this one, from the
+    // dashboard.
     await pressIn(d, say("Next"));
     await pause(700);
     const review1 = await window_(d);
@@ -225,7 +227,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const listed = await rowWith(d, title);
     check("start-form/the-filing-is-sent",
       sendOn && asked && !!sent && !!w6 && w6.text.indexOf(say("Form sent. The people who handle these forms have been told.")) >= 0
-        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) < 0 && listed.indexOf(say("From the app")) < 0,
+        && !(await d.modalOpen()) && listed.indexOf(title) >= 0 && listed.indexOf(say("From the dashboard")) >= 0 && listed.indexOf(say("From the app")) < 0,
       "on the review Send was " + (sendOn ? "on" : "off") + ", the question " + (asked ? "was asked" : "was not asked") + ", " + (sent ? "the filing went" : "nothing went")
         + ", the window read " + JSON.stringify(w6 ? w6.text.slice(0, 80) : null) + " and the row that names the form reads " + JSON.stringify(listed));
   }
@@ -300,10 +302,10 @@ async function run({ d, results, inventory, stubs, lang }) {
     // A Send refused with the missing list: the list is replaced and the words drawn.
     await field(d, lang === "es" ? "Recibida el" : "Received on").fill("2026-03-17");
     await field(d, lang === "es" ? "Sitio" : "Site").fill("Harbor Point Center");
-    await field(d, lang === "es" ? "Cómo llegó" : "How it came in").selectOption("email");
+    await field(d, lang === "es" ? "C\u00f3mo lleg\u00f3" : "How it came in").selectOption("email");
     await pressIn(d, say("Next"));
     await pause(600);
-    await field(d, lang === "es" ? "Lo que dijo quien llamó" : "What the caller said").fill("Short.");
+    await field(d, lang === "es" ? "Lo que dijo quien llam\u00f3" : "What the caller said").fill("Short.");
     await pressIn(d, say("Next"));
     await pause(600);
     await pressIn(d, say("Next"));
@@ -329,7 +331,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     stubs.clearRefusals();
 
     // A photo refused: under the question, in the API's own words as sent.
-    const photoWords = lang === "es" ? "Esta pregunta acepta como máximo 3 fotos." : "This question takes 3 photos at most.";
+    const photoWords = lang === "es" ? "Esta pregunta acepta como m\u00e1ximo 3 fotos." : "This question takes 3 photos at most.";
     stubs.setRefusal({ method: "POST", path: "/photos/", status: 400, code: "forms.photoLimit", error: photoWords, body: { max: 3 } });
     await d.modal().locator("input[type=file]").setInputFiles([{ name: "late.png", mimeType: "image/png", buffer: PNG }]);
     await pause(700);
@@ -389,12 +391,12 @@ async function run({ d, results, inventory, stubs, lang }) {
     }, MODAL);
     const c0 = await card();
     check("start-form/customer-signature/the-card-is-drawn",
-      !!c0 && c0.inputs.join("|") === [labelAck + ": " + say("Name"), labelAck + ": " + say("Role")].join("|") && c0.canvas
+      !!c0 && c0.inputs.join("|") === [labelAck + ": " + say("Name"), labelAck + ": " + say("Role|customer")].join("|") && c0.canvas
         && c0.buttons.some((b) => b.text === say("Save signature") && b.off) && c0.buttons.some((b) => b.text === say("Clear")) && !c0.buttons.some((b) => b.text === say("Cancel")),
       !c0 ? "no card for the customer acknowledgement in the third section" : "the card draws " + JSON.stringify(c0));
 
     await field(d, labelAck + ": " + say("Name")).fill("Rosalind Achterberg");
-    await field(d, labelAck + ": " + say("Role")).fill("Facilities manager");
+    await field(d, labelAck + ": " + say("Role|customer")).fill("Facilities manager");
     await d.drawSignature();
     const mark = d.mark();
     await pressIn(d, say("Save signature"));
@@ -411,7 +413,7 @@ async function run({ d, results, inventory, stubs, lang }) {
       "after the answer the card draws " + JSON.stringify(c1));
 
     // Nothing for it in a save: another answer typed and saved, and the body names only that one.
-    await d.modal().locator("input[aria-label='" + (lang === "es" ? "Se registró la llamada Nota" : "Logged the call Note") + "']").fill("Called the caller back");
+    await d.modal().locator("input[aria-label='" + (lang === "es" ? "Se registr\u00f3 la llamada Nota" : "Logged the call Note") + "']").fill("Called the caller back");
     const mark2 = d.mark();
     await pressIn(d, say("Save"));
     await pause(700);
@@ -438,9 +440,9 @@ async function run({ d, results, inventory, stubs, lang }) {
     const REFUSALS = [
       { code: "customer.nameRequired", status: 400, en: "Give your name.", es: "Escriba su nombre." },
       { code: "forms.signatureRequired", status: 400, en: "Draw your signature before you sign", es: "Firme antes de enviar" },
-      { code: "forms.signatureTooLarge", status: 400, en: "The signature is over 300 KB.", es: "La firma pesa más de 300 KB." },
+      { code: "forms.signatureTooLarge", status: 400, en: "The signature is over 300 KB.", es: "La firma pesa m\u00e1s de 300 KB." },
       { code: "forms.notACustomerSignature", status: 400, en: "That question is not a customer signature", es: "Esa pregunta no es una firma del cliente" },
-      { code: "forms.draftNotFound", status: 404, en: "Draft not found", es: "No se encontró el reporte" },
+      { code: "forms.draftNotFound", status: 404, en: "Draft not found", es: "No se encontr\u00f3 el reporte" },
     ];
     for (const r of REFUSALS) {
       const words = lang === "es" ? r.es : r.en;

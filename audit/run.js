@@ -45,6 +45,14 @@ const SUITES = [
   // since every word in the window and on the printed sheet comes from the table or the API.
   { name: "customer-links", mod: "./cases/customer-links", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The catalog by app since Step 187: the Form filter, Start a form and Customer links with two builder
+  // forms published, and a report's version, in both languages.
+  { name: "catalog", mod: "./cases/catalog", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Reports about a person since Step 187: HR Records' folder and Staff Management's HR Files, a report's
+  // PDF and its void mark, and the person picker, in both languages.
+  { name: "folder-reports", mod: "./cases/folder-reports", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   { name: "windows", mod: "./cases/windows", widths: ["wide"] },
   { name: "tables", mod: "./cases/tables", widths: ["wide", "narrow"] },
   { name: "refusals", mod: "./cases/refusals", widths: ["wide"] },
@@ -74,6 +82,71 @@ const SUITES = [
   // steps are done and saves exactly what it saves in English, and Cases draws what a person typed
   // exactly as typed, in both languages at 1024.
   { name: "staff-cases", mod: "./cases/staff-cases", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Rating an answer since Step 185: Yes, No with a note, a rating read back, and a source by its name,
+  // in both languages.
+  { name: "help-rating", mod: "./cases/help-rating", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Help insights since Step 185: who finds the page, its three reads with the range and every filter on
+  // the address, every figure and a person's questions, in both languages.
+  { name: "help-insights", mod: "./cases/help-insights", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Words, codes and addresses since Step 181: the sync log, a failure's stage, a pattern's result and
+  // the Started Shift role drawn as words, and a refused file read in the API's words, in both languages.
+  { name: "codes", mod: "./cases/codes", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Scout 141's leftovers since Step 185: the test account's mark, the supplies' QR images from the API,
+  // the certification counts and a notice's link to a record, in both languages.
+  { name: "leftovers", mod: "./cases/leftovers", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Spanish corrections since Step 185: Edit Task and Edit Value show the Spanish and send a change to
+  // the translations route, and Rename keeps a template's description, in both languages.
+  { name: "corrections", mod: "./cases/corrections", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // A read that fails since 6a68c11: each read the build lists refused, held to its line and Try again,
+  // then read again, the lines where nothing is left to show, and two quiet refreshes, in both languages.
+  { name: "load-failed", mod: "./cases/load-failed", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Messages, tagging, announcements and My alerts since Step 181: the chats' unread counts and the total,
+  // Tag someone, a send's mentions, the preview line, the bell and each PATCH, in both languages.
+  { name: "messages", mod: "./cases/messages", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The Form builder page since Step 187: who the permissions route lets find it, the table held to the
+  // list the API answers, a row's history, Retire form for an admin alone, Edit and New form, in both languages.
+  { name: "form-builder", mod: "./cases/form-builder", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // The builder since Step 187: a draft read, a turn and its answer, a refused turn, the other language,
+  // Try it, the sample, Discard, who gets the report and Publish for an admin alone, in both languages.
+  { name: "builder", mod: "./cases/builder", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Capabilities since Step 181: the shell reads its own from the me route, and a control shows for a
+  // holder of what guards it, by role or by override, in both languages.
+  { name: "capabilities", mod: "./cases/capabilities", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Staff, PINs and badges since Step 181: the Temporary PIN window after Add New Staff, Reset PIN's box
+  // and toast, an admin's account locked to a holder of manage_admins, and the employee ID line, in
+  // both languages at 1024.
+  { name: "staff-pins", mod: "./cases/staff-pins", widths: ["narrow"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Dates since Step 181: every due date, contract date, hire date, expiry date and weekly bucket is the
+  // day the API sent, and every today is March 17 at 9:30 PM in New York, in both languages.
+  { name: "dates", mod: "./cases/dates", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Void since Step 179: where a filing came from, Void with its reason and its refusal, the Void switch,
+  // Send again on canResend and a photo the API refuses, in both languages.
+  { name: "void", mod: "./cases/void", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Service categories since Step 181: the six words or the list's shown label on the Service Catalog,
+  // Inspections and Record Detail, with the list as served and with a code off it, in both languages.
+  { name: "categories", mod: "./cases/categories", widths: ["wide"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Forty-four pixels since Step 181: every page an admin opens, the four links, the close X of a sample
+  // of windows, the six checkboxes and Schedule's week as a list of days, on a phone in both languages.
+  { name: "forty-four", mod: "./cases/forty-four", widths: ["phone"],
+    variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
+  // Nothing is deleted since Step 181: each remove's button, question and toast, its call, its row
+  // leaving the list and kept in the stub, and a site with no Delete, in both languages.
+  { name: "removals", mod: "./cases/removals", widths: ["wide"],
     variants: [{ theme: "dark", size: "standard" }, { theme: "dark", size: "standard", lang: "es" }] },
   // Settings shows each list value's English and, in another language, its words there, and saves
   // exactly what it saves in English, in both languages at 1024.

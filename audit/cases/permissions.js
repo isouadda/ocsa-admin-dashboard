@@ -1,7 +1,24 @@
 // Permissions: each capability toggled for one person, the effective map after, and one screen
 // proving the change took.
 "use strict";
+const fs = require("fs");
+const path = require("path");
 const seed = require("../seed");
+
+// The name the dashboard draws for a capability: its own word for a code it knows, CAPABILITY_LABELS in
+// src/App.js, and the name the API sends for one it does not. Since Step 185 the dashboard's word wins
+// over the API's for view_help_insights, and since Step 187 for build_forms.
+const APP = path.resolve(__dirname, "..", "..", "src", "App.js");
+function dashboardNames() {
+  const src = fs.readFileSync(APP, "utf8");
+  const at = src.indexOf("const CAPABILITY_LABELS = {");
+  const block = at >= 0 ? src.slice(at, src.indexOf("};", at)) : "";
+  const out = {};
+  const re = /^\s*(\w+): "([^"]+)",?$/gm;
+  let m;
+  while ((m = re.exec(block))) out[m[1]] = m[2];
+  return out;
+}
 
 async function open(d) {
   await d.goto("settings");
@@ -13,7 +30,8 @@ async function run({ d, results, stubs }) {
   await d.signOutHard();
   await d.signIn("admin");
 
-  const caps = stubs.fixtures.CAPABILITIES;
+  const names = dashboardNames();
+  const caps = stubs.fixtures.CAPABILITIES.map((c) => Object.assign({}, c, { label: names[c.key] || c.label }));
 
   const opened = await open(d);
   if (!opened) {
@@ -35,6 +53,13 @@ async function run({ d, results, stubs }) {
     if (!row) { results.fail("permission", id, "no row for " + JSON.stringify(cap.label)); continue; }
     if (row.locked) {
       results.pass("permission", id, "locked on for an admin target, so it has no buttons to press");
+      continue;
+    }
+    // manage_admins is granted only by someone who holds it, which no admin does by default, so its row
+    // says so and offers nothing to press.
+    if (row.onlyHolder) {
+      results.check("permission", id, cap.key === "manage_admins" && row.buttons.length === 0,
+        cap.key !== "manage_admins" ? "the row says only a holder can grant it" : "the row says only a holder can grant it and still offers " + row.buttons.join(", "));
       continue;
     }
 

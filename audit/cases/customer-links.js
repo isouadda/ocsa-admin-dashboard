@@ -104,8 +104,8 @@ async function run({ d, results, inventory, stubs, lang }) {
   const say = (w) => d.say(w);
   const pause = (ms) => d.page.waitForTimeout(ms);
   const es = lang === "es";
-  const T006 = es ? "Lista de evaluación de limpieza del edificio" : "Facility Cleanliness Evaluation Checklist";
-  const T007 = es ? "Encuesta de satisfacción del cliente" : "Client Satisfaction Survey";
+  const T006 = es ? "Lista de evaluaci\u00f3n de limpieza del edificio" : "Facility Cleanliness Evaluation Checklist";
+  const T007 = es ? "Encuesta de satisfacci\u00f3n del cliente" : "Client Satisfaction Survey";
   const SITE = (i) => stubs.fixtures ? (stubs.state.sites[i] || {}).name : "";
   const bodyOf = (calls, method, re) => { const c = calls.filter((x) => x.method === method && re.test(x.path)); return c.length ? c[c.length - 1] : null; };
   // A state is drawn in a badge, which the stylesheet writes in capitals, so it is read case-blind.
@@ -186,7 +186,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const r2 = (await rows(d)).find((r) => r.id === "cl-1") || { text: "", buttons: [] };
     check("customer-links/turned-on", !!onCall && has(r2.text, say("Live|link")) && r2.buttons.indexOf(say("Turn off")) >= 0,
       "Turn on " + (onCall ? "sent the request" : "sent nothing") + " and the row reads " + JSON.stringify(r2.text) + " offering " + JSON.stringify(r2.buttons));
-    const liveWords = es ? "Otro enlace para este sitio y formulario está activo" : "Another link for this site and form is live";
+    const liveWords = es ? "Otro enlace para este sitio y formulario est\u00e1 activo" : "Another link for this site and form is live";
     stubs.setRefusal({ method: "POST", path: "/enable", status: 409, code: "customer.anotherLinkLive", error: liveWords, body: { liveId: "cl-1" } });
     await press(d, say("Turn on"), "[data-customer-link='cl-3']");
     await pause(600);
@@ -194,7 +194,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     check("customer-links/refusal/customer.anotherLinkLive", r3.refusal === liveWords && has(r3.text, say("Expired|link")) && (await d.modalOpen()),
       "the line under the row reads " + JSON.stringify(r3.refusal) + " and the row reads " + JSON.stringify(r3.text));
     stubs.clearRefusals();
-    const siteWords = es ? "No se encontró el sitio" : "Site not found";
+    const siteWords = es ? "No se encontr\u00f3 el sitio" : "Site not found";
     stubs.setRefusal({ method: "POST", path: "/api/customer-links", status: 404, code: "customer.siteNotFound", error: siteWords });
     await press(d, say("New link"));
     await pause(600);
@@ -209,7 +209,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     await press(d, say("Show QR code"), "[data-customer-link='cl-1']");
     await pause(700);
     const q3 = await qrScreen(d);
-    const titles006 = es ? [T006, "Facility Cleanliness Evaluation Checklist"] : [T006, "Lista de evaluación de limpieza del edificio"];
+    const titles006 = es ? [T006, "Facility Cleanliness Evaluation Checklist"] : [T006, "Lista de evaluaci\u00f3n de limpieza del edificio"];
     check("customer-links/the-qr-screen",
       !!q3 && q3.src === "data:image/png;base64," && q3.width === "512" && q3.text.indexOf(SITE(0)) >= 0 && titles006.every((x) => q3.text.indexOf(x) >= 0)
         && /\/c\/k7Qm2vX9pL4wR8sT1nB6yH3jF0cD5gZa$/.test(q3.address)
@@ -226,7 +226,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const printed = (await d.prints()).pop();
     const html = printed ? printed.html : "";
     const lines = printLines(html);
-    const scan006 = ["Scan to tell OCSA how the building is being kept.", "Escanee para decirle a OCSA cómo se mantiene el edificio."];
+    const scan006 = ["Scan to tell OCSA how the building is being kept.", "Escanee para decirle a OCSA c\u00f3mo se mantiene el edificio."];
     check("customer-links/the-print-sheet",
       !!printed && printed.printed && /<img[^>]*src="[^"]*ocsa-logo\.png"/.test(html) && lines.indexOf(SITE(0)) >= 0 && titles006.every((x) => lines.indexOf(x) >= 0)
         && /<img class="qr" width="512" height="512" alt="[^"]*" src="data:image\/png;base64,/.test(html)
@@ -270,7 +270,7 @@ async function run({ d, results, inventory, stubs, lang }) {
     const signedLine = es ? "Firmado por Rosalind Achterberg, Facilities manager el 16 de marzo de 2026 a las 4:12 PM" : "Signed by Rosalind Achterberg, Facilities manager on March 16, 2026 at 4:12 PM";
     check("customer-filing/the-signature-is-drawn", sig.blob && sig.text.indexOf(signedLine) >= 0,
       "the customer's signature draws " + JSON.stringify(sig));
-    const labelCount = es ? "Líneas aceptables" : "Acceptable lines";
+    const labelCount = es ? "L\u00edneas aceptables" : "Acceptable lines";
     const box = d.modal().locator("input[aria-label='" + labelCount + "']");
     const kind = await box.getAttribute("type").catch(() => null);
     const held = await box.inputValue().catch(() => null);
@@ -291,7 +291,7 @@ async function run({ d, results, inventory, stubs, lang }) {
       const box = document.querySelector(sel + " [data-computed]");
       return box ? box.innerText.replace(/\s+/g, " ").trim() : "";
     }, MODAL);
-    const want = es ? ["Promedios por sección", "Calidad del servicio 4.0", "Comunicación 2.0", "General 3.3"] : ["Section averages", "Service quality 4.0", "Communication 2.0", "Overall 3.3"];
+    const want = es ? ["Promedios por secci\u00f3n", "Calidad del servicio 4.0", "Comunicaci\u00f3n 2.0", "General 3.3"] : ["Section averages", "Service quality 4.0", "Communication 2.0", "Overall 3.3"];
     check("customer-filing/the-averages-are-drawn", want.every((w) => avg.indexOf(w) >= 0),
       "under the answers the window reads " + JSON.stringify(avg));
     await d.closeModal();

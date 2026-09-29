@@ -13,16 +13,28 @@ const ROUTES = {
   "staff/add": {
     open: async (d) => { await d.goto("staff"); return d.clickText("Add Staff", { exact: false }); },
     fields: ["First", "Last", "Phone", "Email"],
-    // First name, phone and email are required at src/App.js:702.
-    send: { fillLabels: [["First Name", "Adaeze"], ["Last Name", "Nwachukwu"], ["Phone", "2155559911"], ["Email", "adaeze.nwachukwu@example.invalid"]], press: "Add Staff", expect: { path: "/api/users", method: "POST", toast: /added|staff/i } },
+    // First name, phone and email are required. Since Step 181 the save answers with the Temporary PIN
+    // window rather than a toast.
+    send: { fillLabels: [["First Name", "Adaeze"], ["Last Name", "Nwachukwu"], ["Phone", "2155559911"], ["Email", "adaeze.nwachukwu@example.invalid"]], press: "Add Staff", expect: { path: "/api/users", method: "POST", window: "Temporary PIN" } },
+  },
+  // Step 181: the window Add New Staff opens once the API has saved the person, with the PIN it sent.
+  "staff/temporary-pin": {
+    open: async (d) => {
+      await d.goto("staff"); await d.clickText("Add Staff", { exact: false });
+      for (const [label, v] of [["First Name", "Adaeze"], ["Last Name", "Nwachukwu"], ["Phone", "2155559911"], ["Email", "adaeze.nwachukwu@example.invalid"]]) await d.fillByLabel(label, v);
+      await d.clickText("Add Staff", { inModal: true, exact: false });
+      return (await d.modalText()).indexOf("Temporary PIN") >= 0;
+    },
   },
   "staff/edit": {
     // The pencil in the list's Actions column, which is an icon button titled Edit.
     open: async (d) => { await d.goto("staff"); return d.clickTitle("Edit"); },
     send: { press: "Save", expect: { path: "/api/users/", method: "PATCH", toast: /updated|saved/i } },
   },
+  // The second row, the first account an admin may change: since Step 181 an admin's own and another
+  // admin's account offer Reset PIN only to a holder of manage_admins.
   "staff/reset-pin": {
-    open: async (d) => { await d.goto("staff"); await d.clickRow(0); return d.clickText("Reset PIN", { exact: false }); },
+    open: async (d) => { await d.goto("staff"); await d.clickRow(1); return d.clickText("Reset PIN", { exact: false }); },
     fields: ["PIN"],
   },
   "staff/assign-site": {
@@ -68,9 +80,6 @@ const ROUTES = {
       await d.goto("sites"); await d.clickRow(0); await d.clickText("Service Details", { exact: false });
       return d.clickText("Strip and refinish lobby", { exact: false });
     },
-  },
-  "sites/delete-confirm": {
-    open: async (d) => { await d.goto("sites"); await d.clickRow(0); return d.clickText("Delete", { exact: true }); },
   },
   "sites/add-supply": {
     open: async (d) => { await d.goto("sites"); await d.clickRow(0); await d.clickText("Supplies", { exact: false }); return d.clickText("Add Supply", { exact: false }); },
@@ -193,6 +202,9 @@ const ROUTES = {
   "inspections/edit-scheduled": {
     open: async (d) => { await d.goto("inspections"); await d.clickText("Scheduled", { exact: true }); return d.clickText("Edit", { exact: true }); },
   },
+  "inspections/rename-template": {
+    open: async (d) => { await d.goto("inspections"); await d.clickText("Templates", { exact: true }); return d.clickText("Rename", { exact: true }); },
+  },
 
   "settings/add-category": {
     open: async (d) => { await d.goto("settings"); await d.clickText("Dropdown Options", { exact: false }); return d.clickText("+ Add", { exact: true }); },
@@ -257,8 +269,25 @@ const ROUTES = {
     },
   },
 
+  // Step 185: a person's questions, from the one table on Help insights whose rows open something.
+  "help-insights/person": {
+    open: async (d) => {
+      await d.goto("help-insights"); await d.settle(500);
+      await d.page.evaluate(() => { const row = Array.from(document.querySelectorAll("table tbody tr")).find((tr) => tr.style.cursor === "pointer"); if (row) row.click(); });
+      await d.settle(500);
+      return d.modalOpen();
+    },
+  },
+  // Step 187: a form's Version history, from a row of the Form builder's list, which an admin opens.
+  "form-builder/version-history": {
+    open: async (d) => { await d.goto("form-builder"); await d.settle(400); await d.clickCell(0, 0); return d.modalOpen(); },
+  },
   "cases/window": {
     open: async (d) => { await d.goto("cases"); return d.clickRow(0); },
+  },
+  // Step 181: My alerts, from the name menu once GET /api/notifications/settings has answered.
+  "shell/my-alerts": {
+    open: async (d) => { await d.goto("overview"); await d.openUserMenu(); return d.clickText("My alerts", { anywhere: true, exact: true }); },
   },
 
   "hr/document-window": {
@@ -325,16 +354,19 @@ async function run({ d, results, inventory, stubs }) {
         await d.fillByLabel(label, v);
       }
       const pressed = await d.clickText(route.send.press, { inModal: true, exact: false });
-      const toast = await d.waitToast(3000);
+      // A save answers with a toast, or with the window it opens in its place.
+      const toast = route.send.expect.window ? null : await d.waitToast(3000);
+      if (route.send.expect.window) await d.settle(300);
+      const answered = route.send.expect.window ? (await d.modalText()).indexOf(route.send.expect.window) >= 0 : !!toast && route.send.expect.toast.test(toast);
       const calls = d.callsSince(mark);
       const sent = calls.find((c) => c.path.indexOf(route.send.expect.path) >= 0 && c.method === route.send.expect.method);
       const reloaded = calls.some((c) => c.method === "GET" && c.path.indexOf(route.send.expect.path.split("/").slice(0, 3).join("/")) >= 0);
-      results.check("window", id + "/sends", pressed && !!sent && !!toast && route.send.expect.toast.test(toast || ""),
+      results.check("window", id + "/sends", pressed && !!sent && answered,
         !pressed ? "no button reading " + route.send.press
           : !sent ? "nothing was sent to " + route.send.expect.method + " " + route.send.expect.path
+          : route.send.expect.window ? "the window sent " + route.send.expect.method + " " + route.send.expect.path + " and no " + JSON.stringify(route.send.expect.window) + " window opened"
           : !toast ? "the window sent " + route.send.expect.method + " " + route.send.expect.path + " and showed no toast"
-          : !route.send.expect.toast.test(toast) ? "the toast read " + JSON.stringify(toast)
-          : "");
+          : "the toast read " + JSON.stringify(toast));
       results.check("window", id + "/reloads-the-list", reloaded,
         reloaded ? "" : "the list behind the window was not read again after the save");
     }

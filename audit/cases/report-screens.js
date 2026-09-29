@@ -41,10 +41,12 @@ const issueConfig = (bucket, severity, sla) => ({
   branding: { use_company_settings: true },
 });
 const SAVES = [
-  // A new report, named, narrowed to high severity by month, with the category left at its example.
+  // A new report, named, narrowed to high severity by month, with the category left empty. Since Step
+  // 181 the category starts empty and its example is only the box's placeholder, and an empty category
+  // is saved as Custom, as it always has been.
   { id: "a-new-report-saves-the-same-body", what: "a new report",
     method: "POST", path: /^\/api\/report-engine\/definitions$/,
-    body: { name: "Audit weekly watch", description: "", category: "Service Delivery", source: "issues_timing",
+    body: { name: "Audit weekly watch", description: "", category: "Custom", source: "issues_timing",
       config: issueConfig("month", "high", false), is_template: true },
     act: async (d) => {
       await d.goto("reports");
@@ -68,11 +70,12 @@ const SAVES = [
       if (!(await d.clickReportAction("Night shift issue watch", "Edit"))) return false;
       return d.clickText(d.say("Save changes"), { exact: true });
     } },
-  // A copy of a template, whose name gains the English it has always gained.
+  // A copy of a template, whose name gains the word for a copy. Since Step 181 that word is the
+  // screen's language's, written out here by hand.
   { id: "a-copy-saves-the-same-body", what: "a copy of a report",
     method: "POST", path: /^\/api\/report-engine\/definitions$/,
-    body: { name: "Issue response and resolution (copy)", description: "Median response and resolution, with service level compliance.",
-      category: "service_delivery", source: "issues_timing", config: issueConfig("week", "", true), is_template: true },
+    body: (lang) => ({ name: "Issue response and resolution " + (lang === "es" ? "(copia)" : "(copy)"), description: "Median response and resolution, with service level compliance.",
+      category: "service_delivery", source: "issues_timing", config: issueConfig("week", "", true), is_template: true }),
     act: async (d) => {
       await d.goto("reports");
       if (!(await d.clickReportAction("Issue response and resolution", "Duplicate"))) return false;
@@ -196,10 +199,11 @@ async function run({ d, results, lang, stubs }) {
     await d.settle(500);
     const sent = d.callsSince(mark).filter((c) => c.method === s.method && s.path.test(c.path)).pop();
     const body = sent ? (typeof sent.body === "string" ? JSON.parse(sent.body) : sent.body) : null;
-    results.check("report", id, !!pressed && !!body && same(s.body, body),
+    const want = typeof s.body === "function" ? s.body(lang) : s.body;
+    results.check("report", id, !!pressed && !!body && same(want, body),
       !pressed ? "the editor could not be driven to save " + s.what
         : !body ? "saving " + s.what + " sent no " + s.method
-        : "saving " + s.what + " in " + lang + " sent a different body: " + firstDifference(s.body, body));
+        : "saving " + s.what + " in " + lang + " sent a different body: " + firstDifference(want, body));
   }
 }
 

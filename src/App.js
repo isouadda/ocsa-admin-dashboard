@@ -622,11 +622,11 @@ export default function AdminDashboard() {
   const MessagesBadge = ({ style }) => chatUnread > 0 ? <span aria-label={tr("{0} unread messages", chatUnread)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", ...badgeRing, ...style }}>{chatUnread}</span> : null;
   const OpenIssuesBadge = ({ style }) => openIssuesCount > 0 ? <span aria-label={tr("{0} open issues", openIssuesCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: badgeRed, color: badgeRedText, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{openIssuesCount > 9 ? "9+" : openIssuesCount}</span> : null;
   const CaseQueueBadge = ({ style }) => caseQueueCount > 0 ? <span aria-label={tr("{0} cases need attention", caseQueueCount)} style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: caseQueue.overdue > 0 ? badgeRed : GO, color: caseQueue.overdue > 0 ? badgeRedText : NAVY, fontSize: 10, fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1, ...badgeRing, ...style }}>{caseQueueCount > 9 ? "9+" : caseQueueCount}</span> : null;
-  // A pick list's choices. `shown` is for a screen that only shows them: each choice reads its
-  // displayLabel, which the API sends in the language the call asked for, and its label when it sends
-  // none. The value is the code either way, so what a form sends does not change. Without it every
-  // choice reads its label, which is what a screen that edits a choice shows and saves.
-  const getOpts = useCallback((slug, placeholder, shown) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: shown ? (v.displayLabel || v.label) : v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
+  // A pick list's choices, and none for a list taken off. `shown` is for a screen that only shows them:
+  // each choice reads its displayLabel, which the API sends in the language the call asked for, and its
+  // label when it sends none. The value is the code either way, so what a form sends does not change.
+  // Without it every choice reads its label, which is what a screen that edits a choice shows and saves.
+  const getOpts = useCallback((slug, placeholder, shown) => { const cat = lookups.find(c => c.slug === slug); if (!cat || cat.is_active === false) return placeholder ? [{ v: "", l: placeholder }] : []; const opts = (cat.values || []).filter(v => v.is_active).sort((a, b) => a.sort_order - b.sort_order).map(v => ({ v: v.value, l: shown ? (v.displayLabel || v.label) : v.label })); return placeholder ? [{ v: "", l: placeholder }, ...opts] : opts; }, [lookups]);
   // A pick list's codes and their words. `shown` reads each choice's displayLabel the way getOpts
   // does, for a screen that only shows a choice; without it each code reads its label.
   const lkMap = useCallback((slug, shown) => { const cat = lookups.find(c => c.slug === slug); if (!cat) return {}; const m = {}; (cat.values || []).forEach(v => { m[v.value] = shown ? (v.displayLabel || v.label) : v.label; }); return m; }, [lookups]);
@@ -803,7 +803,8 @@ export default function AdminDashboard() {
                 </div>
               );
             } else {
-              // No label: show each item icon individually
+              // No label: show each item icon individually. Messages sits in a group with no label, so
+              // its unread total is drawn on its own icon, the way a labelled group draws it on the group's.
               return (
                 <div key={gi} style={{ marginBottom: 2 }}>
                   {group.items.map(item => {
@@ -811,8 +812,9 @@ export default function AdminDashboard() {
                     const NavI = item.i;
                     return (
                       <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
-                        style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
+                        style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
+                        {item.id === "chat" && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
                       </button>
                     );
                   })}
@@ -1069,8 +1071,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [assignForm, setAssignForm] = useState(null);
   const [editForm, setEditForm] = useState(null); const [resetPin, setResetPin] = useState(null); const [newPin, setNewPin] = useState(""); const [addCert, setAddCert] = useState(null);
   // Session 28: inline validation error for the Employee ID field (shared by Add Staff modal and Profile edit form)
-  // The refusal is known by its code. The English match stays only until every API carries codes.
-  const isEmployeeIdTaken = (e) => (e && e.code === "users.employeeIdTaken") || /employee id/i.test((e && e.message) || "");
+  // The refusal is known by its code: users.employeeIdTaken from the create route, and
+  // users.employeeIdTakenByOther from a profile's save. The English match stays only until every API
+  // carries codes.
+  const isEmployeeIdTaken = (e) => (e && (e.code === "users.employeeIdTaken" || e.code === "users.employeeIdTakenByOther")) || /employee id/i.test((e && e.message) || "");
   const [empIdError, setEmpIdError] = useState("");
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
@@ -1408,6 +1412,22 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // as they are written, so no time zone moves the day.
   const fmtDate = d => { if (!d) return tr("Not set"); const dt = typeof d === "string" ? d.split("T")[0] : new Date(d).toISOString().split("T")[0]; const [y, m, dy] = dt.split("-"); return new Date(parseInt(y), parseInt(m) - 1, parseInt(dy)).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }); };
 
+  // The Temporary PIN window. Add New Staff is pressed from the list, so the window is drawn from the
+  // list as well as from a profile, and it is there when the save comes back, wherever that is.
+  const addedWindow = added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <div style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
+        <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
+        <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
+      </div>
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
+        <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
+      </div>
+  </div></Mdl>;
+
   // ============================================================
   // PROFILE VIEW
   // ============================================================
@@ -1541,7 +1561,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             {hrForms.map((it, i) => <div key={it.responseId || i} onClick={() => setHrOpenReport(it)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", minHeight: 44, padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4, cursor: "pointer" }}>
               <div style={{ flex: 1, minWidth: 140 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{builderText(it.formTitle) || it.title || it.formCode}{it.status === "void" && <span style={{ marginLeft: 8 }}><Bdg l={tr("Void|status")} c={RD} /></span>}</div>
-                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{[tr(HR_CATEGORY_LABEL(it.category)), it.date ? fmtDate(it.date) : "", it.filedBy && it.filedBy.name ? tr("Filed by {0}", it.filedBy.name) : ""].filter(Boolean).join(" | ")}</div>
+                <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{[tr(HR_CATEGORY_LABEL(it.category)), it.date ? new Date(it.date).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "", it.filedBy && it.filedBy.name ? tr("Filed by {0}", it.filedBy.name) : ""].filter(Boolean).join(" | ")}</div>
               </div>
               <button onClick={async (e) => { e.stopPropagation(); if (hrPdfBusy) return; setHrPdfBusy(it.responseId); try { const f = await apiDownload("/api/forms/responses/" + encodeURIComponent(it.responseId) + "/pdf", token, (it.formCode || "report") + "-" + String(it.responseId).slice(0, 8) + ".pdf"); const url = URL.createObjectURL(f.blob); const a = document.createElement("a"); a.href = url; a.download = f.filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 5000); } catch (err) { showToast(err.message, "error"); } setHrPdfBusy(""); }} disabled={hrPdfBusy === it.responseId} style={{ minHeight: 44, padding: "3px 10px", borderRadius: 4, border: "1px solid " + BL, background: "transparent", color: BL, fontSize: 11, cursor: "pointer", fontWeight: 600, fontFamily: FONT_BODY }}>{hrPdfBusy === it.responseId ? tr("Loading...") : tr("View PDF")}</button>
             </div>)}
@@ -1656,7 +1676,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {tlDetail.entry?.metadata && Object.keys(tlDetail.entry.metadata).length > 0 && <div>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6, marginTop: 12 }}>{tr("Available Metadata")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-              {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(v)}</span></div>)}
+              {Object.entries(tlDetail.entry.metadata).map(([k, v]) => <div key={k} style={{ fontSize: 11 }}><span style={{ color: t.textMut }}>{fieldOf(k)}:</span> <span style={{ color: t.text, fontWeight: 500 }}>{String(valueOf(k, v))}</span></div>)}
             </div>
           </div>}
         </div>}
@@ -1691,19 +1711,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       </div></Mdl>}
 
       {/* Modals that need to work inside profile view */}
-      {added && <Mdl t={t} onClose={() => setAdded(null)}><div style={{ padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Temporary PIN")}</div><button onClick={() => setAdded(null)} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={18} c={t.textMut} /></button></div>
-        <div style={{ fontSize: 13, color: t.textSec, marginBottom: 14 }}>{added.name}</div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <div style={{ flex: 1, padding: "10px 13px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontSize: 20, letterSpacing: "8px", textAlign: "center", fontFamily: "monospace", minHeight: 44, boxSizing: "border-box" }}>{added.show ? added.tempPin : added.tempPin.replace(/./g, "\u2022")}</div>
-          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => setAdded({ ...added, show: !added.show })}>{added.show ? tr("Hide") : tr("Show")}</Btn>
-          <Btn t={t} v="ghost" style={{ minHeight: 44 }} onClick={() => copyText(added.tempPin)}>{tr("Copy")}</Btn>
-        </div>
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          {added.id && <Btn t={t} v="ghost" style={{ minHeight: 44 }} disabled={addedBusy} onClick={() => sendInvite(added.id)}>{tr("Send activation invite")}</Btn>}
-          <Btn t={t} style={{ minHeight: 44 }} onClick={() => setAdded(null)}>{tr("Done")}</Btn>
-        </div>
-      </div></Mdl>}
+      {addedWindow}
       {resetPin && <Mdl t={t} onClose={() => setResetPin(null)}><div style={{ padding: 20 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, marginBottom: 16, color: t.text }}>{tr("Reset PIN")}</div>
         <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("Enter a new 4-digit PIN for this staff member.")}</div>
@@ -1754,7 +1762,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       const items = searched.slice((cur - 1) * perPage, cur * perPage);
       const statusColor = st => st === "active" ? GR : st === "pending" ? OR : (st === "inactive" || st === "terminated") ? RD : t.textMut;
       const columns = [
-        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 180 }}>{s.email}</div>}</div></div> },
+        { header: tr("Name"), render: s => <div style={{ display: "flex", alignItems: "center", gap: 12 }}><Avatar user={s} sz={38} /><div style={{ minWidth: 0 }}><div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontWeight: 600, color: t.text }}>{s.name}</span>{s.employeeId && <span style={{ fontSize: 9, fontFamily: "monospace", color: t.goldText, background: t.goldBg, padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>{s.employeeId}</span>}{s.isTestAccount && <Bdg l={tr("Test account")} c={OR} />}</div>{s.email && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 150 }}>{s.email}</div>}</div></div> },
         // The badge number as GET /api/users sends it, read only: it comes from ADP or the invite, and a
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
@@ -1768,6 +1776,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       if (staffFailed) return <Crd t={t}><LoadFailed t={t} text={staffFailed === "forbidden" ? tr("This page is for admins.") : tr("Could not load staff.")} onRetry={staffFailed === "forbidden" ? null : load} /></Crd>;
       return <DataTable t={t} columns={columns} rows={items} rowKey={s => s.id} onRowClick={s => openProfile(s.id)} empty={tr("No staff match these filters.")} footer={<Pagination t={t} page={cur} perPage={perPage} total={searched.length} onPage={setPage} />} />;
     })()}
+    {addedWindow}
     {addForm && <Mdl t={t} onClose={() => setAddForm(null)}><div style={{ padding: 20 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add New Staff")}</div><button onClick={() => setAddForm(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("First Name *")}</Lbl><Inp t={t} value={addForm.firstName} onChange={e => setAddForm({ ...addForm, firstName: e.target.value })} /></div>
       <div style={{ marginBottom: 12 }}><Lbl>{tr("Last Name")}</Lbl><Inp t={t} value={addForm.lastName} onChange={e => setAddForm({ ...addForm, lastName: e.target.value })} /></div>
@@ -2308,7 +2317,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
               <div><div style={{ fontSize: 12, color: t.text }}>{fp.label}</div><div style={{ fontSize: 10, color: t.textMut }}>{fd(fp.uploaded_at)}</div></div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
-              <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
+              <a href={fp.file_url} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, boxSizing: "border-box", padding: "3px 8px", borderRadius: 4, border: "1px solid " + BL, color: BL, fontSize: 10, textDecoration: "none" }}>{tr("View")}</a>
               {canManageSites && <button onClick={() => deleteFloorPlan(fp.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 10, cursor: "pointer" }}>{tr("Remove from this list")}</button>}
             </div>
           </div>)}
@@ -6468,7 +6477,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
     {/* STARTED SHIFT DETAIL MODAL. Read only. A session says who started a shift where; nothing here edits it. */}
     {startedDetail && <Mdl t={t} onClose={() => setStartedDetail(null)}><div style={{ padding: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Started Shift")}</div><button onClick={() => setStartedDetail(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut, textTransform: "capitalize" }}>{String(startedDetail.role).replace(/_/g, " ")}</div>}</div></div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, borderRadius: 8, background: GR + "0A", border: "1px solid " + GR + "20", marginBottom: 16 }}><Ini name={startedDetail.name} /><div><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.name}</div>{startedDetail.role && <div style={{ fontSize: 11, color: t.textMut }}>{roleOf(startedDetail.role)}</div>}</div></div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
         <div><div style={startedLbl}>{tr("Site")}</div><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{startedDetail.siteName || "-"}</div></div>
         <div><div style={startedLbl}>{tr("Date")}</div><div style={{ fontSize: 13, color: t.text }}>{startedDetail.sessionDate ? new Date(startedDetail.sessionDate + "T00:00:00").toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric" }) : "-"}</div></div>
@@ -10485,7 +10494,7 @@ function FormBuilderPage({ af, token, t, user, allStaff = [], lkMap, route = [],
     {published && <div style={{ padding: "10px 12px", marginBottom: 12, borderRadius: 8, background: t.greenSubtle, border: "1px solid " + t.greenBorder, fontSize: 13, color: t.text }}>{tr("Published as version {0}.", published.latestVersion || published.version || "")} {builderTitle(published)}</div>}
     {startErr && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{startErr}</div>}
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>}
-    {!loading && failed && <LoadFailed t={t} text={failed} onRetry={load} />}
+    {!loading && failed && <LoadFailed t={t} onRetry={load} />}
     {!loading && !failed && <DataTable t={t} columns={cols} rows={forms} rowKey={f => f.code} onRowClick={f => setHistory(f)} empty={tr("No forms yet. New form starts one.")} />}
     {history && <FormVersionHistoryWindow af={af} t={t} form={history} isAdmin={isAdmin} onClose={() => setHistory(null)} onRetired={() => { setHistory(null); load(); }} />}
   </div>);
@@ -10759,7 +10768,7 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
   const cardHead = { fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 };
 
   if (loading) return <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>;
-  if (failed) return (<div><Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44, marginBottom: 12 }}>{tr("Back")}</Btn><LoadFailed t={t} text={failed} onRetry={load} /></div>);
+  if (failed) return (<div><Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44, marginBottom: 12 }}>{tr("Back")}</Btn><LoadFailed t={t} onRetry={load} /></div>);
   return (<div data-form-builder="">
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
       <Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44 }}>{tr("Back")}</Btn>
@@ -12338,7 +12347,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{fmtDT(l.started_at)}</td>
                     <td style={{ padding: "8px 10px", color: t.text, fontSize: 11 }}>{({ forms: tr("Forms"), submissions: tr("Submissions"), failure_retry: tr("Failed retry"), force_fetch: tr("Forced fetch") })[l.sync_type] || l.sync_type}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.form_title || "--"}</td>
-                    <td style={{ padding: "8px 10px" }}><Bdg l={({ success: tr("success"), failed: tr("failed"), running: tr("running|sync") })[l.status] || l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
+                    <td style={{ padding: "8px 10px" }}><Bdg l={({ success: tr("success"), failed: tr("failed"), running: tr("running|sync"), partial: tr("partial|sync") })[l.status] || l.status} c={l.status === "success" ? GR : l.status === "failed" ? RD : OR} /></td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_processed}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_created}</td>
                     <td style={{ padding: "8px 10px", color: t.textSec, fontSize: 11 }}>{l.records_updated}</td>
@@ -13173,7 +13182,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   const trainingTypeMap = lkMap("training_types", true);
   const onbCatMap = lkMap("onboarding_categories", true);
   // What a row's status code says. A code with no word here is drawn as it arrives.
-  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item") })[s] || s;
+  const itemStateOf = (s) => ({ pending: tr("pending"), completed: tr("completed|item"), in_progress: tr("in progress"), submitted: tr("submitted|item"), void: tr("Void|status") })[s] || s;
 
   const fmtDate = (d) => d ? fdLong(d) : "";
   const fmtTime = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
