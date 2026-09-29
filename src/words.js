@@ -2659,6 +2659,20 @@ export const WORDS = {
   "The site's survey contacts": { es: "Los contactos de la encuesta del sitio" },
   "Add an address": { es: "Agregar una direcci\u00f3n" },
   "Sent to the client.": { es: "Enviado al cliente." },
+  "Bring back": { es: "Restaurar" },
+  "Supply brought back": { es: "Suministro restaurado" },
+  "Shift names": { es: "Nombres de turnos" },
+  "Each shift's blocks, in the order the checklist groups tasks under them.": { es: "Los bloques de cada turno, en el orden en que la lista agrupa las tareas." },
+  "No shift names at this site yet.": { es: "Todav\u00eda no hay nombres de turnos en este sitio." },
+  "Add a block": { es: "Agregar un bloque" },
+  "Move up": { es: "Subir" },
+  "Move down": { es: "Bajar" },
+  "Shift name": { es: "Nombre del turno" },
+  "Block name": { es: "Nombre del bloque" },
+  "Starts at": { es: "Empieza a las" },
+  "A new shift name is given to every block of the shift.": { es: "Un nombre de turno nuevo se da a todos los bloques del turno." },
+  "Remove this block from this list?": { es: "\u00bfQuitar este bloque de esta lista?" },
+  "Block removed": { es: "Bloque quitado" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

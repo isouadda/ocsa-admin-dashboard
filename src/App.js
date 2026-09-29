@@ -1804,6 +1804,142 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 }
 
 
+// ===== SHIFT NAMES (Step 196) =====
+// A site's shift blocks, the named blocks within each shift that its checklist is grouped under,
+// read from GET /api/sites/:siteId/shift-blocks by anyone who can read the site. A holder of
+// manage_tasks adds one (POST), renames one (PATCH /:id), moves one up or down within its shift
+// (PATCH /reorder) and takes one off (DELETE, which the API keeps as inactive). A shift's name is the
+// shift's, so a new one is written to every block of the shift. Shown in Spanish as reads the list
+// with locale=es, so each block's display carries the Spanish the portal draws, and a changed name
+// is saved through PATCH /:id/translations as { locale, field, text }, as Step 185 does for a
+// checklist item. The English is what the list shows and what a save sends. These routes answer
+// most refusals in English with no code, and they are toasted as sent.
+const blockTime = (v) => (v ? patternTime(String(v).slice(0, 5)) : "");
+function ShiftNamesPanel({ af, t, siteId, canEdit, showToast }) {
+  const [blocks, setBlocks] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [edit, setEdit] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const base = "/api/sites/" + encodeURIComponent(siteId) + "/shift-blocks";
+  const load = useCallback(() => {
+    af(base).then(d => { setBlocks(d && Array.isArray(d.blocks) ? d.blocks : []); setFailed(false); }).catch(e => { setBlocks([]); setFailed(true); console.warn("Shift names:", e.message); });
+  }, [af, base]);
+  useEffect(() => { load(); }, [load]);
+  // The Spanish each block's two names are drawn in today, read once when a block is opened.
+  const openEdit = (b) => {
+    setEdit({ id: b ? b.id : null, shiftLabel: b ? b.shiftLabel : "", blockLabel: b ? b.blockLabel : "", anchorTime: b && b.anchorTime ? String(b.anchorTime).slice(0, 5) : "", was: b || null, es: b ? { shift: "", block: "", read: false } : null });
+    if (!b) return;
+    af(base + "?locale=es").then(d => {
+      const row = (d && Array.isArray(d.blocks) ? d.blocks : []).find(x => String(x.id) === String(b.id));
+      const shown = (row && row.display) || {};
+      setEdit(prev => (prev && prev.id === b.id ? { ...prev, es: { shift: shown.shift || "", block: shown.block || "", read: true, wasShift: shown.shift || "", wasBlock: shown.block || "" } } : prev));
+    }).catch(e => { console.warn("Spanish wording:", e.message); setEdit(prev => (prev && prev.id === b.id ? { ...prev, es: null } : prev)); });
+  };
+  const run = async (work) => {
+    if (busyRef.current) return false;
+    busyRef.current = true; setBusy(true);
+    let ok = true;
+    try { await work(); } catch (e) { ok = false; showToast(e.message, "error"); }
+    busyRef.current = false; setBusy(false);
+    load();
+    return ok;
+  };
+  const save = () => run(async () => {
+    const shiftLabel = edit.shiftLabel.trim(), blockLabel = edit.blockLabel.trim();
+    if (!edit.id) {
+      await af(base, { method: "POST", body: { shiftLabel, blockLabel, anchorTime: edit.anchorTime || undefined } });
+    } else {
+      const was = edit.was;
+      const body = {};
+      if (blockLabel !== was.blockLabel) body.blockLabel = blockLabel;
+      if ((edit.anchorTime || "") !== (was.anchorTime ? String(was.anchorTime).slice(0, 5) : "")) body.anchorTime = edit.anchorTime || null;
+      if (Object.keys(body).length) await af(base + "/" + encodeURIComponent(edit.id), { method: "PATCH", body });
+      // A shift's new name goes to every block of the shift, one request each.
+      if (shiftLabel !== was.shiftLabel) {
+        for (const b of (blocks || []).filter(x => x.shiftLabel === was.shiftLabel)) await af(base + "/" + encodeURIComponent(b.id), { method: "PATCH", body: { shiftLabel } });
+      }
+      const es = edit.es;
+      if (es && es.read) {
+        const fix = [["shift_label", es.shift, es.wasShift], ["block_label", es.block, es.wasBlock]];
+        for (const [field, text, was2] of fix) {
+          const v = String(text || "").trim();
+          if (v && v !== was2) await af(base + "/" + encodeURIComponent(edit.id) + "/translations", { method: "PATCH", body: { locale: "es", field, text: v } });
+        }
+      }
+    }
+    setEdit(null);
+    showToast(tr("Saved"));
+  });
+  const move = (b, step) => run(async () => {
+    const mine = (blocks || []).filter(x => x.shiftLabel === b.shiftLabel);
+    const at = mine.findIndex(x => x.id === b.id);
+    const to = at + step;
+    if (at < 0 || to < 0 || to >= mine.length) return;
+    const order = mine.slice();
+    order.splice(to, 0, order.splice(at, 1)[0]);
+    await af(base + "/reorder", { method: "PATCH", body: { items: order.map((x, i) => ({ id: x.id, sort_order: i + 1 })) } });
+  });
+  const takeOff = (b) => {
+    if (!window.confirm(tr("Remove this block from this list?"))) return;
+    run(async () => { await af(base + "/" + encodeURIComponent(b.id), { method: "DELETE" }); showToast(tr("Block removed")); });
+  };
+
+  if (blocks === null) return <div style={{ padding: 20, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>;
+  const shifts = blocks.map(b => b.shiftLabel).filter((v, i, all) => all.indexOf(v) === i);
+  const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+  return (<div data-shift-names="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Shift names")}</div>
+      {canEdit && <Btn t={t} onClick={() => openEdit(null)} disabled={busy} style={{ minHeight: 44 }}>{tr("Add a block")}</Btn>}
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Each shift's blocks, in the order the checklist groups tasks under them.")}</div>
+    {failed && <LoadFailed t={t} onRetry={load} />}
+    {!failed && blocks.length === 0 && <div style={{ fontSize: 12, color: t.textMut, textAlign: "center", padding: 20 }}>{tr("No shift names at this site yet.")}</div>}
+    {!failed && shifts.map(sh => {
+      const mine = blocks.filter(b => b.shiftLabel === sh);
+      return (<Crd key={sh} t={t} style={{ marginBottom: 12 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{sh}</div>
+        {mine.map((b, i) => (<div key={b.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 4, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{b.blockLabel}</div>
+            <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{[blockTime(b.anchorTime), trn("{0} task|count", Number(b.taskCount) || 0)].filter(Boolean).join(" | ")}</div>
+          </div>
+          {canEdit && <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => move(b, -1)} disabled={busy || i === 0} aria-label={tr("Move up") + ": " + b.blockLabel} style={small}>{"\u2191"}</Btn>
+            <Btn t={t} v="ghost" onClick={() => move(b, 1)} disabled={busy || i === mine.length - 1} aria-label={tr("Move down") + ": " + b.blockLabel} style={small}>{"\u2193"}</Btn>
+            <Btn t={t} v="ghost" onClick={() => openEdit(b)} disabled={busy} style={small}>{tr("Rename")}</Btn>
+            <Btn t={t} v="ghost" onClick={() => takeOff(b)} disabled={busy} style={{ ...small, color: RD }}>{tr("Remove")}</Btn>
+          </div>}
+        </div>))}
+      </Crd>);
+    })}
+    {edit && <Mdl t={t} onClose={() => { if (!busy) setEdit(null); }}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{edit.id ? tr("Rename") : tr("Add a block")}</div>
+        <button onClick={() => setEdit(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Shift name")}</Lbl><Inp t={t} aria-label={tr("Shift name")} value={edit.shiftLabel} onChange={e => setEdit({ ...edit, shiftLabel: e.target.value })} /></div>
+      {edit.id && edit.shiftLabel.trim() !== edit.was.shiftLabel && <div style={{ fontSize: 11, color: t.textMut, marginTop: -6, marginBottom: 12 }}>{tr("A new shift name is given to every block of the shift.")}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+        <div><Lbl>{tr("Block name")}</Lbl><Inp t={t} aria-label={tr("Block name")} value={edit.blockLabel} onChange={e => setEdit({ ...edit, blockLabel: e.target.value })} /></div>
+        <div><Lbl>{tr("Starts at")}</Lbl><Inp t={t} type="time" aria-label={tr("Starts at")} value={edit.anchorTime} onChange={e => setEdit({ ...edit, anchorTime: e.target.value })} /></div>
+      </div>
+      {edit.id && edit.es && <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: R.sm, border: "1px solid " + t.goldBorder, background: t.goldBg }}>
+        <Lbl>{tr("Shown in Spanish as")}</Lbl>
+        {!edit.es.read ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div> : <>
+          <div style={{ marginBottom: 8 }}><Inp t={t} aria-label={tr("Shift name")} placeholder={tr("Shift name")} value={edit.es.shift} onChange={e => setEdit({ ...edit, es: { ...edit.es, shift: e.target.value } })} /></div>
+          <Inp t={t} aria-label={tr("Block name")} placeholder={tr("Block name")} value={edit.es.block} onChange={e => setEdit({ ...edit, es: { ...edit.es, block: e.target.value } })} />
+        </>}
+      </div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={() => setEdit(null)} disabled={busy}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={save} disabled={busy || !edit.shiftLabel.trim() || !edit.blockLabel.trim()}>{busy ? tr("Saving...") : tr("Save Changes")}</Btn>
+      </div>
+    </div></Mdl>}
+  </div>);
+}
+
 function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 196: the site's client survey schedule, for a holder of manage_settings once the route
@@ -1816,6 +1952,15 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
     af("/api/sites/" + encodeURIComponent(selectedSite) + "/survey-schedule").then(d => { if (alive) setSurvey(d && typeof d === "object" ? d : { schedule: null }); }).catch(e => { console.warn("Survey schedule:", e.message); });
     return () => { alive = false; };
   }, [af, selectedSite, canManageSettings]);
+  // Step 196: the site's shift names, offered once GET /api/sites/:siteId/shift-blocks answers.
+  const [blocksLive, setBlocksLive] = useState(false);
+  useEffect(() => {
+    setBlocksLive(false);
+    if (!selectedSite) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(selectedSite) + "/shift-blocks").then(d => { if (alive) setBlocksLive(!!(d && Array.isArray(d.blocks))); }).catch(e => { console.warn("Shift names:", e.message); });
+    return () => { alive = false; };
+  }, [af, selectedSite]);
   const [siteProfile, setSiteProfile] = useState(null);
   const [siteTab, setSiteTab] = useState("general");
   const [st, setSt] = useState([]);
@@ -2235,6 +2380,7 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
       { k: "general", l: tr("General Info") }, { k: "tasks", l: tr("Service Details") },
       { k: "shifts", l: tr("Shifts & Schedule") }, { k: "supplies", l: tr("Supplies") },
       { k: "scope", l: tr("Scope of Work") }, { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") },
+      ...(blocksLive ? [{ k: "blocks", l: tr("Shift names") }] : []),
       ...(survey ? [{ k: "survey", l: tr("Client survey") }] : [])
     ];
 
@@ -2459,6 +2605,9 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
           </div>;
         })}
       </div>}
+
+      {/* SHIFT NAMES TAB (Step 196) */}
+      {siteTab === "blocks" && blocksLive && <ShiftNamesPanel key={selectedSite} af={af} t={t} siteId={selectedSite} canEdit={canManageTasks} showToast={showToast} />}
 
       {/* CLIENT SURVEY TAB (Step 196) */}
       {siteTab === "survey" && survey && <Crd t={t} style={{ marginBottom: 16 }}>
@@ -2773,10 +2922,27 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   // supply, in list order; until the API answers it, the box draws the word QR alone.
   const [qrs, setQrs] = useState({});
   const qrsRef = useRef({}); qrsRef.current = qrs;
-  // The supplies taken off in this session, drawn under Removed supplies. The API lists active
-  // supplies only and has no route that brings one back, so the list holds what this screen
-  // removed and offers nothing to press.
+  // Removed supplies, for a holder of manage_supplies (Step 196): the whole catalog read with
+  // GET /api/supplies?all=true&includeRemoved=true, whose rows carry isActive, and every row it says
+  // is off. all=true matters, since without it the route answers the caller's site for today alone.
+  // Bring back is POST /api/supplies/:id/restore (Step 192), and a refusal is toasted in the API's
+  // own words.
   const [removed, setRemoved] = useState([]);
+  const [restoring, setRestoring] = useState("");
+  const loadRemoved = () => {
+    if (!canManageSupplies) { setRemoved([]); return Promise.resolve(); }
+    return af("/api/supplies?all=true&includeRemoved=true")
+      .then(d => setRemoved((Array.isArray(d) ? d : []).filter(x => x && x.isActive === false)))
+      .catch(e => { setRemoved([]); console.warn("Removed supplies:", e.message); });
+  };
+  const bringBack = async (s) => {
+    if (restoring) return;
+    setRestoring(String(s.id));
+    try { await af("/api/supplies/" + encodeURIComponent(s.id) + "/restore", { method: "POST", body: {} }); showToast(tr("Supply brought back")); }
+    catch (e) { showToast(e.message, "error"); }
+    setRestoring("");
+    loadSupplies(); loadRemoved();
+  };
   useEffect(() => {
     const want = supplies.filter(s => s && s.id != null && qrsRef.current[s.id] === undefined);
     if (!want.length) return undefined;
@@ -2799,10 +2965,10 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
   const [editForm, setEditForm] = useState(null); const [handleReq, setHandleReq] = useState(null);
   const loadSupplies = () => af("/api/supplies").then(setSupplies).catch(e => showToast(e.message, "error"));
   const loadRequests = () => af("/api/supplies/requests").then(setRequests).catch(e => showToast(e.message, "error"));
-  useEffect(() => { loadSupplies(); loadRequests(); }, []);
+  useEffect(() => { loadSupplies(); loadRequests(); loadRemoved(); }, []);
   const submitAdd = async () => { if (!addForm.name || !addForm.category || !addForm.unit) { showToast(tr("Name, category, and unit required"), "error"); return; } try { const d = await af("/api/supplies", { method: "POST", body: addForm }); showToast(d.message); setAddForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
   const submitEdit = async () => { try { await af("/api/supplies/" + editForm.id, { method: "PATCH", body: editForm }); showToast(tr("Supply updated")); setEditForm(null); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
-  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); const gone = supplies.find(s => String(s.id) === String(id)); if (gone) setRemoved(r => [gone, ...r.filter(x => String(x.id) !== String(id))]); showToast(tr("Supply removed")); loadSupplies(); } catch (e) { showToast(e.message, "error"); } };
+  const deactivate = async (id) => { try { await af("/api/supplies/" + id, { method: "DELETE" }); showToast(tr("Supply removed")); loadSupplies(); loadRemoved(); } catch (e) { showToast(e.message, "error"); } };
   const submitHandleReq = async () => { try { await af("/api/supplies/requests/" + handleReq.id, { method: "PATCH", body: { status: handleReq.status, adminNotes: handleReq.notes } }); showToast(handleReq.status === "approved" ? tr("Request approved") : tr("Request denied")); setHandleReq(null); loadRequests(); } catch (e) { showToast(e.message, "error"); } };
   // The pickers read each choice's shown label and send its code; a card draws a choice's shown label.
   const cats = getOpts("supply_categories", null, true);
@@ -2825,7 +2991,7 @@ function SuppliesAdminPage({ af, token, showToast, canManageSupplies = false, t,
     {tab === "inventory" && supplies.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supplies configured.")}{canManageSupplies ? " " + tr("Click \"Add Supply\" to start.") : ""}</div>}
     {tab === "inventory" && removed.length > 0 && <div style={{ marginTop: 18 }}>
       <SecT t={t}>{tr("Removed supplies")}</SecT>
-      {removed.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14, opacity: 0.75 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}</div></div></div></Crd>))}
+      {removed.map(s => (<Crd key={s.id} t={t} style={{ marginBottom: 8, padding: 14, opacity: 0.75 }}><div style={{ display: "flex", alignItems: "center", gap: 12 }}><div style={{ flex: 1 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{s.name}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{catOf(s.category)} | {unitOf(s.unit)}</div><div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{tr("QR: {0}", s.qr_code)}</div></div><Btn t={t} v="ghost" onClick={() => bringBack(s)} disabled={!!restoring} style={{ minHeight: 44, fontSize: 12 }}>{restoring === String(s.id) ? tr("Saving...") : tr("Bring back")}</Btn></div></Crd>))}
     </div>}
     {tab === "requests" && requests.map(r => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}><div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{reqTypeWord[r.request_type] || tr("New Supply Request")}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{r.item_name || r.supply_name || tr("General")} {r.site_name ? tr("at {0}", r.site_name) : ""}</div>{r.description && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.description}</div>}</div><div style={{ display: "flex", gap: 6, flexShrink: 0 }}><Bdg l={urgencyWord[r.urgency] || r.urgency} c={r.urgency === "urgent" ? RD : r.urgency === "high" ? OR : t.textMut} /><Bdg l={reqStateWord[r.status] || r.status} c={reqColor[r.status] || t.textMut} /></div></div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontSize: 10, color: t.textMut }}>{r.requested_by_name} | {fd(r.created_at)}</div>{r.status === "pending" && <div style={{ display: "flex", gap: 4 }}><button onClick={() => setHandleReq({ id: r.id, status: "approved", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Approve")}</button><button onClick={() => setHandleReq({ id: r.id, status: "denied", notes: "" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Deny")}</button></div>}</div></Crd>))}
     {tab === "requests" && requests.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No supply requests yet.")}</div>}
@@ -10032,7 +10198,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   </div>);
   // Each question in its own type, which is what a person expects to type into at a desk. A
   // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
+  // A question the API filled when the report was made says prefilled: true (Step 192), and the
+  // supervisor write refuses it, so it is drawn read only here rather than offered as an edit.
   const supervisorInput = (f) => {
+    if (f.prefilled === true) return fieldRow(f);
     if (f.type === "signoff") return signoffRow(f);
     if (f.type === "photos") return photosRow(f, true);
     const cur = supValue(f);
@@ -10041,7 +10210,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
       {inner}
     </div>);
     if (f.type === "grid") return box(gridTable(f, supCell));
-    if (f.type === "person") return box(formControl(t, f, cur, v => setSupValue(f, v), f.label, { people }));
+    if (f.type === "person") return box(formControl(t, f, cur, v => setSupValue(f, v), f.label, { people, af }));
     if (f.type === "textarea") return box(<TArea t={t} rows={3} aria-label={f.label} value={cur == null ? "" : String(cur)}
       onChange={e => setSupValue(f, e.target.value)} style={{ minHeight: 88 }} />);
     if (f.type === "select") return box(<Sel t={t} aria-label={f.label} value={cur == null ? "" : String(cur)}
@@ -10294,13 +10463,38 @@ const formSensitive = (f) => !!f && (f.sensitive === true || (Array.isArray(f.fl
 // rows and at most twelve at a time, narrowed as the person types.
 const formPersonName = (u) => ((u.firstName || "") + " " + (u.lastName || "")).trim() || String(u.name || u.id || "");
 const formPersonOf = (v) => (v && typeof v === "object" && (v.id != null || v.name) ? v : null);
-function FormPersonPicker({ t, name, value, onChange, people = [], disabled = false }) {
+// Step 196: the people a desk form may name are read from GET /api/forms/people, the way the portal
+// reads them since Step 193: { people: [{ id, name, role }] }, active staff and never a client
+// contact, at most 50. A list that comes back with 50 may have left someone out, so typing searches
+// the route with q once it has stopped for 300 ms; a shorter list is searched here. A 404, or any
+// other failure, leaves the staff list the shell holds, as before. The answer saved is { id, name }.
+const FORM_PEOPLE_LIMIT = 50;
+function FormPersonPicker({ t, name, value, onChange, people = [], disabled = false, af = null }) {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  const [remote, setRemote] = useState(null);
+  const [found, setFound] = useState(null);
   const picked = formPersonOf(value);
-  const active = people.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active"));
+  const listing = !disabled && (!picked || open);
+  useEffect(() => {
+    if (!af || !listing || remote) return undefined;
+    let alive = true;
+    af("/api/forms/people").then(d => { if (alive && d && Array.isArray(d.people)) setRemote(d.people.filter(u => u && u.id != null)); }).catch(e => { console.warn("Form people:", e.message); });
+    return () => { alive = false; };
+  }, [af, listing, remote]);
+  const capped = !!remote && remote.length >= FORM_PEOPLE_LIMIT;
   const needle = q.trim().toLowerCase();
-  const matches = (needle ? active.filter(u => formPersonName(u).toLowerCase().indexOf(needle) !== -1) : active).slice(0, 12);
+  useEffect(() => {
+    if (!af || !capped || !needle) { setFound(null); return undefined; }
+    let alive = true;
+    const timer = setTimeout(() => {
+      af("/api/forms/people?q=" + encodeURIComponent(needle)).then(d => { if (alive) setFound({ q: needle, people: d && Array.isArray(d.people) ? d.people.filter(u => u && u.id != null) : [] }); }).catch(e => { console.warn("Form people:", e.message); });
+    }, 300);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [af, capped, needle]);
+  const active = remote || people.filter(u => u && u.role !== "client_contact" && (!u.status || u.status === "active"));
+  const searching = capped && !!needle && !(found && found.q === needle);
+  const matches = (capped && needle ? (found && found.q === needle ? found.people : []) : (needle ? active.filter(u => formPersonName(u).toLowerCase().indexOf(needle) !== -1) : active)).slice(0, 12);
   const row = { display: "block", width: "100%", minHeight: 44, padding: "10px 12px", textAlign: "left", border: "none", borderBottom: "1px solid " + t.border, background: "transparent", color: t.text, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" };
   if (picked && !open) {
     return (<div data-person-picked="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -10313,7 +10507,7 @@ function FormPersonPicker({ t, name, value, onChange, people = [], disabled = fa
     {!disabled && <div role="listbox" aria-label={name} style={{ marginTop: 6, border: "1px solid " + t.border, borderRadius: 8, overflow: "hidden", maxHeight: 264, overflowY: "auto", background: t.card }}>
       {matches.map(u => <button key={String(u.id)} role="option" aria-selected={false} onClick={() => { onChange({ id: u.id, name: formPersonName(u) }); setOpen(false); setQ(""); }} style={row}
         onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>{formPersonName(u)}{u.role ? <span style={{ fontSize: 11, color: t.textMut, marginLeft: 8 }}>{roleWord(u.role)}</span> : null}</button>)}
-      {matches.length === 0 && <div style={{ padding: "12px", fontSize: 12, color: t.textMut }}>{active.length === 0 ? tr("Loading...") : tr("No one matches.")}</div>}
+      {matches.length === 0 && <div style={{ padding: "12px", fontSize: 12, color: t.textMut }}>{active.length === 0 || searching ? tr("Loading...") : tr("No one matches.")}</div>}
       {picked && <button onClick={() => setOpen(false)} style={Object.assign({}, row, { color: t.textMut, borderBottom: "none" })}>{tr("Cancel")}</button>}
     </div>}
   </div>);
@@ -10324,7 +10518,7 @@ function formControl(t, spec, v, onChange, name, opts) {
   const o = opts || {};
   const off = !!o.disabled;
   const kind = String(spec.type || "");
-  if (kind === "person") return <FormPersonPicker t={t} name={name} value={v} onChange={onChange} people={Array.isArray(o.people) ? o.people : []} disabled={off} />;
+  if (kind === "person") return <FormPersonPicker t={t} name={name} value={v} onChange={onChange} people={Array.isArray(o.people) ? o.people : []} disabled={off} af={o.af || null} />;
   if (kind === "select") {
     return <Sel t={t} aria-label={name} value={v == null ? "" : String(v)} onChange={e => onChange(e.target.value === "" ? null : e.target.value)} disabled={off} style={{ minHeight: 44 }}
       options={[{ v: "", l: tr("Not answered") }].concat((spec.options || []).map(o2 => ({ v: o2.value, l: o2.label })))} />;
@@ -10656,7 +10850,7 @@ function FormFillWindow({ af, token, t, form, draft, onLeave, embed = false, loc
   // strand them on a form they asked to close.
   const leave = async () => { setConfirmLeave(false); await save(); onLeave(); };
   // What the controls are given: off in a preview nobody is filling, and the staff a person picks.
-  const inputOpts = { disabled: readOnly, people };
+  const inputOpts = { disabled: readOnly, people, af };
 
   const labelSt = { fontSize: 13, fontWeight: 600, color: t.text, lineHeight: 1.45, fontFamily: FONT_HEAD, wordBreak: "break-word" };
   const reqSt = { fontSize: 10, fontWeight: 600, color: t.textMut, marginLeft: 6, whiteSpace: "nowrap", textTransform: "uppercase" };
