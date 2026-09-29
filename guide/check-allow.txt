@@ -1,0 +1,93 @@
+# Pairs the guide check accepts with no row in translation/dashboard_words.csv. One pair to a
+# line, written as the guide writes it, with Spanish as \u escapes so this file stays plain ASCII.
+# Each block starts with a comment line saying why its pairs are here; a blank line ends a block.
+# npm run guide-check names a pair here that the guide no longer holds, so the list can shrink.
+
+# A composition: the tab's words Filed forms ({0}) with a count filled in.
+**Filed forms (2)** (**Formularios presentados (2)**)
+
+# A composition: the start of a sign-off's stamp, Signed by {0} on {1} at {2}, before the name.
+**Signed by** (**Firmado por**)
+
+# Form wording. A filed form's sections, questions, choices and sign-offs come from the API's form
+# catalog, which draws them in the screen's language, so the dashboard's CSV has no row for them.
+# Each block below names the guide entry the words first appear in.
+
+# Form wording, from the entry Write what was done and close a customer complaint.
+**What was found** (**Lo que se encontr\u00f3**)
+**What caused it?** (**\u00bfQu\u00e9 lo caus\u00f3?**)
+**What was done, by whom, and when** (**Lo que se hizo, qui\u00e9n lo hizo y cu\u00e1ndo**)
+**Date resolved** (**Fecha en que se resolvi\u00f3**)
+**Is the customer satisfied?** (**\u00bfEst\u00e1 satisfecho el cliente?**)
+**Has this happened before at this site?** (**\u00bfHa pasado antes en este sitio?**)
+**Complaint closed** (**Queja cerrada**)
+
+# Form wording, from the entry Verify and sign a safety inspection.
+**Overdue findings reported to the executive team** (**Hallazgos vencidos reportados al equipo ejecutivo**)
+**Findings verified in person** (**Hallazgos verificados en persona**)
+**Field Lead, reviewed** (**Encargado de campo, revisado**)
+
+# Form wording, from the entry Move a corrective action forward and close it.
+**Closed** (**Cerrada**)
+**What was completed** (**Qu\u00e9 se concluy\u00f3**)
+**Actions confirmed in place** (**Acciones confirmadas en su lugar**)
+**Approval** (**Aprobaci\u00f3n**)
+**Completion** (**Conclusi\u00f3n**)
+**Verification** (**Verificaci\u00f3n**)
+**Effectiveness check** (**Comprobaci\u00f3n de eficacia**)
+**Closure** (**Cierre**)
+
+# Form wording, from the entry Verify and sign an environmental audit.
+**Was the executive team told of any severity A finding?** (**\u00bfSe inform\u00f3 al equipo ejecutivo de alg\u00fan hallazgo de gravedad A?**)
+
+# Form wording, from the entry Approve a PPE hazard assessment.
+**Date of the next scheduled reassessment** (**Fecha de la pr\u00f3xima reevaluaci\u00f3n programada**)
+
+# Form wording, from the entry Confirm safety committee minutes.
+**Confirmed at the meeting of** (**Confirmada en la reuni\u00f3n del**)
+**Corrections made before confirming** (**Correcciones hechas antes de confirmar**)
+**Confirmed by the chair** (**Confirmada por el presidente**)
+
+# Form wording, from the entry Review and sign a site assessment.
+**Anything to correct before the labor calculation** (**Algo que corregir antes del c\u00e1lculo de mano de obra**)
+
+# Form wording, from the entry Move a change of service request through approval and close it.
+**Assessment** (**Evaluaci\u00f3n**)
+**Pricing** (**Precio**)
+**Labor hours added or removed per week** (**Horas de trabajo agregadas o quitadas por semana**)
+**Approval inside OCSA** (**Aprobaci\u00f3n dentro de OCSA**)
+**Approval level** (**Nivel de aprobaci\u00f3n**)
+**Decision** (**Decisi\u00f3n**)
+**The customer's answer** (**La respuesta del cliente**)
+**Putting it in place** (**Puesta en marcha**)
+**Done** (**Hecho**)
+**Checked after the change** (**Verificaci\u00f3n despu\u00e9s del cambio**)
+**Special request** (**Solicitud especial**)
+**Within scope** (**Dentro del alcance**)
+**Complaint** (**Queja**)
+**Where it goes** (**A d\u00f3nde va**)
+
+# Form wording, from the entry File an orientation in the personnel file.
+**Employee signature** (**Firma del empleado**)
+**Filed in the personnel file** (**Archivado en el expediente del personal**)
+
+# Form wording, from the entry Follow up a customer contact and close it.
+**Acknowledged in writing within one working day** (**Se confirm\u00f3 por escrito en un d\u00eda h\u00e1bil**)
+**Answered within five working days** (**Se respondi\u00f3 en cinco d\u00edas h\u00e1biles**)
+**The customer confirmed they are satisfied with the outcome** (**El cliente confirm\u00f3 que est\u00e1 satisfecho con el resultado**)
+**Date confirmed, and how** (**Fecha de la confirmaci\u00f3n, y c\u00f3mo**)
+
+# Form wording, from the entry Fill in a performance review with the employee.
+**The review** (**La evaluaci\u00f3n**)
+**Ratings** (**Calificaciones**)
+**Meets the standard** (**Cumple el est\u00e1ndar**)
+**Is this person a supervisor?** (**\u00bfEsta persona es supervisor?**)
+**Safety performance of the crew** (**Desempe\u00f1o de seguridad del equipo**)
+**Overall rating** (**Calificaci\u00f3n general**)
+**Outcome of a probationary review** (**Resultado de la evaluaci\u00f3n del per\u00edodo de prueba**)
+**Employee comments** (**Comentarios del empleado**)
+**Reviewed by** (**Evaluado por**)
+
+# Form wording, from the entry Make and send the monthly report to a client.
+**Prepared by** (**Preparado por**)
+**Reviewed by** (**Revisado por**)

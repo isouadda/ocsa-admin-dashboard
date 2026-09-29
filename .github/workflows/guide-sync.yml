@@ -1,0 +1,36 @@
+# Loads guide/APP-DASHBOARD.md into Help on every push to main that changes it, and by hand from
+# Actions. The API accepts a run on main and no other branch. See guide/README.md.
+name: Guide sync
+
+on:
+  push:
+    branches: [main]
+    paths: [guide/APP-DASHBOARD.md]
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: Dry run. The API answers the counts and writes nothing.
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+# Two merges close together load one after the other.
+concurrency:
+  group: guide-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Load the guide into Help
+        run: node scripts/guide-sync.js
+        env:
+          DRY_RUN: ${{ inputs.dryRun && 'true' || 'false' }}
