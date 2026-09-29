@@ -305,8 +305,9 @@ Who can do this: admins and supervisors
 2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**) and each **Site channel** (**Canal del sitio**); below them, **Private conversations** (**Conversaciones privadas**) lists one per person. Use **Search staff** (**Buscar personal**) to find someone.
 3. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert.
 4. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
+If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
 Words people use for this: message someone, chat, site chat, general chat, unread messages, mensajes.
-Last checked: 2026-09-28
+Last checked: 2026-09-29
 
 ## Ask Help a question from the dashboard (admin dashboard)
 Who can do this: admins and supervisors
@@ -316,9 +317,9 @@ Who can do this: admins and supervisors
 4. Under the answer, a line says what it is based on: **Based on the app guide** for steps in the staff portal or the admin dashboard, **Based on the ADP guide** for the ADP time clock, **Based on general cleaning guidance** for general cleaning answers, and an OCSA document by its name.
 5. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
 6. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
-If it does not work: if **The connection dropped. Your answer is saved.** shows under the answer, click **Try again** to read the saved answer back. If a question reads Not sent, click **Retry**.
+If it does not work: if **The connection dropped. Your answer is saved.** shows under the answer, click **Try again** to read the saved answer back. If a question reads Not sent, click **Retry**. Retry sends the same question again, and Help answers it once.
 Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer.
-Last checked: 2026-09-28
+Last checked: 2026-09-29
 
 ## Run a report (admin dashboard)
 Who can do this: admins and supervisors

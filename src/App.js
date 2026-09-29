@@ -3089,6 +3089,17 @@ function TagPicker({ af, t, channelId, onPick, onClose }) {
   </div>);
 }
 
+// The id a Help question or a chat message carries unchanged on every retry of it, so the API stores
+// it once however many times it arrives (STEP198_CONTRACT.md, sections 2 and 3): 32 characters from
+// [a-z0-9], inside the contract's 8 to 64 from [A-Za-z0-9_-]. randomUUID needs a secure page, so a
+// page without one takes getRandomValues, and a browser with neither takes Math.random.
+function newSendId() {
+  const c = typeof window !== "undefined" ? window.crypto : null;
+  try { if (c && typeof c.randomUUID === "function") return c.randomUUID().replace(/-/g, ""); } catch (e) { /* next */ }
+  try { if (c && typeof c.getRandomValues === "function") return Array.from(c.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, "0")).join(""); } catch (e) { /* next */ }
+  let s = ""; while (s.length < 32) s += Math.random().toString(36).slice(2); return s.slice(0, 32);
+}
+
 // Messages: the general chat and every site chat on top, private conversations under them. Under
 // 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
 // Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
@@ -3107,6 +3118,19 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
   const [sending, setSending] = useState(false);
   const endRef = useRef(null);
   const inputRef = useRef(null);
+  // A message typed keeps one clientId from its first send until it lands, so Send again after a
+  // failed send of the same text in the same chat sends it unchanged and the API stores it once.
+  // Other text or another chat is a new message. When the answer, or the next read of the chat,
+  // carries that clientId, the message has landed and the box it waited in is emptied.
+  const unsent = useRef(null);
+  const landed = (id, list) => {
+    const u = unsent.current;
+    if (!u || u.channelId !== id || !list.some(m => m && u.clientId === m.clientId)) return;
+    unsent.current = null;
+    setReply(r => (r.trim() === u.text ? "" : r));
+  };
+  // A message shows once, matched by its id or its clientId.
+  const withMessage = (list, msg) => (list.some(m => m.id === msg.id || (!!msg.clientId && m.clientId === msg.clientId)) ? list : [...list, msg]);
   const loadDms = () => af("/api/chat/dm-inbox").then(d => { setDms(Array.isArray(d) ? d : []); setDmsFailed(false); }).catch(e => { setDms([]); setDmsFailed(true); console.warn(e.message); });
   const loadChannels = () => af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.type !== "admin_dm"))).catch(e => console.warn("Channels:", e.message));
   useEffect(() => { loadDms(); loadChannels(); }, []);
@@ -3119,12 +3143,12 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
   // A conversation that does not load clears what the last one showed and says so, with a way to try again.
   const open = async id => {
     setSel(id); setTagOpen(false); setMentions([]);
-    try { const m = await af("/api/chat/channels/" + encodeURIComponent(id) + "/messages"); setMsgs(Array.isArray(m) ? m : []); setMsgsFailed(false); markRead(id); }
+    try { const m = await af("/api/chat/channels/" + encodeURIComponent(id) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(id, list); markRead(id); }
     catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); }
   };
   useEffect(() => { const id = route[0]; if (id && id !== sel) open(id); }, [route[0]]);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length]);
-  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); setMsgs(Array.isArray(m) ? m : []); setMsgsFailed(false); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
+  useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
   const canTag = !!activeChannel;
@@ -3135,8 +3159,11 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
     if (!text || !sel || sending) return;
     setSending(true);
     const ids = liveMentions();
-    const body = ids.length ? { text, mentions: ids } : { text };
-    try { const d = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages", { method: "POST", body }); if (d && d.message) setMsgs(p => [...p, d.message]); setReply(""); setMentions([]); }
+    const was = unsent.current;
+    const u = was && was.channelId === sel && was.text === text ? was : { channelId: sel, text, clientId: newSendId() };
+    unsent.current = u;
+    const body = ids.length ? { text, mentions: ids, clientId: u.clientId } : { text, clientId: u.clientId };
+    try { const d = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages", { method: "POST", body }); if (d && d.message) setMsgs(p => withMessage(p, d.message)); if (unsent.current === u) unsent.current = null; setReply(""); setMentions([]); }
     catch (e) { if (showToast) showToast(e && e.code && e.message ? e.message : tr("Your message did not send."), "error"); }
     setSending(false);
   };
@@ -3608,7 +3635,11 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   // Step two of the contract: POST /api/agent/message/stream with text, the app name, photoPaths in
   // thumbnail order, and the conversation id, which is what POST /api/agent/message took. The answer
   // is drawn in plain words as it is written, and done is today's response, handled as it always was.
-  const sendText = async (id, body, paths, keys) => {
+  // The question's requestId goes with it, the same on every retry, so a question the API has already
+  // answered is answered again from what it stored (replayed: true, drawn like any answer), and one it
+  // is still answering is refused 409 agent.requestInProgress with the conversation's id, which is
+  // read back the way a dropped connection is (STEP198_CONTRACT.md, section 2).
+  const sendText = async (id, body, paths, keys, requestId) => {
     if (busy) return;
     setSending(true);
     setSaid("");
@@ -3617,7 +3648,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
     const replyId = "a" + (++seq.current);
     let meta = null, drawn = "";
     try {
-      const payload = { text: body, app: AGENT_APP }; if (paths && paths.length) payload.photoPaths = paths; if (convRef.current) payload.conversationId = convRef.current;
+      const payload = { text: body, app: AGENT_APP }; if (paths && paths.length) payload.photoPaths = paths; if (convRef.current) payload.conversationId = convRef.current; if (requestId) payload.requestId = requestId;
       await sf("/api/agent/message/stream", { method: "POST", body: payload }, (event, d) => {
         if (event === "meta") {
           meta = d || {};
@@ -3638,12 +3669,15 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         }
       });
     } catch (e) {
-      if (e.dropped && meta && meta.conversationId) {
-        setConversationId(meta.conversationId);
-        patchMsg(replyId, { dropped: true, conversationId: meta.conversationId, question: body });
+      const inProgress = e.status === 409 && e.code === "agent.requestInProgress" ? String((e.body && e.body.conversationId) || convRef.current || "") : "";
+      if (inProgress) setThread(p => [...p.filter(m => m.id !== replyId).map(m => m.id === id ? { ...m, status: "sent", error: "" } : m), { id: replyId, role: "assistant", text: "", arriving: true, citedDocs: [], status: "sent" }]);
+      const cid = inProgress || (e.dropped && meta && meta.conversationId);
+      if (cid) {
+        setConversationId(cid);
+        patchMsg(replyId, { dropped: true, conversationId: cid, question: body });
         setText(cur => cur === body ? "" : cur);
         if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
-        await readBack(replyId, meta.conversationId, body);
+        await readBack(replyId, cid, body);
       } else {
         setThread(p => p.filter(m => m.id !== replyId));
         patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
@@ -3658,11 +3692,12 @@ function HelpPage({ af, sf, uf, showToast, t }) {
     const sent = photos.map(p => ({ key: p.key, url: p.url, path: p.path }));
     const paths = sent.map(p => p.path), keys = sent.map(p => p.key);
     const id = "u" + (++seq.current);
-    setThread(p => [...p, { id, role: "user", text: body, photos: sent, photoPaths: paths, photoKeys: keys, status: "sending", error: "" }]);
-    sendText(id, body, paths, keys);
+    const requestId = newSendId();
+    setThread(p => [...p, { id, role: "user", text: body, photos: sent, photoPaths: paths, photoKeys: keys, requestId, status: "sending", error: "" }]);
+    sendText(id, body, paths, keys, requestId);
   };
-  // Retry re-sends the same text and the same paths. Nothing is uploaded again.
-  const retry = (m) => sendText(m.id, m.text, m.photoPaths || [], m.photoKeys || []);
+  // Retry re-sends the same text, the same paths and the same requestId. Nothing is uploaded again.
+  const retry = (m) => sendText(m.id, m.text, m.photoPaths || [], m.photoKeys || [], m.requestId);
   // Rating an answer (Step 185, STEP183_CONTRACT.md section 1): Yes is saved at once; No asks What
   // was missing? first and the note goes with it, at most 500 characters. Rating again replaces the
   // rating, and the thanks line shows after a rating saved here, never for one read back.
