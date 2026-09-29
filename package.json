@@ -15,7 +15,8 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "audit": "node audit/run.js"
+    "audit": "node audit/run.js",
+    "guide-check": "node scripts/guide-check.js"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],

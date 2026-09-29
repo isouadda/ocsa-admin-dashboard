@@ -37,10 +37,33 @@ the guide's active entries only. An entry retired on live stays retired and is n
 - A new entry goes at the end of the file. Help numbers a new entry after every entry it already
   holds, so adding at the end keeps the file's order the order Help numbers the entries in.
 
+## The check on every pull request
+
+`npm run guide-check` reads the file the way the sync does, and runs on every pull request through
+`.github/workflows/guide-check.yml`. It fails, naming the line, when:
+
+- the first line does not read `# APP-DASHBOARD | <Title>`;
+- two entries share a title, or an entry has no title or no content;
+- a `**English** (**Spanish**)` pair has no row in `translation/dashboard_words.csv` with exactly
+  that English and that Spanish, unless `check-allow.txt` lists the pair;
+- a line holds an email address or a phone number. This repository is public, so nothing here
+  names a person, a site, a phone number or an email address.
+
+When a pull request changes `src/` and leaves `APP-DASHBOARD.md` as it was, the check writes a
+warning that the guide may need an entry, and passes.
+
+`check-allow.txt` lists the pairs the CSV cannot hold: a composition, such as a word from the CSV
+with a count filled in, and the wording of a filed form, which the API's form catalog draws in the
+screen's language. Pairs sit in blocks under a comment line saying why they are there, with Spanish
+written as `\u` escapes so the file stays plain ASCII. The check names a listed pair the guide no
+longer holds, so it can come out of the list.
+
 ## Fingerprint
 
 A fingerprint is the md5 of the md5s of `title|content` for each active entry, in the order Help
-numbers them. When the file moved here, the live guide's fingerprint was:
+numbers them. `npm run guide-check` prints the one it works out from the file, and after a sync that
+writes anything, the fingerprint the sync answers matches it. When the file moved here, the live
+guide's fingerprint was:
 
 ```
 cec00722eff735449cf7d10f1dfe9f5d

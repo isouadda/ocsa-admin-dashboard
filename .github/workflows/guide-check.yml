@@ -1,0 +1,26 @@
+# Reads guide/APP-DASHBOARD.md on every pull request and fails when it would not load or a bold
+# name has no row in the translator's CSV. See guide/README.md and scripts/guide-check.js.
+name: Guide check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # A pull request is checked out as its merge into the base branch, so the merge's first parent
+      # is the base and HEAD^1..HEAD is what the pull request changes.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Check the guide
+        run: npm run guide-check
+        env:
+          GUIDE_CHECK_BASE: HEAD^1

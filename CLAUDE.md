@@ -7,7 +7,7 @@ Build and validate (run before every commit)
 * Dev server: npm start
 * There is no separate test suite. The production build is the gate. Report the build result after any change.
 Architecture
-* Single file: src/App.js. It is large, about 15,400 lines. All pages and components live here.
+* Single file: src/App.js. It is large, 15,434 lines. All pages and components live here.
 * Pages render off a page state value, registered in pageLabels and a render switch. The sidebar nav is a grouped array of items, each with id, label, and icon.
 * Shared primitives: Crd (card), SecT (section title), Btn, Inp, Sel, Lbl, TArea, Bdg (badge), DataTable, DateRangePicker, ChartCard, and the chart wrappers LineChartW, BarChartW, DonutChartW (ApexCharts).
 * Design tokens: FONT_HEAD (Montserrat), FONT_BODY (Inter), the R radius scale, the theme object t, and color consts GO GL BL RD OR GR.
@@ -22,6 +22,10 @@ Conventions (hard rules)
 * ASCII only in code and copy. Straight quotes. Hyphens, never em or en dashes.
 * Plain, direct language in UI copy. No contrastive antithesis phrasing such as "not X, but Y."
 * The word CIMS must never appear in any screen, label, or export that staff or clients see.
+Help guide (hard rule, the owner's standing protocol of September 16)
+* Every change to a screen updates guide/APP-DASHBOARD.md in the same pull request: the entry for each task the change touches, or a new entry at the end of the file for a new task. Names are read from translation/dashboard_words.csv and written **English** (**Spanish**). Last checked: is set to the day of the change. The pull request lists the entries it changed.
+* npm run guide-check passes before every commit that touches the guide. The file loads itself into Help on every merge to main. guide/README.md has the format and the rules.
+* The repository is public. Nothing in guide/ or anywhere else in it names a person, a site, a phone number or an email address.
 Reporting engine (recent work)
 * The Reports page is library-first: saved report_definitions are listed, run inline, and edited in an inline editor. The issue source (key issues_timing, with issues as a legacy alias) is the only live data layer.
 * Issue visuals are built as discrete reusable widgets (MetricTile, IssueTrendWidget, IssueBySiteWidget, IssueSeverityWidget) so the home dashboard can reuse them without rework.
