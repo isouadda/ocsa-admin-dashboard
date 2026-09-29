@@ -47,6 +47,10 @@ async function run({ d, results, stubs, lang }) {
   stubs.reset();
   await d.signOutHard();
   await d.signIn("admin");
+  // The app clears whatever toast is up 3 seconds after each toast it shows, the sign-in's welcome
+  // included, so the first save waits the welcome out.
+  await d.waitToast(1500);
+  await d.waitToastGone(3600);
 
   // ---- Sites, Edit Task: the item's Spanish name and instructions, and a changed name sent on its own
   await d.goto("sites");
