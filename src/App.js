@@ -342,7 +342,9 @@ const chartBase = (t, extra) => ({
 });
 const ChartCard = ({ title, sub, t, action, onAction, children }) => <Crd t={t} style={{ padding: 0, overflow: "hidden" }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "15px 18px", borderBottom: "1px solid " + t.border }}><div><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{title}</div>{sub && <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{sub}</div>}</div>{action && <button onClick={onAction} style={{ minHeight: 44, fontSize: 12, fontWeight: 600, color: t.goldText, background: "none", border: "none", cursor: "pointer", fontFamily: FONT_BODY }}>{action}</button>}</div><div style={{ padding: "12px 10px 6px" }}>{children}</div></Crd>;
 const BarChartW = ({ categories, values, colors, horizontal = false, height = 260, t, valueSuffix = "", name = "Value" }) => <Chart type="bar" height={height} series={[{ name, data: values }]} options={chartBase(t, { plotOptions: { bar: { horizontal, borderRadius: 6, columnWidth: "52%", distributed: true } }, colors: colors || CHART_PALETTE, xaxis: { categories, labels: { rotate: -25, style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, ...(horizontal ? {} : { formatter: v => Math.round(v) + valueSuffix }) } }, legend: { show: false } })} />;
-const LineChartW = ({ categories, series, height = 260, t, colors }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: { labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } } })} />;
+// yMax fixes the axis from 0 to a scale's top, and dots marks each point, so a month standing
+// alone between two gaps still draws. A chart that passes neither is drawn as it always was.
+const LineChartW = ({ categories, series, height = 260, t, colors, yMax, dots = false }) => <Chart type="area" height={height} series={series} options={chartBase(t, { stroke: { curve: "smooth", width: 2.5 }, colors: colors || CHART_PALETTE, fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.02 } }, ...(dots ? { markers: { size: 4, strokeWidth: 0 } } : {}), xaxis: { categories, labels: { style: { colors: t.textMut, fontSize: "11px" } } }, yaxis: Object.assign({ labels: { style: { colors: t.textMut, fontSize: "11px" }, formatter: v => Math.round(v) } }, yMax ? { min: 0, max: yMax, tickAmount: 5 } : {}) })} />;
 const DonutChartW = ({ labels, values, height = 260, t, colors }) => <Chart type="donut" height={height} series={values} options={chartBase(t, { labels, colors: colors || CHART_PALETTE, stroke: { colors: [t.card], width: 2 }, plotOptions: { pie: { donut: { size: "70%", labels: { show: true, total: { show: true, color: t.textMut, fontSize: "12px" }, value: { color: t.text, fontFamily: FONT_HEAD, fontSize: "22px", fontWeight: 600 } } } } }, legend: { position: "bottom", labels: { colors: t.textSec } } })} />;
 const RadialW = ({ value, label, valueText, height = 260, t, color = GO }) => <Chart type="radialBar" height={height} series={[Math.round(value)]} options={chartBase(t, { plotOptions: { radialBar: { hollow: { size: "60%" }, track: { background: t.cardAlt }, dataLabels: { name: { color: t.textMut, fontSize: "12px", offsetY: 22 }, value: { color: t.text, fontSize: "24px", fontWeight: 600, fontFamily: FONT_HEAD, offsetY: -12, formatter: valueText != null ? (() => valueText) : (v => Math.round(v) + "%") } } } }, labels: [label], colors: [color], fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: [GL], stops: [0, 100] } } })} />;
 
@@ -4721,6 +4723,176 @@ function InspectionReport({ af, t, sites, settings, config, showToast, lkMap }) 
   </div>);
 }
 
+// ===== CLIENT RATINGS (Step 196) =====
+// How clients rated OCSA over any period, for one site or all of them, from
+// GET /api/reports/client-ratings (STEP195_CONTRACT.md version 2, section 3). Every figure is out of
+// 10: a version 1 answer, given on the 1 to 5 scale, is counted doubled, and the line the API sends
+// saying so sits under the title. Test accounts and void reports are the API's to leave out. Nothing
+// here draws until the route answers: the Reports page offers the report only once it has.
+const RATING_TOP = 10;
+const ratingNumber = (v) => (v === null || v === undefined || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+const ratingOneDecimal = (n) => n.toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+// An average as the screen reads it, 8.4 of 10, or Not rated where there is none.
+const ratingText = (v) => { const n = ratingNumber(v); return n === null ? tr("Not rated") : tr("{0} of {1}", ratingOneDecimal(n), RATING_TOP); };
+// A month the API names as YYYY-MM, read as the month and year in the screen's language.
+const ratingMonth = (m) => { const x = /^(\d{4})-(\d{2})/.exec(String(m || "")); return x ? new Date(Number(x[1]), Number(x[2]) - 1, 1).toLocaleDateString(localeTag(), { month: "short", year: "numeric" }) : String(m || ""); };
+// The months a site had no response in: the list the API sends, and any month it lists with none.
+const ratingQuietMonths = (s) => {
+  const out = (Array.isArray(s.monthsWithoutResponse) ? s.monthsWithoutResponse : []).map(String);
+  (Array.isArray(s.byMonth) ? s.byMonth : []).forEach(m => { if (m && !(Number(m.responses) > 0) && out.indexOf(String(m.month)) < 0) out.push(String(m.month)); });
+  return out.sort();
+};
+const ratingWho = (c) => [c && c.name, c && c.role].filter(Boolean).join(", ") || tr("Customer");
+
+function ClientRatingsReport({ af, t, sites, settings, showToast }) {
+  const [dateRange, setDateRange] = useState(() => PRESETS.last90());
+  const [siteFilter, setSiteFilter] = useState("");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false); const [failed, setFailed] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    const q = "?from=" + dateRange.start + "&to=" + dateRange.end + (siteFilter ? "&siteId=" + encodeURIComponent(siteFilter) : "");
+    af("/api/reports/client-ratings" + q)
+      .then(d => { setData(d && typeof d === "object" && !Array.isArray(d) ? d : {}); setFailed(false); setLoading(false); })
+      .catch(e => { setData(null); setFailed(true); setLoading(false); showToast(tr("Could not load report: {0}", e.message), "error"); });
+  };
+  useEffect(() => { load(); }, [dateRange, siteFilter]);
+
+  const rows = data && Array.isArray(data.sites) ? data.sites.filter(s => s && typeof s === "object") : [];
+  const total = data ? Number(data.responses) || rows.reduce((n, s) => n + (Number(s.responses) || 0), 0) : 0;
+  const hasActivity = total > 0 || rows.some(s => Number(s.responses) > 0);
+  // The API's own line about version 1 answers, in the screen's language; the table's line where it
+  // sends none, since the report says so either way.
+  const doubledLine = (data && builderText(data.note)) || tr("An answer given on the old 1 to 5 scale is doubled, so a 4 counts as 8.");
+  const siteLabel = siteFilter ? (((sites || []).find(s => s.id === siteFilter) || {}).name || tr("Selected site")) : tr("All sites");
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+
+  // A data file: its columns and the question names stay the English the API holds, the way the
+  // other exports do.
+  const exportCsv = () => {
+    if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
+    const out = [];
+    const num = (v) => { const n = ratingNumber(v); return n === null ? "" : String(Math.round(n * 10) / 10); };
+    rows.forEach(s => {
+      out.push([s.siteName, "Overall", "", String(Number(s.responses) || 0), num(s.overall), "", "", ""]);
+      (Array.isArray(s.questions) ? s.questions : []).forEach(qn => out.push([s.siteName, "Question: " + ((qn.label && (qn.label.en || qn.label.es)) || qn.key || ""), "", "", num(qn.average), "", "", ""]));
+      (Array.isArray(s.byMonth) ? s.byMonth : []).forEach(m => out.push([s.siteName, "Month", String(m.month || ""), String(Number(m.responses) || 0), num(m.overall), "", "", ""]));
+      ratingQuietMonths(s).forEach(m => out.push([s.siteName, "No response", m, "0", "", "", "", ""]));
+      (Array.isArray(s.comments) ? s.comments : []).forEach(c => out.push([s.siteName, "Comment", "", "", "", c.text || "", [c.name, c.role].filter(Boolean).join(", "), c.at || ""]));
+    });
+    dlCSV("client-ratings-" + dateRange.start + "-to-" + dateRange.end + ".csv", ["Site", "Row", "Month", "Responses", "Out of 10", "Comment", "By", "When"], out);
+    showToast(tr("Downloaded"));
+  };
+
+  const exportPdf = () => {
+    if (!hasActivity) { showToast(tr("No data to export"), "error"); return; }
+    const useBrand = !!settings && settings.use_company_settings !== false;
+    const navy = (useBrand && settings.primary_color) || NAVY;
+    const gold = (useBrand && settings.secondary_color) || GOLD;
+    const cName = (useBrand && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
+    const logo = useBrand && settings.logo_url ? settings.logo_url : "";
+    const addr = useBrand && settings.address ? settings.address : "";
+    const gen = new Date().toLocaleString(localeTag());
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const card = (val, lbl) => '<div class="sc"><div class="v">' + esc(val) + '</div><div class="l">' + esc(lbl) + '</div></div>';
+    const heads = (...ws) => ws.map(w => '<th>' + esc(w) + '</th>').join("");
+    const siteBlock = (s) => {
+      const qs = (Array.isArray(s.questions) ? s.questions : []).map(qn => '<tr><td>' + esc(builderText(qn.label) || qn.key) + '</td><td>' + esc(ratingText(qn.average)) + '</td></tr>').join("");
+      const ms = (Array.isArray(s.byMonth) ? s.byMonth : []).map(m => '<tr><td>' + esc(ratingMonth(m.month)) + '</td><td>' + esc(String(Number(m.responses) || 0)) + '</td><td>' + esc(Number(m.responses) > 0 ? ratingText(m.overall) : tr("No response")) + '</td></tr>').join("");
+      const quiet = ratingQuietMonths(s);
+      const cs = (Array.isArray(s.comments) ? s.comments : []).map(c => '<tr><td>' + esc(c.text) + '</td><td>' + esc(ratingWho(c)) + '</td><td>' + esc(irWhen(c.at)) + '</td></tr>').join("");
+      return '<h2>' + esc(s.siteName) + '</h2>'
+        + '<div class="grid">' + card(ratingText(s.overall), tr("Overall")) + card(String(Number(s.responses) || 0), tr("Responses")) + '</div>'
+        + (quiet.length ? '<p class="quiet">' + esc(tr("No response in {0}.", quiet.map(ratingMonth).join(", "))) + '</p>' : '')
+        + (qs ? '<table><thead><tr>' + heads(tr("Question"), tr("Average")) + '</tr></thead><tbody>' + qs + '</tbody></table>' : '')
+        + (ms ? '<table><thead><tr>' + heads(tr("Month"), tr("Responses"), tr("Overall")) + '</tr></thead><tbody>' + ms + '</tbody></table>' : '')
+        + (cs ? '<table><thead><tr>' + heads(tr("Comments"), tr("From|comment"), tr("When")) + '</tr></thead><tbody>' + cs + '</tbody></table>' : '');
+    };
+    const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{display:flex;align-items:center;gap:12px;border-bottom:3px solid ' + gold + ';padding-bottom:10px;margin-bottom:14px}.brand img{height:42px}.co{font-size:20px;font-weight:700;color:' + navy + '}h1{color:' + navy + ';font-size:20px;margin:10px 0 4px}h2{color:' + navy + ';font-size:14px;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}.meta{font-size:11px;color:#666;margin:2px 0}.quiet{font-size:11px;color:#B45F06;font-weight:700;margin:4px 0}table{border-collapse:collapse;width:100%;margin:6px 0}th,td{border:1px solid #ddd;padding:5px 8px;font-size:11px;text-align:left;vertical-align:top}th{background:' + navy + ';color:' + gold + '}.grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.sc{border:1px solid #ddd;border-radius:8px;padding:10px 14px;min-width:120px}.sc .v{font-size:18px;font-weight:700;color:' + navy + '}.sc .l{font-size:10px;color:#888;text-transform:uppercase;margin-top:2px}.footer{margin-top:24px;border-top:2px solid ' + gold + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
+    const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Client ratings")) + '</title>' + style + '</head><body>'
+      + '<div class="brand">' + (logo ? '<img src="' + esc(logo) + '" />' : '') + '<div class="co">' + esc(cName) + '</div></div>'
+      + '<h1>' + esc(tr("Client ratings")) + '</h1>'
+      + '<p class="meta">' + esc(doubledLine) + '</p>'
+      + '<p class="meta">' + esc(siteLabel) + ' &middot; ' + esc(tr("{0} to {1}", fdLong(dateRange.start), fdLong(dateRange.end))) + ' &middot; ' + esc(tr("generated {0}", gen)) + '</p>'
+      + '<div class="grid">' + card(ratingText(data.overall), tr("Overall")) + card(String(total), tr("Responses")) + card(String(rows.length), tr("Sites")) + '</div>'
+      + rows.map(siteBlock).join("")
+      + '<div class="footer">' + esc(cName) + (addr ? ' &middot; ' + esc(addr) : "") + '</div>'
+      + '</body></html>';
+    const w = window.open("", "_blank");
+    if (!w) { showToast(tr("Allow pop-ups to export the PDF"), "error"); return; }
+    w.document.write(html); w.document.close();
+    setTimeout(() => { w.print(); }, 500);
+  };
+
+  const rated = rows.filter(s => ratingNumber(s.overall) !== null);
+  const smallHead = { fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.text, margin: "12px 0 6px" };
+  const siteCard = (s) => {
+    const questions = Array.isArray(s.questions) ? s.questions : [];
+    const months = Array.isArray(s.byMonth) ? s.byMonth : [];
+    const quiet = ratingQuietMonths(s);
+    const comments = Array.isArray(s.comments) ? s.comments : [];
+    return (<Crd key={s.siteId || s.siteName} t={t} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{s.siteName}</div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{s.lastResponseAt ? tr("Last response {0}", irDay(s.lastResponseAt)) : tr("No response yet")}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginTop: 10 }}>
+        <MetricTile t={t} label={tr("Overall")} value={ratingText(s.overall)} />
+        <MetricTile t={t} label={tr("Responses")} value={String(Number(s.responses) || 0)} />
+      </div>
+      {quiet.length > 0 && <div data-quiet-months="" style={{ marginTop: 10, fontSize: 12, fontWeight: 600, color: OR }}>{tr("No response in {0}.", quiet.map(ratingMonth).join(", "))}</div>}
+      {questions.length > 0 && <>
+        <div style={smallHead}>{tr("Each question")}</div>
+        {questions.map(qn => <div key={qn.key} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 0", borderBottom: "1px solid " + t.border, fontSize: 12 }}>
+          <span style={{ color: t.textSec }}>{builderText(qn.label) || qn.key}</span>
+          <span style={{ color: t.text, fontWeight: 600, whiteSpace: "nowrap" }}>{ratingText(qn.average)}</span>
+        </div>)}
+      </>}
+      {months.length > 0 && <>
+        <div style={smallHead}>{tr("Overall by month")}</div>
+        <LineChartW t={t} height={220} colors={[GO]} yMax={RATING_TOP} dots categories={months.map(m => ratingMonth(m.month))} series={[{ name: tr("Overall"), data: months.map(m => (Number(m.responses) > 0 ? ratingNumber(m.overall) : null)) }]} />
+      </>}
+      <div style={smallHead}>{tr("Comments")}</div>
+      {comments.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No comments in this range.")}</div>}
+      {comments.map((c, i) => <div key={i} style={{ padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 12, color: t.text, whiteSpace: "pre-wrap", wordBreak: "break-word", lineHeight: 1.5 }}>{c.text}</div>
+        <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{ratingWho(c)} &middot; {irWhen(c.at)}</div>
+      </div>)}
+    </Crd>);
+  };
+
+  return (<div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{doubledLine}</div>
+    <DateRangePicker value={dateRange} onChange={setDateRange} t={t} presets={reportPresets()} />
+    <div style={{ marginBottom: 16 }}>
+      <ChartCard t={t} title={tr("All sites")} sub={tr("How clients rated each site, out of 10.")} action={hasActivity ? tr("Export PDF") : null} onAction={exportPdf}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <select aria-label={tr("Site")} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
+            <option value="">{tr("All sites")}</option>
+            {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          {hasActivity && <Btn t={t} v="ghost" onClick={exportCsv} style={{ minHeight: 44, fontSize: 12 }}>{tr("Export CSV")}</Btn>}
+        </div>
+        {loading && !data ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("Loading...")}</div> :
+          failed ? <LoadFailed t={t} onRetry={() => load()} /> :
+          !hasActivity ? <div style={{ fontSize: 12, color: t.textMut, padding: "20px 0", textAlign: "center" }}>{tr("No ratings in this range.")}</div> :
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10 }}>
+            <MetricTile t={t} label={tr("Overall")} value={ratingText(data.overall)} />
+            <MetricTile t={t} label={tr("Responses")} value={String(total)} />
+            <MetricTile t={t} label={tr("Sites")} value={String(rows.length)} />
+          </div>}
+      </ChartCard>
+    </div>
+    {!failed && hasActivity && rated.length > 1 && <div style={{ marginBottom: 16 }}>
+      <ChartCard t={t} title={tr("Overall by site")} sub={tr("How clients rated each site, out of 10.")}>
+        <BarChartW t={t} categories={rated.map(s => s.siteName)} values={rated.map(s => Math.round(ratingNumber(s.overall) * 10) / 10)} name={tr("Overall")} />
+      </ChartCard>
+    </div>}
+    {!failed && hasActivity && rows.map(siteCard)}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
@@ -4925,6 +5097,14 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   useEffect(() => { loadDefs(); }, []);
   useEffect(() => { af("/api/settings").then(setSettings).catch(() => {}); }, []);
   useEffect(() => { loadSnapshots(); }, [dateRange]);
+  // The client reports (Step 196) are offered once their routes answer: one quiet read each when the
+  // page opens, and a 404, a refusal or a failure leaves the report off the page.
+  const [ratingsLive, setRatingsLive] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    af("/api/reports/client-ratings").then(() => { if (alive) setRatingsLive(true); }).catch(e => { if (alive) setRatingsLive(false); console.warn("Client ratings:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
 
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
@@ -4962,6 +5142,16 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
     </div>);
   }
 
+  if (view === "ratings" && ratingsLive) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Client ratings")}</div>
+      </div>
+      <ClientRatingsReport af={af} t={t} sites={sites} settings={settings} showToast={showToast} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -4970,8 +5160,26 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
     </div>);
   }
 
+  // A report the dashboard draws itself, from its own route, beside the saved ones.
+  const clientReports = [
+    ...(ratingsLive ? [{ id: "ratings", name: tr("Client ratings"), line: tr("How clients rated each site, out of 10.") }] : []),
+  ];
   return (<div>
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
+    {clientReports.length > 0 && <div style={{ marginBottom: 18 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Client reports")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+        {clientReports.map(r => (
+          <Crd key={r.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div>
+              <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{r.name}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
+            </div>
+            <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
+          </Crd>
+        ))}
+      </div>
+    </div>}
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
@@ -9632,7 +9840,11 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [] }) {
   // average by the section's title, and the overall, to one decimal.
   const computed = draft && draft.answers && draft.answers._computed && typeof draft.answers._computed === "object" ? draft.answers._computed : null;
   const sectionTitle = (k) => { const sec = sections.find(x => String(x.key) === String(k)); return sec && sec.title != null ? String(sec.title) : String(k); };
-  const oneDecimal = (v) => Number(v).toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  // Step 196: on a form rated out of 10, OCSA-FRM-007 from version 2, each average reads 8.4 of 10.
+  // The scale is the API's where it names one, and the form and version say it where it does not.
+  const firstOutOfTen = draft ? RATED_OUT_OF_TEN[String(draft.formCode || "")] : undefined;
+  const averageTop = computed && Number(computed.scale) > 0 ? Number(computed.scale) : (firstOutOfTen && Number(draft.version) >= firstOutOfTen ? RATING_TOP : null);
+  const oneDecimal = (v) => { const n = Number(v).toLocaleString(localeTag(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }); return averageTop ? tr("{0} of {1}", n, averageTop) : n; };
   const averages = computed && (computed.sections || computed.overall != null) ? (<div data-computed="" style={{ marginTop: 6, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
     <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Section averages")}</div>
     {Object.keys(computed.sections || {}).map(k => <div key={k} style={{ fontSize: 13, color: t.text }}>{sectionTitle(k)} {oneDecimal(computed.sections[k])}</div>)}
@@ -9640,7 +9852,8 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [] }) {
   </div>) : null;
   // The label comes from the API and is shown as sent: some carry required federal wording.
   // A person question reads by the API's display value, or by the name stored with the answer.
-  const readValue = (f) => (f.type === "person" && (f.displayValue == null || f.displayValue === "") && f.value && typeof f.value === "object" ? f.value.name : f.displayValue);
+  // A rating question reads 7 of 10 in the screen's language (Step 196).
+  const readValue = (f) => (f.type === "person" && (f.displayValue == null || f.displayValue === "") && f.value && typeof f.value === "object" ? f.value.name : (formRatingText(f, f.value) || f.displayValue));
   const fieldRow = (f) => {
     if (f.type === "signoff") return signoffRow(f);
     if (f.type === "photos") return photosRow(f, false);
@@ -9785,8 +9998,21 @@ const formOptionLabel = (f, v) => {
 const formPlainValue = (v) => typeof v === "string" || typeof v === "number" || typeof v === "boolean";
 // An answer as a person reads it: an option's label rather than the value behind it, a pick many
 // joined, and nothing when nothing was answered. An answer of a shape this cannot read says Answered.
+// A rating question (Step 196): a select that carries scaleLabels, which OCSA-FRM-007 version 2
+// rates 1 to 10 with (STEP195_CONTRACT.md, section 1). Its answer reads 7 of 10, the top of the
+// scale being its highest numbered choice where the field carries its choices, and 10 where it
+// does not, as the review view's fields do not. A front that does not know the key draws the plain
+// answer, so a question without it reads as it always has.
+const formIsRating = (f) => !!(f && f.scaleLabels && typeof f.scaleLabels === "object");
+const formRatingTop = (f) => { const tops = (Array.isArray(f.options) ? f.options : []).map(o => Number(o && o.value)).filter(Number.isFinite); return tops.length ? Math.max(...tops) : RATING_TOP; };
+const formRatingText = (f, v) => (formIsRating(f) && formPlainValue(v) && String(v).trim() !== "" && Number.isFinite(Number(v)) ? tr("{0} of {1}", Number(v), formRatingTop(f)) : null);
+// The forms whose averages read out of 10, and the version they start on: OCSA-FRM-007 from its
+// version 2 (STEP195_CONTRACT.md, section 1). Its version 1 reports keep their 1 to 5 answers.
+const RATED_OUT_OF_TEN = { "OCSA-FRM-007": 2 };
 function formReadAnswer(f, v) {
   if (!formHasAnswer(v)) return null;
+  const rated = formRatingText(f, v);
+  if (rated) return rated;
   if (Array.isArray(v)) {
     if (!v.every(formPlainValue)) return tr("Answered|form");
     const parts = v.map(x => formOptionLabel(f, x)).filter(x => x !== "");
