@@ -974,7 +974,7 @@ export default function AdminDashboard() {
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
-        {page === "reports" && <ReportsPage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} />}
+        {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -4910,6 +4910,203 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
   </div>);
 }
 
+// ===== MONTHLY CLIENT REPORTS (Step 196) =====
+// OCSA-FRM-011, a site's month written up for its client (STEP195_CONTRACT.md version 2, section 4).
+// The list is GET /api/monthly-reports; New monthly report is POST /api/monthly-reports, whose
+// answer carries responseId, an ordinary form response opened in the form window every desk form
+// uses, with the figures the API computed already in it and editable. Prepared by and Reviewed by
+// sign the way every sign-off does, and Send to the client is POST /api/monthly-reports/:id/send.
+// The client acknowledges it on the staff portal; an acknowledged report shows who, and one sent
+// and not acknowledged in 10 days is overdue. Nothing here draws until the list route answers.
+const MONTHLY_STATUS = {
+  draft: { l: "Draft|monthly report", c: BL },
+  sent: { l: "Sent|monthly report", c: OR },
+  acknowledged: { l: "Acknowledged", c: GR },
+  overdue: { l: "Overdue|monthly report", c: RD },
+};
+const monthlyStatusWord = (s) => (MONTHLY_STATUS[s] ? tr(MONTHLY_STATUS[s].l) : String(s || ""));
+const monthlyStatusColor = (s) => (MONTHLY_STATUS[s] ? MONTHLY_STATUS[s].c : BL);
+const monthlyPeriod = (r) => tr("{0} to {1}", r && r.periodStart ? fdLong(r.periodStart) : "--", r && r.periodEnd ? fdLong(r.periodEnd) : "--");
+// The last full month, which a new report is for unless it is told otherwise.
+const lastFullMonth = () => { const n = new Date(); const end = new Date(n.getFullYear(), n.getMonth(), 0); return { start: toISO(new Date(end.getFullYear(), end.getMonth(), 1)), end: toISO(end) }; };
+const monthlyWho = (p) => [p && p.name, p && p.role].filter(Boolean).join(", ");
+
+// Send to the client: the site's survey contacts offered first, ticked, and any address added. The
+// survey contacts are read for a holder of manage_settings alone; anyone else adds the addresses.
+function MonthlySendWindow({ af, t, report, onClose, onSent }) {
+  const [offered, setOffered] = useState([]);
+  const [picked, setPicked] = useState({});
+  const [added, setAdded] = useState([]);
+  const [draft, setDraft] = useState({ name: "", email: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "", keys: [] });
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  useEffect(() => {
+    if (!report || !report.siteId) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(report.siteId) + "/survey-schedule").then(d => {
+      if (!alive) return;
+      const list = d && d.schedule && Array.isArray(d.schedule.contacts) ? d.schedule.contacts.filter(c => c && c.email).map(c => ({ name: String(c.name || ""), email: String(c.email) })) : [];
+      setOffered(list);
+      setPicked(list.reduce((m, c) => Object.assign(m, { [c.email]: true }), {}));
+    }).catch(e => { console.warn("Survey contacts:", e.message); });
+    return () => { alive = false; };
+  }, [af, report]);
+  const to = offered.filter(c => picked[c.email]).concat(added);
+  const addOne = () => {
+    const email = draft.email.trim();
+    if (!email) return;
+    setAdded(prev => prev.concat([{ name: draft.name.trim(), email }]));
+    setDraft({ name: "", email: "" });
+  };
+  const send = async () => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true); setRefusal({ text: "", field: "", keys: [] });
+    try {
+      await af("/api/monthly-reports/" + encodeURIComponent(report.id) + "/send", { method: "POST", body: { to } });
+      onSent();
+    } catch (e) {
+      const code = String((e && e.code) || "");
+      setRefusal({ text: e.message || tr("Request failed"), field: code === "monthly.noRecipients" || code === "monthly.badEmail" ? "to" : "", keys: Array.isArray(e && e.body && e.body.keys) ? e.body.keys.map(String) : [] });
+    }
+    sendingRef.current = false; setSending(false);
+  };
+  const named = (c, i) => refusal.field === "to" && refusal.keys.some(k => k === c.email || k === String(i) || k.indexOf("to." + i) === 0 || k.indexOf("to[" + i + "]") === 0);
+  const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-monthly-send="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{report.siteName || tr("No site")} &middot; {monthlyPeriod(report)}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The email carries the report as a PDF, a link to acknowledge it, and the site's rating survey.")}</div>
+    {refusal.text && refusal.field !== "to" && <div data-monthly-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 12 }}>{refusal.text}</div>}
+    <Lbl>{tr("Recipients")}</Lbl>
+    {offered.length > 0 && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("The site's survey contacts")}</div>}
+    {offered.map((c, i) => (<label key={"o" + i} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, border: "1px solid " + (named(c, i) ? RD : "transparent"), borderRadius: 8 }}>
+      <span style={chkWrap}><input type="checkbox" checked={!!picked[c.email]} onChange={() => setPicked(prev => Object.assign({}, prev, { [c.email]: !prev[c.email] }))} style={{ width: 22, height: 22 }} /></span>
+      <span style={{ minWidth: 0, wordBreak: "break-word" }}>{c.name ? c.name + " (" + c.email + ")" : c.email}</span>
+    </label>))}
+    {added.map((c, i) => (<div key={"a" + i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 8, marginTop: 6, border: "1px solid " + (named(c, offered.filter(x => picked[x.email]).length + i) ? RD : "transparent") }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: t.text, wordBreak: "break-word" }}>{c.name ? c.name + " (" + c.email + ")" : c.email}</span>
+      <Btn t={t} v="ghost" onClick={() => setAdded(prev => prev.filter((x, j) => j !== i))} aria-label={tr("Remove") + ": " + c.email} style={small}>{tr("Remove")}</Btn>
+    </div>))}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+      <div style={{ flex: "1 1 140px", minWidth: 0 }}><Inp t={t} aria-label={tr("Name")} placeholder={tr("Name")} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
+      <div style={{ flex: "1 1 180px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={draft.email} onChange={e => setDraft({ ...draft, email: e.target.value })} onKeyDown={e => { if (e.key === "Enter") addOne(); }} /></div>
+      <Btn t={t} v="ghost" onClick={addOne} disabled={!draft.email.trim()} style={{ minHeight: 44 }}>{tr("Add an address")}</Btn>
+    </div>
+    {refusal.text && refusal.field === "to" && <div data-monthly-refusal="to" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={sending} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={send} disabled={sending || to.length === 0} style={{ minHeight: 44, minWidth: 96 }}>{sending ? tr("Sending...") : tr("Send")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+function MonthlyReportsView({ af, token, t, sites, allStaff = [], showToast }) {
+  const [range, setRange] = useState(() => PRESETS.last90());
+  const [siteFilter, setSiteFilter] = useState("");
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [making, setMaking] = useState(null);
+  const [makeBusy, setMakeBusy] = useState(false);
+  const [makeError, setMakeError] = useState("");
+  const [opening, setOpening] = useState("");
+  const [openError, setOpenError] = useState("");
+  const [fill, setFill] = useState(null);
+  const [review, setReview] = useState(null);
+  const [sendFor, setSendFor] = useState(null);
+  const load = useCallback(() => {
+    const q = ["from=" + range.start, "to=" + range.end].concat(siteFilter ? ["siteId=" + encodeURIComponent(siteFilter)] : []);
+    af("/api/monthly-reports?" + q.join("&"))
+      .then(d => { setRows(d && Array.isArray(d.reports) ? d.reports : []); setFailed(false); })
+      .catch(e => { setRows([]); setFailed(true); console.warn("Monthly reports:", e.message); });
+  }, [af, range, siteFilter]);
+  useEffect(() => { load(); }, [load]);
+
+  // The report's form response: a draft opens in the form window, where the figures are corrected and
+  // the narrative written; a filed one opens in the review window, where Reviewed by is signed.
+  const openReport = async (r) => {
+    if (opening || !r || !r.responseId) return;
+    setOpening(r.id); setOpenError("");
+    try {
+      const got = await af("/api/forms/drafts/" + encodeURIComponent(r.responseId));
+      const d = formDraftOf(got);
+      if (d && d.status === "draft") {
+        let form = got && got.form && Array.isArray(got.form.fields) ? got.form : null;
+        if (!form) { const cat = await af("/api/forms"); form = (cat && Array.isArray(cat.forms) ? cat.forms : []).find(f => String(f.code) === String(d.formCode)) || null; }
+        setFill({ form, draft: d });
+      } else setReview(r);
+    } catch (e) { setOpenError(e.message || tr("Request failed")); }
+    setOpening("");
+  };
+  const make = async () => {
+    if (makeBusy || !making) return;
+    setMakeBusy(true); setMakeError("");
+    try {
+      const d = await af("/api/monthly-reports", { method: "POST", body: { siteId: making.siteId, periodStart: making.start, periodEnd: making.end } });
+      const rep = d && d.report;
+      setMaking(null); load();
+      if (rep && rep.responseId) await openReport(rep);
+    } catch (e) { setMakeError(e.message || tr("Request failed")); }
+    setMakeBusy(false);
+  };
+
+  const cols = [
+    { header: tr("Site"), tdStyle: { minWidth: 120 }, render: r => <span style={{ color: t.text, fontWeight: 500, overflowWrap: "normal" }}>{r.siteName || tr("No site")}</span> },
+    { header: tr("Period"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => monthlyPeriod(r) },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: r => <Bdg l={monthlyStatusWord(r.status)} c={monthlyStatusColor(r.status)} /> },
+    { header: tr("Sent to"), tdStyle: { color: t.textSec }, render: r => (Array.isArray(r.sentTo) && r.sentTo.length
+      ? <span>{r.sentTo.map(p => p.name || p.email).join(", ")}{r.sentAt ? <div style={{ fontSize: 10, color: t.textMut }}>{irWhen(r.sentAt)}</div> : null}</span>
+      : "--") },
+    { header: tr("Acknowledged by"), tdStyle: { color: t.textSec }, render: r => (r.acknowledgedBy
+      ? <span>{monthlyWho(r.acknowledgedBy)}{r.acknowledgedAt ? <div style={{ fontSize: 10, color: t.textMut }}>{irWhen(r.acknowledgedAt)}</div> : null}</span>
+      : "--") },
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: r => (<div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={e => { e.stopPropagation(); openReport(r); }} disabled={!!opening} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{opening === r.id ? tr("Opening...") : tr("Open|verb")}</Btn>
+      {r.status === "draft" && <Btn t={t} onClick={e => { e.stopPropagation(); setSendFor(r); }} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Send to the client")}</Btn>}
+    </div>) },
+  ];
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  return (<div>
+    <DateRangePicker value={range} onChange={setRange} t={t} presets={reportPresets()} />
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("Site")} value={siteFilter} onChange={e => setSiteFilter(e.target.value)} style={selSt}>
+        <option value="">{tr("All sites")}</option>
+        {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} onClick={() => { const m = lastFullMonth(); setMaking({ siteId: siteFilter || ((sites || [])[0] ? String(sites[0].id) : ""), start: m.start, end: m.end }); setMakeError(""); }} style={{ minHeight: 44 }}>{tr("New monthly report")}</Btn></div>
+    </div>
+    {openError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{openError}</div>}
+    {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={openReport} empty={tr("No monthly reports in this range.")} />}
+    {making && <Mdl t={t} onClose={() => { if (!makeBusy) setMaking(null); }}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New monthly report")}</div>
+        <button onClick={() => setMaking(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The figures are filled in from the records. You can correct any of them and write the rest before it is signed.")}</div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={making.siteId} onChange={e => setMaking({ ...making, siteId: e.target.value })} options={[{ v: "", l: tr("Select a site") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} /></div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+        <div><Lbl>{tr("First day")}</Lbl><Inp t={t} type="date" aria-label={tr("First day")} value={making.start} onChange={e => setMaking({ ...making, start: e.target.value })} /></div>
+        <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={making.end} onChange={e => setMaking({ ...making, end: e.target.value })} /></div>
+      </div>
+      {makeError && <div data-monthly-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{makeError}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <Btn t={t} v="ghost" onClick={() => setMaking(null)} disabled={makeBusy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={make} disabled={makeBusy || !making.siteId || !making.start || !making.end} style={{ minHeight: 44, minWidth: 96 }}>{makeBusy ? tr("Opening...") : tr("Make report")}</Btn>
+      </div>
+    </div></Mdl>}
+    {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={() => { setFill(null); load(); }} people={allStaff} />}
+    {review && <IncidentReportWindow af={af} token={token} t={t} id={review.responseId} row={null} monthly={review} onClose={() => { setReview(null); load(); }} people={allStaff} />}
+    {sendFor && <MonthlySendWindow af={af} t={t} report={sendFor} onClose={() => setSendFor(null)} onSent={() => { setSendFor(null); load(); showToast(tr("Sent to the client.")); }} />}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
@@ -5091,7 +5288,7 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   );
 }
 
-function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
+function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
   const [active, setActive] = useState(null);
@@ -5117,9 +5314,11 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   // The client reports (Step 196) are offered once their routes answer: one quiet read each when the
   // page opens, and a 404, a refusal or a failure leaves the report off the page.
   const [ratingsLive, setRatingsLive] = useState(false);
+  const [monthlyLive, setMonthlyLive] = useState(false);
   useEffect(() => {
     let alive = true;
-    af("/api/reports/client-ratings").then(() => { if (alive) setRatingsLive(true); }).catch(e => { if (alive) setRatingsLive(false); console.warn("Client ratings:", e.message); });
+    af("/api/reports/client-ratings").then(d => { if (alive) setRatingsLive(!!(d && typeof d === "object" && Array.isArray(d.sites))); }).catch(e => { if (alive) setRatingsLive(false); console.warn("Client ratings:", e.message); });
+    af("/api/monthly-reports").then(d => { if (alive) setMonthlyLive(!!(d && Array.isArray(d.reports))); }).catch(e => { if (alive) setMonthlyLive(false); console.warn("Monthly client reports:", e.message); });
     return () => { alive = false; };
   }, [af]);
 
@@ -5169,6 +5368,16 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
     </div>);
   }
 
+  if (view === "monthly" && monthlyLive) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Monthly client reports")}</div>
+      </div>
+      <MonthlyReportsView af={af} token={token} t={t} sites={sites} allStaff={allStaff} showToast={showToast} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -5180,6 +5389,7 @@ function ReportsPage({ af, showToast, isAdmin, t, sites, lkMap }) {
   // A report the dashboard draws itself, from its own route, beside the saved ones.
   const clientReports = [
     ...(ratingsLive ? [{ id: "ratings", name: tr("Client ratings"), line: tr("How clients rated each site, out of 10.") }] : []),
+    ...(monthlyLive ? [{ id: "monthly", name: tr("Monthly client reports"), line: tr("Each site's month, written up for its client, sent with the PDF and acknowledged by the client.") }] : []),
   ];
   return (<div>
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
@@ -9512,7 +9722,7 @@ function SignatureImage({ t, token, responseId, signKey }) {
   return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
 }
 
-function IncidentReportWindow({ af, token, t, id, row, onClose, people = [] }) {
+function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -9907,6 +10117,15 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [] }) {
     </div>
     {loading && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
     {error && <div style={{ padding: 20, textAlign: "center", color: RD, fontSize: 13 }}>{error}</div>}
+    {monthly && <div data-monthly-state="" style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (monthly.status === "overdue" ? t.redBorder : t.border) }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <Bdg l={monthlyStatusWord(monthly.status)} c={monthlyStatusColor(monthly.status)} />
+        <span style={{ fontSize: 12, color: t.textSec }}>{monthlyPeriod(monthly)}</span>
+      </div>
+      {monthly.status === "overdue" && <div style={{ fontSize: 12, color: RD, fontWeight: 600, marginTop: 6 }}>{tr("Sent {0} and not acknowledged yet.", monthly.sentAt ? irDay(monthly.sentAt) : "--")}</div>}
+      {monthly.acknowledgedBy && <div style={{ fontSize: 13, color: t.text, marginTop: 6 }}>{tr("Acknowledged by {0} on {1}", monthlyWho(monthly.acknowledgedBy), monthly.acknowledgedAt ? irWhen(monthly.acknowledgedAt) : "--")}</div>}
+      {monthly.acknowledgedBy && monthly.comments ? <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{String(monthly.comments)}</div> : null}
+    </div>}
     {!loading && !error && draft && (<>
       <div style={{ marginBottom: 18 }}>
         <Lbl>{tr("What was reported")}</Lbl>
