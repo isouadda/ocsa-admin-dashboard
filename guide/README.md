@@ -23,7 +23,11 @@ the guide's active entries only. An entry retired on live stays retired and is n
 
 ## How it reaches Help
 
-- The file loads itself into Help on every merge to `main` that changes it. Nobody loads it by hand.
+- The file loads itself into Help on every merge to `main` that changes it, through
+  `.github/workflows/guide-sync.yml`. The run proves who it is to the API with its own GitHub token,
+  so no secret is kept anywhere. The job prints what the API wrote and the guide's fingerprint after.
+- It can also be run by hand: Actions, Guide sync, Run workflow, on `main`. Tick Dry run to see
+  what it would write without writing anything. The API refuses a run from any other branch.
 - Entries are matched by title. An entry whose steps change is updated in place. Renaming a title
   retires the entry under the old title and adds a new one under the new title. An entry taken out
   of the file is retired on live. Nothing is ever deleted, and an entry brought back under its old
