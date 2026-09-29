@@ -285,6 +285,8 @@ const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supp
 // What a checklist item says on a screen that only shows it: the display the API sends in the
 // language the call asked for, and the item's own English wherever it sends none. A screen that edits
 // an item reads the item's own fields, so the English is what it shows and what it saves.
+// A key the API writes into a record's metadata, site_name or siteName, as the words site name.
+const metaKeyWords = (k) => String(k || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/_/g, " ").toLowerCase();
 const shownItem = (it) => { const d = (it && it.display) || {}; return { label: d.label || it.label, description: d.description || it.description, zone: d.zone || it.zone }; };
 // A pick list choice on a screen that only shows it: the shown label where the API sent one that
 // differs from the English label, and the code otherwise, which is what the English screen has
@@ -1134,7 +1136,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), site: tr("site|field"), floor: tr("floor|field"), cims_category: tr("Service category") };
   const actionOf = (a) => (a ? (actionWord[a] || a.replace(/_/g, " ")) : "");
   const entityOf = (k) => (k ? (entityWord[k] || k.replace(/_/g, " ")) : "");
-  const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // Any other key the API writes is read as words, and through the table when it has them (Step 196).
+  const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
   // A field's value where it is a code: a service category is drawn as its plain word.
   const catShown = lkMap ? lkMap("cims_categories", true) : {};
   const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), catShown) : v);
@@ -1720,7 +1723,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const isObj = typeof v === "object" && !Array.isArray(v);
               return <div key={k} style={{ fontSize: 11 }}>
                 <div style={{ color: t.textMut, fontSize: 9, textTransform: "uppercase", marginBottom: 1 }}>{fieldOf(k)}</div>
-                {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
+                {isUrl ? <a href={v} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontWeight: 500, wordBreak: "break-all" }}>{v.length > 60 ? tr("View file") : v}</a>
                   : <div style={{ color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{isObj ? JSON.stringify(v) : String(v).length > 200 ? String(v).substring(0, 200) + "..." : String(valueOf(k, v))}</div>}
               </div>;
             })}
@@ -2074,7 +2077,8 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const actionWord = { clock_in: tr("clock in"), issue_reported: tr("issue reported"), task_completed: tr("task completed"), supply_logged: tr("supply logged"), shift_created: tr("shift created"), shift_updated: tr("shift updated"), shift_deleted: tr("shift deleted"), site_assigned: tr("site assigned"), site_unassigned: tr("site unassigned"), message_sent: tr("message sent") };
   const fieldWord = { title: tr("title|field"), description: tr("description|field"), label: tr("label|field"), kind: tr("kind|field"), status: tr("status|field"), severity: tr("severity|field"), priority: tr("priority|field"), zone: tr("zone|field"), notes: tr("notes|field"), site_name: tr("site name|field"), reported_at: tr("reported at|field"), created_at: tr("created at|field"), updated_at: tr("updated at|field"), completed_at: tr("completed at|field"), cims_category: tr("Service category") };
   const actionOf = (a) => a ? (actionWord[a] || a.replace(/_/g, " ")) : "";
-  const fieldOf = (k) => fieldWord[k] || k.replace(/_/g, " ");
+  // Any other key the API writes is read as words, and through the table when it has them (Step 196).
+  const fieldOf = (k) => fieldWord[k] || tr(metaKeyWords(k) + "|field");
   // A field's value where it is a code: a service category is drawn as its plain word.
   const valueOf = (k, v) => (k === "cims_category" ? serviceCategoryWord(String(v), cimsLabels) : v);
   // The kind of record a timeline entry points at, which the printed timeline shows as its category.
@@ -4019,6 +4023,14 @@ const FORM_TITLE_LABELS = {
   // Step 169: the two forms a customer fills through a link.
   "OCSA-FRM-006": "Facility Cleanliness Evaluation Checklist",
   "OCSA-FRM-007": "Client Satisfaction Survey",
+  // Step 196: every other form the catalog sends (data/forms in ocsa-api, seventeen in all), and the
+  // monthly report to the client, which Step 195 adds.
+  "OCSA-FRM-004": "Pre-Service Site Assessment",
+  "OCSA-FRM-011": "Monthly Client Performance Report",
+  "OCSA-FRM-012": "Employee Performance Evaluation",
+  "OCSA-FRM-013": "Call Intake and Communication Log",
+  "OCSA-FRM-014": "Change of Service Request",
+  "OCSA-FRM-034": "Site-Specific Orientation Checklist",
 };
 const noticeTypeName = (ty) => (NOTICE_TYPE_LABELS[ty.type] ? tr(NOTICE_TYPE_LABELS[ty.type]) : (ty.label || ty.type));
 // A form the table does not name reads by the title the API sent, in the screen's language where
@@ -5965,7 +5977,7 @@ function VendorsPage({ af, showToast, canManageVendors = false, t }) {
           {detail.vendor.contact_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Contact")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_name}</div></div>}
           {detail.vendor.contact_phone && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Phone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_phone}</div></div>}
           {detail.vendor.contact_email && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Email")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{detail.vendor.contact_email}</div></div>}
-          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
+          {detail.vendor.website && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Website")}<div style={{ marginTop: 2 }}><a href={detail.vendor.website} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, color: BL, fontSize: 11 }}>{tr("View Site")}</a></div></div>}
           {(detail.vendor.address_line1 || detail.vendor.city) && <div style={{ fontSize: 11, color: t.textMut, gridColumn: "1 / -1" }}>{tr("Address")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{[detail.vendor.address_line1, detail.vendor.city, detail.vendor.state, detail.vendor.zip_code].filter(Boolean).join(", ")}</div></div>}
         </div>
         {detail.vendor.products_services && <div style={{ marginBottom: 12 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 4 }}>{tr("Products and Services")}</div><div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{detail.vendor.products_services}</div></div>}
@@ -6611,7 +6623,7 @@ const serviceWordOf = (lkMap) => {
 
 // A pattern's kept and skipped reasons, as the API says them today. A code the API adds later is
 // drawn through the table under its code, and anything else as it was sent.
-const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand": "changed by hand", "posted as an open shift": "posted as an open shift", "referenced by site_sessions": "started|pattern", "already scheduled at that time": "already scheduled at that time" };
+const PATTERN_REASON_WORDS = { "cancelled": "Cancelled|shift", "changed by hand": "changed by hand", "posted as an open shift": "posted as an open shift", "referenced by site_sessions": "started|pattern", "already scheduled at that time": "already scheduled at that time", "person not active": "person not active" };
 const patternReasonWord = (k) => { if (!k) return ""; if (k.code) { const w = tr(k.code + "|pattern reason"); if (w !== k.code) return w; } const key = PATTERN_REASON_WORDS[k.reason]; return key ? tr(key) : (k.reason || ""); };
 // The line under a Time off button someone cannot open (Step 185).
 const TIME_OFF_LOCKED_LINE = "Only people given time off approval see requests here. Ask an admin to grant it under Roles and Permissions.";
@@ -6857,7 +6869,7 @@ function SchedulePage({ af, showToast, isAdmin, phone = false, t, sites, allStaf
       if (createForm.repeat && createForm.repeatDays.length > 0) {
         const body = { user_id: createForm.userId, site_id: createForm.siteId, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined, repeat_days: createForm.repeatDays, start_date: createModal.date };
         if (createForm.repeatMode === "until" && createForm.repeatUntil) body.repeat_until = createForm.repeatUntil; else body.repeat_weeks = parseInt(createForm.repeatWeeks) || 4;
-        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(tr("{0} shifts scheduled", Number(d && d.count) || 0));
+        const d = await af("/api/schedule/bulk", { method: "POST", body }); showToast(trn("{0} shift scheduled|count", Number(d && d.count) || 0));
       } else {
         await af("/api/schedule", { method: "POST", body: { user_id: createForm.userId, site_id: createForm.siteId, scheduled_date: createModal.date, start_time: createForm.startTime, end_time: createForm.endTime, notes: createForm.notes || undefined, building_name: createForm.buildingName || undefined, floor_number: createForm.floorNumber || undefined, service_category: createForm.serviceCategory || undefined }});
         showToast(tr("Shift scheduled"));
@@ -8963,6 +8975,8 @@ const CAPABILITY_LABELS = {
   view_help_insights: "See Help insights",
   // Step 187: the Form builder page, routes/form-builder (STEP186_CONTRACT.md, section 4).
   build_forms: "Make and change forms",
+  // Step 179: the Announcements page, routes/announcements.
+  send_announcements: "Send announcements to staff",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -11652,9 +11666,9 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
 // one for a form and a site, switches one off and on, and shows the QR image the API draws at 512
 // pixels, which Print puts on one clean sheet with the site, the form's title and one line in each
 // language. The forms offered are read from GET /api/forms?app=customer (Step 187): every form
-// whose apps names customer, a builder form included once it is published. An API that sends no
-// apps on its forms is one from before Step 186, and the two codes below stand in. Every refusal
-// is drawn in the API's own words, as sent.
+// whose apps names customer, a builder form included once it is published, and none when no form
+// names it. An API that sends no apps on any of its forms is one from before Step 186, and only
+// then do the two codes below stand in. Every refusal is drawn in the API's own words, as sent.
 const CUSTOMER_FORM_CODES = ["OCSA-FRM-006", "OCSA-FRM-007"];
 // The Client Satisfaction Survey, the form a site's client is sent on the survey schedule (Step 196).
 const SURVEY_FORM_CODE = "OCSA-FRM-007";
@@ -11850,7 +11864,7 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
       .catch(e => { if (alive) { setError(e.message || tr("Request failed")); setLoading(false); } });
     // The forms a customer may fill, from the catalog. A read that fails keeps the two codes.
     af("/api/forms?app=customer")
-      .then(d => { if (!alive) return; const list = customerFormsOf(d && d.forms); if (list.length) { setCustomerForms(list); setFormCode(prev => (list.some(f => f.code === prev) ? prev : list[0].code)); } })
+      .then(d => { if (!alive) return; const list = customerFormsOf(d && d.forms); setCustomerForms(list); setFormCode(prev => (list.some(f => f.code === prev) ? prev : (list[0] ? list[0].code : ""))); })
       .catch(e => { console.warn("Customer forms:", e.message); });
     return () => { alive = false; };
   }, [af]);
@@ -11994,7 +12008,7 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 160px", minWidth: 0 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={formOptions} style={{ minHeight: 44 }} /></div>
           <div style={{ flex: "1 1 160px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={siteOptions} style={{ minHeight: 44 }} /></div>
-          <Btn t={t} onClick={makeLink} disabled={making || !siteId} style={{ minHeight: 44, minWidth: 96 }}>{making ? tr("Saving...") : tr("New link")}</Btn>
+          <Btn t={t} onClick={makeLink} disabled={making || !siteId || !formCode} style={{ minHeight: 44, minWidth: 96 }}>{making ? tr("Saving...") : tr("New link")}</Btn>
         </div>
         {makeError && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{makeError}</div>}
       </div>
@@ -13213,7 +13227,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>{tr("Labels found")}</div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {diagnosticResult.analysis.labelNamesFound.map((n, idx) => (<Bdg key={idx} l={n} c={String(n).toLowerCase().includes("ocsa cleaning") ? GR : t.textMut} />))}
+                      {diagnosticResult.analysis.labelNamesFound.map((n, idx) => (<Bdg key={idx} l={n} c={String(n).toLowerCase().includes(clientConfig.company.shortName.toLowerCase()) ? GR : t.textMut} />))}
                     </div>
                   </div>
                 )}
@@ -13222,7 +13236,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                   <div style={{ marginBottom: 10 }}>
                     <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", marginBottom: 4 }}>{tr("Folders found")}</div>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                      {diagnosticResult.analysis.folderNamesFound.map((n, idx) => (<Bdg key={idx} l={n} c={String(n).toLowerCase().includes("ocsa cleaning") ? GR : t.textMut} />))}
+                      {diagnosticResult.analysis.folderNamesFound.map((n, idx) => (<Bdg key={idx} l={n} c={String(n).toLowerCase().includes(clientConfig.company.shortName.toLowerCase()) ? GR : t.textMut} />))}
                     </div>
                   </div>
                 )}
@@ -13441,7 +13455,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
                       <tr key={fl.id} style={{ borderBottom: "1px solid " + t.border }}>
                         <td style={{ padding: "10px 12px", color: t.text, fontFamily: "monospace", fontSize: 10 }}>{fl.jotform_submission_id}</td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fl.form_title || "--"}</td>
-                        <td style={{ padding: "10px 12px" }}><Bdg l={({ fetch: tr("fetch|stage"), parse: tr("parse|stage"), store: tr("store|stage") })[fl.failure_stage] || fl.failure_stage} c={fl.failure_stage === "fetch" ? OR : RD} /></td>
+                        <td style={{ padding: "10px 12px" }}><Bdg l={({ fetch: tr("fetch|stage"), parse: tr("parse|stage"), store: tr("store|stage"), insert: tr("insert|stage"), update: tr("update|stage") })[fl.failure_stage] || fl.failure_stage} c={fl.failure_stage === "fetch" ? OR : RD} /></td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11, maxWidth: 300, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={fl.failure_reason}>{fl.failure_reason}</td>
                         <td style={{ padding: "10px 12px", color: t.textSec, fontSize: 11 }}>{fmtDT(fl.attempted_at)}</td>
                         <td style={{ padding: "10px 12px" }}>{fl.exists_in_submissions ? <Bdg l={tr("Yes")} c={GR} /> : <Bdg l={tr("No")} c={RD} />}</td>
