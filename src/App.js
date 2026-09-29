@@ -961,7 +961,7 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
-        {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
@@ -1804,8 +1804,18 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 }
 
 
-function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
+function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
+  // Step 196: the site's client survey schedule, for a holder of manage_settings once the route
+  // answers for this site. The answer is handed to the editor, which reads nothing twice.
+  const [survey, setSurvey] = useState(null);
+  useEffect(() => {
+    setSurvey(null);
+    if (!selectedSite || !canManageSettings) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(selectedSite) + "/survey-schedule").then(d => { if (alive) setSurvey(d && typeof d === "object" ? d : { schedule: null }); }).catch(e => { console.warn("Survey schedule:", e.message); });
+    return () => { alive = false; };
+  }, [af, selectedSite, canManageSettings]);
   const [siteProfile, setSiteProfile] = useState(null);
   const [siteTab, setSiteTab] = useState("general");
   const [st, setSt] = useState([]);
@@ -2224,7 +2234,8 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
     const tabs = [
       { k: "general", l: tr("General Info") }, { k: "tasks", l: tr("Service Details") },
       { k: "shifts", l: tr("Shifts & Schedule") }, { k: "supplies", l: tr("Supplies") },
-      { k: "scope", l: tr("Scope of Work") }, { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") }
+      { k: "scope", l: tr("Scope of Work") }, { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") },
+      ...(survey ? [{ k: "survey", l: tr("Client survey") }] : [])
     ];
 
     return (<div>
@@ -2448,6 +2459,12 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
           </div>;
         })}
       </div>}
+
+      {/* CLIENT SURVEY TAB (Step 196) */}
+      {siteTab === "survey" && survey && <Crd t={t} style={{ marginBottom: 16 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("Client survey schedule")}</div>
+        <SurveyScheduleEditor key={selectedSite} af={af} t={t} siteId={selectedSite} initial={survey} onSaved={setSurvey} />
+      </Crd>}
 
       {/* SCOPE OF WORK TAB */}
       {siteTab === "scope" && <div>
@@ -11123,6 +11140,8 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
 // apps on its forms is one from before Step 186, and the two codes below stand in. Every refusal
 // is drawn in the API's own words, as sent.
 const CUSTOMER_FORM_CODES = ["OCSA-FRM-006", "OCSA-FRM-007"];
+// The Client Satisfaction Survey, the form a site's client is sent on the survey schedule (Step 196).
+const SURVEY_FORM_CODE = "OCSA-FRM-007";
 const customerFormsOf = (list) => {
   const forms = Array.isArray(list) ? list : [];
   const flagged = forms.filter(f => f && Array.isArray(f.apps));
@@ -11183,8 +11202,111 @@ function printCustomerLinkSheet({ link, qr, titles, scanLines }) {
   return true;
 }
 
+// ===== THE CLIENT SURVEY SCHEDULE (Step 196) =====
+// When a site's client is sent the Client Satisfaction Survey (STEP195_CONTRACT.md version 2,
+// section 2): the contacts, how often, the day of the month, and the last and next send, read from
+// GET /api/sites/:id/survey-schedule and saved whole with the PUT, for holders of manage_settings
+// alone, since a contact list is shown to nobody else. A refusal is drawn under the field its code
+// names, in the API's own words. Drawn on a site's profile and from Customer links beside the
+// site's survey link; neither draws it until the route answers. initial is the answer the caller
+// already read, so the editor does not read it twice.
+const SURVEY_FREQUENCIES = [{ v: "monthly", l: "Every month" }, { v: "quarterly", l: "Every three months" }, { v: "off", l: "Off|survey" }];
+const SURVEY_DAYS = Array.from({ length: 28 }, (x, i) => i + 1);
+// A refusal's code, read as the field it names.
+const surveyRefusalField = (code) => ({ "survey.contactsRequired": "contacts", "survey.badEmail": "contacts", "survey.badFrequency": "frequency", "survey.badDay": "day" })[String(code || "")] || "save";
+function SurveyScheduleEditor({ af, t, siteId, initial, onSaved }) {
+  const [state, setState] = useState(() => (initial ? "ready" : "loading"));
+  const [contacts, setContacts] = useState([]);
+  const [frequency, setFrequency] = useState("monthly");
+  const [day, setDay] = useState(1);
+  const [sentOn, setSentOn] = useState({ last: null, next: null });
+  const [draft, setDraft] = useState({ name: "", email: "" });
+  const [refusal, setRefusal] = useState({ field: "", text: "", keys: [] });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const savingRef = useRef(false);
+  const take = useCallback((d) => {
+    const s = d && d.schedule && typeof d.schedule === "object" ? d.schedule : null;
+    setContacts(s && Array.isArray(s.contacts) ? s.contacts.map(c => ({ name: String((c && c.name) || ""), email: String((c && c.email) || "") })) : []);
+    setFrequency(s && SURVEY_FREQUENCIES.some(f => f.v === s.frequency) ? s.frequency : "monthly");
+    setDay(s && Number(s.dayOfMonth) >= 1 && Number(s.dayOfMonth) <= 28 ? Number(s.dayOfMonth) : 1);
+    setSentOn({ last: s ? s.lastSentOn || null : null, next: s ? s.nextSendOn || null : null });
+  }, []);
+  const load = useCallback(() => {
+    setState("loading");
+    af("/api/sites/" + encodeURIComponent(siteId) + "/survey-schedule").then(d => { take(d); setState("ready"); }).catch(e => { console.warn("Survey schedule:", e.message); setState(e && e.status === 404 ? "gone" : "failed"); });
+  }, [af, siteId, take]);
+  useEffect(() => { if (initial) take(initial); else load(); }, [initial, load, take]);
+
+  const addContact = () => {
+    const email = draft.email.trim();
+    if (!email) return;
+    setContacts(prev => prev.concat([{ name: draft.name.trim(), email }]));
+    setDraft({ name: "", email: "" });
+    if (refusal.field === "contacts") setRefusal({ field: "", text: "", keys: [] });
+  };
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setSaved(false); setRefusal({ field: "", text: "", keys: [] });
+    try {
+      const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/survey-schedule", { method: "PUT", body: { contacts, frequency, dayOfMonth: day } });
+      if (d && d.schedule) { take(d); if (onSaved) onSaved(d); }
+      setSaved(true);
+    } catch (e) {
+      setRefusal({ field: surveyRefusalField(e && e.code), text: e.message || tr("Request failed"), keys: Array.isArray(e && e.body && e.body.keys) ? e.body.keys.map(String) : [] });
+    }
+    savingRef.current = false; setSaving(false);
+  };
+
+  if (state === "gone") return null;
+  if (state === "loading") return <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>;
+  if (state === "failed") return <LoadFailed t={t} onRetry={load} />;
+  const under = (field) => (refusal.field === field && refusal.text ? <div data-survey-refusal={field} style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal.text}</div> : null);
+  // A contact the refusal names by its place in the list or by its address.
+  const named = (c, i) => refusal.field === "contacts" && refusal.keys.some(k => k === String(i) || k === c.email || k.indexOf("contacts." + i) === 0 || k.indexOf("contacts[" + i + "]") === 0);
+  const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+  return (<div data-survey-schedule="">
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The Client Satisfaction Survey is emailed to each contact below on the day set, with the site's survey link.")}</div>
+    <div style={{ marginBottom: 16 }}>
+      <Lbl>{tr("Contacts")}</Lbl>
+      {contacts.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 8 }}>{tr("No contacts yet.")}</div>}
+      {contacts.map((c, i) => (<div key={i + ":" + c.email} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: t.hover, borderRadius: 8, marginBottom: 6, border: "1px solid " + (named(c, i) ? RD : "transparent") }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 500, wordBreak: "break-word" }}>{c.name || c.email}</div>
+          {c.name ? <div style={{ fontSize: 11, color: t.textMut, wordBreak: "break-all" }}>{c.email}</div> : null}
+          {named(c, i) && <div style={{ fontSize: 11, color: RD, marginTop: 2 }}>{tr("Check this email")}</div>}
+        </div>
+        <Btn t={t} v="ghost" onClick={() => setContacts(prev => prev.filter((x, j) => j !== i))} aria-label={tr("Remove") + ": " + (c.name || c.email)} style={small}>{tr("Remove")}</Btn>
+      </div>))}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+        <div style={{ flex: "1 1 140px", minWidth: 0 }}><Inp t={t} aria-label={tr("Name")} placeholder={tr("Name")} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={draft.email} onChange={e => setDraft({ ...draft, email: e.target.value })} onKeyDown={e => { if (e.key === "Enter") addContact(); }} /></div>
+        <Btn t={t} v="ghost" onClick={addContact} disabled={!draft.email.trim()} style={{ minHeight: 44 }}>{tr("Add contact")}</Btn>
+      </div>
+      {under("contacts")}
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+      <div><Lbl>{tr("How often")}</Lbl><Sel t={t} aria-label={tr("How often")} value={frequency} onChange={e => setFrequency(e.target.value)} options={SURVEY_FREQUENCIES.map(f => ({ v: f.v, l: tr(f.l) }))} />{under("frequency")}</div>
+      <div><Lbl>{tr("Day of the month")}</Lbl><Sel t={t} aria-label={tr("Day of the month")} value={String(day)} onChange={e => setDay(Number(e.target.value))} options={SURVEY_DAYS.map(n => ({ v: String(n), l: String(n) }))} />{under("day")}</div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+      <div><Lbl>{tr("Last sent")}</Lbl><div style={{ fontSize: 13, color: sentOn.last ? t.text : t.textMut }}>{sentOn.last ? fdLong(sentOn.last) : tr("Not sent yet")}</div></div>
+      <div><Lbl>{tr("Next send")}</Lbl><div style={{ fontSize: 13, color: sentOn.next && frequency !== "off" ? t.text : t.textMut }}>{sentOn.next && frequency !== "off" ? fdLong(sentOn.next) : tr("Not scheduled")}</div></div>
+    </div>
+    {under("save")}
+    {saved && <div data-survey-saved="" style={{ fontSize: 12, color: GR, marginTop: 6 }}>{tr("Schedule saved.")}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}>
+      <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div>);
+}
+
 function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
   const [links, setLinks] = useState([]);
+  // Step 196: the survey schedule of the site whose survey link was pressed, on a screen of its own,
+  // offered once the route answers for the first survey link's site.
+  const [schedFor, setSchedFor] = useState(null);
+  const [surveyLive, setSurveyLive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [formCode, setFormCode] = useState(CUSTOMER_FORM_CODES[0]);
@@ -11241,6 +11363,14 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
     return () => { alive = false; };
   }, [shownId, token]);
 
+  const surveySite = (link) => (link && link.formCode === SURVEY_FORM_CODE && link.site && link.site.id ? link.site : null);
+  const probeSite = (links.map(surveySite).filter(Boolean)[0] || {}).id || "";
+  useEffect(() => {
+    if (!probeSite) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(probeSite) + "/survey-schedule").then(() => { if (alive) setSurveyLive(true); }).catch(e => { if (alive) setSurveyLive(false); console.warn("Survey schedule:", e.message); });
+    return () => { alive = false; };
+  }, [af, probeSite]);
   const replaceLink = (link) => setLinks(prev => (prev.some(l => l.id === link.id) ? prev.map(l => (l.id === link.id ? link : l)) : [link].concat(prev)));
   // One tap: the live link for the pair, made now or found. Either way its QR screen opens.
   const makeLink = async () => {
@@ -11296,12 +11426,25 @@ function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
       {link.state === "live"
         ? <Btn t={t} v="ghost" onClick={() => flip(link, false)} disabled={!!busy} style={small}>{busy === link.id ? tr("Saving...") : tr("Turn off")}</Btn>
         : <Btn t={t} v="ghost" onClick={() => flip(link, true)} disabled={!!busy} style={small}>{busy === link.id ? tr("Saving...") : tr("Turn on")}</Btn>}
+      {surveyLive && surveySite(link) && <Btn t={t} v="ghost" onClick={() => setSchedFor(surveySite(link))} style={small}>{tr("Survey schedule")}</Btn>}
     </div>
     {rowError[link.id] && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{rowError[link.id]}</div>}
   </div>);
 
   return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
-    {shown ? (<div data-qr-screen="">
+    {schedFor ? (<div data-survey-screen="">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={head}>{tr("Client survey schedule")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{schedFor.name || tr("No site")}</div>
+        </div>
+        {closeX}
+      </div>
+      <SurveyScheduleEditor af={af} t={t} siteId={schedFor.id} />
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+        <Btn t={t} v="ghost" onClick={() => setSchedFor(null)} style={{ minHeight: 44, minWidth: 96 }}>{tr("Back")}</Btn>
+      </div>
+    </div>) : shown ? (<div data-qr-screen="">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
         <div style={head}>{tr("Customer links")}</div>
         {closeX}
