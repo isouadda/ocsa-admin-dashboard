@@ -3564,6 +3564,10 @@ const AGENT_MAX_PHOTOS = 3;
 // The unfinished reports list stops at three rows, each 44 high with 8 above and below and a line
 // between, and scrolls inside itself past that.
 const AGENT_DRAFT_LIST_PX = 182;
+// While a question is still being answered (409 agent.requestInProgress), its conversation is read
+// again by itself every 4 seconds, up to 30 times, which is 2 minutes.
+const AGENT_WAIT_EVERY_MS = 4000;
+const AGENT_WAIT_READS = 30;
 const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const AGENT_PHOTO_MAX_EDGE = 1568;
 const AGENT_PHOTO_UNREADABLE = "This photo could not be read here. Choose a JPEG or PNG, or take a screenshot of it.";
@@ -3633,6 +3637,13 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   useEffect(() => { const el = talkRef.current; if (el && arrivingText && following.current) el.scrollTop = el.scrollHeight; }, [arrivingText]);
 
   const patchMsg = (id, patch) => setThread(p => p.map(m => m.id === id ? { ...m, ...patch } : m));
+  const threadRef = useRef([]);
+  threadRef.current = thread;
+  // One timer per answer still being written. Each stops when the answer is read back, when the
+  // answer leaves the conversation, after its last read, and when the page closes.
+  const waits = useRef({});
+  const stopWait = (replyId) => { clearTimeout(waits.current[replyId]); delete waits.current[replyId]; };
+  useEffect(() => () => { Object.keys(waits.current).forEach(k => clearTimeout(waits.current[k])); waits.current = {}; }, []);
   const patchPhoto = (key, patch) => setPhotos(p => p.map(x => x.key === key ? { ...x, ...patch } : x));
   const dropUrl = (url) => { if (!url) return; try { URL.revokeObjectURL(url); } catch {} urlsRef.current.delete(url); };
 
@@ -3674,19 +3685,42 @@ function HelpPage({ af, sf, uf, showToast, t }) {
 
   // A dropped connection loses nothing: the API finishes the answer and stores it in the conversation,
   // so it is read back from there into the answer's place. Until it is stored, Try again reads again.
-  const readBack = async (replyId, cid, question) => {
-    patchMsg(replyId, { reading: true });
+  // Answers true once the answer is drawn. A quiet read, the kind made by itself, leaves Try again as
+  // it is while it reads.
+  const readBack = async (replyId, cid, question, quiet) => {
+    if (!quiet) patchMsg(replyId, { reading: true });
     try {
       const res = await af("/api/agent/conversations/" + encodeURIComponent(cid));
       const found = agentStoredAnswer(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom), question);
       if (found) {
+        stopWait(replyId);
         patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, citedNames: found.citedNames, messageId: found.messageId, feedback: found.feedback, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
         setSaid(agentSpokenText(found.text));
         loadDrafts();
-        return;
+        return true;
       }
     } catch (e) { console.warn("Help read back:", e.message); }
-    patchMsg(replyId, { reading: false });
+    if (!quiet) patchMsg(replyId, { reading: false });
+    return false;
+  };
+  // While the line says the question is still being answered, the conversation is read again by itself
+  // every 4 seconds for up to 2 minutes, and the answer is drawn when it lands. Try again still reads
+  // at once, and after the last read the line and Try again stay.
+  const waitForAnswer = (replyId, cid, question) => {
+    let left = AGENT_WAIT_READS;
+    const next = () => {
+      waits.current[replyId] = setTimeout(async () => {
+        if (!waits.current[replyId]) return;
+        const m = threadRef.current.find(x => x.id === replyId);
+        if (!m || m.stored) { stopWait(replyId); return; }
+        left -= 1;
+        const found = await readBack(replyId, cid, question, true);
+        if (found || left <= 0 || !waits.current[replyId]) { stopWait(replyId); return; }
+        next();
+      }, AGENT_WAIT_EVERY_MS);
+    };
+    stopWait(replyId);
+    next();
   };
   // Step two of the contract: POST /api/agent/message/stream with text, the app name, photoPaths in
   // thumbnail order, and the conversation id, which is what POST /api/agent/message took. The answer
@@ -3695,7 +3729,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   // answered is answered again from what it stored (replayed: true, drawn like any answer), and one it
   // is still answering is refused 409 agent.requestInProgress with the conversation's id, which is
   // read back the way a dropped connection is (STEP198_CONTRACT.md, section 2). Its line under the
-  // question says the answer is still being written, and goes once the answer is read back.
+  // question says the answer is still being written, waitForAnswer reads again by itself until it is
+  // there, and the line goes once the answer is read back.
   const sendText = async (id, body, paths, keys, requestId) => {
     if (busy) return;
     setSending(true);
@@ -3734,7 +3769,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
         patchMsg(replyId, { dropped: true, inProgress: !!inProgress, conversationId: cid, question: body });
         setText(cur => cur === body ? "" : cur);
         if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
-        await readBack(replyId, cid, body);
+        const found = await readBack(replyId, cid, body);
+        if (inProgress && !found) waitForAnswer(replyId, cid, body);
       } else {
         setThread(p => p.filter(m => m.id !== replyId));
         patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
