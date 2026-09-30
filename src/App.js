@@ -934,7 +934,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-          {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+          {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
         </div>
       </div>
       ) : (
@@ -950,7 +950,7 @@ export default function AdminDashboard() {
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+            {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
@@ -993,7 +993,7 @@ export default function AdminDashboard() {
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} />}
+        {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
@@ -1986,6 +1986,27 @@ function ShiftNamesPanel({ af, t, siteId, canEdit, showToast }) {
   </div>);
 }
 
+// A site's contract reference and service lines (STEP204_CONTRACT.md, section 3). The service lines are
+// the eight of OCSA-FRM-011, each a code the API takes and answers, drawn as its word; a code the page
+// does not know reads as it came and is kept on save. The monthly client report fills its Contract
+// reference and Service lines delivered from them. Each shows once the site's answer carries it,
+// under the contract's name or the row's own column.
+const SERVICE_LINES = ["office", "schools", "laboratory", "industrial", "disinfection", "post_construction", "day_porter", "landscaping"];
+const CONTRACT_REFERENCE_MAX = 120;
+const serviceLineWord = (c) => ({ office: tr("Office|service line"), schools: tr("Schools|service line"), laboratory: tr("Laboratory|service line"), industrial: tr("Industrial|service line"), disinfection: tr("Disinfection|service line"), post_construction: tr("Post-construction|service line"), day_porter: tr("Day porter|service line"), landscaping: tr("Landscaping|service line") })[c] || String(c || "");
+const siteAnswers = (s, camel, snake) => !!s && typeof s === "object" && (Object.prototype.hasOwnProperty.call(s, camel) || Object.prototype.hasOwnProperty.call(s, snake));
+const siteContractRef = (s) => { const v = s.contractReference !== undefined ? s.contractReference : s.contract_reference; return v == null ? "" : String(v); };
+const siteServiceLines = (s) => { const v = s.serviceLines !== undefined ? s.serviceLines : s.service_lines; return Array.isArray(v) ? v.map(String) : []; };
+// The field a refusal of the site's details names: sites.badServiceLine is the service lines, a code
+// or keys naming the contract reference is that field, and anything else is the toast it always was.
+const siteDetailsRefusalField = (e) => {
+  const code = String((e && e.code) || "").toLowerCase();
+  const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(k => String(k).toLowerCase()) : [];
+  const names = (a, b) => code.indexOf(a) >= 0 || keys.some(k => k.indexOf(a) === 0 || k.indexOf(b) === 0);
+  if (code === "sites.badserviceline" || names("serviceline", "service_line")) return "serviceLines";
+  if (names("contractreference", "contract_reference")) return "contractReference";
+  return "";
+};
 function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 196: the site's client survey schedule, for a holder of manage_settings once the route
@@ -2045,6 +2066,13 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
     return fixed;
   };
   const [editSite, setEditSite] = useState(null);
+  // A refusal of the details that names a field is drawn under that field, and the window stays open.
+  const [siteRefusal, setSiteRefusal] = useState({ field: "", text: "" });
+  const openEditSite = (v) => { setSiteRefusal({ field: "", text: "" }); setEditSite(v); };
+  const toggleServiceLine = (c) => {
+    if (siteRefusal.field === "serviceLines") setSiteRefusal({ field: "", text: "" });
+    setEditSite(cur => { const had = cur.serviceLines || []; const next = had.indexOf(c) >= 0 ? had.filter(x => x !== c) : had.concat([c]); return { ...cur, serviceLines: SERVICE_LINES.filter(x => next.indexOf(x) >= 0).concat(next.filter(x => SERVICE_LINES.indexOf(x) < 0)) }; });
+  };
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [timeline, setTimeline] = useState([]);
   const [tlTotal, setTlTotal] = useState(0);
@@ -2476,8 +2504,10 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Monthly Value")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Billing")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{billingOf(s.billing_frequency || "monthly")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fdDay(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fdDay(s.contract_end_date)) : ""}</div></div>
+            {siteAnswers(s, "contractReference", "contract_reference") && <div data-site-contract-reference=""><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract reference")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, overflowWrap: "anywhere" }}>{siteContractRef(s) || tr("N/A")}</div></div>}
+            {siteAnswers(s, "serviceLines", "service_lines") && <div data-site-service-lines="" style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: 10, color: t.textMut }}>{tr("Service lines")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{siteServiceLines(s).length ? siteServiceLines(s).map(serviceLineWord).join(", ") : tr("N/A")}</div></div>}
           </div>
-          {canManageSites && <button onClick={() => setEditSite({
+          {canManageSites && <button onClick={() => openEditSite({
             clientName: s.client_name || "", contractType: s.contract_type || "", primeContractor: s.prime_contractor || "",
             contractValueMonthly: s.contract_value_monthly || "", billingFrequency: s.billing_frequency || "monthly",
             contractStartDate: s.contract_start_date ? (typeof s.contract_start_date === "object" ? s.contract_start_date.toISOString().split("T")[0] : String(s.contract_start_date).split("T")[0]) : "",
@@ -2485,7 +2515,9 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
             clientContactName: s.client_contact_name || "", clientContactEmail: s.client_contact_email || "", clientContactPhone: s.client_contact_phone || "",
             siteNotes: s.site_notes || "",
             addressLine1: s.address_line1 || "", addressLine2: s.address_line2 || "", city: s.city || "", state: s.state || "", zipCode: s.zip_code || "",
-            name: s.name || ""
+            name: s.name || "",
+            ...(siteAnswers(s, "contractReference", "contract_reference") ? { contractReference: siteContractRef(s) } : {}),
+            ...(siteAnswers(s, "serviceLines", "service_lines") ? { serviceLines: siteServiceLines(s) } : {})
           })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>{tr("Edit Details")}</button>}
         </Crd>
 
@@ -2766,17 +2798,28 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("City")}</Lbl><Inp t={t} value={editSite.city} onChange={e => setEditSite({ ...editSite, city: e.target.value })} /></div><div><Lbl>{tr("State")}</Lbl><Inp t={t} value={editSite.state} onChange={e => setEditSite({ ...editSite, state: e.target.value })} /></div><div><Lbl>{tr("Zip")}</Lbl><Inp t={t} value={editSite.zipCode} onChange={e => setEditSite({ ...editSite, zipCode: e.target.value })} /></div></div>
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>{tr("Contract")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Contract Type")}</Lbl><Sel t={t} value={editSite.contractType} onChange={e => setEditSite({ ...editSite, contractType: e.target.value })} options={getOpts("contract_types", null, true)} /></div><div><Lbl>{tr("Prime Contractor")}</Lbl><Inp t={t} value={editSite.primeContractor} onChange={e => setEditSite({ ...editSite, primeContractor: e.target.value })} /></div></div>
+        {editSite.contractReference !== undefined && <div style={{ marginBottom: 12 }}><Lbl>{tr("Contract reference")}</Lbl><Inp t={t} aria-label={tr("Contract reference")} maxLength={CONTRACT_REFERENCE_MAX} value={editSite.contractReference} onChange={e => { if (siteRefusal.field === "contractReference") setSiteRefusal({ field: "", text: "" }); setEditSite({ ...editSite, contractReference: e.target.value.slice(0, CONTRACT_REFERENCE_MAX) }); }} />
+          {siteRefusal.field === "contractReference" && <div data-site-refusal="contractReference" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Client Name")}</Lbl><Inp t={t} value={editSite.clientName} onChange={e => setEditSite({ ...editSite, clientName: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Monthly Value ($)")}</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div><div><Lbl>{tr("Billing")}</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: tr("Monthly") }, { v: "weekly", l: tr("Weekly") }, { v: "biweekly", l: tr("Bi-Weekly") }, { v: "quarterly", l: tr("Quarterly") }, { v: "annual", l: tr("Annual") }]} /></div><div><Lbl>{tr("Start Date")}</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("End Date")}</Lbl><Inp t={t} type="date" value={editSite.contractEndDate} onChange={e => setEditSite({ ...editSite, contractEndDate: e.target.value })} /></div></div>
+        {editSite.serviceLines !== undefined && <div style={{ marginBottom: 12 }}><Lbl>{tr("Service lines")}</Lbl>
+          <div role="group" aria-label={tr("Service lines")} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", columnGap: 10, padding: "2px 10px", border: "1px solid " + (siteRefusal.field === "serviceLines" ? RD : t.border), borderRadius: R.sm }}>
+            {SERVICE_LINES.concat(editSite.serviceLines.filter(c => SERVICE_LINES.indexOf(c) < 0)).map(c => (<label key={c} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+              <input type="checkbox" checked={editSite.serviceLines.indexOf(c) >= 0} onChange={() => toggleServiceLine(c)} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{serviceLineWord(c)}</span>
+            </label>))}
+          </div>
+          {siteRefusal.field === "serviceLines" && <div data-site-refusal="serviceLines" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>{tr("Client Contact")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Site Notes")}</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSite(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={async () => {
+          setSiteRefusal({ field: "", text: "" });
           try {
             await af("/api/sites/" + selectedSite, { method: "PATCH", body: editSite });
             showToast(tr("Site updated")); setEditSite(null); refreshProfile(); load();
-          } catch (e) { showToast(e.message, "error"); }
+          } catch (e) { const field = siteDetailsRefusalField(e); if (field && editSite[field] !== undefined) setSiteRefusal({ field, text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
         }}>{tr("Save")}</Btn></div>
       </div></Mdl>}
 
@@ -3117,8 +3160,10 @@ function newSendId() {
 // 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
 // Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
 // (Step 179; the read route arriving with it, its refusal is quiet until then).
-function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false }) {
+function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, people = [] }) {
   const [channels, setChannels] = useState([]);
+  // Someone found by Search staff who has no private chat yet (Step 205), picked, or null.
+  const [waiting, setWaiting] = useState(null);
   const [dms, setDms] = useState([]);
   const [dmsFailed, setDmsFailed] = useState(false);
   const [sel, setSel] = useState(null);
@@ -3155,7 +3200,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
   };
   // A conversation that does not load clears what the last one showed and says so, with a way to try again.
   const open = async id => {
-    setSel(id); setTagOpen(false); setMentions([]);
+    setSel(id); setWaiting(null); setTagOpen(false); setMentions([]);
     try { const m = await af("/api/chat/channels/" + encodeURIComponent(id) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(id, list); markRead(id); }
     catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); }
   };
@@ -3189,11 +3234,23 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
     if (inputRef.current) inputRef.current.focus();
   };
   const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  // Search staff also finds any active person on the staff list the shell loads, Step 205. Someone
+  // with a private chat is found through it, as always; anyone else is listed after the
+  // conversations. The API has no route an admin can start someone's private chat through, so
+  // picking them says their chat is not there yet and offers nothing to send. The list is left out
+  // while the conversations have not loaded, since it cannot tell who already has one.
+  const needle = q.trim().toLowerCase();
+  const personName = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+  const hasChat = new Set(dms.map(dm => String(dm.staffUserId)));
+  const noChat = !needle || dmsFailed ? [] : (Array.isArray(people) ? people : [])
+    .filter(p => p && p.id != null && String(p.id) !== String(user && user.id) && !hasChat.has(String(p.id)) && !p.isTestAccount && !p.is_test_account && (!p.status || p.status === "active") && personName(p).toLowerCase().includes(needle))
+    .sort((a, b) => personName(a).localeCompare(personName(b)));
+  const pickWaiting = (p) => { setSel(null); setTagOpen(false); setMentions([]); setWaiting({ id: p.id, name: personName(p) }); };
   const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
   const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : tr("General chat"));
   const unreadPill = (n) => (n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{n}</span> : null);
-  const showList = !phone || !sel;
-  const showTalk = !phone || !!sel;
+  const showList = !phone || (!sel && !waiting);
+  const showTalk = !phone || !!sel || !!waiting;
   const rowStyle = (active) => ({ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" });
   return (<div>
     <SecT t={t}>{tr("Messages")}</SecT>
@@ -3217,7 +3274,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
             </button>); })}
           <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>
           {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
-          {!dmsFailed && filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
+          {!dmsFailed && filtered.length === 0 && noChat.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
@@ -3227,10 +3284,26 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
               </div>
             </button>
           ); })}
+          {noChat.map(p => { const active = !!waiting && String(waiting.id) === String(p.id); return (
+            <button key={"person-" + p.id} data-no-chat-person="" onClick={() => pickWaiting(p)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+              <Ini name={personName(p)} sz={38} color={active ? GO : t.textSec} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{personName(p)}</div>
+                <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("No private chat yet")}</div>
+              </div>
+            </button>
+          ); })}
         </div>
       </div>}
       {showTalk && <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        {!sel ? (
+        {!sel && waiting ? (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
+            {phone && <button onClick={() => setWaiting(null)} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
+            <Ini name={waiting.name} sz={34} />
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{waiting.name}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
+          </div>
+          <div data-no-chat-line="" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", color: t.textMut, fontSize: 13, lineHeight: 1.5 }}>{tr("No private chat with {0} yet. It starts the first time they open their messages in the staff app.", waiting.name)}</div>
+        </>) : !sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Your messages")}</div>
@@ -3521,6 +3594,10 @@ const AGENT_MAX_PHOTOS = 3;
 // The unfinished reports list stops at three rows, each 44 high with 8 above and below and a line
 // between, and scrolls inside itself past that.
 const AGENT_DRAFT_LIST_PX = 182;
+// While a question is still being answered (409 agent.requestInProgress), its conversation is read
+// again by itself every 4 seconds, up to 30 times, which is 2 minutes.
+const AGENT_WAIT_EVERY_MS = 4000;
+const AGENT_WAIT_READS = 30;
 const AGENT_PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 const AGENT_PHOTO_MAX_EDGE = 1568;
 const AGENT_PHOTO_UNREADABLE = "This photo could not be read here. Choose a JPEG or PNG, or take a screenshot of it.";
@@ -3590,6 +3667,13 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   useEffect(() => { const el = talkRef.current; if (el && arrivingText && following.current) el.scrollTop = el.scrollHeight; }, [arrivingText]);
 
   const patchMsg = (id, patch) => setThread(p => p.map(m => m.id === id ? { ...m, ...patch } : m));
+  const threadRef = useRef([]);
+  threadRef.current = thread;
+  // One timer per answer still being written. Each stops when the answer is read back, when the
+  // answer leaves the conversation, after its last read, and when the page closes.
+  const waits = useRef({});
+  const stopWait = (replyId) => { clearTimeout(waits.current[replyId]); delete waits.current[replyId]; };
+  useEffect(() => () => { Object.keys(waits.current).forEach(k => clearTimeout(waits.current[k])); waits.current = {}; }, []);
   const patchPhoto = (key, patch) => setPhotos(p => p.map(x => x.key === key ? { ...x, ...patch } : x));
   const dropUrl = (url) => { if (!url) return; try { URL.revokeObjectURL(url); } catch {} urlsRef.current.delete(url); };
 
@@ -3631,19 +3715,42 @@ function HelpPage({ af, sf, uf, showToast, t }) {
 
   // A dropped connection loses nothing: the API finishes the answer and stores it in the conversation,
   // so it is read back from there into the answer's place. Until it is stored, Try again reads again.
-  const readBack = async (replyId, cid, question) => {
-    patchMsg(replyId, { reading: true });
+  // Answers true once the answer is drawn. A quiet read, the kind made by itself, leaves Try again as
+  // it is while it reads.
+  const readBack = async (replyId, cid, question, quiet) => {
+    if (!quiet) patchMsg(replyId, { reading: true });
     try {
       const res = await af("/api/agent/conversations/" + encodeURIComponent(cid));
       const found = agentStoredAnswer(agentListFrom(res, ["messages", "turns", "history"]).map(agentMessageFrom), question);
       if (found) {
+        stopWait(replyId);
         patchMsg(replyId, { text: found.text, citedDocs: found.citedDocs, citedNames: found.citedNames, messageId: found.messageId, feedback: found.feedback, degraded: found.degraded, noProcedure: found.noProcedure, arriving: false, stored: true, reading: false });
         setSaid(agentSpokenText(found.text));
         loadDrafts();
-        return;
+        return true;
       }
     } catch (e) { console.warn("Help read back:", e.message); }
-    patchMsg(replyId, { reading: false });
+    if (!quiet) patchMsg(replyId, { reading: false });
+    return false;
+  };
+  // While the line says the question is still being answered, the conversation is read again by itself
+  // every 4 seconds for up to 2 minutes, and the answer is drawn when it lands. Try again still reads
+  // at once, and after the last read the line and Try again stay.
+  const waitForAnswer = (replyId, cid, question) => {
+    let left = AGENT_WAIT_READS;
+    const next = () => {
+      waits.current[replyId] = setTimeout(async () => {
+        if (!waits.current[replyId]) return;
+        const m = threadRef.current.find(x => x.id === replyId);
+        if (!m || m.stored) { stopWait(replyId); return; }
+        left -= 1;
+        const found = await readBack(replyId, cid, question, true);
+        if (found || left <= 0 || !waits.current[replyId]) { stopWait(replyId); return; }
+        next();
+      }, AGENT_WAIT_EVERY_MS);
+    };
+    stopWait(replyId);
+    next();
   };
   // Step two of the contract: POST /api/agent/message/stream with text, the app name, photoPaths in
   // thumbnail order, and the conversation id, which is what POST /api/agent/message took. The answer
@@ -3651,7 +3758,9 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   // The question's requestId goes with it, the same on every retry, so a question the API has already
   // answered is answered again from what it stored (replayed: true, drawn like any answer), and one it
   // is still answering is refused 409 agent.requestInProgress with the conversation's id, which is
-  // read back the way a dropped connection is (STEP198_CONTRACT.md, section 2).
+  // read back the way a dropped connection is (STEP198_CONTRACT.md, section 2). Its line under the
+  // question says the answer is still being written, waitForAnswer reads again by itself until it is
+  // there, and the line goes once the answer is read back.
   const sendText = async (id, body, paths, keys, requestId) => {
     if (busy) return;
     setSending(true);
@@ -3687,10 +3796,11 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       const cid = inProgress || (e.dropped && meta && meta.conversationId);
       if (cid) {
         setConversationId(cid);
-        patchMsg(replyId, { dropped: true, conversationId: cid, question: body });
+        patchMsg(replyId, { dropped: true, inProgress: !!inProgress, conversationId: cid, question: body });
         setText(cur => cur === body ? "" : cur);
         if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
-        await readBack(replyId, cid, body);
+        const found = await readBack(replyId, cid, body);
+        if (inProgress && !found) waitForAnswer(replyId, cid, body);
       } else {
         setThread(p => p.filter(m => m.id !== replyId));
         patchMsg(id, { status: "failed", error: e.message || tr("Request failed") });
@@ -3824,7 +3934,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                 {m.thanked && <div style={{ fontSize: 11, color: GR, marginTop: 4 }}>{tr("Thanks. This helps Help get better.")}</div>}
                 {!m.thanked && m.rating !== "note" && m.feedback && m.feedback.helpful === false && m.feedback.note && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("What was missing?")} {m.feedback.note}</div>}
               </div>}
-              {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
+              {!isMe && m.dropped && !(m.inProgress && m.stored) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{m.inProgress ? tr("This question is still being answered. The answer will show here.") : tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
           </div>); })}
@@ -4273,26 +4383,32 @@ function AnnouncementWindow({ af, t, id, onClose }) {
   </div></Mdl>);
 }
 const NOTIF_PAGE_SIZE = 30;
-function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement }) {
+// The API writes each notice's title and body in the language of the call's locale, which af puts on
+// every call (STEP204_CONTRACT.md, section 5), so a change of language reads the list again from the
+// top. Only the newest read is drawn, so an answer in the language left behind never lands.
+function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const boxRef = useRef(null);
+  const readSeq = useRef(0);
 
   const fetchPage = useCallback(async (before) => {
+    const mine = ++readSeq.current;
     setLoading(true); setFailed(false);
     try {
       const d = await af("/api/notifications?limit=" + NOTIF_PAGE_SIZE + (before ? "&before=" + encodeURIComponent(before) : ""));
+      if (mine !== readSeq.current) return;
       const list = d && Array.isArray(d.notifications) ? d.notifications : [];
       setRows(prev => before ? [...prev, ...list] : list);
       setMore(list.length === NOTIF_PAGE_SIZE);
       if (d && d.unread != null) onUnread(Number(d.unread) || 0);
-    } catch (e) { if (!before) setRows([]); setFailed(true); console.warn("Notifications:", e.message); }
+    } catch (e) { if (mine !== readSeq.current) return; if (!before) setRows([]); setFailed(true); console.warn("Notifications:", e.message); }
     setLoading(false);
   }, [af, onUnread]);
-  useEffect(() => { fetchPage(null); }, [fetchPage]);
+  useEffect(() => { fetchPage(null); }, [fetchPage, lang]);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -8318,6 +8434,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   </div>);
 }
 
+// An inspection template's kind (STEP204_CONTRACT.md, section 2) is a code the API takes and answers,
+// supervisor or audit, and every template it held before is supervisor. The monthly client report
+// counts and averages each kind apart. A kind the page does not know reads as the API sent it.
+const INSPECTION_KINDS = ["supervisor", "audit"];
+const inspectionKindWord = (k) => (k === "audit" ? tr("Audit inspection") : k === "supervisor" ? tr("Supervisor inspection") : String(k || ""));
+const inspectionKindOpts = () => INSPECTION_KINDS.map(k => ({ v: k, l: inspectionKindWord(k) }));
 function InspectionsPage({ af, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
@@ -8360,19 +8482,30 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
+  // A template's kind shows once the API answers it: the list's templates carry kind. Until then the
+  // windows and the cards draw what they always did, and nothing sends a kind.
+  const kindsLive = templates.some(tp => tp && typeof tp.kind === "string");
+  // A refusal of the kind (400 inspections.badKind) is drawn under Kind in whichever template window is
+  // open, since only one is open at a time. Any other refusal is the toast it always was.
+  const [kindRefusal, setKindRefusal] = useState("");
+  const refuseTemplate = (e) => { if (e && e.code === "inspections.badKind") setKindRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); };
   // Rename (Step 185): PUT /api/inspections/templates/:id takes { name, description } and writes
-  // both, so the description goes back as it is, or the table would lose it.
+  // both, so the description goes back as it is, or the table would lose it. A template that carries
+  // its kind sends the kind too, as it is or as changed here, for the same reason.
   const [renameTpl, setRenameTpl] = useState(null);
+  const openRename = (tp) => { setKindRefusal(""); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "", kind: typeof tp.kind === "string" ? tp.kind : undefined }); };
   const saveRename = async () => {
     const name = String(renameTpl.name || "").trim();
     if (!name) { showToast(tr("Name required"), "error"); return; }
+    setKindRefusal("");
     try {
-      await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body: { name, description: renameTpl.description || "" } });
+      const body = { name, description: renameTpl.description || "" }; if (renameTpl.kind !== undefined) body.kind = renameTpl.kind;
+      await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body });
       showToast(tr("Saved")); setRenameTpl(null); loadTemplates();
       if (selectedTemplate && selectedTemplate.id === renameTpl.id) openTemplate(renameTpl.id);
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) { refuseTemplate(e); }
   };
-  const [newTplForm, setNewTplForm] = useState({ name: "", description: "" });
+  const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
@@ -8429,10 +8562,12 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
 
   const createTemplate = async () => {
     if (!newTplForm.name.trim()) { showToast(tr("Name required"), "error"); return; }
+    setKindRefusal("");
     try {
-      await af("/api/inspections/templates", { method: "POST", body: newTplForm });
-      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "" }); loadTemplates();
-    } catch (e) { showToast(e.message, "error"); }
+      const body = { name: newTplForm.name, description: newTplForm.description }; if (kindsLive) body.kind = newTplForm.kind;
+      await af("/api/inspections/templates", { method: "POST", body });
+      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "", kind: "supervisor" }); loadTemplates();
+    } catch (e) { refuseTemplate(e); }
   };
 
   const addItem = async () => {
@@ -8779,23 +8914,26 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
       {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
+        {renameTpl.kind !== undefined && <div style={{ marginBottom: 16 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={renameTpl.kind} onChange={e => { setKindRefusal(""); setRenameTpl({ ...renameTpl, kind: e.target.value }); }} options={INSPECTION_KINDS.indexOf(renameTpl.kind) >= 0 ? inspectionKindOpts() : [{ v: renameTpl.kind, l: inspectionKindWord(renameTpl.kind) }, ...inspectionKindOpts()]} />
+          {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setRenameTpl(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveRename}>{tr("Save")}</Btn></div>
       </div></Mdl>}
       {/* TEMPLATES TAB */}
       {tab === "templates" && (
         <div style={{ display: "flex", gap: 20 }}>
           <div style={{ flex: 1 }}>
-            <SecT t={t} action={tr("New Template")} onAction={() => setNewTplModal(true)}>{tr("Inspection Templates")}</SecT>
+            <SecT t={t} action={tr("New Template")} onAction={() => { setKindRefusal(""); setNewTplModal(true); }}>{tr("Inspection Templates")}</SecT>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
               {templates.map(tp => (
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
                     {canManageInspections && <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                      <button onClick={e => { e.stopPropagation(); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "" }); }} style={{ minHeight: 44, padding: "0 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Rename")}</button>
+                      <button onClick={e => { e.stopPropagation(); openRename(tp); }} style={{ minHeight: 44, padding: "0 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Rename")}</button>
                       <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={14} c={RD} /></button>
                     </div>}
                   </div>
+                  {tp.kind && <div style={{ marginBottom: 6 }}><Bdg l={inspectionKindWord(tp.kind)} c={tp.kind === "audit" ? BL : GO} /></div>}
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
@@ -9095,6 +9233,8 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
       {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template Name *")}</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder={tr("e.g. Standard Office Cleaning")} /></div>
+        {kindsLive && <div style={{ marginBottom: 14 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={newTplForm.kind} onChange={e => { setKindRefusal(""); setNewTplForm({ ...newTplForm, kind: e.target.value }); }} options={inspectionKindOpts()} />
+          {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder={tr("Optional: describe what this template covers")} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={createTemplate}>{tr("Create Template")}</Btn></div>
       </div></Mdl>}
@@ -12514,19 +12654,40 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const [linksOpen, setLinksOpen] = useState(false);
   const startable = offered.filter(formStartable);
   const readCatalog = async (query) => { const d = await af("/api/forms" + (query || "")); return d && Array.isArray(d.forms) ? d.forms : []; };
+  // Step 205: the sites a form started here may name, GET /api/forms/my-sites (STEP204_CONTRACT.md,
+  // section 4), read beside the catalog. A 404, an empty list or any other failed read leaves the
+  // question out, and a form starts as it always did.
+  const readMySites = () => af("/api/forms/my-sites")
+    .then(d => { const list = d && Array.isArray(d.sites) ? d.sites.filter(x => x && x.id != null) : []; return list.length ? list : null; })
+    .catch(e => { console.warn("Form sites:", e.message); return null; });
+  const PICKER_EMPTY = { loading: false, forms: [], error: "", sites: null, form: null, refusal: "" };
   const openPicker = async () => {
-    setPicker({ loading: true, forms: [], error: "" }); setOpenError("");
-    try { setPicker({ loading: false, forms: (await readCatalog("?app=dashboard")).filter(formStartable), error: "" }); }
-    catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
+    setPicker(Object.assign({}, PICKER_EMPTY, { loading: true })); setOpenError("");
+    const mySites = readMySites();
+    try { const [list, sitesOffered] = await Promise.all([readCatalog("?app=dashboard"), mySites]); setPicker(Object.assign({}, PICKER_EMPTY, { forms: list.filter(formStartable), sites: sitesOffered })); }
+    catch (e) { setPicker(Object.assign({}, PICKER_EMPTY, { error: e.message || tr("Request failed") })); }
   };
-  // A form started here is filed from the dashboard, and the start says so (Step 175).
-  const startForm = async (f) => {
+  // A form picked asks Which site is this for? when there are sites to name, with No particular site
+  // last and nothing picked until one is chosen. Otherwise it starts at once, as it always did.
+  const pickForm = (f) => {
     if (starting) return;
-    setStarting(f.code);
+    if (picker && picker.sites) { setPicker(prev => Object.assign({}, prev, { form: f, refusal: "", error: "" })); return; }
+    startForm(f, null);
+  };
+  // A form started here is filed from the dashboard, and the start says so (Step 175). A site chosen
+  // goes as siteId; No particular site sends what it always sent. A refusal of the site is drawn
+  // under the sites, and any other refusal at the top, as before.
+  const startForm = async (f, siteId) => {
+    if (starting) return;
+    setStarting(picker && picker.form ? "site:" + (siteId || "") : f.code);
+    const body = { source: "admin" }; if (siteId) body.siteId = siteId;
     try {
-      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body });
       setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
-    } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
+    } catch (e) {
+      const siteRefused = !!siteId && !!e && (e.code === "forms.siteNotYours" || e.code === "sites.notFound");
+      setPicker(prev => Object.assign({}, prev || PICKER_EMPTY, siteRefused ? { refusal: e.message || tr("Request failed"), error: "" } : { error: e.message || tr("Request failed"), refusal: "" }));
+    }
     setStarting("");
   };
   // A draft resumed from the list: the catalog in the screen's language and the draft itself, read
@@ -12611,13 +12772,25 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       </div>
       {picker.loading && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
       {picker.error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{picker.error}</div>}
-      {!picker.loading && !picker.error && picker.forms.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>{tr("No form to start.")}</div>}
-      <div role="list" aria-label={tr("Pick a form to start")}>
+      {!picker.form && !picker.loading && !picker.error && picker.forms.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>{tr("No form to start.")}</div>}
+      {!picker.form && <div role="list" aria-label={tr("Pick a form to start")}>
         {picker.forms.map(f => (
-          <button key={f.code} role="listitem" onClick={() => startForm(f)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === f.code ? tr("Opening...") : formTitleName(f)}</button>
+          <button key={f.code} role="listitem" onClick={() => pickForm(f)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === f.code ? tr("Opening...") : formTitleName(f)}</button>
         ))}
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+      </div>}
+      {picker.form && <div data-form-site-question="">
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 4 }}>{formTitleName(picker.form)}</div>
+        <div id="form-site-question" style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Which site is this for?")}</div>
+        <div role="list" aria-labelledby="form-site-question">
+          {picker.sites.map(x => (
+            <button key={x.id} role="listitem" onClick={() => startForm(picker.form, String(x.id))} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, overflowWrap: "anywhere" }}>{starting === "site:" + x.id ? tr("Opening...") : String(x.name || x.id)}</button>
+          ))}
+          <button role="listitem" onClick={() => startForm(picker.form, null)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === "site:" ? tr("Opening...") : tr("No particular site")}</button>
+        </div>
+        {picker.refusal && <div data-form-site-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{picker.refusal}</div>}
+      </div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+        {picker.form && <Btn t={t} v="ghost" onClick={() => setPicker(prev => Object.assign({}, prev, { form: null, refusal: "", error: "" }))} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Back")}</Btn>}
         <Btn t={t} v="ghost" onClick={() => setPicker(null)} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       </div>
     </div></Mdl>)}
