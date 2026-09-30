@@ -8318,6 +8318,12 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
   </div>);
 }
 
+// An inspection template's kind (STEP204_CONTRACT.md, section 2) is a code the API takes and answers,
+// supervisor or audit, and every template it held before is supervisor. The monthly client report
+// counts and averages each kind apart. A kind the page does not know reads as the API sent it.
+const INSPECTION_KINDS = ["supervisor", "audit"];
+const inspectionKindWord = (k) => (k === "audit" ? tr("Audit inspection") : k === "supervisor" ? tr("Supervisor inspection") : String(k || ""));
+const inspectionKindOpts = () => INSPECTION_KINDS.map(k => ({ v: k, l: inspectionKindWord(k) }));
 function InspectionsPage({ af, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
@@ -8360,19 +8366,30 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   const [supervisors, setSupervisors] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [newTplModal, setNewTplModal] = useState(false);
+  // A template's kind shows once the API answers it: the list's templates carry kind. Until then the
+  // windows and the cards draw what they always did, and nothing sends a kind.
+  const kindsLive = templates.some(tp => tp && typeof tp.kind === "string");
+  // A refusal of the kind (400 inspections.badKind) is drawn under Kind in whichever template window is
+  // open, since only one is open at a time. Any other refusal is the toast it always was.
+  const [kindRefusal, setKindRefusal] = useState("");
+  const refuseTemplate = (e) => { if (e && e.code === "inspections.badKind") setKindRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); };
   // Rename (Step 185): PUT /api/inspections/templates/:id takes { name, description } and writes
-  // both, so the description goes back as it is, or the table would lose it.
+  // both, so the description goes back as it is, or the table would lose it. A template that carries
+  // its kind sends the kind too, as it is or as changed here, for the same reason.
   const [renameTpl, setRenameTpl] = useState(null);
+  const openRename = (tp) => { setKindRefusal(""); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "", kind: typeof tp.kind === "string" ? tp.kind : undefined }); };
   const saveRename = async () => {
     const name = String(renameTpl.name || "").trim();
     if (!name) { showToast(tr("Name required"), "error"); return; }
+    setKindRefusal("");
     try {
-      await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body: { name, description: renameTpl.description || "" } });
+      const body = { name, description: renameTpl.description || "" }; if (renameTpl.kind !== undefined) body.kind = renameTpl.kind;
+      await af("/api/inspections/templates/" + renameTpl.id, { method: "PUT", body });
       showToast(tr("Saved")); setRenameTpl(null); loadTemplates();
       if (selectedTemplate && selectedTemplate.id === renameTpl.id) openTemplate(renameTpl.id);
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) { refuseTemplate(e); }
   };
-  const [newTplForm, setNewTplForm] = useState({ name: "", description: "" });
+  const [newTplForm, setNewTplForm] = useState({ name: "", description: "", kind: "supervisor" });
   const [addItemForm, setAddItemForm] = useState({ label: "", zone: "General", cims_category: "SD", max_score: 10 });
   const [scheduleModal, setScheduleModal] = useState(false);
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
@@ -8429,10 +8446,12 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
 
   const createTemplate = async () => {
     if (!newTplForm.name.trim()) { showToast(tr("Name required"), "error"); return; }
+    setKindRefusal("");
     try {
-      await af("/api/inspections/templates", { method: "POST", body: newTplForm });
-      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "" }); loadTemplates();
-    } catch (e) { showToast(e.message, "error"); }
+      const body = { name: newTplForm.name, description: newTplForm.description }; if (kindsLive) body.kind = newTplForm.kind;
+      await af("/api/inspections/templates", { method: "POST", body });
+      showToast(tr("Template created")); setNewTplModal(false); setNewTplForm({ name: "", description: "", kind: "supervisor" }); loadTemplates();
+    } catch (e) { refuseTemplate(e); }
   };
 
   const addItem = async () => {
@@ -8779,23 +8798,26 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
       {renameTpl && <Mdl t={t} onClose={() => setRenameTpl(null)}><div style={{ padding: 20 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Rename")}</div><button onClick={() => setRenameTpl(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} value={renameTpl.name} onChange={e => setRenameTpl({ ...renameTpl, name: e.target.value })} autoFocus /></div>
+        {renameTpl.kind !== undefined && <div style={{ marginBottom: 16 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={renameTpl.kind} onChange={e => { setKindRefusal(""); setRenameTpl({ ...renameTpl, kind: e.target.value }); }} options={INSPECTION_KINDS.indexOf(renameTpl.kind) >= 0 ? inspectionKindOpts() : [{ v: renameTpl.kind, l: inspectionKindWord(renameTpl.kind) }, ...inspectionKindOpts()]} />
+          {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setRenameTpl(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveRename}>{tr("Save")}</Btn></div>
       </div></Mdl>}
       {/* TEMPLATES TAB */}
       {tab === "templates" && (
         <div style={{ display: "flex", gap: 20 }}>
           <div style={{ flex: 1 }}>
-            <SecT t={t} action={tr("New Template")} onAction={() => setNewTplModal(true)}>{tr("Inspection Templates")}</SecT>
+            <SecT t={t} action={tr("New Template")} onAction={() => { setKindRefusal(""); setNewTplModal(true); }}>{tr("Inspection Templates")}</SecT>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
               {templates.map(tp => (
                 <Crd key={tp.id} t={t} onClick={() => openTemplate(tp.id)} style={{ cursor: "pointer", border: selectedTemplate?.id === tp.id ? "1.5px solid " + GO : "1px solid " + t.border }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 4 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 14, flex: 1, marginRight: 8 }}>{tp.name}</div>
                     {canManageInspections && <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                      <button onClick={e => { e.stopPropagation(); setRenameTpl({ id: tp.id, name: tp.name || "", description: tp.description || "" }); }} style={{ minHeight: 44, padding: "0 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Rename")}</button>
+                      <button onClick={e => { e.stopPropagation(); openRename(tp); }} style={{ minHeight: 44, padding: "0 10px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Rename")}</button>
                       <button title={tr("Deactivate")} aria-label={tr("Deactivate")} onClick={e => { e.stopPropagation(); deleteTemplate(tp.id); }} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><XI sz={14} c={RD} /></button>
                     </div>}
                   </div>
+                  {tp.kind && <div style={{ marginBottom: 6 }}><Bdg l={inspectionKindWord(tp.kind)} c={tp.kind === "audit" ? BL : GO} /></div>}
                   {tp.description && <div style={{ fontSize: 11, color: t.textSec, marginBottom: 8, lineHeight: 1.4 }}>{tp.description}</div>}
                   <div style={{ fontSize: 10, color: t.textMut }}>{trn("{0} line item|count", tp.item_count)}</div>
                 </Crd>
@@ -9095,6 +9117,8 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
       {newTplModal && <Mdl t={t} onClose={() => setNewTplModal(false)}><div style={{ padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New Inspection Template")}</div><button onClick={() => setNewTplModal(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
         <div style={{ marginBottom: 14 }}><Lbl>{tr("Template Name *")}</Lbl><Inp t={t} value={newTplForm.name} onChange={e => setNewTplForm({ ...newTplForm, name: e.target.value })} placeholder={tr("e.g. Standard Office Cleaning")} /></div>
+        {kindsLive && <div style={{ marginBottom: 14 }}><Lbl>{tr("Kind")}</Lbl><Sel t={t} aria-label={tr("Kind")} value={newTplForm.kind} onChange={e => { setKindRefusal(""); setNewTplForm({ ...newTplForm, kind: e.target.value }); }} options={inspectionKindOpts()} />
+          {kindRefusal && <div data-kind-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{kindRefusal}</div>}</div>}
         <div style={{ marginBottom: 20 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} value={newTplForm.description} onChange={e => setNewTplForm({ ...newTplForm, description: e.target.value })} placeholder={tr("Optional: describe what this template covers")} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setNewTplModal(false)}>{tr("Cancel")}</Btn><Btn t={t} onClick={createTemplate}>{tr("Create Template")}</Btn></div>
       </div></Mdl>}

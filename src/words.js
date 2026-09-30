@@ -2906,6 +2906,9 @@ export const WORDS = {
   "I certify that I have examined the injury log and that to the best of my knowledge this annual summary is correct and complete.": { es: "Certifico que he examinado el registro de lesiones y que, a mi leal saber y entender, este resumen anual es correcto y completo." },
   "Certify": { es: "Certificar" },
   "Certifying...": { es: "Certificando..." },
+  "Kind": { es: "Tipo" },
+  "Supervisor inspection": { es: "Inspecci\u00f3n de supervisor" },
+  "Audit inspection": { es: "Inspecci\u00f3n de auditor\u00eda" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
