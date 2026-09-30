@@ -2852,6 +2852,9 @@ export const WORDS = {
     es: { one: "{0} turno programado", other: "{0} turnos programados" },
   },
   "Send announcements to staff": { es: "Enviar anuncios al personal" },
+  "Keep the injury log": { es: "Llevar el registro de lesiones" },
+  "Only someone who keeps the injury log can change these answers.": { es: "Solo quien lleva el registro de lesiones puede cambiar estas respuestas." },
+  "Your account cannot change these answers.": { es: "Su cuenta no puede cambiar estas respuestas." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

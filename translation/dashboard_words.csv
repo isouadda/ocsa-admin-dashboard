@@ -2741,3 +2741,6 @@ person not active,persona no activa,"Schedule, Patterns, a date skipped because 
 {0} shift scheduled,{0} turno programado,"Schedule, after Schedule Shift"
 {0} shifts scheduled,{0} turnos programados,"Schedule, after Schedule Shift"
 Send announcements to staff,Enviar anuncios al personal,"Settings, Roles and Permissions, the send_announcements capability"
+Keep the injury log,Llevar el registro de lesiones,"Roles and Permissions, the record_injuries capability's name"
+Only someone who keeps the injury log can change these answers.,Solo quien lleva el registro de lesiones puede cambiar estas respuestas.,"Forms, a filed report, a section whose answers this account cannot change"
+Your account cannot change these answers.,Su cuenta no puede cambiar estas respuestas.,"Forms, a filed report, a section whose answers are kept for another permission"

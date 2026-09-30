@@ -9012,6 +9012,8 @@ const CAPABILITY_LABELS = {
   build_forms: "Make and change forms",
   // Step 179: the Announcements page, routes/announcements.
   send_announcements: "Send announcements to staff",
+  // Step 203: section 8 of OCSA-FRM-016, the injury log and its annual summary (STEP202_CONTRACT.md, section 2).
+  record_injuries: "Keep the injury log",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -10051,6 +10053,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // The sign-off whose signature box is open, and what the API said when it refused the signature.
   const [boxFor, setBoxFor] = useState(null);
   const [signRefusal, setSignRefusal] = useState("");
+  // Step 203: a supervisor write refused with forms.fieldNotYours names the questions this person may
+  // not write in keys, and the refusal is drawn under each of them.
+  const [fieldRefusal, setFieldRefusal] = useState({ text: "", keys: [] });
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -10108,9 +10113,11 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   const savingRef = useRef(false);
   const saveSupervisor = async () => {
     if (savingRef.current) return;
-    const keys = Object.keys(sup);
+    // Only what is typed into a question that shows is sent. An answer typed into a question its
+    // rule has since hidden stays behind (Step 203).
+    const keys = sendableKeys();
     if (!keys.length) return;
-    savingRef.current = true; setSaving(true); setActionError(""); setSentLine("");
+    savingRef.current = true; setSaving(true); setActionError(""); setSentLine(""); setFieldRefusal({ text: "", keys: [] });
     // A row with no cell filled is never sent: it is dropped from a table a person adds rows to, and
     // a table left with no rows goes as null, the way the portal sends one, so the API's missing list
     // keeps naming a required table the way it always has.
@@ -10119,7 +10126,13 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     try {
       const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers } });
       if (d && d.draft) { setData(d); setSup({}); }
-    } catch (e) { setActionError(e.message || tr("Request failed")); }
+    } catch (e) {
+      // forms.fieldNotYours is drawn under the questions it names that are on screen, and anywhere
+      // else under the footer, where every other refusal is drawn.
+      const named = e && e.code === "forms.fieldNotYours" && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      if (named.some(k => fieldByKey[k] && applies(fieldByKey[k]))) setFieldRefusal({ text: e.message || tr("Request failed"), keys: named });
+      else setActionError(e.message || tr("Request failed"));
+    }
     savingRef.current = false; setSaving(false);
   };
 
@@ -10158,27 +10171,52 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   const canResend = !!(data && data.canResend);
   const isVoid = !!(draft && draft.status === "void");
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
+  // Step 203: a question that carries appliesWhen shows only while its rule holds, read by the one
+  // evaluator the form window uses, against what each question holds right now: the answer the API
+  // sent, or on the supervisor half whatever has been typed and not saved yet. A question with no
+  // rule always shows, so a payload that sends none reads exactly as it did.
+  const answersNow = {};
+  fields.forEach(f => { answersNow[f.key] = Object.prototype.hasOwnProperty.call(sup, f.key) ? sup[f.key] : f.value; });
+  const applies = (f) => formRuleHolds(f.appliesWhen, answersNow);
   // Everything that is not the supervisor's half was answered by whoever filed the report. The two
   // words this platform uses for that half are read the same way, so the answers show either way.
-  const agentFields = fields.filter(f => f.half !== "supervisor");
-  const supervisorFields = fields.filter(f => f.half === "supervisor");
+  const agentFields = fields.filter(f => f.half !== "supervisor" && applies(f));
+  const supervisorFields = fields.filter(f => f.half === "supervisor" && applies(f));
   const fieldByKey = {};
   fields.forEach(f => { fieldByKey[f.key] = f; });
+  const sendableKeys = () => Object.keys(sup).filter(k => !fieldByKey[k] || applies(fieldByKey[k]));
+  // Step 203: a question the review view marks readOnly: true is one this person may not write, which
+  // is what a writers list on the definition decides (STEP202_CONTRACT.md, section 1). The one list in
+  // use is section 8 of OCSA-FRM-016, held by record_injuries, and a section that holds such a question
+  // says who can change it. A list naming anything else says this account cannot.
+  const writersLine = (list) => {
+    const locked = list.filter(f => f.readOnly === true);
+    if (locked.length === 0) return null;
+    const injuryLog = locked.every(f => !Array.isArray(f.writers) || f.writers.indexOf("record_injuries") >= 0);
+    return <div key="writers-line" data-writers-line="" style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{injuryLog ? tr("Only someone who keeps the injury log can change these answers.") : tr("Your account cannot change these answers.")}</div>;
+  };
   // The form's sections, when the API sends them (Step 157 on the API): each is drawn as a title,
   // its help line under it where one is sent, and its fields under that, in the order the API lists
   // them. A field whose section the list does not name, and every field of a payload with no
   // sections, draws flat exactly as before, ahead of the sections.
   const sections = data && Array.isArray(data.sections) ? data.sections.filter(sec => sec && sec.key != null) : [];
+  // A question named by a forms.fieldNotYours refusal draws the refusal under it (Step 203).
+  const withRefusal = (draw) => (f) => (fieldRefusal.keys.indexOf(f.key) < 0 ? draw(f) : (<div key={f.key}>
+    {draw(f)}
+    <div data-field-refusal={f.key} style={{ fontSize: 12, color: RD, marginTop: -6, marginBottom: 12 }}>{fieldRefusal.text}</div>
+  </div>));
   const grouped = (list, draw) => {
-    if (sections.length === 0) return list.map(draw);
+    if (sections.length === 0) return [writersLine(list)].concat(list.map(draw));
     const named = new Set(sections.map(sec => String(sec.key)));
-    const out = list.filter(f => !named.has(String(f.section))).map(draw);
+    const flat = list.filter(f => !named.has(String(f.section)));
+    const out = [writersLine(flat)].concat(flat.map(draw));
     sections.forEach(sec => {
       const mine = list.filter(f => String(f.section) === String(sec.key));
       if (mine.length === 0) return;
       out.push(<div key={"section-" + sec.key} style={{ marginBottom: 6 }}>
         <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginTop: 4, marginBottom: sec.help ? 2 : 8 }}>{sec.title == null ? String(sec.key) : String(sec.title)}</div>
         {sec.help != null && sec.help !== "" && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{String(sec.help)}</div>}
+        {writersLine(mine)}
         {mine.map(draw)}
       </div>);
     });
@@ -10338,9 +10376,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // Each question in its own type, which is what a person expects to type into at a desk. A
   // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
   // A question the API filled when the report was made says prefilled: true (Step 192), and the
-  // supervisor write refuses it, so it is drawn read only here rather than offered as an edit.
+  // supervisor write refuses it, so it is drawn read only here rather than offered as an edit. A
+  // question marked readOnly: true is drawn the same way (Step 203).
   const supervisorInput = (f) => {
-    if (f.prefilled === true) return fieldRow(f);
+    if (f.prefilled === true || f.readOnly === true) return fieldRow(f);
     if (f.type === "signoff") return signoffRow(f);
     if (f.type === "photos") return photosRow(f, true);
     const cur = supValue(f);
@@ -10453,9 +10492,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
               </ul>
             </div>}
             {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
-            {grouped(supervisorFields, supervisorInput)}
+            {grouped(supervisorFields, withRefusal(supervisorInput))}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+              <Btn t={t} onClick={saveSupervisor} disabled={saving || sendableKeys().length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
             </div>
           </>)
           : (<>
