@@ -1003,7 +1003,7 @@ export default function AdminDashboard() {
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
@@ -9273,6 +9273,10 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
 // every route answers holders of build_quotes, which admins hold by default since an estimate shows
 // wages, burden and margin. The page is offered once GET /api/users/me/permissions names the
 // capability; the role defaults never hold it.
+//
+// Every step, input, frequency, task line, list and figure is drawn from GET /api/quotes/model, and
+// every figure and check is the API's, from POST /api/quotes/calculate. Nothing here holds a zone, a
+// task, a rate, a frequency or a cost line, and nothing here does the arithmetic.
 const QUOTE_STATUS = {
   draft: { l: "Draft|quote", c: BL },
   sent: { l: "Sent|quote", c: OR },
@@ -9281,20 +9285,152 @@ const QUOTE_STATUS = {
   void: { l: "Void|quote", c: "#8899AA" },
 };
 const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "void"];
+// Accepted, declined and void close a quote, and nothing about it changes after.
+const QUOTE_CLOSED = ["accepted", "declined", "void"];
 const quoteStatusWord = (s) => (QUOTE_STATUS[s] ? tr(QUOTE_STATUS[s].l) : String(s || ""));
 const quoteStatusColor = (s) => (QUOTE_STATUS[s] ? QUOTE_STATUS[s].c : BL);
+const quoteNum = (v, most) => Number(v).toLocaleString(localeTag(), { maximumFractionDigits: most === undefined ? 2 : most });
 const quoteMoney = (v) => (v === null || v === undefined || v === "" || !isFinite(Number(v)) ? "--" : "$" + Number(v).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+// The model names a unit by its code. A fraction is a share written as a decimal, and is shown and
+// typed as a percent.
+const QUOTE_UNIT_WORDS = { sqft: "sq ft", days: "days|unit", hours: "hours|unit", months: "months|unit" };
+const quoteUnitWord = (unit) => (QUOTE_UNIT_WORDS[unit] ? tr(QUOTE_UNIT_WORDS[unit]) : unit === "fraction" ? "%" : unit === "usd" ? "$" : unit === "usdPerHour" ? tr("{0} per hour", "$") : unit === "usdPerSqft" ? tr("{0} per sq ft", "$") : "");
+const quoteFigure = (v, unit) => {
+  if (v === null || v === undefined || v === "" || !isFinite(Number(v))) return "--";
+  if (unit === "usd") return quoteMoney(v);
+  if (unit === "usdPerHour") return tr("{0} per hour", quoteMoney(v));
+  if (unit === "usdPerSqft") return tr("{0} per sq ft", "$" + Number(v).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 4 }));
+  if (unit === "fraction") return quoteNum(Number((Number(v) * 100).toPrecision(12))) + "%";
+  return QUOTE_UNIT_WORDS[unit] ? quoteNum(v) + " " + tr(QUOTE_UNIT_WORDS[unit]) : quoteNum(v);
+};
+// A number as the box shows it: a value the API sent, a fraction as its percent, or what was typed.
+const quoteShown = (input, v) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "string") return v;
+  if (input && input.unit === "fraction") return String(Number((Number(v) * 100).toPrecision(12)));
+  return String(v);
+};
+// A number as it is sent: what the API sent, back as it came, or what was typed, read as a number,
+// a percent read back as its fraction. An empty box is null. Anything else is sent as typed, so the
+// API names it among the values that do not read.
+const quoteNumberOut = (input, v) => {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "number") return v;
+  const s = String(v).trim();
+  if (!s) return null;
+  const n = Number(s);
+  if (!isFinite(n)) return s;
+  return input && input.unit === "fraction" ? Number((n / 100).toPrecision(12)) : n;
+};
+// The model does not say which step the task lines and the lists belong to. The task lines are the
+// Workload step's, and a list is drawn in the section that shares its key, Other direct costs in the
+// Cost summary, or else on Equipment and supplies, where the API's own worksheet draws the lists.
+const QUOTE_TASK_STEP = "workload";
+const QUOTE_LIST_STEP = "equipment";
+const quoteListHome = (model, list) => {
+  for (const g of (model.groups || [])) for (const s of (g.sections || [])) if (s.key === list.key) return { group: g.key, section: s.key };
+  return { group: QUOTE_LIST_STEP, section: null };
+};
+// A frequency worked from a figure of the estimate, in words; the figure itself is the API's.
+const QUOTE_FREQUENCY_FROM = { serviceDays: "Follows the service days", schoolDays: "Follows the school days", halfServiceDays: "Half the service days" };
+// The step a refused key sits on: an input's own step, the Workload step for a task line, and a
+// list's home for a list.
+const quoteStepOfKey = (model, key) => {
+  const k = String(key || "");
+  for (const g of (model.groups || [])) if ((g.inputs || []).some(i => i.key === k)) return g.key;
+  if (k.indexOf("tasks.") === 0 || k === "tasks") return QUOTE_TASK_STEP;
+  const m = /^lists\.([^.]+)/.exec(k);
+  if (m) { const list = (model.lists || []).find(l => l.key === m[1]); return list ? quoteListHome(model, list).group : QUOTE_LIST_STEP; }
+  return null;
+};
+// An estimate as the API sends it, held for editing. Each list row carries an id of its own, which
+// is never sent, so a row keeps its place on screen when the one above it is removed.
+let quoteRowSeq = 0;
+const quoteRowId = () => { quoteRowSeq += 1; return "row-" + quoteRowSeq; };
+const quoteEstimateIn = (inputs) => {
+  const i = inputs && typeof inputs === "object" ? inputs : {};
+  const lists = {};
+  Object.keys(i.lists || {}).forEach(k => { lists[k] = (Array.isArray(i.lists[k]) ? i.lists[k] : []).map(r => Object.assign({}, r, { _id: quoteRowId() })); });
+  const tasks = {};
+  Object.keys(i.tasks || {}).forEach(k => { tasks[k] = Object.assign({}, i.tasks[k]); });
+  return { values: Object.assign({}, i.values || {}), tasks, lists };
+};
+// The estimate as it is sent. A number left empty takes the default beneath it; for a save, filled
+// is the estimate the last figures were worked from, so what is saved is what the figures show. A
+// task's count left empty follows its frequency. A text, a date or a choice left empty is cleared.
+const quoteEstimateOut = (model, est, filled) => {
+  const byKey = {};
+  (model.groups || []).forEach(g => (g.inputs || []).forEach(i => { byKey[i.key] = i; }));
+  const fill = (part, k, field) => {
+    const src = filled && filled[part] ? filled[part][k] : undefined;
+    const v = field ? (src ? src[field] : undefined) : src;
+    return typeof v === "number" ? v : null;
+  };
+  const values = {};
+  Object.keys(est.values || {}).forEach(k => {
+    const input = byKey[k];
+    if (!input) return;
+    const v = est.values[k];
+    if (input.type === "number") {
+      const n = quoteNumberOut(input, v);
+      const use = n === null ? fill("values", k) : n;
+      if (use !== null) values[k] = use;
+    } else values[k] = v === "" || v === undefined ? null : v;
+  });
+  const tasks = {};
+  Object.keys(est.tasks || {}).forEach(k => {
+    const tk = est.tasks[k] || {};
+    const out = {};
+    if (tk.frequency) out.frequency = tk.frequency;
+    out.timesPerMonth = quoteNumberOut(null, tk.timesPerMonth);
+    ["rate", "hoursPerOccurrence"].forEach(f => {
+      if (!Object.prototype.hasOwnProperty.call(tk, f)) return;
+      const n = quoteNumberOut(null, tk[f]);
+      const use = n === null ? fill("tasks", k, f) : n;
+      if (use !== null) out[f] = use;
+    });
+    tasks[k] = out;
+  });
+  const lists = {};
+  Object.keys(est.lists || {}).forEach(k => {
+    lists[k] = (est.lists[k] || []).map(r => {
+      const row = { key: r.key || null, item: r.item ? String(r.item) : null, notes: r.notes ? String(r.notes) : null };
+      ["quantity", "unitCost"].forEach(f => { const n = quoteNumberOut(null, r[f]); if (n !== null) row[f] = n; });
+      return row;
+    });
+  });
+  return { values, tasks, lists };
+};
+// The parts of a body a refusal names, as the API sends them in keys.
+const quoteKeysOf = (e) => (e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []);
+const quoteDetailsIn = (q) => ({
+  clientName: (q && q.clientName) || "", contactName: (q && q.contactName) || "", contactEmail: (q && q.contactEmail) || "",
+  siteId: (q && q.siteId) || "", siteName: (q && q.siteName) || "", siteAddress: (q && q.siteAddress) || "",
+  validUntil: (q && q.validUntil) || "", notes: (q && q.notes) || "",
+});
 
 // The list, newest first, from GET /api/quotes?status=&q=. A row opens its quote at #quotes/<id>, and
 // New quote opens #quotes/new, so a refresh keeps the quote open.
-function QuotesPage({ af, token, t, route = [], onRoute }) {
+function QuotesPage({ af, token, t, sites = [], phone = false, route = [], onRoute, showToast }) {
   const [rows, setRows] = useState(null);
   const [failed, setFailed] = useState("");
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [openId, setOpenId] = useState(() => (route[0] ? String(route[0]) : null));
-  useEffect(() => { setOpenId(route[0] ? String(route[0]) : null); }, [route]);
+  // The editor opens afresh for each quote opened, and stays open when a new quote is saved and the
+  // address takes its id.
+  const [editorKey, setEditorKey] = useState(0);
+  const openRef = useRef(openId);
+  const quiet = useRef(null);
+  useEffect(() => {
+    const next = route[0] ? String(route[0]) : null;
+    if (next === openRef.current) return;
+    if (!(next && next === quiet.current)) setEditorKey(k => k + 1);
+    quiet.current = null;
+    openRef.current = next;
+    setOpenId(next);
+  }, [route]);
   // The search is sent once typing stops.
   useEffect(() => { const h = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(h); }, [search]);
   const load = useCallback(async () => {
@@ -9303,10 +9439,11 @@ function QuotesPage({ af, token, t, route = [], onRoute }) {
     catch (e) { setRows([]); setFailed(e.message || tr("This did not load.")); console.warn("Quotes:", e.message); }
   }, [af, status, q]);
   useEffect(() => { if (!openId) load(); }, [load, openId]);
-  const open = (id) => { setOpenId(String(id)); if (onRoute) onRoute([String(id)]); };
-  const close = () => { setOpenId(null); if (onRoute) onRoute([]); };
+  const open = (id) => { if (onRoute) onRoute([String(id)]); };
+  const close = () => { if (onRoute) onRoute([]); };
+  const created = (id) => { quiet.current = String(id); if (onRoute) onRoute([String(id)]); };
 
-  if (openId) return <QuoteEditor key={openId} af={af} token={token} t={t} id={openId} onBack={close} onOpen={open} />;
+  if (openId) return <QuoteEditor key={editorKey} af={af} token={token} t={t} sites={sites} phone={phone} id={openId} onBack={close} onCreated={created} showToast={showToast} />;
   const cols = [
     { header: tr("Number"), tdStyle: { whiteSpace: "nowrap" }, render: r => (<span><span style={{ fontWeight: 600, color: t.text }}>{r.number}</span>{Number(r.revision) > 1 ? <div style={{ fontSize: 10, color: t.textMut }}>{tr("Revision {0}", r.revision)}</div> : null}</span>) },
     { header: tr("Client"), tdStyle: { minWidth: 120, color: t.text }, render: r => r.clientName || "--" },
@@ -9333,26 +9470,427 @@ function QuotesPage({ af, token, t, route = [], onRoute }) {
   </div>);
 }
 
-// One quote, or a new one. The header says which, with Back to quotes.
-function QuoteEditor({ af, token, t, id, onBack, onOpen }) {
-  const isNew = id === "new";
+// A refusal's words under the box it names, and the box's red edge.
+const QuoteRefusal = ({ text }) => (text ? <div data-quote-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4, lineHeight: 1.4 }}>{text}</div> : null);
+const quoteBoxStyle = (refused) => (refused ? { borderColor: RD } : {});
+
+// One input of the model, drawn from its type, unit, min, max and options, with its help under it in
+// the screen's language. shown is the value the figures were worked from, which an empty number box
+// shows greyed as the default it takes.
+function QuoteField({ t, input, value, shown, onChange, refusal, readOnly, compact }) {
+  const label = builderText(input.label);
+  const unit = input.type === "number" ? quoteUnitWord(input.unit) : "";
+  const pct = input.unit === "fraction";
+  const box = { ...quoteBoxStyle(!!refusal) };
+  let control;
+  if (input.type === "select") {
+    const opts = [{ v: "", l: tr("Select...") }].concat((input.options || []).map(o => ({ v: String(o.value), l: builderText(o.label) })));
+    control = <Sel t={t} aria-label={label} value={value === null || value === undefined ? "" : String(value)} onChange={e => onChange(e.target.value)} disabled={readOnly} options={opts} style={box} />;
+  } else if (input.type === "date") {
+    control = <Inp t={t} type="date" aria-label={label} value={value || ""} onChange={e => onChange(e.target.value)} disabled={readOnly} style={box} />;
+  } else if (input.type === "text") {
+    control = <Inp t={t} type="text" aria-label={label} value={value || ""} onChange={e => onChange(e.target.value)} disabled={readOnly} style={box} />;
+  } else {
+    const min = input.min === null || input.min === undefined ? undefined : (pct ? input.min * 100 : input.min);
+    const max = input.max === null || input.max === undefined ? undefined : (pct ? input.max * 100 : input.max);
+    const ph = shown === null || shown === undefined ? "" : quoteShown(input, shown);
+    control = (<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      {input.unit === "usd" || input.unit === "usdPerHour" || input.unit === "usdPerSqft" ? <span style={{ fontSize: 13, color: t.textMut }}>$</span> : null}
+      <Inp t={t} type="number" inputMode="decimal" aria-label={label} min={min} max={max} step={input.integer ? 1 : "any"} value={quoteShown(input, value)} placeholder={ph} onChange={e => onChange(e.target.value)} disabled={readOnly} style={{ ...box, flex: 1, minWidth: 0 }} />
+      {unit && unit !== "$" ? <span style={{ fontSize: 12, color: t.textMut, whiteSpace: "nowrap" }}>{input.unit === "usdPerHour" ? tr("per hour") : input.unit === "usdPerSqft" ? tr("per sq ft") : unit}</span> : null}
+    </div>);
+  }
+  return (<div data-quote-input={input.key} style={{ minWidth: 0 }}>
+    {!compact && <Lbl>{label}</Lbl>}
+    {control}
+    {!compact && input.help ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 4, lineHeight: 1.4 }}>{builderText(input.help)}</div> : null}
+    {!compact && <QuoteRefusal text={refusal} />}
+  </div>);
+}
+
+// A section whose inputs make a table, the zones with their square feet and rooms: a row for each of
+// the section's rows, a column for each of its columns, and a box where an input names both. A box
+// the refusal names is edged red, and the refusal names them under the table.
+function QuoteTableSection({ t, section, inputs, est, filled, set, refusal, readOnly }) {
+  const cell = (row, col) => inputs.find(i => i.row === row.key && i.column === col.key);
+  const named = inputs.filter(i => refusal && refusal.keys.indexOf(i.key) >= 0);
+  const thSt = { padding: "8px 8px", fontSize: 11, fontWeight: 600, color: t.textMut, textAlign: "left", whiteSpace: "nowrap" };
+  return (<div>
+    <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
+      <thead><tr><th style={thSt}></th>{(section.columns || []).map(c => <th key={c.key} style={thSt}>{builderText(c.label)}</th>)}</tr></thead>
+      <tbody>{(section.rows || []).map(r => (<tr key={r.key} style={{ borderTop: "1px solid " + t.border }}>
+        <td style={{ padding: "6px 8px", fontSize: 13, color: t.text, minWidth: 140 }}>{builderText(r.label)}</td>
+        {(section.columns || []).map(c => { const i = cell(r, c); return (<td key={c.key} style={{ padding: "4px 6px", minWidth: 110 }}>{i ? <QuoteField t={t} input={i} value={est.values[i.key]} shown={filled && filled.values ? filled.values[i.key] : null} onChange={v => set(i.key, v)} refusal={refusal && refusal.keys.indexOf(i.key) >= 0 ? refusal.text : ""} readOnly={readOnly} compact /> : null}</td>); })}
+      </tr>))}</tbody>
+    </table></div>
+    {named.length > 0 && <QuoteRefusal text={refusal.text + ": " + named.map(i => builderText(i.label)).join(", ")} />}
+  </div>);
+}
+
+// The Workload step: the frequency table, then every task line by its group. A line's quantity comes
+// from the building and reads only; its rate per hour and its frequency are typed and picked, and
+// the frequency fills Times per month until a count is typed over it. A line entered by hand takes
+// its hours each time. Hours per month is the API's.
+function QuoteWorkload({ t, model, est, detail, taskHours, setTask, refusal, readOnly, ratesOnly }) {
+  const freqs = model.frequencies || [];
+  const limits = model.taskLimits || {};
+  const refusedOf = (k, f) => !!(refusal && refusal.keys.indexOf("tasks." + k + "." + f) >= 0);
+  const thSt = { padding: "8px 8px", fontSize: 11, fontWeight: 600, color: t.textMut, textAlign: "left", whiteSpace: "nowrap" };
+  const tdSt = { padding: "6px 8px", fontSize: 13, color: t.text, verticalAlign: "top" };
+  const lineLabel = (tl) => { const named = tl.labelFrom ? est.values[tl.labelFrom] : ""; return named ? String(named) : builderText(tl.label); };
+  const num = (k, f, lim, extra) => (<Inp t={t} type="number" inputMode="decimal" aria-label={extra.label} min={lim ? lim.min : undefined} max={lim ? lim.max : undefined} step="any"
+    value={quoteShown(null, (est.tasks[k] || {})[f])} placeholder={extra.placeholder || ""} onChange={e => setTask(k, { [f]: e.target.value })} disabled={readOnly}
+    style={{ ...quoteBoxStyle(refusedOf(k, f)), minWidth: 90 }} />);
+  return (<div>
+    {!ratesOnly && <div style={{ marginBottom: 18 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Frequencies")}</div>
+      <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", maxWidth: 520 }}>
+        <thead><tr><th style={thSt}>{tr("Frequency")}</th><th style={{ ...thSt, textAlign: "right" }}>{tr("Times per month")}</th></tr></thead>
+        <tbody>{freqs.map(f => (<tr key={f.key} style={{ borderTop: "1px solid " + t.border }}>
+          <td style={tdSt}>{builderText(f.label)}</td>
+          <td style={{ ...tdSt, textAlign: "right", color: t.textSec }}>{typeof f.timesPerMonth === "number" ? quoteNum(f.timesPerMonth) : (QUOTE_FREQUENCY_FROM[f.from] ? tr(QUOTE_FREQUENCY_FROM[f.from]) : "--")}</td>
+        </tr>))}</tbody>
+      </table></div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.4 }}>{tr("Times per month follows the frequency until you type a count over it. Clear the count to follow the frequency again.")}</div>
+    </div>}
+    {(model.taskGroups || []).map(g => {
+      const lines = (model.taskLines || []).filter(tl => tl.group === g.key).filter(tl => !ratesOnly || !tl.manual);
+      if (lines.length === 0) return null;
+      const counted = lines.some(tl => !tl.manual);
+      const byHand = !ratesOnly && lines.some(tl => tl.manual);
+      const named = lines.filter(tl => ["rate", "frequency", "timesPerMonth", "hoursPerOccurrence"].some(f => refusedOf(tl.key, f)));
+      return (<div key={g.key} data-quote-task-group={g.key} style={{ marginBottom: 18 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{builderText(g.title)}</div>
+        {g.help ? <div style={{ fontSize: 11, color: t.textMut, margin: "2px 0 6px", lineHeight: 1.4 }}>{builderText(g.help)}</div> : null}
+        <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: ratesOnly ? 360 : 640 }}>
+          <thead><tr>
+            <th style={thSt}>{tr("Task")}</th>
+            {counted && !ratesOnly && <th style={{ ...thSt, textAlign: "right" }}>{tr("Quantity")}</th>}
+            {counted && <th style={thSt}>{tr("Rate per hour")}</th>}
+            {byHand && <th style={thSt}>{tr("Hours each time")}</th>}
+            {!ratesOnly && <th style={thSt}>{tr("Frequency")}</th>}
+            {!ratesOnly && <th style={thSt}>{tr("Times per month")}</th>}
+            {!ratesOnly && <th style={{ ...thSt, textAlign: "right" }}>{tr("Hours per month")}</th>}
+          </tr></thead>
+          <tbody>{lines.map(tl => {
+            const tk = est.tasks[tl.key] || {};
+            const dt = (detail && detail[tl.key]) || {};
+            const unit = builderText(tl.unit);
+            return (<tr key={tl.key} data-quote-task={tl.key} style={{ borderTop: "1px solid " + t.border }}>
+              <td style={{ ...tdSt, minWidth: 180 }}>{lineLabel(tl)}{tl.note ? <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{builderText(tl.note)}</div> : null}</td>
+              {counted && !ratesOnly && <td style={{ ...tdSt, textAlign: "right", whiteSpace: "nowrap", color: t.textSec }}>{tl.manual ? "--" : (dt.quantity === null || dt.quantity === undefined ? "--" : quoteNum(dt.quantity) + " " + unit)}</td>}
+              {counted && <td style={tdSt}>{tl.manual ? "--" : <div>{num(tl.key, "rate", limits.rate, { label: lineLabel(tl) + ": " + tr("Rate per hour"), placeholder: ratesOnly ? (typeof tl.defaultRate === "number" ? String(tl.defaultRate) : "") : (typeof dt.rate === "number" ? String(dt.rate) : "") })}<div style={{ fontSize: 10, color: t.textMut, marginTop: 2, whiteSpace: "nowrap" }}>{tr("{0} per hour", unit)}</div></div>}</td>}
+              {byHand && <td style={tdSt}>{tl.manual ? num(tl.key, "hoursPerOccurrence", limits.hoursPerOccurrence, { label: lineLabel(tl) + ": " + tr("Hours each time"), placeholder: typeof dt.hoursPerOccurrence === "number" ? String(dt.hoursPerOccurrence) : "" }) : "--"}</td>}
+              {!ratesOnly && <td style={tdSt}><Sel t={t} aria-label={lineLabel(tl) + ": " + tr("Frequency")} value={tk.frequency || ""} onChange={e => setTask(tl.key, { frequency: e.target.value, timesPerMonth: null })} disabled={readOnly}
+                options={freqs.map(f => ({ v: f.key, l: builderText(f.label) }))} style={{ ...quoteBoxStyle(refusedOf(tl.key, "frequency")), minWidth: 150 }} /></td>}
+              {!ratesOnly && <td style={tdSt}>{num(tl.key, "timesPerMonth", limits.timesPerMonth, { label: lineLabel(tl) + ": " + tr("Times per month"), placeholder: typeof dt.timesPerMonth === "number" ? quoteNum(dt.timesPerMonth) : "" })}</td>}
+              {!ratesOnly && <td style={{ ...tdSt, textAlign: "right", whiteSpace: "nowrap" }}>{taskHours && typeof taskHours[tl.key] === "number" ? quoteNum(taskHours[tl.key]) : "--"}</td>}
+            </tr>);
+          })}</tbody>
+        </table></div>
+        {named.length > 0 && <QuoteRefusal text={refusal.text + ": " + named.map(lineLabel).join(", ")} />}
+      </div>);
+    })}
+  </div>);
+}
+
+// A list of the estimate, equipment, supplies or other direct costs: a row for each, its columns from
+// the model, with Add row and Remove row. A default row reads its item and notes in the screen's
+// language until something is typed over them. The list's total is the API's figure.
+function QuoteList({ t, list, rows, setRows, total, refusal, readOnly }) {
+  const defaults = {};
+  (list.defaults || []).forEach(d => { defaults[d.key] = d; });
+  const limits = list.rowLimits || {};
+  const max = Number(list.maxRows) || 50;
+  const at = (i, c) => "lists." + list.key + "." + i + "." + c;
+  const refusedAt = (i, c) => !!(refusal && refusal.keys.some(k => k === at(i, c) || k === "lists." + list.key + "." + i));
+  const edit = (i, c, v) => setRows(rows.map((r, j) => (j === i ? Object.assign({}, r, { [c]: v }) : r)));
+  const thSt = { padding: "8px 8px", fontSize: 11, fontWeight: 600, color: t.textMut, textAlign: "left", whiteSpace: "nowrap" };
+  const listRefused = !!(refusal && refusal.keys.some(k => k === "lists." + list.key || k.indexOf("lists." + list.key + ".") === 0));
+  return (<div data-quote-list={list.key} style={{ marginTop: 10, marginBottom: 18 }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{builderText(list.title)}</div>
+    {list.help ? <div style={{ fontSize: 11, color: t.textMut, margin: "2px 0 6px", lineHeight: 1.4 }}>{builderText(list.help)}</div> : null}
+    <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
+      <thead><tr>{(list.columns || []).map(c => <th key={c.key} style={thSt}>{builderText(c.label)}</th>)}{!readOnly && <th style={thSt}></th>}</tr></thead>
+      <tbody>{rows.length === 0 && <tr><td colSpan={(list.columns || []).length + 1} style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("No rows.")}</td></tr>}
+        {rows.map((r, i) => { const d = r.key ? defaults[r.key] : null; return (<tr key={r._id || i} style={{ borderTop: "1px solid " + t.border }}>
+          {(list.columns || []).map(c => {
+            const lab = builderText(c.label);
+            const st = { ...quoteBoxStyle(refusedAt(i, c.key)), minWidth: c.type === "number" ? 80 : 140 };
+            return (<td key={c.key} style={{ padding: "4px 6px" }}>{c.type === "number"
+              ? <div style={{ display: "flex", alignItems: "center", gap: 4 }}>{c.unit === "usd" ? <span style={{ fontSize: 13, color: t.textMut }}>$</span> : null}<Inp t={t} type="number" inputMode="decimal" aria-label={lab} min={limits[c.key] ? limits[c.key].min : undefined} max={limits[c.key] ? limits[c.key].max : undefined} step="any" value={quoteShown(null, r[c.key])} onChange={e => edit(i, c.key, e.target.value)} disabled={readOnly} style={st} /></div>
+              : <Inp t={t} type="text" aria-label={lab} value={r[c.key] || ""} placeholder={d && d[c.key] ? builderText(d[c.key]) : ""} onChange={e => edit(i, c.key, e.target.value)} disabled={readOnly} style={st} />}</td>);
+          })}
+          {!readOnly && <td style={{ padding: "4px 2px", width: 48 }}><button onClick={() => setRows(rows.filter((x, j) => j !== i))} aria-label={tr("Remove row") + ": " + (r.item || (d ? builderText(d.item) : "") || String(i + 1))} title={tr("Remove row")} style={xBtn}><XI sz={16} c={t.textMut} /></button></td>}
+        </tr>); })}
+      </tbody>
+    </table></div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+      {!readOnly && <Btn t={t} v="ghost" onClick={() => setRows(rows.concat([{ _id: quoteRowId(), key: null, item: "", quantity: "", unitCost: "", notes: "" }]))} disabled={rows.length >= max} style={{ minHeight: 44 }}>{tr("Add row")}</Btn>}
+      {list.total ? <div style={{ marginLeft: "auto", fontSize: 13, color: t.text }}>{builderText(list.total.label)}: <b>{quoteFigure(total, "usd")}</b></div> : null}
+    </div>
+    {listRefused && <QuoteRefusal text={refusal.text} />}
+  </div>);
+}
+
+// One step of the model: its sections in order, each with its inputs, a table where the section has
+// rows and columns, and the list that shares its key. The Workload step draws the task lines, and
+// Equipment and supplies the lists no section holds.
+function QuoteStep({ t, model, group, est, filled, calc, set, setTask, setList, refusal, readOnly, ratesOnly }) {
+  const refusedText = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
+  const sections = group.sections || [];
+  const inSection = (s) => (group.inputs || []).filter(i => i.section === s.key);
+  const loose = (group.inputs || []).filter(i => !sections.some(s => s.key === i.section));
+  const lists = ratesOnly ? [] : (model.lists || []);
+  const listsHere = (sectionKey) => lists.filter(l => { const h = quoteListHome(model, l); return h.group === group.key && h.section === sectionKey; });
+  const results = (calc && calc.results) || {};
+  const grid = (inputs) => (<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+    {inputs.map(i => <QuoteField key={i.key} t={t} input={i} value={est.values[i.key]} shown={filled && filled.values ? filled.values[i.key] : null} onChange={v => set(i.key, v)} refusal={refusedText(i.key)} readOnly={readOnly} />)}
+  </div>);
+  const listBlock = (l) => <QuoteList key={l.key} t={t} list={l} rows={est.lists[l.key] || []} setRows={rows => setList(l.key, rows)} total={l.total ? results[l.total.key] : null} refusal={refusal} readOnly={readOnly} />;
+  return (<div data-quote-step={group.key}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{builderText(group.title)}</div>
+    {group.help ? <div style={{ fontSize: 12, color: t.textSec, margin: "4px 0 14px", lineHeight: 1.5 }}>{builderText(group.help)}</div> : null}
+    {sections.map(s => { const ins = inSection(s); const here = listsHere(s.key); if (ins.length === 0 && here.length === 0) return null; return (<div key={s.key} data-quote-section={s.key} style={{ marginBottom: 20 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 2 }}>{builderText(s.title)}</div>
+      {s.help ? <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8, lineHeight: 1.4 }}>{builderText(s.help)}</div> : <div style={{ height: 6 }} />}
+      {Array.isArray(s.rows) && Array.isArray(s.columns) ? <QuoteTableSection t={t} section={s} inputs={ins} est={est} filled={filled} set={set} refusal={refusal} readOnly={readOnly} /> : (ins.length > 0 ? grid(ins) : null)}
+      {here.map(listBlock)}
+    </div>); })}
+    {loose.length > 0 && <div style={{ marginBottom: 20 }}>{grid(loose)}</div>}
+    {group.key === QUOTE_TASK_STEP && <QuoteWorkload t={t} model={model} est={est} detail={calc && calc.taskDetail} taskHours={calc && calc.taskHours} setTask={setTask} refusal={refusal} readOnly={readOnly} ratesOnly={ratesOnly} />}
+    {group.key === QUOTE_LIST_STEP && listsHere(null).map(listBlock)}
+  </div>);
+}
+
+// The figures panel: the monthly price large, every check, green when it holds and orange with its
+// words when it does not, and every figure the model lists, by step. A check that does not hold is a
+// warning and never stops a save or a send. While a value cannot be read the last figures stay,
+// marked as from before the change.
+function QuoteFigures({ t, model, calc, busy, stale, phone }) {
+  const results = (calc && calc.results) || {};
+  const checks = (calc && Array.isArray(calc.checks)) ? calc.checks : [];
+  const checkLabel = (k) => { const c = (model.checks || []).find(x => x.key === k); return c ? builderText(c.label) : k; };
+  const price = (model.results || []).find(r => r.key === "monthlyPrice");
+  return (<Crd t={t} style={{ padding: 16, maxHeight: phone ? "none" : "calc(100vh / var(--zoom, 1) - 120px)", overflowY: phone ? "visible" : "auto" }}>
+    <div data-quote-figures="">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Figures")}</div>
+        {busy && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Working out the figures...")}</div>}
+      </div>
+      {stale && <div style={{ fontSize: 12, color: OR, marginTop: 6, lineHeight: 1.4 }}>{tr("These figures are from before the last change.")}</div>}
+      <div style={{ marginTop: 10, opacity: stale ? 0.6 : 1 }}>
+        <div style={{ fontSize: 11, color: t.textMut, fontWeight: 600 }}>{price ? builderText(price.label) : tr("Monthly price")}</div>
+        <div data-quote-price="" style={{ fontFamily: FONT_HEAD, fontSize: 28, fontWeight: 700, color: t.goldText, marginTop: 2 }}>{quoteMoney(results.monthlyPrice)}</div>
+      </div>
+      <div style={{ marginTop: 14 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Checks")}</div>
+        {checks.map(c => (<div key={c.key} data-quote-check={c.key} data-ok={c.ok ? "true" : "false"} style={{ display: "flex", flexWrap: "nowrap", gap: 8, alignItems: "flex-start", padding: "6px 8px", marginBottom: 6, borderRadius: 8, background: c.ok ? t.greenSubtle : t.orangeSubtle, border: "1px solid " + (c.ok ? t.greenBorder : t.orangeBorder) }}>
+          {c.ok ? <ChkI sz={14} c={GR} style={{ flexShrink: 0, marginTop: 2 }} /> : <AlI sz={14} c={OR} style={{ flexShrink: 0, marginTop: 2 }} />}
+          <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, fontWeight: 600, color: c.ok ? t.text : OR }}>{checkLabel(c.key)}</div><div style={{ fontSize: 11, color: t.textSec, lineHeight: 1.4 }}>{builderText(c.message)}</div></div>
+        </div>))}
+        <div style={{ fontSize: 11, color: t.textMut, lineHeight: 1.4 }}>{tr("A check that is not met is a warning. It never stops a save or a send.")}</div>
+      </div>
+      <div style={{ marginTop: 14, opacity: stale ? 0.6 : 1 }}>
+        {(model.groups || []).map(g => { const rs = (model.results || []).filter(r => r.group === g.key); if (rs.length === 0) return null; return (<div key={g.key} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 4 }}>{builderText(g.title)}</div>
+          {rs.map(r => (<div key={r.key} data-quote-result={r.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, padding: "3px 0", borderTop: "1px solid " + t.border }}>
+            <span style={{ color: t.textSec, minWidth: 0 }}>{builderText(r.label)}</span><span style={{ color: t.text, whiteSpace: "nowrap", fontWeight: r.key === "monthlyPrice" ? 700 : 500 }}>{quoteFigure(results[r.key], r.unit)}</span>
+          </div>))}
+        </div>); })}
+      </div>
+    </div>
+  </Crd>);
+}
+
+// One quote, or a new one: the client, contact and site above five steps drawn from the model's
+// groups, with Back and Next between them, and the figures beside them, under them at 390. The
+// figures are worked out by the API 400 ms after typing stops. Save posts a new quote or puts one,
+// and a refusal is drawn under the box its keys name. A closed quote reads only.
+function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCreated, showToast }) {
+  const [qid, setQid] = useState(id === "new" ? null : id);
+  // The quote the editor opened with, read once: a new quote saved takes its id without loading again.
+  const openedRef = useRef(qid);
+  const isNew = !qid;
+  const [model, setModel] = useState(null);
   const [quote, setQuote] = useState(null);
   const [failed, setFailed] = useState("");
+  const [est, setEst] = useState(null);
+  const [details, setDetails] = useState(quoteDetailsIn(null));
+  const [calc, setCalc] = useState(null);
+  const [calcBusy, setCalcBusy] = useState(false);
+  const [calcRefusal, setCalcRefusal] = useState(null);
+  const [refusal, setRefusal] = useState(null);
+  const [step, setStep] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const [edits, setEdits] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const savingRef = useRef(false);
+  const stepTop = useRef(null);
+  const estRef = useRef(null);
+  estRef.current = est;
+  const calcSeq = useRef(0);
+
   const load = useCallback(async () => {
-    if (isNew) return;
-    try { const d = await af("/api/quotes/" + encodeURIComponent(id)); setQuote(d && d.quote ? d.quote : null); setFailed(""); }
-    catch (e) { setFailed(e.message || tr("This did not load.")); console.warn("Quote:", e.message); }
-  }, [af, id, isNew]);
+    setFailed("");
+    try {
+      const m = await af("/api/quotes/model");
+      if (!m || !Array.isArray(m.groups)) throw new Error(tr("This did not load."));
+      setModel(m);
+      const opened = openedRef.current;
+      if (!opened) {
+        // A new quote's boxes show the whole estimate the company's defaults and the model's give.
+        const c = await af("/api/quotes/calculate", { method: "POST", body: { inputs: {} } });
+        setEst(quoteEstimateIn(c && c.inputs)); setCalc(c || null);
+      } else {
+        const d = await af("/api/quotes/" + encodeURIComponent(opened));
+        const q = d && d.quote;
+        if (!q) throw new Error(tr("This did not load."));
+        setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs));
+        setCalc({ inputs: q.inputs, results: q.results || {}, taskHours: q.taskHours || {}, checks: q.checks || [], taskDetail: null });
+        // The saved quote carries no task detail, so the figures are worked once for the quantities
+        // and the counts the Workload step shows.
+        af("/api/quotes/calculate", { method: "POST", body: { inputs: q.inputs } }).then(c => { if (c) setCalc(c); }).catch(e => console.warn("Quote figures:", e.message));
+      }
+    } catch (e) { setFailed(e.message || tr("This did not load.")); console.warn("Quote:", e.message); }
+  }, [af]);
   useEffect(() => { load(); }, [load]);
+
+  // The figures, 400 ms after typing stops. An answer to an earlier change is dropped.
+  useEffect(() => {
+    if (!edits || !model) return undefined;
+    const my = calcSeq.current + 1;
+    calcSeq.current = my;
+    const h = setTimeout(async () => {
+      setCalcBusy(true);
+      try {
+        const c = await af("/api/quotes/calculate", { method: "POST", body: { inputs: quoteEstimateOut(model, estRef.current, null) } });
+        if (calcSeq.current !== my) return;
+        setCalc(c || null); setCalcRefusal(null);
+      } catch (e) {
+        if (calcSeq.current !== my) return;
+        setCalcRefusal({ text: e.message || tr("Request failed"), keys: quoteKeysOf(e) });
+      }
+      if (calcSeq.current === my) setCalcBusy(false);
+    }, 400);
+    return () => clearTimeout(h);
+  }, [edits, model, af]);
+
+  const closed = !!(quote && QUOTE_CLOSED.indexOf(quote.status) >= 0);
+  const readOnly = closed;
+  const touched = () => { setDirty(true); setEdits(n => n + 1); };
+  const set = (k, v) => { setEst(e => Object.assign({}, e, { values: Object.assign({}, e.values, { [k]: v }) })); touched(); };
+  const setTask = (k, patch) => { setEst(e => Object.assign({}, e, { tasks: Object.assign({}, e.tasks, { [k]: Object.assign({}, e.tasks[k] || {}, patch) }) })); touched(); };
+  const setList = (k, rows) => { setEst(e => Object.assign({}, e, { lists: Object.assign({}, e.lists, { [k]: rows }) })); touched(); };
+  const setDetail = (k, v) => { setDetails(d => Object.assign({}, d, { [k]: v })); setDirty(true); };
+
+  // The refusal the boxes show: the save's, and while none, the figures'.
+  const shownRefusal = refusal || calcRefusal;
+  const stepKeys = (g) => (shownRefusal ? shownRefusal.keys.filter(k => quoteStepOfKey(model, k) === g.key) : []);
+  const detailRefused = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
+
+  const save = async () => {
+    if (savingRef.current || !model || !est || readOnly) return;
+    savingRef.current = true; setSaving(true); setRefusal(null);
+    const d = details;
+    const body = {
+      clientName: d.clientName.trim(), contactName: d.contactName.trim(), contactEmail: d.contactEmail.trim(),
+      siteId: d.siteId || null, siteName: d.siteName.trim(), siteAddress: d.siteAddress.trim(), notes: d.notes.trim(),
+      inputs: quoteEstimateOut(model, est, calc && calc.inputs),
+    };
+    if (!isNew) body.validUntil = d.validUntil || null;
+    try {
+      const r = isNew ? await af("/api/quotes", { method: "POST", body }) : await af("/api/quotes/" + encodeURIComponent(qid), { method: "PUT", body });
+      const q = r && r.quote;
+      if (!q) throw new Error(tr("Request failed"));
+      setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs));
+      setCalc(c => Object.assign({}, c || {}, { inputs: q.inputs, results: q.results || {}, taskHours: q.taskHours || {}, checks: q.checks || [] }));
+      setCalcRefusal(null); setDirty(false);
+      if (showToast) showToast(tr("Quote saved."));
+      if (isNew) { setQid(q.id); if (onCreated) onCreated(q.id); }
+    } catch (e) {
+      const keys = quoteKeysOf(e);
+      setRefusal({ text: e.message || tr("Request failed"), keys, code: e.code });
+      // The first step holding a box the refusal names is opened, unless this one holds one.
+      const groups = model.groups || [];
+      const here = groups[step] && keys.some(k => quoteStepOfKey(model, k) === groups[step].key);
+      const first = groups.findIndex(g => keys.some(k => quoteStepOfKey(model, k) === g.key));
+      if (!here && first >= 0) setStep(first);
+    }
+    savingRef.current = false; setSaving(false);
+  };
+
+  const back = () => { if (dirty && !readOnly) setLeaving(true); else onBack(); };
+  // Back and Next at the foot of a long step bring the next step's top into view.
+  const goStep = (i) => { setStep(i); try { if (stepTop.current && stepTop.current.getBoundingClientRect().top < 0) stepTop.current.scrollIntoView({ block: "start" }); } catch (e) {} };
+  const groups = model ? model.groups : [];
+  const g = groups[step] || null;
+  const filled = calc && calc.inputs;
+  const siteOpts = [{ v: "", l: tr("No site on file") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })));
+  const detailBox = (k, label, type) => (<div style={{ minWidth: 0 }}><Lbl>{label}</Lbl>
+    <Inp t={t} type={type || "text"} aria-label={label} value={details[k]} onChange={e => setDetail(k, e.target.value)} disabled={readOnly} style={quoteBoxStyle(!!detailRefused(k))} />
+    <QuoteRefusal text={detailRefused(k)} /></div>);
+  const stepBtn = (x, i) => {
+    const on = i === step;
+    const refused = stepKeys(x).length > 0;
+    const warned = calc && Array.isArray(calc.checks) && calc.checks.some(c => !c.ok && (model.checks || []).some(mc => mc.key === c.key && mc.group === x.key));
+    return (<button key={x.key} onClick={() => setStep(i)} aria-current={on ? "step" : undefined} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, padding: "7px 12px", borderRadius: R.sm, border: "1px solid " + (on ? t.goldBorder : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>
+      <span>{(i + 1) + ". " + builderText(x.title)}</span>
+      {refused ? <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: RD }} /> : warned ? <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: OR }} /> : null}
+    </button>);
+  };
+
   return (<div data-quote="">
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-      <Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44 }}>{tr("Back to quotes")}</Btn>
+      <Btn t={t} v="ghost" onClick={back} style={{ minHeight: 44 }}>{tr("Back to quotes")}</Btn>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{isNew ? tr("New quote") : (quote ? quote.number : "")}</div>
       {quote && <Bdg l={quoteStatusWord(quote.status)} c={quoteStatusColor(quote.status)} />}
       {quote && Number(quote.revision) > 1 && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Revision {0}", quote.revision)}</span>}
+      <div style={{ flex: 1 }} />
+      {dirty && !readOnly && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Changes not saved yet")}</span>}
+      {model && est && !readOnly && <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>}
     </div>
-    {!isNew && !quote && !failed && <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>}
+    {leaving && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
+      <div style={{ fontSize: 13, color: t.text, marginBottom: 10 }}>{tr("Leave without saving your changes?")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => setLeaving(false)} style={{ minHeight: 44 }}>{tr("Keep editing")}</Btn><Btn t={t} v="danger" onClick={onBack} style={{ minHeight: 44 }}>{tr("Leave")}</Btn></div>
+    </Crd>}
     {failed && <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>}
+    {!failed && (!model || !est) && <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>}
+    {!failed && model && est && <div>
+      {refusal && <div data-quote-refusal="top" style={{ fontSize: 13, color: RD, marginBottom: 12 }}>{refusal.text}</div>}
+      <Crd t={t} style={{ marginBottom: 14 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Client and site")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
+          {detailBox("clientName", tr("Client Name"))}
+          {detailBox("contactName", tr("Contact Name"))}
+          {detailBox("contactEmail", tr("Contact Email"), "email")}
+          <div style={{ minWidth: 0 }}><Lbl>{tr("Site on file")}</Lbl><Sel t={t} aria-label={tr("Site on file")} value={details.siteId} onChange={e => setDetail("siteId", e.target.value)} disabled={readOnly} options={siteOpts} style={quoteBoxStyle(!!detailRefused("siteId"))} /><QuoteRefusal text={detailRefused("siteId")} /></div>
+          {detailBox("siteName", tr("Site Name"))}
+          {detailBox("siteAddress", tr("Site address"))}
+          {!isNew && detailBox("validUntil", tr("Valid until|quote"), "date")}
+        </div>
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 8, lineHeight: 1.4 }}>{tr("Left empty, the client, the site name and the address are filled from the site on file when you save.")}</div>
+        <div style={{ marginTop: 12 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} aria-label={tr("Notes")} rows={2} value={details.notes} onChange={e => setDetail("notes", e.target.value)} disabled={readOnly} style={quoteBoxStyle(!!detailRefused("notes"))} /><QuoteRefusal text={detailRefused("notes")} /></div>
+      </Crd>
+      <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+        <div style={{ flex: "3 1 560px", minWidth: 0 }}>
+          <div ref={stepTop} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12, scrollMarginTop: 96 }}>{groups.map(stepBtn)}</div>
+          <Crd t={t}>
+            {g && <QuoteStep t={t} model={model} group={g} est={est} filled={filled} calc={calc} set={set} setTask={setTask} setList={setList} refusal={shownRefusal} readOnly={readOnly} />}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+              <Btn t={t} v="ghost" onClick={() => goStep(Math.max(0, step - 1))} disabled={step === 0} style={{ minHeight: 44 }}>{tr("Back|form")}</Btn>
+              <span style={{ fontSize: 12, color: t.textMut }}>{tr("Step {0} of {1}", step + 1, groups.length)}</span>
+              <div style={{ flex: 1 }} />
+              <Btn t={t} v="ghost" onClick={() => goStep(Math.min(groups.length - 1, step + 1))} disabled={step >= groups.length - 1} style={{ minHeight: 44 }}>{tr("Next")}</Btn>
+            </div>
+          </Crd>
+        </div>
+        <div style={{ flex: "1 1 300px", minWidth: 0, alignSelf: phone ? "stretch" : "flex-start", position: phone ? "static" : "sticky", top: 96 }}>
+          <QuoteFigures t={t} model={model} calc={calc} busy={calcBusy} stale={!!calcRefusal} phone={phone} />
+        </div>
+      </div>
+    </div>}
   </div>);
 }
 
