@@ -46,6 +46,16 @@ async function apiDownload(path, token, fallbackName) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
+// A file the API makes, fetched through apiDownload and handed to the browser to save under the name
+// the API gives it, or the fallback when that name cannot be read.
+async function saveDownload(path, token, fallbackName) {
+  const f = await apiDownload(path, token, fallbackName);
+  const url = URL.createObjectURL(f.blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = f.filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
 // A request whose body is files rather than JSON, sent as multipart form data. The token and the
 // refusal handling are apiFetch's, so a 401 signs out and a refusal arrives with the words the API
 // sent, its status and its code.
@@ -5400,6 +5410,93 @@ function MonthlyReportsView({ af, token, t, sites, allStaff = [], showToast }) {
   </div>);
 }
 
+// ===== THE INJURY LOG AND ITS ANNUAL SUMMARY (Step 203) =====
+// OCSA-FRM-028, the log of work-related injuries and illnesses, built by the API from the filed
+// incident reports whose Recordkeeping section says the case is recordable (STEP202_CONTRACT.md,
+// section 4). GET /api/injury-log?year= answers a holder of record_injuries; the page is offered once
+// it does, and a 404 or a refusal leaves it off Reports. A year runs from this one back to 2025.
+const INJURY_FIRST_YEAR = 2025;
+const injuryYears = () => { const out = []; for (let y = new Date().getFullYear(); y >= INJURY_FIRST_YEAR; y -= 1) out.push(y); return out; };
+// The log sends each case's outcome and type as the form's codes, drawn here as the table's words.
+const INJURY_OUTCOMES = { death: "Death", days_away: "Days away from work", job_transfer_or_restriction: "Job transfer or restriction", other_recordable: "Other recordable case" };
+const INJURY_TYPES = { injury: "Injury", skin_disorder: "Skin disorder", respiratory: "Respiratory condition", poisoning: "Poisoning", hearing_loss: "Hearing loss", other_illness: "All other illnesses" };
+const injuryOutcomeWord = (c) => (INJURY_OUTCOMES[c] ? tr(INJURY_OUTCOMES[c]) : String(c || "--"));
+const injuryTypeWord = (c) => (INJURY_TYPES[c] ? tr(INJURY_TYPES[c]) : String(c || "--"));
+const injuryCount = (v) => (Number(v) || 0).toLocaleString(localeTag());
+// The totals object both routes send, in the four blocks the annual summary prints them in.
+const INJURY_TOTAL_BLOCKS = [
+  { title: "Number of cases", rows: [["deaths", "Deaths"], ["daysAwayCases", "Cases with days away from work"], ["restrictedCases", "Cases with job transfer or restriction"], ["otherCases", "Other recordable cases"]] },
+  { title: "Days away from work", rows: [["daysAway", "Total days away from work"]] },
+  { title: "Days of job transfer or restriction", rows: [["daysRestricted", "Total days of job transfer or restriction"]] },
+  { title: "Injury and illness types", rows: [["injuries", "Injuries"], ["skinDisorders", "Skin disorders"], ["respiratory", "Respiratory conditions"], ["poisonings", "Poisonings"], ["hearingLoss", "Hearing loss"], ["otherIllnesses", "All other illnesses"]] },
+];
+const InjuryTotals = ({ t, totals }) => (<div data-injury-totals="" style={{ display: "grid", gap: 14 }}>
+  {INJURY_TOTAL_BLOCKS.map(b => (<div key={b.title}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr(b.title)}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+      {b.rows.map(([k, l]) => <MetricTile key={k} t={t} label={tr(l)} value={injuryCount(totals && totals[k])} />)}
+    </div>
+  </div>))}
+</div>);
+const InjuryYearPicker = ({ t, year, onChange }) => (<div style={{ width: 140 }}>
+  <Sel t={t} aria-label={tr("Year")} value={String(year)} onChange={e => onChange(Number(e.target.value))} options={injuryYears().map(y => ({ v: String(y), l: String(y) }))} />
+</div>);
+
+function InjuryLogView({ af, token, t, allStaff = [] }) {
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [review, setReview] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  // One read per year picked. An answer for a year no longer picked is dropped.
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    setData(null); setFailed(false);
+    af("/api/injury-log?year=" + year)
+      .then(d => { if (seq.current === mine) setData({ cases: d && Array.isArray(d.cases) ? d.cases : [], totals: (d && d.totals) || null }); })
+      .catch(e => { if (seq.current === mine) setFailed(true); console.warn("Injury log:", e.message); });
+  }, [af, year]);
+  useEffect(() => { load(); }, [load]);
+  const exportPdf = async () => {
+    if (exporting) return;
+    setExporting(true); setExportError("");
+    try { await saveDownload("/api/injury-log.pdf?year=" + year, token, "OCSA-FRM-028-" + year + ".pdf"); }
+    catch (e) { setExportError(e.message || tr("Request failed")); }
+    setExporting(false);
+  };
+  const muted = { color: t.textSec };
+  const cols = [
+    { header: tr("Case"), tdStyle: { whiteSpace: "nowrap", fontWeight: 600, color: t.text }, render: c => String(c.caseNumber == null ? "--" : c.caseNumber) },
+    { header: tr("Name"), tdStyle: { minWidth: 140, color: t.text }, render: c => (c.name == null ? <span data-privacy-case="" style={{ color: t.textMut, fontStyle: "italic" }}>{tr("Privacy case")}</span> : c.name) },
+    { header: tr("Job title"), tdStyle: Object.assign({ minWidth: 120 }, muted), render: c => c.jobTitle || "--" },
+    { header: tr("Date"), tdStyle: Object.assign({ whiteSpace: "nowrap" }, muted), render: c => (c.eventDate ? fdLong(c.eventDate) : "--") },
+    { header: tr("Where|place"), tdStyle: Object.assign({ minWidth: 160 }, muted), render: c => c.where || "--" },
+    { header: tr("Description"), tdStyle: Object.assign({ minWidth: 240 }, muted), render: c => c.description || "--" },
+    { header: tr("Outcome"), tdStyle: Object.assign({ minWidth: 140 }, muted), render: c => injuryOutcomeWord(c.outcome) },
+    { header: tr("Days away"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: c => injuryCount(c.daysAway) },
+    { header: tr("Days restricted"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: c => injuryCount(c.daysRestricted) },
+    { header: tr("Type"), tdStyle: Object.assign({ minWidth: 120 }, muted), render: c => injuryTypeWord(c.caseType) },
+  ];
+  const cases = data ? data.cases : [];
+  return (<div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <InjuryYearPicker t={t} year={year} onChange={setYear} />
+      {data && <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn></div>}
+    </div>
+    {exportError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
+      data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      <DataTable t={t} columns={cols} rows={cases} rowKey={c => c.responseId || c.caseNumber} onRowClick={c => { if (c.responseId) setReview(c); }} empty={tr("No recordable cases this year.")}
+        footer={cases.length > 0 ? <div style={{ padding: 16, borderTop: "1px solid " + t.border }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Totals for {0}", year)}</div>
+          <InjuryTotals t={t} totals={data.totals} />
+        </div> : null} />}
+    {review && <IncidentReportWindow af={af} token={token} t={t} id={review.responseId} row={null} onClose={() => { setReview(null); load(); }} people={allStaff} />}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
@@ -5608,10 +5705,14 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   // page opens, and a 404, a refusal or a failure leaves the report off the page.
   const [ratingsLive, setRatingsLive] = useState(false);
   const [monthlyLive, setMonthlyLive] = useState(false);
+  // Step 203: the safety records are offered the same way, the injury log once GET /api/injury-log
+  // answers for this year.
+  const [injuryLive, setInjuryLive] = useState(false);
   useEffect(() => {
     let alive = true;
     af("/api/reports/client-ratings").then(d => { if (alive) setRatingsLive(!!(d && typeof d === "object" && Array.isArray(d.sites))); }).catch(e => { if (alive) setRatingsLive(false); console.warn("Client ratings:", e.message); });
     af("/api/monthly-reports").then(d => { if (alive) setMonthlyLive(!!(d && Array.isArray(d.reports))); }).catch(e => { if (alive) setMonthlyLive(false); console.warn("Monthly client reports:", e.message); });
+    af("/api/injury-log?year=" + new Date().getFullYear()).then(d => { if (alive) setInjuryLive(!!(d && Array.isArray(d.cases))); }).catch(e => { if (alive) setInjuryLive(false); console.warn("Injury log:", e.message); });
     return () => { alive = false; };
   }, [af]);
 
@@ -5671,6 +5772,16 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     </div>);
   }
 
+  if (view === "injury-log" && injuryLive) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Injury log")}</div>
+      </div>
+      <InjuryLogView af={af} token={token} t={t} allStaff={allStaff} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -5684,22 +5795,28 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     ...(ratingsLive ? [{ id: "ratings", name: tr("Client ratings"), line: tr("How clients rated each site, out of 10.") }] : []),
     ...(monthlyLive ? [{ id: "monthly", name: tr("Monthly client reports"), line: tr("Each site's month, written up for its client, sent with the PDF and acknowledged by the client.") }] : []),
   ];
+  const safetyRecords = [
+    ...(injuryLive ? [{ id: "injury-log", name: tr("Injury log"), line: tr("Every recordable injury and illness of a year, with its totals.") }] : []),
+  ];
+  // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
+  const reportGroup = (heading, list) => (list.length > 0 && <div style={{ marginBottom: 18 }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{heading}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+      {list.map(r => (
+        <Crd key={r.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{r.name}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
+          </div>
+          <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
+        </Crd>
+      ))}
+    </div>
+  </div>);
   return (<div>
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
-    {clientReports.length > 0 && <div style={{ marginBottom: 18 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Client reports")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-        {clientReports.map(r => (
-          <Crd key={r.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{r.name}</div>
-              <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
-            </div>
-            <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
-          </Crd>
-        ))}
-      </div>
-    </div>}
+    {reportGroup(tr("Client reports"), clientReports)}
+    {reportGroup(tr("Safety records"), safetyRecords)}
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
