@@ -91,3 +91,7 @@
 # Form wording, from the entry Make and send the monthly report to a client.
 **Prepared by** (**Preparado por**)
 **Reviewed by** (**Revisado por**)
+
+# Form wording, from the entry Mark an incident report recordable. Section 8 of OCSA-FRM-016 version 4,
+# as STEP202_CONTRACT.md, section 1, names it in both languages.
+**Recordkeeping** (**Registro de lesiones**)
