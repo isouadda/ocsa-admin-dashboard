@@ -343,7 +343,7 @@ Who can do this: admins
 2. To add one, click **Add Site** (**Agregar sitio**), fill in the name and address, and click **Create** (**Crear**).
 3. To change one, click the site. On **General Info** (**Información general**), click **Edit Details** (**Editar los detalles**) under **Contract Details** (**Detalles del contrato**).
 4. Under **Contract reference** (**Referencia del contrato**), type the contract's number or name as the client's paperwork gives it, up to 120 characters.
-5. Under **Service lines** (**Líneas de servicio**), tick each service delivered at the site: **Office** (**Oficinas**), **Schools** (**Escuelas**), **Laboratory** (**Laboratorio**), **Industrial** (**Industrial**), **Disinfection** (**Desinfección**), **Post-construction** (**Después de obra**), **Day porter** (**Portero de día**), **Landscaping** (**Jardinería**).
+5. Under **Service lines** (**Líneas de servicio**), tick each service delivered at the site: **Office** (**Oficinas**), **Schools** (**Escuelas**), **Laboratory** (**Laboratorio**), **Industrial** (**Industrial**), **Disinfection** (**Desinfección**), **Post-construction** (**Después de obra**), **Day porter** (**Conserje de día**), **Landscaping** (**Jardinería**).
 6. Click **Save** (**Guardar**). **Contract Details** (**Detalles del contrato**) then shows the contract reference and the service lines, and the monthly client report fills them in from there.
 If it does not work: when a service line or the contract reference is refused, the reason shows under that field and the window stays open. Put it right and click **Save** (**Guardar**) again.
 Words people use for this: edit a site, site details, contract number, contract reference, service lines, services at a site, what we do at a site.

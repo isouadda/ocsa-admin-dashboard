@@ -2917,7 +2917,7 @@ export const WORDS = {
   "Industrial|service line": { es: "Industrial" },
   "Disinfection|service line": { es: "Desinfecci\u00f3n" },
   "Post-construction|service line": { es: "Despu\u00e9s de obra" },
-  "Day porter|service line": { es: "Portero de d\u00eda" },
+  "Day porter|service line": { es: "Conserje de d\u00eda" },
   "Landscaping|service line": { es: "Jardiner\u00eda" },
   "This question is still being answered. The answer will show here.": { es: "Esta pregunta todav\u00eda se est\u00e1 respondiendo. La respuesta aparecer\u00e1 aqu\u00ed." },
 };
