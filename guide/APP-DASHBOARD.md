@@ -882,3 +882,61 @@ Who can do this: people given Keep the injury log fill it in and save it; an adm
 If it does not work: Certify is refused until both figures are saved, and the line at the top says so. A figure that is not a whole number in range is named under its field, and so is an executive's name or title the summary cannot take. When the page says **The injury log changed after this summary was certified. It needs certifying again.** (**El registro de lesiones cambió después de que se certificó este resumen. Hay que certificarlo de nuevo.**), a case changed after the signature, so an admin certifies it again.
 Words people use for this: annual summary, osha 300a, injury summary, certify the summary, post the summary, hours worked, average employees, ocsa-frm-029, resumen anual.
 Last checked: 2026-09-30
+
+## Make a quote (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. Click **Quotes** (**Cotizaciones**) in the side panel, under Services.
+2. Click **New quote** (**Nueva cotización**). Its boxes start filled with the company's quote defaults and the model's own values.
+3. Under **Client and site** (**Cliente y sitio**), type the **Client Name** (**Nombre del cliente**), the **Contact Name** (**Nombre del contacto**) and the **Contact Email** (**Correo del contacto**). Pick the **Site on file** (**Sitio registrado**) when the site is one of ours, or type the **Site Name** (**Nombre del sitio**) and the **Site address** (**Dirección del sitio**). Left empty, the client, the site name and the address are filled from the site on file when you save.
+4. Work through the five steps with **Next** (**Siguiente**) and **Back** (**Atrás**), or click a step's name: **Building profile** (**Perfil del edificio**), **Workload** (**Carga de trabajo**), **Staffing** (**Personal**), **Equipment and supplies** (**Equipo y suministros**) and **Cost summary** (**Resumen de costos**). Each box has its help under it, and a share such as the margin is typed as a percent.
+5. In **Building profile** (**Perfil del edificio**), type each zone's total, carpet and hard floor square feet and its rooms, then the restroom fixtures, the dispensers, the high-touch points and the glass.
+6. In **Workload** (**Carga de trabajo**), check each task line's **Rate per hour** (**Tasa por hora**) and pick its **Frequency** (**Frecuencia**). **Times per month** (**Veces al mes**) follows the frequency until you type a count over it; clear the count to follow the frequency again. For the lines entered by hand, type the **Hours each time** (**Horas cada vez**).
+7. In **Equipment and supplies** (**Equipo y suministros**), change the quantities and unit costs, and use **Add row** (**Agregar fila**) and **Remove row** (**Quitar fila**). The other direct costs are in **Cost summary** (**Resumen de costos**), with the term, the wages, the burden, the overhead and the margin.
+8. Click **Save** (**Guardar**). The quote gets its number and shows on the list as **Draft** (**Borrador**).
+9. To change a quote later, click its row on the list, change it and click **Save** (**Guardar**). A quote already sent goes back to **Draft** (**Borrador**) as its next revision and needs sending again.
+If it does not work: a value that cannot be taken is named under its box, the step holding it gets a red dot, and the line at the top says what to fix. **Changes not saved yet** (**Cambios todavía sin guardar**) beside Save means the last change is not saved. When **Quotes** (**Cotizaciones**) is not in the side panel, your account does not have **Build quotes** (**Preparar cotizaciones**). An admin grants it under **Settings** (**Configuración**), **Roles and Permissions** (**Roles y permisos**).
+Words people use for this: quote, bid, estimate, price a job, workload calculator, bid model, t01, new quote, cotización, presupuesto.
+Last checked: 2026-09-30
+
+## Read a quote's figures and checks (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. Open the quote from **Quotes** (**Cotizaciones**), or start one with **New quote** (**Nueva cotización**).
+2. The **Figures** (**Cifras**) panel sits beside the steps, and under them on a phone. It is worked out again a moment after you stop typing, and says **Working out the figures...** (**Calculando las cifras...**) meanwhile.
+3. The **Monthly bid price** (**Precio mensual de la oferta**) is at the top in large type.
+4. Under **Checks** (**Verificaciones**), each check is green when it holds and orange, with what is wrong, when it does not: the floor type split, the restroom fixtures, the counted items, every hour priced, the porter and specialty hours fitting inside the workload, the price against the local range, and the equipment treatment. A step with a check that does not hold carries an orange dot.
+5. Under the checks, every figure of the estimate is listed by step: the square feet, the labor hours and the staff, the labor, burden and other direct costs, the overhead, the margin, the monthly and annual price, the contract value and the price per square foot.
+If it does not work: a check that is not met is a warning, and it never stops a save or a send. **Price against the local range** (**Precio frente al rango local**) reads the benchmark low and high in **Cost summary** (**Resumen de costos**), which the quote defaults can set for every new quote. When the panel says **These figures are from before the last change.** (**Estas cifras son de antes del último cambio.**), a value cannot be read, and its box says why.
+Words people use for this: quote figures, bid price, checks, warnings, price per square foot, labor hours, headcount, margin, cifras, verificaciones.
+Last checked: 2026-09-30
+
+## Send a quote to a client (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. Open the quote from **Quotes** (**Cotizaciones**), and click **Save** (**Guardar**) if you changed anything.
+2. Click **Preview client PDF** (**Ver el PDF del cliente**) to see what the client gets: the scope, how often each task is done, the price and the terms, with no hour, rate, cost or margin. Pick English or Español at the top for either language, and click **Download PDF** (**Descargar el PDF**) to keep a copy. **Internal worksheet** (**Hoja de trabajo interna**) shows every input, figure and check for the company's own records.
+3. Click **Send to the client** (**Enviar al cliente**). The quote's contact is listed first, ticked. Add any other address with **Add an address** (**Agregar una dirección**).
+4. Type a **Message** (**Mensaje**) if you want one, pick the **Language of the PDF** (**Idioma del PDF**), and click **Send** (**Enviar**). The mail carries the client's PDF only, in English and then Spanish, with the message above both.
+5. The window says how many addresses the mail reached. The quote shows on the list as **Sent** (**Enviada**), with the day.
+If it does not work: **Send to the client** (**Enviar al cliente**) waits until every change is saved. An address that cannot be read is edged red. Up to 10 addresses go at a time. When the mail reached nobody, the line at the top says so and the quote stays as it was, so try again. When the window says **The quote changed while it was mailing, so it was not marked sent.** (**La cotización cambió mientras se enviaba, así que no se marcó como enviada.**), someone saved or closed the quote while it mailed; open it and send it again if it still needs to go.
+Words people use for this: send the quote, email the bid, quote pdf, client pdf, internal worksheet, enviar la cotización.
+Last checked: 2026-09-30
+
+## Mark a quote accepted or declined (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. Open the quote from **Quotes** (**Cotizaciones**). To find it, pick a status in the filter over the list, or search its number, client or site.
+2. Click **Mark accepted** (**Marcar como aceptada**) when the client said yes, or **Mark declined** (**Marcar como rechazada**) when the client said no. A quote given to the client outside the app can be marked from **Draft** (**Borrador**) the same way.
+3. Click **Void** (**Anular**) to close a quote that should no longer stand.
+4. Answer the question with the same button. The quote reads **Accepted** (**Aceptada**), **Declined** (**Rechazada**) or **Void** (**Anulada**), and reads only from then on.
+If it does not work: the buttons wait until every change is saved. A closed quote cannot change or be sent again, so start another with **New quote** (**Nueva cotización**).
+Words people use for this: quote accepted, bid won, bid lost, client said no, cancel a quote, void a quote, cotización aceptada.
+Last checked: 2026-09-30
+
+## Set the quote defaults (admin dashboard)
+Who can do this: admins given Build quotes
+1. Click **Settings** (**Configuración**) in the side panel, then the **Quote defaults** (**Valores iniciales de las cotizaciones**) tab.
+2. Set the **Days a quote stays valid** (**Días que una cotización es válida**), from 1 to 365.
+3. Type the **Terms in English** (**Términos en inglés**) and the **Terms in Spanish** (**Términos en español**). They print on the client's PDF, and a Spanish PDF prints the English terms while no Spanish is saved.
+4. Click through the steps and type the company's own starting values: the wage rates, the burden rates, the overhead and the margin above all, and in **Workload** (**Carga de trabajo**) the **Rate per hour** (**Tasa por hora**) of any task line. A box left empty takes the model's own value, shown greyed, and a share such as the margin is typed as a percent.
+5. Click **Save** (**Guardar**). Every new quote starts from these values. A quote already made keeps its own.
+If it does not work: a value outside its range is named under its box, and the step holding it gets a red dot. When the tab is not there, your account is not an admin with **Build quotes** (**Preparar cotizaciones**).
+Words people use for this: quote defaults, default wage, default margin, burden rates, quote terms, terms and conditions, how long a quote is valid, valores iniciales.
+Last checked: 2026-09-30
