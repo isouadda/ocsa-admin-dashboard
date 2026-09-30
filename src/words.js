@@ -2924,6 +2924,23 @@ export const WORDS = {
   "No particular site": { es: "Ning\u00fan sitio en particular" },
   "No private chat yet": { es: "Todav\u00eda no hay chat privado" },
   "No private chat with {0} yet. It starts the first time they open their messages in the staff app.": { es: "Todav\u00eda no hay un chat privado con {0}. Empieza la primera vez que abra sus mensajes en la aplicaci\u00f3n del personal." },
+  "Quotes": { es: "Cotizaciones" },
+  "Build quotes": { es: "Preparar cotizaciones" },
+  "New quote": { es: "Nueva cotizaci\u00f3n" },
+  "Every quote, newest first. A row opens the quote.": { es: "Todas las cotizaciones, de la m\u00e1s reciente a la m\u00e1s antigua. Una fila abre la cotizaci\u00f3n." },
+  "Search number, client, site": { es: "Buscar n\u00famero, cliente o sitio" },
+  "Number": { es: "N\u00famero" },
+  "Monthly price": { es: "Precio mensual" },
+  "Valid until|quote": { es: "V\u00e1lida hasta" },
+  "Sent|quote": { es: "Enviada" },
+  "Draft|quote": { es: "Borrador" },
+  "Accepted|quote": { es: "Aceptada" },
+  "Declined|quote": { es: "Rechazada" },
+  "Void|quote": { es: "Anulada" },
+  "Revision {0}": { es: "Revisi\u00f3n {0}" },
+  "No quotes match.": { es: "Ninguna cotizaci\u00f3n coincide." },
+  "No quotes yet. New quote starts one.": { es: "Todav\u00eda no hay cotizaciones. Nueva cotizaci\u00f3n empieza una." },
+  "Back to quotes": { es: "Volver a las cotizaciones" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

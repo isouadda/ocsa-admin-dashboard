@@ -122,7 +122,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -562,6 +562,9 @@ export default function AdminDashboard() {
     // The Form builder opens the same way (Step 187): build_forms is an admin's on the API's own
     // defaults table, and the dashboard waits for the API to say so rather than assuming it.
     if (id === "form-builder") return hasCap("build_forms");
+    // Quotes opens the same way (Step 208): build_quotes is an admin's on the API's own defaults
+    // table, since an estimate shows wages and margin, and the page waits for the API to name it.
+    if (id === "quotes") return hasCap("build_quotes");
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
   }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
   const [sites, setSites] = useState([]);
@@ -737,7 +740,7 @@ export default function AdminDashboard() {
       { id: "inspections", l: tr("Inspections"), i: ClpI },
     ]},
     { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }] },
-    { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }] },
+    { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }, ...(canOpenPage("quotes") ? [{ id: "quotes", l: tr("Quotes"), i: DlrI }] : [])] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }, ...(canOpenPage("help-insights") ? [{ id: "help-insights", l: tr("Help insights"), i: HlpI }] : [])] },
     { label: tr("Integrations"), items: [
@@ -749,7 +752,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1000,6 +1003,7 @@ export default function AdminDashboard() {
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
@@ -9263,6 +9267,95 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
   );
 }
 
+// ===== QUOTES (Step 208) =====
+// The quote builder: Tool T01, the Workload Calculator and Bid Model, inside the app. The API holds
+// the model and its arithmetic (STEP207_CONTRACT.md, corrected by the API's own pull request), and
+// every route answers holders of build_quotes, which admins hold by default since an estimate shows
+// wages, burden and margin. The page is offered once GET /api/users/me/permissions names the
+// capability; the role defaults never hold it.
+const QUOTE_STATUS = {
+  draft: { l: "Draft|quote", c: BL },
+  sent: { l: "Sent|quote", c: OR },
+  accepted: { l: "Accepted|quote", c: GR },
+  declined: { l: "Declined|quote", c: RD },
+  void: { l: "Void|quote", c: "#8899AA" },
+};
+const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "void"];
+const quoteStatusWord = (s) => (QUOTE_STATUS[s] ? tr(QUOTE_STATUS[s].l) : String(s || ""));
+const quoteStatusColor = (s) => (QUOTE_STATUS[s] ? QUOTE_STATUS[s].c : BL);
+const quoteMoney = (v) => (v === null || v === undefined || v === "" || !isFinite(Number(v)) ? "--" : "$" + Number(v).toLocaleString(localeTag(), { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+
+// The list, newest first, from GET /api/quotes?status=&q=. A row opens its quote at #quotes/<id>, and
+// New quote opens #quotes/new, so a refresh keeps the quote open.
+function QuotesPage({ af, token, t, route = [], onRoute }) {
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [status, setStatus] = useState("");
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
+  const [openId, setOpenId] = useState(() => (route[0] ? String(route[0]) : null));
+  useEffect(() => { setOpenId(route[0] ? String(route[0]) : null); }, [route]);
+  // The search is sent once typing stops.
+  useEffect(() => { const h = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(h); }, [search]);
+  const load = useCallback(async () => {
+    const parts = [].concat(status ? ["status=" + encodeURIComponent(status)] : [], q ? ["q=" + encodeURIComponent(q)] : []);
+    try { const d = await af("/api/quotes" + (parts.length ? "?" + parts.join("&") : "")); setRows(d && Array.isArray(d.quotes) ? d.quotes : []); setFailed(""); }
+    catch (e) { setRows([]); setFailed(e.message || tr("This did not load.")); console.warn("Quotes:", e.message); }
+  }, [af, status, q]);
+  useEffect(() => { if (!openId) load(); }, [load, openId]);
+  const open = (id) => { setOpenId(String(id)); if (onRoute) onRoute([String(id)]); };
+  const close = () => { setOpenId(null); if (onRoute) onRoute([]); };
+
+  if (openId) return <QuoteEditor key={openId} af={af} token={token} t={t} id={openId} onBack={close} onOpen={open} />;
+  const cols = [
+    { header: tr("Number"), tdStyle: { whiteSpace: "nowrap" }, render: r => (<span><span style={{ fontWeight: 600, color: t.text }}>{r.number}</span>{Number(r.revision) > 1 ? <div style={{ fontSize: 10, color: t.textMut }}>{tr("Revision {0}", r.revision)}</div> : null}</span>) },
+    { header: tr("Client"), tdStyle: { minWidth: 120, color: t.text }, render: r => r.clientName || "--" },
+    { header: tr("Site"), tdStyle: { minWidth: 120, color: t.textSec }, render: r => r.siteName || "--" },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: r => <Bdg l={quoteStatusWord(r.status)} c={quoteStatusColor(r.status)} /> },
+    { header: tr("Monthly price"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => quoteMoney(r.monthlyPrice) },
+    { header: tr("Valid until|quote"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.validUntil ? fdLong(r.validUntil) : "--") },
+    { header: tr("Sent|quote"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.sentAt ? irDay(r.sentAt) : "--") },
+  ];
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  return (<div data-quotes="">
+    <SecT t={t} action={tr("New quote")} onAction={() => open("new")}>{tr("Quotes")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Every quote, newest first. A row opens the quote.")}</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("Status")} value={status} onChange={e => setStatus(e.target.value)} style={selSt}>
+        <option value="">{tr("All statuses")}</option>
+        {QUOTE_STATUSES.map(s => <option key={s} value={s}>{quoteStatusWord(s)}</option>)}
+      </select>
+      <div style={{ flex: "1 1 220px", minWidth: 0, maxWidth: 360 }}><Inp t={t} type="search" aria-label={tr("Search number, client, site")} placeholder={tr("Search number, client, site")} value={search} onChange={e => setSearch(e.target.value)} /></div>
+    </div>
+    {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={r => r.id} onRowClick={r => open(r.id)} empty={status || q ? tr("No quotes match.") : tr("No quotes yet. New quote starts one.")} />}
+  </div>);
+}
+
+// One quote, or a new one. The header says which, with Back to quotes.
+function QuoteEditor({ af, token, t, id, onBack, onOpen }) {
+  const isNew = id === "new";
+  const [quote, setQuote] = useState(null);
+  const [failed, setFailed] = useState("");
+  const load = useCallback(async () => {
+    if (isNew) return;
+    try { const d = await af("/api/quotes/" + encodeURIComponent(id)); setQuote(d && d.quote ? d.quote : null); setFailed(""); }
+    catch (e) { setFailed(e.message || tr("This did not load.")); console.warn("Quote:", e.message); }
+  }, [af, id, isNew]);
+  useEffect(() => { load(); }, [load]);
+  return (<div data-quote="">
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <Btn t={t} v="ghost" onClick={onBack} style={{ minHeight: 44 }}>{tr("Back to quotes")}</Btn>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{isNew ? tr("New quote") : (quote ? quote.number : "")}</div>
+      {quote && <Bdg l={quoteStatusWord(quote.status)} c={quoteStatusColor(quote.status)} />}
+      {quote && Number(quote.revision) > 1 && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Revision {0}", quote.revision)}</span>}
+    </div>
+    {!isNew && !quote && !failed && <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>}
+    {failed && <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>}
+  </div>);
+}
+
 function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true); const [failed, setFailed] = useState(false);
@@ -9475,6 +9568,8 @@ const CAPABILITY_LABELS = {
   send_announcements: "Send announcements to staff",
   // Step 203: section 8 of OCSA-FRM-016, the injury log and its annual summary (STEP202_CONTRACT.md, section 2).
   record_injuries: "Keep the injury log",
+  // Step 208: the Quotes page, routes/quotes (STEP207_CONTRACT.md, section 5).
+  build_quotes: "Build quotes",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
