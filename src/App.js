@@ -993,7 +993,7 @@ export default function AdminDashboard() {
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
-        {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} />}
+        {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
         {page === "reports" && <ReportsPage af={af} token={token} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} lkMap={lkMap} allStaff={allStaff} />}
@@ -3160,8 +3160,10 @@ function newSendId() {
 // 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
 // Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
 // (Step 179; the read route arriving with it, its refusal is quiet until then).
-function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false }) {
+function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, people = [] }) {
   const [channels, setChannels] = useState([]);
+  // Someone found by Search staff who has no private chat yet (Step 205), picked, or null.
+  const [waiting, setWaiting] = useState(null);
   const [dms, setDms] = useState([]);
   const [dmsFailed, setDmsFailed] = useState(false);
   const [sel, setSel] = useState(null);
@@ -3198,7 +3200,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
   };
   // A conversation that does not load clears what the last one showed and says so, with a way to try again.
   const open = async id => {
-    setSel(id); setTagOpen(false); setMentions([]);
+    setSel(id); setWaiting(null); setTagOpen(false); setMentions([]);
     try { const m = await af("/api/chat/channels/" + encodeURIComponent(id) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(id, list); markRead(id); }
     catch (e) { setMsgs([]); setMsgsFailed(true); console.warn("Chat load:", e.message); }
   };
@@ -3232,11 +3234,23 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
     if (inputRef.current) inputRef.current.focus();
   };
   const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  // Search staff also finds any active person on the staff list the shell loads, Step 205. Someone
+  // with a private chat is found through it, as always; anyone else is listed after the
+  // conversations. The API has no route an admin can start someone's private chat through, so
+  // picking them says their chat is not there yet and offers nothing to send. The list is left out
+  // while the conversations have not loaded, since it cannot tell who already has one.
+  const needle = q.trim().toLowerCase();
+  const personName = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+  const hasChat = new Set(dms.map(dm => String(dm.staffUserId)));
+  const noChat = !needle || dmsFailed ? [] : (Array.isArray(people) ? people : [])
+    .filter(p => p && p.id != null && String(p.id) !== String(user && user.id) && !hasChat.has(String(p.id)) && !p.isTestAccount && !p.is_test_account && (!p.status || p.status === "active") && personName(p).toLowerCase().includes(needle))
+    .sort((a, b) => personName(a).localeCompare(personName(b)));
+  const pickWaiting = (p) => { setSel(null); setTagOpen(false); setMentions([]); setWaiting({ id: p.id, name: personName(p) }); };
   const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
   const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : tr("General chat"));
   const unreadPill = (n) => (n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{n}</span> : null);
-  const showList = !phone || !sel;
-  const showTalk = !phone || !!sel;
+  const showList = !phone || (!sel && !waiting);
+  const showTalk = !phone || !!sel || !!waiting;
   const rowStyle = (active) => ({ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" });
   return (<div>
     <SecT t={t}>{tr("Messages")}</SecT>
@@ -3260,7 +3274,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
             </button>); })}
           <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>
           {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
-          {!dmsFailed && filtered.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
+          {!dmsFailed && filtered.length === 0 && noChat.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
@@ -3270,10 +3284,26 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false })
               </div>
             </button>
           ); })}
+          {noChat.map(p => { const active = !!waiting && String(waiting.id) === String(p.id); return (
+            <button key={"person-" + p.id} data-no-chat-person="" onClick={() => pickWaiting(p)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+              <Ini name={personName(p)} sz={38} color={active ? GO : t.textSec} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{personName(p)}</div>
+                <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("No private chat yet")}</div>
+              </div>
+            </button>
+          ); })}
         </div>
       </div>}
       {showTalk && <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative" }}>
-        {!sel ? (
+        {!sel && waiting ? (<>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
+            {phone && <button onClick={() => setWaiting(null)} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
+            <Ini name={waiting.name} sz={34} />
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{waiting.name}</div><div style={{ fontSize: 11, color: t.textMut }}>{tr("Private message")}</div></div>
+          </div>
+          <div data-no-chat-line="" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", color: t.textMut, fontSize: 13, lineHeight: 1.5 }}>{tr("No private chat with {0} yet. It starts the first time they open their messages in the staff app.", waiting.name)}</div>
+        </>) : !sel ? (
           <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: t.textMut, padding: 24 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 14 }}><ChI sz={28} c={t.goldText} /></div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Your messages")}</div>

@@ -2922,6 +2922,8 @@ export const WORDS = {
   "This question is still being answered. The answer will show here.": { es: "Esta pregunta todav\u00eda se est\u00e1 respondiendo. La respuesta aparecer\u00e1 aqu\u00ed." },
   "Which site is this for?": { es: "\u00bfPara qu\u00e9 sitio es este reporte?" },
   "No particular site": { es: "Ning\u00fan sitio en particular" },
+  "No private chat yet": { es: "Todav\u00eda no hay chat privado" },
+  "No private chat with {0} yet. It starts the first time they open their messages in the staff app.": { es: "Todav\u00eda no hay un chat privado con {0}. Empieza la primera vez que abra sus mensajes en la aplicaci\u00f3n del personal." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

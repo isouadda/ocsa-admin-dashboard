@@ -309,12 +309,13 @@ Last checked: 2026-09-16
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**). A number beside it counts the messages you have not read.
-2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**) and each **Site channel** (**Canal del sitio**); below them, **Private conversations** (**Conversaciones privadas**) lists one per person. Use **Search staff** (**Buscar personal**) to find someone.
-3. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert.
-4. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
+2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**) and each **Site channel** (**Canal del sitio**); below them, **Private conversations** (**Conversaciones privadas**) lists one per person. Use **Search staff** (**Buscar personal**) to find someone: it finds any active person, including someone you have not written to yet.
+3. A person listed with **No private chat yet** (**Todavía no hay chat privado**) has no private chat to write in. Their private chat starts the first time they open their messages in the staff app, and from then on they are listed with the others.
+4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert.
+5. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
-Words people use for this: message someone, chat, site chat, general chat, unread messages, mensajes.
-Last checked: 2026-09-29
+Words people use for this: message someone, chat, site chat, general chat, unread messages, find a person to message, message someone new, mensajes.
+Last checked: 2026-09-30
 
 ## Ask Help a question from the dashboard (admin dashboard)
 Who can do this: admins and supervisors
