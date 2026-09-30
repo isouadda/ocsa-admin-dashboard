@@ -308,13 +308,13 @@ Last checked: 2026-09-16
 
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Messages** (**Mensajes**). A number beside it counts the messages you have not read.
-2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**) and each **Site channel** (**Canal del sitio**); below them, **Private conversations** (**Conversaciones privadas**) lists one per person. Use **Search staff** (**Buscar personal**) to find someone: it finds any active person, including someone you have not written to yet.
-3. A person listed with **No private chat yet** (**Todavía no hay chat privado**) has no private chat to write in. Their private chat starts the first time they open their messages in the staff app, and from then on they are listed with the others.
-4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert.
+1. Click **Messages** (**Mensajes**). A number beside it counts the messages you have not read, direct messages included.
+2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**) and each **Site channel** (**Canal del sitio**). Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, and **Private conversations** (**Conversaciones privadas**) lists one per staff member.
+3. Use **Search chats and people** (**Buscar chats y personas**) to find someone by name or badge number. It finds any active person. Someone you have no chat with yet shows under **People** (**Personas**) as **Message {0}** (**Escribir a {0}**) with their name; click it and the chat opens. **New message** (**Nuevo mensaje**) at the top right does the same from a list of everyone.
+4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert. A staff member reads what the office writes in their own private chat in the staff app.
 5. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
-Words people use for this: message someone, chat, site chat, general chat, unread messages, find a person to message, message someone new, mensajes.
+Words people use for this: message someone, chat, site chat, general chat, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
 Last checked: 2026-09-30
 
 ## Ask Help a question from the dashboard (admin dashboard)
@@ -741,9 +741,9 @@ Who can do this: anyone who can read the chat
 1. In **Messages** (**Mensajes**), open the general chat or a site's chat.
 2. Type @ at the start of a word, or click the @ button beside the message box. **Tag someone** (**Etiquetar a alguien**) lists the people who can read that chat; type part of a name to narrow it and click the person.
 3. Their name goes into the message. Send it; they get an alert that the message is for them, and their name shows highlighted.
-To untag someone, delete their name from the message before sending. A private conversation has no tag button.
+To untag someone, delete their name from the message before sending. A private conversation or a direct message has no tag button, since everyone who reads it already gets an alert for every message.
 Words people use for this: tag someone, mention someone, @ someone, etiquetar.
-Last checked: 2026-09-28
+Last checked: 2026-09-30
 
 ## See what people ask Help (admin dashboard)
 Who can do this: admins, and anyone an admin gives See Help insights
@@ -939,4 +939,24 @@ Who can do this: admins given Build quotes
 5. Click **Save** (**Guardar**). Every new quote starts from these values. A quote already made keeps its own.
 If it does not work: a value outside its range is named under its box, and the step holding it gets a red dot. When the tab is not there, your account is not an admin with **Build quotes** (**Preparar cotizaciones**).
 Words people use for this: quote defaults, default wage, default margin, burden rates, quote terms, terms and conditions, how long a quote is valid, valores iniciales.
+Last checked: 2026-09-30
+
+## Start a message to anyone (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Messages** (**Mensajes**), then **New message** (**Nuevo mensaje**) at the top right.
+2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o credencial**) to narrow it.
+3. Click the person. Someone in the office opens your direct chat with them, and a staff member opens their private chat with the office. A chat already there opens with its messages.
+4. The chat opens with the message box ready. Type and press Enter.
+If it does not work: a person who is no longer active is not listed. When a line in the window says the chat could not be opened, try again; if it keeps saying so, the person may no longer be active.
+Words people use for this: new message, start a chat, message someone new, write to anyone, message a supervisor, message a staff member who has not written, nuevo mensaje.
+Last checked: 2026-09-30
+
+## Message another office person directly (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Messages** (**Mensajes**). **Direct messages** (**Mensajes directos**) lists your chats with other office people, newest first, each with the last message, its time and how many you have not read.
+2. Click one to open it. Reading it marks it read, and the number beside **Messages** (**Mensajes**) in the side panel goes down.
+3. To start one, click **New message** (**Nuevo mensaje**) and pick the person under **Office** (**Oficina**), or search their name and click **Message {0}** (**Escribir a {0}**).
+4. Type and press Enter. The top of the chat reads **Direct message** (**Mensaje directo**). A direct chat is listed for the two of you only, and the other person gets an alert.
+If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words; the message is sent once. A direct chat has no tag button, since the other person is alerted to every message.
+Words people use for this: direct message, dm, message another admin, message a supervisor, office chat, chat between admins, mensaje directo.
 Last checked: 2026-09-30
