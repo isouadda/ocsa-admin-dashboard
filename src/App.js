@@ -1986,6 +1986,27 @@ function ShiftNamesPanel({ af, t, siteId, canEdit, showToast }) {
   </div>);
 }
 
+// A site's contract reference and service lines (STEP204_CONTRACT.md, section 3). The service lines are
+// the eight of OCSA-FRM-011, each a code the API takes and answers, drawn as its word; a code the page
+// does not know reads as it came and is kept on save. The monthly client report fills its Contract
+// reference and Service lines delivered from them. Each shows once the site's answer carries it,
+// under the contract's name or the row's own column.
+const SERVICE_LINES = ["office", "schools", "laboratory", "industrial", "disinfection", "post_construction", "day_porter", "landscaping"];
+const CONTRACT_REFERENCE_MAX = 120;
+const serviceLineWord = (c) => ({ office: tr("Office|service line"), schools: tr("Schools|service line"), laboratory: tr("Laboratory|service line"), industrial: tr("Industrial|service line"), disinfection: tr("Disinfection|service line"), post_construction: tr("Post-construction|service line"), day_porter: tr("Day porter|service line"), landscaping: tr("Landscaping|service line") })[c] || String(c || "");
+const siteAnswers = (s, camel, snake) => !!s && typeof s === "object" && (Object.prototype.hasOwnProperty.call(s, camel) || Object.prototype.hasOwnProperty.call(s, snake));
+const siteContractRef = (s) => { const v = s.contractReference !== undefined ? s.contractReference : s.contract_reference; return v == null ? "" : String(v); };
+const siteServiceLines = (s) => { const v = s.serviceLines !== undefined ? s.serviceLines : s.service_lines; return Array.isArray(v) ? v.map(String) : []; };
+// The field a refusal of the site's details names: sites.badServiceLine is the service lines, a code
+// or keys naming the contract reference is that field, and anything else is the toast it always was.
+const siteDetailsRefusalField = (e) => {
+  const code = String((e && e.code) || "").toLowerCase();
+  const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(k => String(k).toLowerCase()) : [];
+  const names = (a, b) => code.indexOf(a) >= 0 || keys.some(k => k.indexOf(a) === 0 || k.indexOf(b) === 0);
+  if (code === "sites.badserviceline" || names("serviceline", "service_line")) return "serviceLines";
+  if (names("contractreference", "contract_reference")) return "contractReference";
+  return "";
+};
 function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 196: the site's client survey schedule, for a holder of manage_settings once the route
@@ -2045,6 +2066,13 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
     return fixed;
   };
   const [editSite, setEditSite] = useState(null);
+  // A refusal of the details that names a field is drawn under that field, and the window stays open.
+  const [siteRefusal, setSiteRefusal] = useState({ field: "", text: "" });
+  const openEditSite = (v) => { setSiteRefusal({ field: "", text: "" }); setEditSite(v); };
+  const toggleServiceLine = (c) => {
+    if (siteRefusal.field === "serviceLines") setSiteRefusal({ field: "", text: "" });
+    setEditSite(cur => { const had = cur.serviceLines || []; const next = had.indexOf(c) >= 0 ? had.filter(x => x !== c) : had.concat([c]); return { ...cur, serviceLines: SERVICE_LINES.filter(x => next.indexOf(x) >= 0).concat(next.filter(x => SERVICE_LINES.indexOf(x) < 0)) }; });
+  };
   const [statusF, setStatusF] = useState("active"); const [q, setQ] = useState(""); const [page, setPage] = useState(1); const [perPage, setPerPage] = useState(10);
   const [timeline, setTimeline] = useState([]);
   const [tlTotal, setTlTotal] = useState(0);
@@ -2476,8 +2504,10 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Monthly Value")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_value_monthly ? "$" + parseFloat(s.contract_value_monthly).toLocaleString(localeTag()) : tr("N/A")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Billing")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, textTransform: "capitalize" }}>{billingOf(s.billing_frequency || "monthly")}</div></div>
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract Dates")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.contract_start_date ? fdDay(s.contract_start_date) : tr("N/A")} {s.contract_end_date ? " " + tr("to {0}", fdDay(s.contract_end_date)) : ""}</div></div>
+            {siteAnswers(s, "contractReference", "contract_reference") && <div data-site-contract-reference=""><div style={{ fontSize: 10, color: t.textMut }}>{tr("Contract reference")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2, overflowWrap: "anywhere" }}>{siteContractRef(s) || tr("N/A")}</div></div>}
+            {siteAnswers(s, "serviceLines", "service_lines") && <div data-site-service-lines="" style={{ gridColumn: "1 / -1" }}><div style={{ fontSize: 10, color: t.textMut }}>{tr("Service lines")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{siteServiceLines(s).length ? siteServiceLines(s).map(serviceLineWord).join(", ") : tr("N/A")}</div></div>}
           </div>
-          {canManageSites && <button onClick={() => setEditSite({
+          {canManageSites && <button onClick={() => openEditSite({
             clientName: s.client_name || "", contractType: s.contract_type || "", primeContractor: s.prime_contractor || "",
             contractValueMonthly: s.contract_value_monthly || "", billingFrequency: s.billing_frequency || "monthly",
             contractStartDate: s.contract_start_date ? (typeof s.contract_start_date === "object" ? s.contract_start_date.toISOString().split("T")[0] : String(s.contract_start_date).split("T")[0]) : "",
@@ -2485,7 +2515,9 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
             clientContactName: s.client_contact_name || "", clientContactEmail: s.client_contact_email || "", clientContactPhone: s.client_contact_phone || "",
             siteNotes: s.site_notes || "",
             addressLine1: s.address_line1 || "", addressLine2: s.address_line2 || "", city: s.city || "", state: s.state || "", zipCode: s.zip_code || "",
-            name: s.name || ""
+            name: s.name || "",
+            ...(siteAnswers(s, "contractReference", "contract_reference") ? { contractReference: siteContractRef(s) } : {}),
+            ...(siteAnswers(s, "serviceLines", "service_lines") ? { serviceLines: siteServiceLines(s) } : {})
           })} style={{ marginTop: 12, padding: "6px 14px", borderRadius: 6, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 11, cursor: "pointer" }}>{tr("Edit Details")}</button>}
         </Crd>
 
@@ -2766,17 +2798,28 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("City")}</Lbl><Inp t={t} value={editSite.city} onChange={e => setEditSite({ ...editSite, city: e.target.value })} /></div><div><Lbl>{tr("State")}</Lbl><Inp t={t} value={editSite.state} onChange={e => setEditSite({ ...editSite, state: e.target.value })} /></div><div><Lbl>{tr("Zip")}</Lbl><Inp t={t} value={editSite.zipCode} onChange={e => setEditSite({ ...editSite, zipCode: e.target.value })} /></div></div>
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>{tr("Contract")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Contract Type")}</Lbl><Sel t={t} value={editSite.contractType} onChange={e => setEditSite({ ...editSite, contractType: e.target.value })} options={getOpts("contract_types", null, true)} /></div><div><Lbl>{tr("Prime Contractor")}</Lbl><Inp t={t} value={editSite.primeContractor} onChange={e => setEditSite({ ...editSite, primeContractor: e.target.value })} /></div></div>
+        {editSite.contractReference !== undefined && <div style={{ marginBottom: 12 }}><Lbl>{tr("Contract reference")}</Lbl><Inp t={t} aria-label={tr("Contract reference")} maxLength={CONTRACT_REFERENCE_MAX} value={editSite.contractReference} onChange={e => { if (siteRefusal.field === "contractReference") setSiteRefusal({ field: "", text: "" }); setEditSite({ ...editSite, contractReference: e.target.value.slice(0, CONTRACT_REFERENCE_MAX) }); }} />
+          {siteRefusal.field === "contractReference" && <div data-site-refusal="contractReference" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ marginBottom: 12 }}><Lbl>{tr("Client Name")}</Lbl><Inp t={t} value={editSite.clientName} onChange={e => setEditSite({ ...editSite, clientName: e.target.value })} /></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Monthly Value ($)")}</Lbl><Inp t={t} type="number" value={editSite.contractValueMonthly} onChange={e => setEditSite({ ...editSite, contractValueMonthly: e.target.value })} /></div><div><Lbl>{tr("Billing")}</Lbl><Sel t={t} value={editSite.billingFrequency} onChange={e => setEditSite({ ...editSite, billingFrequency: e.target.value })} options={[{ v: "monthly", l: tr("Monthly") }, { v: "weekly", l: tr("Weekly") }, { v: "biweekly", l: tr("Bi-Weekly") }, { v: "quarterly", l: tr("Quarterly") }, { v: "annual", l: tr("Annual") }]} /></div><div><Lbl>{tr("Start Date")}</Lbl><Inp t={t} type="date" value={editSite.contractStartDate} onChange={e => setEditSite({ ...editSite, contractStartDate: e.target.value })} /></div></div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("End Date")}</Lbl><Inp t={t} type="date" value={editSite.contractEndDate} onChange={e => setEditSite({ ...editSite, contractEndDate: e.target.value })} /></div></div>
+        {editSite.serviceLines !== undefined && <div style={{ marginBottom: 12 }}><Lbl>{tr("Service lines")}</Lbl>
+          <div role="group" aria-label={tr("Service lines")} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", columnGap: 10, padding: "2px 10px", border: "1px solid " + (siteRefusal.field === "serviceLines" ? RD : t.border), borderRadius: R.sm }}>
+            {SERVICE_LINES.concat(editSite.serviceLines.filter(c => SERVICE_LINES.indexOf(c) < 0)).map(c => (<label key={c} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+              <input type="checkbox" checked={editSite.serviceLines.indexOf(c) >= 0} onChange={() => toggleServiceLine(c)} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{serviceLineWord(c)}</span>
+            </label>))}
+          </div>
+          {siteRefusal.field === "serviceLines" && <div data-site-refusal="serviceLines" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{siteRefusal.text}</div>}</div>}
         <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 8, marginTop: 4 }}>{tr("Client Contact")}</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Contact Name")}</Lbl><Inp t={t} value={editSite.clientContactName} onChange={e => setEditSite({ ...editSite, clientContactName: e.target.value })} /></div><div><Lbl>{tr("Email")}</Lbl><Inp t={t} value={editSite.clientContactEmail} onChange={e => setEditSite({ ...editSite, clientContactEmail: e.target.value })} /></div><div><Lbl>{tr("Phone")}</Lbl><Inp t={t} value={editSite.clientContactPhone} onChange={e => setEditSite({ ...editSite, clientContactPhone: e.target.value })} /></div></div>
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Site Notes")}</Lbl><TArea t={t} value={editSite.siteNotes} onChange={e => setEditSite({ ...editSite, siteNotes: e.target.value })} rows={3} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditSite(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={async () => {
+          setSiteRefusal({ field: "", text: "" });
           try {
             await af("/api/sites/" + selectedSite, { method: "PATCH", body: editSite });
             showToast(tr("Site updated")); setEditSite(null); refreshProfile(); load();
-          } catch (e) { showToast(e.message, "error"); }
+          } catch (e) { const field = siteDetailsRefusalField(e); if (field && editSite[field] !== undefined) setSiteRefusal({ field, text: e.message || tr("Request failed") }); else showToast(e.message, "error"); }
         }}>{tr("Save")}</Btn></div>
       </div></Mdl>}
 

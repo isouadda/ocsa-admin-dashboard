@@ -2909,6 +2909,16 @@ export const WORDS = {
   "Kind": { es: "Tipo" },
   "Supervisor inspection": { es: "Inspecci\u00f3n de supervisor" },
   "Audit inspection": { es: "Inspecci\u00f3n de auditor\u00eda" },
+  "Contract reference": { es: "Referencia del contrato" },
+  "Service lines": { es: "L\u00edneas de servicio" },
+  "Office|service line": { es: "Oficinas" },
+  "Schools|service line": { es: "Escuelas" },
+  "Laboratory|service line": { es: "Laboratorio" },
+  "Industrial|service line": { es: "Industrial" },
+  "Disinfection|service line": { es: "Desinfecci\u00f3n" },
+  "Post-construction|service line": { es: "Despu\u00e9s de obra" },
+  "Day porter|service line": { es: "Portero de d\u00eda" },
+  "Landscaping|service line": { es: "Jardiner\u00eda" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
