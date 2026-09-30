@@ -5540,6 +5540,8 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
   const [certifying, setCertifying] = useState(false);
   const certifyingRef = useRef(false);
   const [certRefusal, setCertRefusal] = useState("");
+  // injurySummary.badCertifier names the empty ones of name and title in keys, and is drawn under each.
+  const [certifierRefusal, setCertifierRefusal] = useState({ text: "", keys: [] });
   const [notReady, setNotReady] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
@@ -5551,7 +5553,7 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
   const seq = useRef(0);
   const load = useCallback(() => {
     const mine = ++seq.current;
-    setData(null); setFailed(false); setSaveRefusal({ text: "", keys: [] }); setSavedLine(false); setCertRefusal(""); setNotReady(""); setExportError("");
+    setData(null); setFailed(false); setSaveRefusal({ text: "", keys: [] }); setSavedLine(false); setCertRefusal(""); setCertifierRefusal({ text: "", keys: [] }); setNotReady(""); setExportError("");
     af("/api/injury-summary?year=" + year)
       .then(d => { if (seq.current === mine) { if (d && d.totals) shown(d); else setFailed(true); } })
       .catch(e => { if (seq.current === mine) setFailed(true); console.warn("Annual summary:", e.message); });
@@ -5573,10 +5575,11 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     savingRef.current = false; setSaving(false);
   };
   // The signature is the box's PNG. injurySummary.notReady is drawn at the top of the page, since what
-  // it asks for is the two figures above, and any other refusal in the box, the way a sign-off's is.
+  // it asks for is the two figures above, injurySummary.badCertifier under the name or title its keys
+  // name, and any other refusal in the box, the way a sign-off's is.
   const certify = async (signature) => {
     if (certifyingRef.current) return;
-    certifyingRef.current = true; setCertifying(true); setCertRefusal(""); setNotReady(""); setSavedLine(false);
+    certifyingRef.current = true; setCertifying(true); setCertRefusal(""); setCertifierRefusal({ text: "", keys: [] }); setNotReady(""); setSavedLine(false);
     const mine = seq.current;
     try {
       const d = await af("/api/injury-summary/" + year + "/certify", { method: "POST", body: { name: signer.name.trim(), title: signer.title.trim(), signature } });
@@ -5585,7 +5588,11 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     } catch (e) {
       if (seq.current !== mine) { /* another year is on the page now */ }
       else if (e && e.code === "injurySummary.notReady") setNotReady(e.message || tr("Request failed"));
-      else setCertRefusal(e.message || tr("Request failed"));
+      else {
+        const named = e && e.code === "injurySummary.badCertifier" && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String).filter(k => k === "name" || k === "title") : [];
+        if (named.length) setCertifierRefusal({ text: e.message || tr("Request failed"), keys: named });
+        else setCertRefusal(e.message || tr("Request failed"));
+      }
     }
     certifyingRef.current = false; setCertifying(false);
   };
@@ -5655,8 +5662,10 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
           {certified && stale && <div data-certified-stale="" style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("The injury log changed after this summary was certified. It needs certifying again.")}</div>}
           {isAdmin && (!certified || stale) && (<div style={{ marginTop: 8 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10, maxWidth: 560 }}>
-              <div><Lbl>{tr("Company executive")}</Lbl><Inp t={t} aria-label={tr("Company executive")} value={signer.name} onChange={e => setSigner({ ...signer, name: e.target.value })} /></div>
-              <div><Lbl>{tr("Title|job")}</Lbl><Inp t={t} aria-label={tr("Title|job")} value={signer.title} onChange={e => setSigner({ ...signer, title: e.target.value })} /></div>
+              <div><Lbl>{tr("Company executive")}</Lbl><Inp t={t} aria-label={tr("Company executive")} value={signer.name} onChange={e => setSigner({ ...signer, name: e.target.value })} />
+                {certifierRefusal.keys.indexOf("name") >= 0 && <div data-certifier-refusal="name" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{certifierRefusal.text}</div>}</div>
+              <div><Lbl>{tr("Title|job")}</Lbl><Inp t={t} aria-label={tr("Title|job")} value={signer.title} onChange={e => setSigner({ ...signer, title: e.target.value })} />
+                {certifierRefusal.keys.indexOf("title") >= 0 && <div data-certifier-refusal="title" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{certifierRefusal.text}</div>}</div>
             </div>
             <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 4, maxWidth: 560 }}>{tr("I certify that I have examined the injury log and that to the best of my knowledge this annual summary is correct and complete.")}</div>
             <SignatureBox t={t} label={tr("Signature")} busy={certifying} refusal={certRefusal} onSign={certify}
