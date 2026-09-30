@@ -934,7 +934,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
-          {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+          {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
         </div>
       </div>
       ) : (
@@ -950,7 +950,7 @@ export default function AdminDashboard() {
               <Ic d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9 M13.73 21a2 2 0 0 1-3.46 0" sz={17} c={t.textSec} />
               {unread > 0 && <span style={{ position: "absolute", top: 6, right: 7, minWidth: 16, height: 16, padding: "0 3px", borderRadius: 8, background: RD, color: "#fff", fontSize: 9, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid " + t.card }}>{unread > 9 ? "9+" : unread}</span>}
             </button>
-            {bellOpen && <NotificationPanel af={af} t={t} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
+            {bellOpen && <NotificationPanel af={af} t={t} lang={lang} unread={unread} onClose={() => { setBellOpen(false); loadUnread(); }} onUnread={setUnread} canOpenPage={canOpenPage} onRefused={() => showToast(tr("That one is for admins. Ask an admin to take a look."), "error")} onOpenPage={id => setPage(id)} onOpenHash={h => { window.location.hash = h; }} onOpenAnnouncement={setAnnOpen} />}
           </div>
           <button onClick={toggleTheme} title={themeMode === "dark" ? tr("Light mode") : tr("Dark mode")} style={{ width: 38, height: 38, borderRadius: 10, background: t.inputBg, border: "1px solid " + t.inputBorder, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>{themeMode === "dark" ? <SunI sz={16} c={t.textSec} /> : <MoonI sz={16} c={t.textSec} />}</button>
           <div style={{ position: "relative" }}>
@@ -3694,7 +3694,8 @@ function HelpPage({ af, sf, uf, showToast, t }) {
   // The question's requestId goes with it, the same on every retry, so a question the API has already
   // answered is answered again from what it stored (replayed: true, drawn like any answer), and one it
   // is still answering is refused 409 agent.requestInProgress with the conversation's id, which is
-  // read back the way a dropped connection is (STEP198_CONTRACT.md, section 2).
+  // read back the way a dropped connection is (STEP198_CONTRACT.md, section 2). Its line under the
+  // question says the answer is still being written, and goes once the answer is read back.
   const sendText = async (id, body, paths, keys, requestId) => {
     if (busy) return;
     setSending(true);
@@ -3730,7 +3731,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
       const cid = inProgress || (e.dropped && meta && meta.conversationId);
       if (cid) {
         setConversationId(cid);
-        patchMsg(replyId, { dropped: true, conversationId: cid, question: body });
+        patchMsg(replyId, { dropped: true, inProgress: !!inProgress, conversationId: cid, question: body });
         setText(cur => cur === body ? "" : cur);
         if (keys && keys.length) setPhotos(cur => cur.filter(p => !keys.includes(p.key)));
         await readBack(replyId, cid, body);
@@ -3867,7 +3868,7 @@ function HelpPage({ af, sf, uf, showToast, t }) {
                 {m.thanked && <div style={{ fontSize: 11, color: GR, marginTop: 4 }}>{tr("Thanks. This helps Help get better.")}</div>}
                 {!m.thanked && m.rating !== "note" && m.feedback && m.feedback.helpful === false && m.feedback.note && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("What was missing?")} {m.feedback.note}</div>}
               </div>}
-              {!isMe && m.dropped && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
+              {!isMe && m.dropped && !(m.inProgress && m.stored) && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{m.inProgress ? tr("This question is still being answered. The answer will show here.") : tr("The connection dropped. Your answer is saved.")}{!m.stored && <> <button onClick={() => readBack(m.id, m.conversationId, m.question)} disabled={m.reading} style={{ background: "none", border: "none", color: m.reading ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: m.reading ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Try again")}</button></>}</div>}
               {isMe && m.status === "failed" && <div style={{ fontSize: 11, color: RD, marginTop: 3, textAlign: "right" }}>{tr("Not sent.")} {m.error} <button onClick={() => retry(m)} disabled={busy} style={{ background: "none", border: "none", color: busy ? t.textMut : t.goldText, fontWeight: 600, fontSize: 11, cursor: busy ? "default" : "pointer", fontFamily: FONT_BODY, padding: "4px 6px" }}>{tr("Retry")}</button></div>}
             </div>
           </div>); })}
@@ -4316,26 +4317,32 @@ function AnnouncementWindow({ af, t, id, onClose }) {
   </div></Mdl>);
 }
 const NOTIF_PAGE_SIZE = 30;
-function NotificationPanel({ af, t, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement }) {
+// The API writes each notice's title and body in the language of the call's locale, which af puts on
+// every call (STEP204_CONTRACT.md, section 5), so a change of language reads the list again from the
+// top. Only the newest read is drawn, so an answer in the language left behind never lands.
+function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage, onOpenHash, canOpenPage, onRefused, onOpenAnnouncement }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const boxRef = useRef(null);
+  const readSeq = useRef(0);
 
   const fetchPage = useCallback(async (before) => {
+    const mine = ++readSeq.current;
     setLoading(true); setFailed(false);
     try {
       const d = await af("/api/notifications?limit=" + NOTIF_PAGE_SIZE + (before ? "&before=" + encodeURIComponent(before) : ""));
+      if (mine !== readSeq.current) return;
       const list = d && Array.isArray(d.notifications) ? d.notifications : [];
       setRows(prev => before ? [...prev, ...list] : list);
       setMore(list.length === NOTIF_PAGE_SIZE);
       if (d && d.unread != null) onUnread(Number(d.unread) || 0);
-    } catch (e) { if (!before) setRows([]); setFailed(true); console.warn("Notifications:", e.message); }
+    } catch (e) { if (mine !== readSeq.current) return; if (!before) setRows([]); setFailed(true); console.warn("Notifications:", e.message); }
     setLoading(false);
   }, [af, onUnread]);
-  useEffect(() => { fetchPage(null); }, [fetchPage]);
+  useEffect(() => { fetchPage(null); }, [fetchPage, lang]);
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);

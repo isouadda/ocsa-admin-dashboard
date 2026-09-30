@@ -2919,6 +2919,7 @@ export const WORDS = {
   "Post-construction|service line": { es: "Despu\u00e9s de obra" },
   "Day porter|service line": { es: "Portero de d\u00eda" },
   "Landscaping|service line": { es: "Jardiner\u00eda" },
+  "This question is still being answered. The answer will show here.": { es: "Esta pregunta todav\u00eda se est\u00e1 respondiendo. La respuesta aparecer\u00e1 aqu\u00ed." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
