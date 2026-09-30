@@ -95,3 +95,14 @@
 # Form wording, from the entry Mark an incident report recordable. Section 8 of OCSA-FRM-016 version 4,
 # as STEP202_CONTRACT.md, section 1, names it in both languages.
 **Recordkeeping** (**Registro de lesiones**)
+
+# Quote model wording, from the entries Make a quote, Read a quote's figures and checks, and Set the
+# quote defaults. GET /api/quotes/model draws these in the screen's language from the API's
+# helpers/quoteModel.js (Step 207), so the dashboard's word table does not hold them.
+**Building profile** (**Perfil del edificio**)
+**Workload** (**Carga de trabajo**)
+**Staffing** (**Personal**)
+**Equipment and supplies** (**Equipo y suministros**)
+**Cost summary** (**Resumen de costos**)
+**Monthly bid price** (**Precio mensual de la oferta**)
+**Price against the local range** (**Precio frente al rango local**)
