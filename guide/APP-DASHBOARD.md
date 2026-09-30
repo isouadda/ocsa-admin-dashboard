@@ -139,29 +139,31 @@ Last checked: 2026-09-17
 
 ## Add an HR document for an employee (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records**.
-2. Click the **Documents** tab.
-3. Click **+ Add Document**.
-4. Choose the employee and the category, upload the file, and add an expiry date if it has one.
-5. Click **Add**.
-Last checked: 2026-09-16
+1. Click **HR Records** (**Expedientes de personal**).
+2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Document** (**+ Agregar documento**). The person is filled in as the **Employee** (**Persona**) and stays there.
+3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
+4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one.
+5. Click **Add** (**Agregar**).
+Words people use for this: upload a document, add a file to someone's folder, document for someone who left, subir un documento.
+Last checked: 2026-09-30
 
 ## Add a training record (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records**.
-2. Click the **Training** tab.
-3. Click **+ Add Training**.
-4. Choose the employee, type the training name and type, and fill in the dates and score.
-5. Click **Add**.
-Last checked: 2026-09-16
+1. Click **HR Records** (**Expedientes de personal**).
+2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Training** (**+ Agregar capacitación**). The person is filled in as the **Employee** (**Persona**) and stays there.
+3. Or click the **Training** (**Capacitación**) tab, then **+ Add Training** (**+ Agregar capacitación**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
+4. Type the **Training Name** (**Nombre de la capacitación**), choose the **Training Type** (**Tipo de capacitación**), and fill in the **Completed Date** (**Fecha de finalización**), the **Expiry Date** (**Fecha de vencimiento**) and the **Score** (**Puntaje**).
+5. Click **Add** (**Agregar**).
+Words people use for this: log a training, add a certificate of training, training for someone who left, registrar una capacitación.
+Last checked: 2026-09-30
 
 ## Set up and check off an onboarding checklist (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records**.
-2. Click the **Onboarding** tab and choose the employee at the top right.
-3. If they have no checklist, click **Initialize Onboarding**.
-4. Tick each step as it is done. Click **+ Custom Step** to add one.
-Last checked: 2026-09-16
+1. Click **HR Records** (**Expedientes de personal**).
+2. Click the **Onboarding** (**Incorporación**) tab and choose the employee at the top right. The list shows active people first, then inactive and terminated people, each with its status after the name.
+3. If they have no checklist, click **Initialize Onboarding** (**Iniciar la incorporación**).
+4. Tick each step as it is done. Click **+ Custom Step** (**+ Paso personalizado**) to add one.
+Last checked: 2026-09-30
 
 ## Review a reported problem and assign it (admin dashboard)
 Who can do this: admins and supervisors
@@ -832,3 +834,38 @@ Who can do this: people who manage tasks change them; anyone who can see the sit
 4. Use the up and down arrows to change the order within a shift, and **Remove** (**Quitar**) to take a block off the list.
 Words people use for this: shift names, rename a shift, day porter shift, night shift blocks, restroom round, nombres de turnos.
 Last checked: 2026-09-29
+
+## Mark an incident report recordable (admin dashboard)
+Who can do this: people given Keep the injury log who can complete the report's supervisor section, never on a report they filed
+1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab. Set **Form** (**Formulario**) to **Safety Incident Report** (**Informe de Incidente de Seguridad**) and click the report.
+2. Under **Supervisor section** (**Sección del supervisor**), find **Recordkeeping** (**Registro de lesiones**). Reports filed on version 4 of the form and later have it.
+3. Answer whether this is a recordable case: Yes, No, or Not decided yet.
+4. On Yes, six more questions appear: the most serious outcome, the days away from work, the days on job transfer or restriction, whether it is an injury or which kind of illness, whether it is a privacy case, and a description of the injury or illness, the parts of the body affected, and what caused it. Days are whole numbers from 0 to 180.
+5. Click **Save** (**Guardar**). The first time a case is saved as Yes, it gets the next case number for the year of the event and keeps it. A case set back to No leaves the log, and its number is never used again.
+If it does not work: when the section says **Only someone who keeps the injury log can change these answers.** (**Solo quien lleva el registro de lesiones puede cambiar estas respuestas.**), your account does not have **Keep the injury log** (**Llevar el registro de lesiones**). An admin grants it under **Settings** (**Configuración**), **Roles and Permissions** (**Roles y permisos**). A refused answer is named under its question.
+Words people use for this: recordable case, osha recordable, recordkeeping, put an injury on the log, privacy case, days away, caso registrable.
+Last checked: 2026-09-30
+
+## Read and export the injury log (admin dashboard)
+Who can do this: people given Keep the injury log, admins by default
+1. Click **Reports** (**Informes**) in the side panel.
+2. Under **Safety records** (**Registros de seguridad**), click **Open** (**Abrir**) on **Injury log** (**Registro de lesiones**).
+3. Pick the **Year** (**Año**). The list starts on this year and goes back to 2025.
+4. Each row is one recordable case in case number order: the case, the name, the job title, the date, where it happened, the description, the outcome, the days away, the days restricted and the type. A privacy case shows **Privacy case** (**Caso de privacidad**) in place of the name.
+5. The year's totals are under the table. Click a row to open its incident report.
+6. Click **Export PDF** (**Exportar PDF**) for the log in the OSHA 300 layout, to print or keep.
+If it does not work: **No recordable cases this year.** (**No hay casos registrables este año.**) means no filed incident report dated that year is marked recordable. A void or unfinished report is never on the log. When **Safety records** (**Registros de seguridad**) is not on **Reports** (**Informes**), your account does not have **Keep the injury log** (**Llevar el registro de lesiones**).
+Words people use for this: injury log, osha 300, osha log, log of work-related injuries and illnesses, recordable cases, ocsa-frm-028, registro de lesiones.
+Last checked: 2026-09-30
+
+## Fill in, certify and export the annual summary (admin dashboard)
+Who can do this: people given Keep the injury log fill it in and save it; an admin certifies it
+1. Click **Reports** (**Informes**) in the side panel.
+2. Under **Safety records** (**Registros de seguridad**), click **Open** (**Abrir**) on **Annual summary** (**Resumen anual**), and pick the **Year** (**Año**). From February 1 to April 30, while last year's summary still needs certifying, **Post the {0} summary from February 1 to April 30.** (**Publique el resumen de {0} del 1 de febrero al 30 de abril.**) shows on **Reports** (**Informes**), and its **Open** (**Abrir**) goes straight to that year.
+3. Check the totals and the **Establishment** (**Establecimiento**). The totals come from the injury log.
+4. Type the **Annual average number of employees** (**Promedio anual de empleados**) and the **Total hours worked by all employees last year** (**Total de horas trabajadas por todos los empleados el año pasado**). The line under the first gives the average number of active staff accounts to check against. Click **Save** (**Guardar**).
+5. An admin types the **Company executive** (**Ejecutivo de la empresa**) and their **Title** (**Cargo**), reads the line saying they examined the log and believe the summary is correct and complete, signs in the box, and clicks **Certify** (**Certificar**). The summary then shows who certified it, their title and when.
+6. Click **Export PDF** (**Exportar PDF**) for the summary in the OSHA 300A layout, and post it from February 1 to April 30.
+If it does not work: Certify is refused until both figures are saved, and the line at the top says so. A figure that is not a whole number in range is named under its field, and so is an executive's name or title the summary cannot take. When the page says **The injury log changed after this summary was certified. It needs certifying again.** (**El registro de lesiones cambió después de que se certificó este resumen. Hay que certificarlo de nuevo.**), a case changed after the signature, so an admin certifies it again.
+Words people use for this: annual summary, osha 300a, injury summary, certify the summary, post the summary, hours worked, average employees, ocsa-frm-029, resumen anual.
+Last checked: 2026-09-30

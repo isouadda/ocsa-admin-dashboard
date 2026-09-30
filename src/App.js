@@ -46,6 +46,16 @@ async function apiDownload(path, token, fallbackName) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return { blob: await r.blob(), filename: filenameFrom(r.headers.get("Content-Disposition"), fallbackName || "report.pdf") };
 }
+// A file the API makes, fetched through apiDownload and handed to the browser to save under the name
+// the API gives it, or the fallback when that name cannot be read.
+async function saveDownload(path, token, fallbackName) {
+  const f = await apiDownload(path, token, fallbackName);
+  const url = URL.createObjectURL(f.blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = f.filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
 // A request whose body is files rather than JSON, sent as multipart form data. The token and the
 // refusal handling are apiFetch's, so a 401 signs out and a refusal arrives with the words the API
 // sent, its status and its code.
@@ -281,6 +291,9 @@ const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodia
 // sent and compared; a code with no word here is drawn as it arrives.
 const roleWord = (r) => (RL[r] ? tr(RL[r]) : r);
 const personStateOf = (s) => ({ active: tr("active|person"), inactive: tr("inactive|person"), pending: tr("pending") })[s] || s;
+// The same, with a terminated account's own word, the way Staff Management draws one. HR Records draws
+// a person's status with it (Step 203).
+const personStatusWord = (s) => (s === "terminated" ? tr("terminated|person") : personStateOf(s));
 const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
 // What a checklist item says on a screen that only shows it: the display the API sends in the
 // language the call asked for, and the item's own English wherever it sends none. A screen that edits
@@ -5400,6 +5413,269 @@ function MonthlyReportsView({ af, token, t, sites, allStaff = [], showToast }) {
   </div>);
 }
 
+// ===== THE INJURY LOG AND ITS ANNUAL SUMMARY (Step 203) =====
+// OCSA-FRM-028, the log of work-related injuries and illnesses, built by the API from the filed
+// incident reports whose Recordkeeping section says the case is recordable (STEP202_CONTRACT.md,
+// section 4). GET /api/injury-log?year= answers a holder of record_injuries; the page is offered once
+// it does, and a 404 or a refusal leaves it off Reports. A year runs from this one back to 2025.
+const INJURY_FIRST_YEAR = 2025;
+const injuryYears = () => { const out = []; for (let y = new Date().getFullYear(); y >= INJURY_FIRST_YEAR; y -= 1) out.push(y); return out; };
+// The log sends each case's outcome and type as the form's codes, drawn here as the table's words.
+const INJURY_OUTCOMES = { death: "Death", days_away: "Days away from work", job_transfer_or_restriction: "Job transfer or restriction", other_recordable: "Other recordable case" };
+const INJURY_TYPES = { injury: "Injury", skin_disorder: "Skin disorder", respiratory: "Respiratory condition", poisoning: "Poisoning", hearing_loss: "Hearing loss", other_illness: "All other illnesses" };
+const injuryOutcomeWord = (c) => (INJURY_OUTCOMES[c] ? tr(INJURY_OUTCOMES[c]) : String(c || "--"));
+const injuryTypeWord = (c) => (INJURY_TYPES[c] ? tr(INJURY_TYPES[c]) : String(c || "--"));
+const injuryCount = (v) => (Number(v) || 0).toLocaleString(localeTag());
+// The totals object both routes send, in the four blocks the annual summary prints them in.
+const INJURY_TOTAL_BLOCKS = [
+  { title: "Number of cases", rows: [["deaths", "Deaths"], ["daysAwayCases", "Cases with days away from work"], ["restrictedCases", "Cases with job transfer or restriction"], ["otherCases", "Other recordable cases"]] },
+  { title: "Days away from work", rows: [["daysAway", "Total days away from work"]] },
+  { title: "Days of job transfer or restriction", rows: [["daysRestricted", "Total days of job transfer or restriction"]] },
+  { title: "Injury and illness types", rows: [["injuries", "Injuries"], ["skinDisorders", "Skin disorders"], ["respiratory", "Respiratory conditions"], ["poisonings", "Poisonings"], ["hearingLoss", "Hearing loss"], ["otherIllnesses", "All other illnesses"]] },
+];
+const InjuryTotals = ({ t, totals }) => (<div data-injury-totals="" style={{ display: "grid", gap: 14 }}>
+  {INJURY_TOTAL_BLOCKS.map(b => (<div key={b.title}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr(b.title)}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 10 }}>
+      {b.rows.map(([k, l]) => <MetricTile key={k} t={t} label={tr(l)} value={injuryCount(totals && totals[k])} />)}
+    </div>
+  </div>))}
+</div>);
+const InjuryYearPicker = ({ t, year, onChange }) => (<div style={{ width: 140 }}>
+  <Sel t={t} aria-label={tr("Year")} value={String(year)} onChange={e => onChange(Number(e.target.value))} options={injuryYears().map(y => ({ v: String(y), l: String(y) }))} />
+</div>);
+
+function InjuryLogView({ af, token, t, allStaff = [] }) {
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [review, setReview] = useState(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  // One read per year picked. An answer for a year no longer picked is dropped.
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    setData(null); setFailed(false);
+    af("/api/injury-log?year=" + year)
+      .then(d => { if (seq.current === mine) setData({ cases: d && Array.isArray(d.cases) ? d.cases : [], totals: (d && d.totals) || null }); })
+      .catch(e => { if (seq.current === mine) setFailed(true); console.warn("Injury log:", e.message); });
+  }, [af, year]);
+  useEffect(() => { load(); }, [load]);
+  const exportPdf = async () => {
+    if (exporting) return;
+    setExporting(true); setExportError("");
+    try { await saveDownload("/api/injury-log.pdf?year=" + year, token, "OCSA-FRM-028-" + year + ".pdf"); }
+    catch (e) { setExportError(e.message || tr("Request failed")); }
+    setExporting(false);
+  };
+  const muted = { color: t.textSec };
+  const cols = [
+    { header: tr("Case"), tdStyle: { whiteSpace: "nowrap", fontWeight: 600, color: t.text }, render: c => String(c.caseNumber == null ? "--" : c.caseNumber) },
+    { header: tr("Name"), tdStyle: { minWidth: 140, color: t.text }, render: c => (c.name == null ? <span data-privacy-case="" style={{ color: t.textMut, fontStyle: "italic" }}>{tr("Privacy case")}</span> : c.name) },
+    { header: tr("Job title"), tdStyle: Object.assign({ minWidth: 120 }, muted), render: c => c.jobTitle || "--" },
+    { header: tr("Date"), tdStyle: Object.assign({ whiteSpace: "nowrap" }, muted), render: c => (c.eventDate ? fdLong(c.eventDate) : "--") },
+    { header: tr("Where|place"), tdStyle: Object.assign({ minWidth: 160 }, muted), render: c => c.where || "--" },
+    { header: tr("Description"), tdStyle: Object.assign({ minWidth: 240 }, muted), render: c => c.description || "--" },
+    { header: tr("Outcome"), tdStyle: Object.assign({ minWidth: 140 }, muted), render: c => injuryOutcomeWord(c.outcome) },
+    { header: tr("Days away"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: c => injuryCount(c.daysAway) },
+    { header: tr("Days restricted"), align: "right", tdStyle: { whiteSpace: "nowrap" }, render: c => injuryCount(c.daysRestricted) },
+    { header: tr("Type"), tdStyle: Object.assign({ minWidth: 120 }, muted), render: c => injuryTypeWord(c.caseType) },
+  ];
+  const cases = data ? data.cases : [];
+  return (<div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <InjuryYearPicker t={t} year={year} onChange={setYear} />
+      {data && <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn></div>}
+    </div>
+    {exportError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
+      data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      <DataTable t={t} columns={cols} rows={cases} rowKey={c => c.responseId || c.caseNumber} onRowClick={c => { if (c.responseId) setReview(c); }} empty={tr("No recordable cases this year.")}
+        footer={cases.length > 0 ? <div style={{ padding: 16, borderTop: "1px solid " + t.border }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Totals for {0}", year)}</div>
+          <InjuryTotals t={t} totals={data.totals} />
+        </div> : null} />}
+    {review && <IncidentReportWindow af={af} token={token} t={t} id={review.responseId} row={null} onClose={() => { setReview(null); load(); }} people={allStaff} />}
+  </div>);
+}
+
+// OCSA-FRM-029, the log's annual summary (STEP202_CONTRACT.md, section 5): the year's totals, the
+// establishment, the two figures a holder of record_injuries types and saves, and the company
+// executive's certification, which an admin makes with the signature box every sign-off uses. A year's
+// summary is posted from February 1 to April 30 of the year after it, its postingWindow. Until it is
+// certified in that window, or when the log changed after it was, a banner says to post it.
+const injuryPostingDue = (s) => {
+  const w = s && s.postingWindow;
+  if (!w || !w.from || !w.to) return false;
+  const today = toISO(new Date());
+  if (today < String(w.from).slice(0, 10) || today > String(w.to).slice(0, 10)) return false;
+  return !s.certified || s.changedSinceCertified === true;
+};
+const InjuryPostingBanner = ({ t, year, onOpen }) => (<div data-posting-banner="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14, padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+  <div style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13, fontWeight: 600, color: OR }}>{tr("Post the {0} summary from February 1 to April 30.", year)}</div>
+  {onOpen && <Btn t={t} v="ghost" onClick={onOpen} style={{ minHeight: 44 }}>{tr("Open|verb")}</Btn>}
+</div>);
+// What a figure box holds, sent as a whole number when it reads as one, as null when it is empty, and
+// otherwise as typed, for the API to refuse in its own words.
+const summaryFigure = (v) => {
+  const s = String(v == null ? "" : v).trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : s;
+};
+
+// pending is the summary the Reports page read for last year when it is due to be posted, so the
+// banner is here whichever year is picked, and the page opens on that year.
+function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged }) {
+  const [year, setYear] = useState(() => (pending && Number(pending.year)) || new Date().getFullYear());
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [figures, setFigures] = useState({ averageEmployees: "", totalHours: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveRefusal, setSaveRefusal] = useState({ text: "", keys: [] });
+  const [savedLine, setSavedLine] = useState(false);
+  const [signer, setSigner] = useState({ name: "", title: "" });
+  const [certifying, setCertifying] = useState(false);
+  const certifyingRef = useRef(false);
+  const [certRefusal, setCertRefusal] = useState("");
+  // injurySummary.badCertifier names the empty ones of name and title in keys, and is drawn under each.
+  const [certifierRefusal, setCertifierRefusal] = useState({ text: "", keys: [] });
+  const [notReady, setNotReady] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const shown = (d) => {
+    setData(d);
+    setFigures({ averageEmployees: d.averageEmployees == null ? "" : String(d.averageEmployees), totalHours: d.totalHours == null ? "" : String(d.totalHours) });
+  };
+  // One read per year picked. An answer for a year no longer picked is dropped.
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    setData(null); setFailed(false); setSaveRefusal({ text: "", keys: [] }); setSavedLine(false); setCertRefusal(""); setCertifierRefusal({ text: "", keys: [] }); setNotReady(""); setExportError("");
+    af("/api/injury-summary?year=" + year)
+      .then(d => { if (seq.current === mine) { if (d && d.totals) shown(d); else setFailed(true); } })
+      .catch(e => { if (seq.current === mine) setFailed(true); console.warn("Annual summary:", e.message); });
+  }, [af, year]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setSaveRefusal({ text: "", keys: [] }); setSavedLine(false); setNotReady("");
+    // An answer that arrives after another year was picked is left off that year's page.
+    const mine = seq.current;
+    try {
+      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { averageEmployees: summaryFigure(figures.averageEmployees), totalHours: summaryFigure(figures.totalHours) } });
+      if (seq.current === mine) { if (d && d.totals) shown(d); else load(); setSavedLine(true); }
+      if (onChanged) onChanged();
+    } catch (e) {
+      if (seq.current === mine) setSaveRefusal({ text: e.message || tr("Request failed"), keys: e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [] });
+    }
+    savingRef.current = false; setSaving(false);
+  };
+  // The signature is the box's PNG. injurySummary.notReady is drawn at the top of the page, since what
+  // it asks for is the two figures above, injurySummary.badCertifier under the name or title its keys
+  // name, and any other refusal in the box, the way a sign-off's is.
+  const certify = async (signature) => {
+    if (certifyingRef.current) return;
+    certifyingRef.current = true; setCertifying(true); setCertRefusal(""); setCertifierRefusal({ text: "", keys: [] }); setNotReady(""); setSavedLine(false);
+    const mine = seq.current;
+    try {
+      const d = await af("/api/injury-summary/" + year + "/certify", { method: "POST", body: { name: signer.name.trim(), title: signer.title.trim(), signature } });
+      if (seq.current === mine) { if (d && d.totals) shown(d); else load(); setSigner({ name: "", title: "" }); }
+      if (onChanged) onChanged();
+    } catch (e) {
+      if (seq.current !== mine) { /* another year is on the page now */ }
+      else if (e && e.code === "injurySummary.notReady") setNotReady(e.message || tr("Request failed"));
+      else {
+        const named = e && e.code === "injurySummary.badCertifier" && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String).filter(k => k === "name" || k === "title") : [];
+        if (named.length) setCertifierRefusal({ text: e.message || tr("Request failed"), keys: named });
+        else setCertRefusal(e.message || tr("Request failed"));
+      }
+    }
+    certifyingRef.current = false; setCertifying(false);
+  };
+  const exportPdf = async () => {
+    if (exporting) return;
+    setExporting(true); setExportError("");
+    try { await saveDownload("/api/injury-summary/" + year + ".pdf", token, "OCSA-FRM-029-" + year + ".pdf"); }
+    catch (e) { setExportError(e.message || tr("Request failed")); }
+    setExporting(false);
+  };
+
+  const refusedFor = (key) => (saveRefusal.keys.indexOf(key) >= 0 ? saveRefusal.text : "");
+  const refusalElsewhere = saveRefusal.text && !saveRefusal.keys.some(k => k === "averageEmployees" || k === "totalHours") ? saveRefusal.text : "";
+  const changed = !!data && (figures.averageEmployees !== (data.averageEmployees == null ? "" : String(data.averageEmployees)) || figures.totalHours !== (data.totalHours == null ? "" : String(data.totalHours)));
+  const certified = data && data.certified ? data.certified : null;
+  const stale = !!(data && data.changedSinceCertified === true);
+  const dueYear = data && injuryPostingDue(data) ? data.year : (pending && Number(pending.year) !== year ? pending.year : null);
+  const hint = data && data.hints && data.hints.activeStaffAverage != null && Number.isFinite(Number(data.hints.activeStaffAverage))
+    ? Number(data.hints.activeStaffAverage).toLocaleString(localeTag(), { maximumFractionDigits: 1 }) : null;
+  const est = (data && data.establishment) || {};
+  const smallHead = { fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 };
+  const line = (label, value) => (<div style={{ marginBottom: 10 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 2 }}>{label}</div>
+    <div style={{ fontSize: 13, color: value ? t.text : t.textMut, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{value || "--"}</div>
+  </div>);
+  return (<div>
+    {dueYear != null && <InjuryPostingBanner t={t} year={dueYear} onOpen={Number(dueYear) !== year ? () => setYear(Number(dueYear)) : null} />}
+    {notReady && <div data-summary-refusal="notReady" style={{ fontSize: 13, color: RD, fontWeight: 600, marginBottom: 12 }}>{notReady}</div>}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <InjuryYearPicker t={t} year={year} onChange={setYear} />
+      {data && <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn></div>}
+    </div>
+    {exportError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
+      data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      (<>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={smallHead}>{tr("Totals for {0}", year)}</div>
+          <InjuryTotals t={t} totals={data.totals} />
+        </Crd>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={smallHead}>{tr("Establishment")}</div>
+          {line(tr("Name"), est.name)}
+          {line(tr("Address"), est.address)}
+          <div style={{ marginTop: 6, marginBottom: 12, maxWidth: 420 }}>
+            <Lbl>{tr("Annual average number of employees")}</Lbl>
+            <Inp t={t} type="number" min="0" step="1" inputMode="numeric" aria-label={tr("Annual average number of employees")} value={figures.averageEmployees} onChange={e => { setFigures({ ...figures, averageEmployees: e.target.value }); setSavedLine(false); }} />
+            {hint != null && <div data-staff-hint="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("To check against: {0} active staff accounts on average, counted on the first of each month.", hint)}</div>}
+            {refusedFor("averageEmployees") && <div data-summary-refusal="averageEmployees" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusedFor("averageEmployees")}</div>}
+          </div>
+          <div style={{ marginBottom: 12, maxWidth: 420 }}>
+            <Lbl>{tr("Total hours worked by all employees last year")}</Lbl>
+            <Inp t={t} type="number" min="0" step="1" inputMode="numeric" aria-label={tr("Total hours worked by all employees last year")} value={figures.totalHours} onChange={e => { setFigures({ ...figures, totalHours: e.target.value }); setSavedLine(false); }} />
+            {refusedFor("totalHours") && <div data-summary-refusal="totalHours" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusedFor("totalHours")}</div>}
+          </div>
+          {refusalElsewhere && <div data-summary-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusalElsewhere}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Btn t={t} onClick={save} disabled={saving || !changed} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+            {savedLine && <span style={{ fontSize: 12, color: GR }}>{tr("Saved")}</span>}
+          </div>
+        </Crd>
+        <Crd t={t}>
+          <div style={smallHead}>{tr("Certification")}</div>
+          {certified
+            ? <div data-certified="" style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("Certified by {0}, {1}, on {2}", certified.name || "--", certified.title || "--", certified.at ? irWhen(certified.at) : "--")}</div>
+            : <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("Not certified yet.")}</div>}
+          {certified && stale && <div data-certified-stale="" style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("The injury log changed after this summary was certified. It needs certifying again.")}</div>}
+          {isAdmin && (!certified || stale) && (<div style={{ marginTop: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10, maxWidth: 560 }}>
+              <div><Lbl>{tr("Company executive")}</Lbl><Inp t={t} aria-label={tr("Company executive")} value={signer.name} onChange={e => setSigner({ ...signer, name: e.target.value })} />
+                {certifierRefusal.keys.indexOf("name") >= 0 && <div data-certifier-refusal="name" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{certifierRefusal.text}</div>}</div>
+              <div><Lbl>{tr("Title|job")}</Lbl><Inp t={t} aria-label={tr("Title|job")} value={signer.title} onChange={e => setSigner({ ...signer, title: e.target.value })} />
+                {certifierRefusal.keys.indexOf("title") >= 0 && <div data-certifier-refusal="title" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{certifierRefusal.text}</div>}</div>
+            </div>
+            <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 4, maxWidth: 560 }}>{tr("I certify that I have examined the injury log and that to the best of my knowledge this annual summary is correct and complete.")}</div>
+            <SignatureBox t={t} label={tr("Signature")} busy={certifying} refusal={certRefusal} onSign={certify}
+              signWord={tr("Certify")} busyWord={tr("Certifying...")} blocked={!signer.name.trim() || !signer.title.trim()} />
+          </div>)}
+        </Crd>
+      </>)}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
@@ -5608,12 +5884,29 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   // page opens, and a 404, a refusal or a failure leaves the report off the page.
   const [ratingsLive, setRatingsLive] = useState(false);
   const [monthlyLive, setMonthlyLive] = useState(false);
+  // Step 203: the safety records are offered the same way, the injury log once GET /api/injury-log
+  // answers for this year.
+  const [injuryLive, setInjuryLive] = useState(false);
   useEffect(() => {
     let alive = true;
     af("/api/reports/client-ratings").then(d => { if (alive) setRatingsLive(!!(d && typeof d === "object" && Array.isArray(d.sites))); }).catch(e => { if (alive) setRatingsLive(false); console.warn("Client ratings:", e.message); });
     af("/api/monthly-reports").then(d => { if (alive) setMonthlyLive(!!(d && Array.isArray(d.reports))); }).catch(e => { if (alive) setMonthlyLive(false); console.warn("Monthly client reports:", e.message); });
+    af("/api/injury-log?year=" + new Date().getFullYear()).then(d => { if (alive) setInjuryLive(!!(d && Array.isArray(d.cases))); }).catch(e => { if (alive) setInjuryLive(false); console.warn("Injury log:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // The annual summary is offered once GET /api/injury-summary answers. It is read for last year, the
+  // one year whose posting window today can fall in, so the same read says whether the banner shows.
+  // It is read again when the summary changes, and a failure then leaves the page as it was.
+  const [summaryLive, setSummaryLive] = useState(false);
+  const [summaryDue, setSummaryDue] = useState(null);
+  const [summaryRead, setSummaryRead] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    af("/api/injury-summary?year=" + (new Date().getFullYear() - 1))
+      .then(d => { if (!alive) return; const ok = !!(d && typeof d === "object" && d.totals && typeof d.totals === "object"); setSummaryLive(ok); setSummaryDue(ok && injuryPostingDue(d) ? d : null); })
+      .catch(e => { if (alive && summaryRead === 0) { setSummaryLive(false); setSummaryDue(null); } console.warn("Annual summary:", e.message); });
+    return () => { alive = false; };
+  }, [af, summaryRead]);
 
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
@@ -5671,6 +5964,26 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     </div>);
   }
 
+  if (view === "injury-log" && injuryLive) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Injury log")}</div>
+      </div>
+      <InjuryLogView af={af} token={token} t={t} allStaff={allStaff} />
+    </div>);
+  }
+
+  if (view === "injury-summary" && summaryLive) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Annual summary")}</div>
+      </div>
+      <InjurySummaryView af={af} token={token} t={t} isAdmin={isAdmin} pending={summaryDue} onChanged={() => setSummaryRead(n => n + 1)} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -5684,22 +5997,30 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     ...(ratingsLive ? [{ id: "ratings", name: tr("Client ratings"), line: tr("How clients rated each site, out of 10.") }] : []),
     ...(monthlyLive ? [{ id: "monthly", name: tr("Monthly client reports"), line: tr("Each site's month, written up for its client, sent with the PDF and acknowledged by the client.") }] : []),
   ];
+  const safetyRecords = [
+    ...(injuryLive ? [{ id: "injury-log", name: tr("Injury log"), line: tr("Every recordable injury and illness of a year, with its totals.") }] : []),
+    ...(summaryLive ? [{ id: "injury-summary", name: tr("Annual summary"), line: tr("The year's totals and their certification, posted from February 1 to April 30.") }] : []),
+  ];
+  // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
+  const reportGroup = (heading, list) => (list.length > 0 && <div style={{ marginBottom: 18 }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{heading}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+      {list.map(r => (
+        <Crd key={r.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{r.name}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
+          </div>
+          <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
+        </Crd>
+      ))}
+    </div>
+  </div>);
   return (<div>
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
-    {clientReports.length > 0 && <div style={{ marginBottom: 18 }}>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Client reports")}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
-        {clientReports.map(r => (
-          <Crd key={r.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-            <div>
-              <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{r.name}</div>
-              <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
-            </div>
-            <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
-          </Crd>
-        ))}
-      </div>
-    </div>}
+    {summaryLive && summaryDue && <InjuryPostingBanner t={t} year={summaryDue.year} onOpen={() => setView("injury-summary")} />}
+    {reportGroup(tr("Client reports"), clientReports)}
+    {reportGroup(tr("Safety records"), safetyRecords)}
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
@@ -9012,6 +9333,8 @@ const CAPABILITY_LABELS = {
   build_forms: "Make and change forms",
   // Step 179: the Announcements page, routes/announcements.
   send_announcements: "Send announcements to staff",
+  // Step 203: section 8 of OCSA-FRM-016, the injury log and its annual summary (STEP202_CONTRACT.md, section 2).
+  record_injuries: "Keep the injury log",
 };
 const capabilityName = (c) => (CAPABILITY_LABELS[c.key] ? tr(CAPABILITY_LABELS[c.key]) : (c.label || c.key));
 
@@ -9933,7 +10256,9 @@ const SIGNATURE_MAX_BYTES = 300 * 1024;
 const dataUrlBytes = (url) => Math.floor((String(url).split(",")[1] || "").length * 3 / 4);
 // Since Step 169 the box takes the word for its sending button and its busy line, so a customer's
 // signature card can read Save signature, and draws Cancel only when it is given somewhere to go.
-function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, busyWord }) {
+// Since Step 203 blocked holds the sending button off while something the box does not hold is still
+// empty, such as the certifier's name and title on the annual summary.
+function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, busyWord, blocked = false }) {
   const canvasRef = useRef(null);
   const [drawn, setDrawn] = useState(false);
   const drawing = useRef(false);
@@ -10003,7 +10328,7 @@ function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, bus
     <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Sign with your mouse or finger")}</div>
     {refusal && <div data-signature-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
     <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy} style={{ minHeight: 44, minWidth: 88 }}>{busy ? (busyWord || tr("Signing...")) : (signWord || tr("Sign"))}</Btn>
+      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy || !!blocked} style={{ minHeight: 44, minWidth: 88 }}>{busy ? (busyWord || tr("Signing...")) : (signWord || tr("Sign"))}</Btn>
       <Btn t={t} v="ghost" onClick={paint} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Clear")}</Btn>
       {onCancel && <Btn t={t} v="ghost" onClick={onCancel} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Cancel")}</Btn>}
     </div>
@@ -10051,6 +10376,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // The sign-off whose signature box is open, and what the API said when it refused the signature.
   const [boxFor, setBoxFor] = useState(null);
   const [signRefusal, setSignRefusal] = useState("");
+  // Step 203: a supervisor write refused with forms.fieldNotYours names the questions this person may
+  // not write in keys, and the refusal is drawn under each of them.
+  const [fieldRefusal, setFieldRefusal] = useState({ text: "", keys: [] });
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -10108,9 +10436,11 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   const savingRef = useRef(false);
   const saveSupervisor = async () => {
     if (savingRef.current) return;
-    const keys = Object.keys(sup);
+    // Only what is typed into a question that shows is sent. An answer typed into a question its
+    // rule has since hidden stays behind (Step 203).
+    const keys = sendableKeys();
     if (!keys.length) return;
-    savingRef.current = true; setSaving(true); setActionError(""); setSentLine("");
+    savingRef.current = true; setSaving(true); setActionError(""); setSentLine(""); setFieldRefusal({ text: "", keys: [] });
     // A row with no cell filled is never sent: it is dropped from a table a person adds rows to, and
     // a table left with no rows goes as null, the way the portal sends one, so the API's missing list
     // keeps naming a required table the way it always has.
@@ -10119,7 +10449,13 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     try {
       const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/supervisor", { method: "PATCH", body: { answers } });
       if (d && d.draft) { setData(d); setSup({}); }
-    } catch (e) { setActionError(e.message || tr("Request failed")); }
+    } catch (e) {
+      // forms.fieldNotYours is drawn under the questions it names that are on screen, and anywhere
+      // else under the footer, where every other refusal is drawn.
+      const named = e && e.code === "forms.fieldNotYours" && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      if (named.some(k => fieldByKey[k] && applies(fieldByKey[k]))) setFieldRefusal({ text: e.message || tr("Request failed"), keys: named });
+      else setActionError(e.message || tr("Request failed"));
+    }
     savingRef.current = false; setSaving(false);
   };
 
@@ -10158,27 +10494,52 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   const canResend = !!(data && data.canResend);
   const isVoid = !!(draft && draft.status === "void");
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
+  // Step 203: a question that carries appliesWhen shows only while its rule holds, read by the one
+  // evaluator the form window uses, against what each question holds right now: the answer the API
+  // sent, or on the supervisor half whatever has been typed and not saved yet. A question with no
+  // rule always shows, so a payload that sends none reads exactly as it did.
+  const answersNow = {};
+  fields.forEach(f => { answersNow[f.key] = Object.prototype.hasOwnProperty.call(sup, f.key) ? sup[f.key] : f.value; });
+  const applies = (f) => formRuleHolds(f.appliesWhen, answersNow);
   // Everything that is not the supervisor's half was answered by whoever filed the report. The two
   // words this platform uses for that half are read the same way, so the answers show either way.
-  const agentFields = fields.filter(f => f.half !== "supervisor");
-  const supervisorFields = fields.filter(f => f.half === "supervisor");
+  const agentFields = fields.filter(f => f.half !== "supervisor" && applies(f));
+  const supervisorFields = fields.filter(f => f.half === "supervisor" && applies(f));
   const fieldByKey = {};
   fields.forEach(f => { fieldByKey[f.key] = f; });
+  const sendableKeys = () => Object.keys(sup).filter(k => !fieldByKey[k] || applies(fieldByKey[k]));
+  // Step 203: a question the review view marks readOnly: true is one this person may not write, which
+  // is what a writers list on the definition decides (STEP202_CONTRACT.md, section 1). The one list in
+  // use is section 8 of OCSA-FRM-016, held by record_injuries, and a section that holds such a question
+  // says who can change it. A list naming anything else says this account cannot.
+  const writersLine = (list) => {
+    const locked = list.filter(f => f.readOnly === true);
+    if (locked.length === 0) return null;
+    const injuryLog = locked.every(f => !Array.isArray(f.writers) || f.writers.indexOf("record_injuries") >= 0);
+    return <div key="writers-line" data-writers-line="" style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{injuryLog ? tr("Only someone who keeps the injury log can change these answers.") : tr("Your account cannot change these answers.")}</div>;
+  };
   // The form's sections, when the API sends them (Step 157 on the API): each is drawn as a title,
   // its help line under it where one is sent, and its fields under that, in the order the API lists
   // them. A field whose section the list does not name, and every field of a payload with no
   // sections, draws flat exactly as before, ahead of the sections.
   const sections = data && Array.isArray(data.sections) ? data.sections.filter(sec => sec && sec.key != null) : [];
+  // A question named by a forms.fieldNotYours refusal draws the refusal under it (Step 203).
+  const withRefusal = (draw) => (f) => (fieldRefusal.keys.indexOf(f.key) < 0 ? draw(f) : (<div key={f.key}>
+    {draw(f)}
+    <div data-field-refusal={f.key} style={{ fontSize: 12, color: RD, marginTop: -6, marginBottom: 12 }}>{fieldRefusal.text}</div>
+  </div>));
   const grouped = (list, draw) => {
-    if (sections.length === 0) return list.map(draw);
+    if (sections.length === 0) return [writersLine(list)].concat(list.map(draw));
     const named = new Set(sections.map(sec => String(sec.key)));
-    const out = list.filter(f => !named.has(String(f.section))).map(draw);
+    const flat = list.filter(f => !named.has(String(f.section)));
+    const out = [writersLine(flat)].concat(flat.map(draw));
     sections.forEach(sec => {
       const mine = list.filter(f => String(f.section) === String(sec.key));
       if (mine.length === 0) return;
       out.push(<div key={"section-" + sec.key} style={{ marginBottom: 6 }}>
         <div data-section-title="" style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginTop: 4, marginBottom: sec.help ? 2 : 8 }}>{sec.title == null ? String(sec.key) : String(sec.title)}</div>
         {sec.help != null && sec.help !== "" && <div style={{ fontSize: 11, color: t.textMut, marginBottom: 8 }}>{String(sec.help)}</div>}
+        {writersLine(mine)}
         {mine.map(draw)}
       </div>);
     });
@@ -10338,9 +10699,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // Each question in its own type, which is what a person expects to type into at a desk. A
   // sign-off keeps its stamp and its button, since a stamp is made with that button and not here.
   // A question the API filled when the report was made says prefilled: true (Step 192), and the
-  // supervisor write refuses it, so it is drawn read only here rather than offered as an edit.
+  // supervisor write refuses it, so it is drawn read only here rather than offered as an edit. A
+  // question marked readOnly: true is drawn the same way (Step 203).
   const supervisorInput = (f) => {
-    if (f.prefilled === true) return fieldRow(f);
+    if (f.prefilled === true || f.readOnly === true) return fieldRow(f);
     if (f.type === "signoff") return signoffRow(f);
     if (f.type === "photos") return photosRow(f, true);
     const cur = supValue(f);
@@ -10453,9 +10815,9 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
               </ul>
             </div>}
             {supervisorFields.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supervisor questions on this form.")}</div>}
-            {grouped(supervisorFields, supervisorInput)}
+            {grouped(supervisorFields, withRefusal(supervisorInput))}
             <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <Btn t={t} onClick={saveSupervisor} disabled={saving || Object.keys(sup).length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+              <Btn t={t} onClick={saveSupervisor} disabled={saving || sendableKeys().length === 0} style={{ minHeight: 44 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
             </div>
           </>)
           : (<>
@@ -14069,7 +14431,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStateOf(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
+                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStatusWord(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
                     {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: t.goldText, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
                   </div>
                 </div>
@@ -14104,7 +14466,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   );
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -14254,7 +14616,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
   return (
     <div>
-      {/* Header: back + employee profile + add document */}
+      {/* Header: back + employee profile + add document and training */}
       <button onClick={onBack} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
         <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> {tr("Back to Employees")}
       </button>
@@ -14265,8 +14627,11 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         name={fullName + (e.is_test_account ? " (" + tr("TEST") + ")" : "")}
         idCode={e.employee_id}
         subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
-        badges={e.status ? <Bdg l={personStateOf(e.status)} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
-        actions={<Btn t={t} onClick={() => onAddDocument(userId)}>{tr("+ Add Document")}</Btn>}
+        badges={e.status ? <Bdg l={personStatusWord(e.status)} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
+        actions={<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Btn t={t} onClick={() => onAddDocument(userId, e)}>{tr("+ Add Document")}</Btn>
+          {onAddTraining && <Btn t={t} onClick={() => onAddTraining(userId, e)}>{tr("+ Add Training")}</Btn>}
+        </div>}
       />
 
       {/* Category pills */}
@@ -14574,11 +14939,41 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const [otQ, setOtQ] = useState(""); const [otPage, setOtPage] = useState(1);
   const [hrPerPage, setHrPerPage] = useState(10);
 
-  // The person filter, + Add Document's Employee and + Add Training's Employee all pick from the shell's
-  // staff list, which loadPeople fills for a supervisor from the HR employees summary when the API
-  // refuses them the list. Each saves the person's id.
-  const staffOpts = [{ v: "", l: tr("All Employees") }, ...allStaff.map(s => ({ v: s.id, l: s.firstName + " " + s.lastName }))];
+  // The person filter, + Add Document's Employee and + Add Training's Employee all pick from everyone,
+  // since a record is kept for a person who has left too (Step 203): active people first, then
+  // inactive people, then terminated people, then anyone else, such as someone waiting for approval,
+  // each after the first marked with its status word. loadPeople reads the list for a supervisor from
+  // the HR employees summary when the API refuses them the staff list. Until it answers, and if it
+  // fails, the shell's active list stands in. Each saves the person's id. Every other picker in the
+  // app keeps the shell's active list.
+  const [hrPeople, setHrPeople] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    loadPeople(af, "", true)
+      .then(d => { if (alive) setHrPeople(Array.isArray(d) ? d : (d && Array.isArray(d.users) ? d.users : [])); })
+      .catch(e => { console.warn("HR people:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  const statusRank = (st) => { const i = ["active", "inactive", "terminated"].indexOf(st || "active"); return i < 0 ? 3 : i; };
+  const personLabel = (first, last, st) => ((first || "") + " " + (last || "")).trim() + (st && st !== "active" ? " (" + personStatusWord(st) + ")" : "");
+  const hrList = (hrPeople || allStaff).filter(p => p && p.id != null && p.role !== "client_contact")
+    .map((p, i) => ({ p, i })).sort((a, b) => statusRank(a.p.status) - statusRank(b.p.status) || a.i - b.i).map(x => x.p);
+  const staffOpts = [{ v: "", l: tr("All Employees") }, ...hrList.map(s => ({ v: s.id, l: personLabel(s.firstName, s.lastName, s.status) }))];
   const trainingPeopleOpts = staffOpts.filter(s => s.v);
+  // + Add Document and + Add Training opened from inside a person's folder fill in that person as the
+  // Employee and hold them there: the window names them and offers no other. It is let go when the
+  // window closes.
+  const [fixedUser, setFixedUser] = useState(null);
+  useEffect(() => { if (!showModal) setFixedUser(null); }, [showModal]);
+  const openFromFolder = (kind, uid, emp) => {
+    const known = hrList.find(p => String(p.id) === String(uid));
+    const label = emp ? personLabel(emp.first_name, emp.last_name, emp.status) : known ? personLabel(known.firstName, known.lastName, known.status) : "";
+    setForm({ user_id: uid }); setFile(null); setFixedUser({ id: uid, label }); setShowModal(kind);
+  };
+  // The Employee field of either window: the folder's person, held, or the picker.
+  const employeeField = (opts) => (fixedUser && String(form.user_id) === String(fixedUser.id)
+    ? <Inp t={t} readOnly aria-label={tr("Employee")} data-fixed-employee="" value={fixedUser.label} />
+    : <Sel options={[{ v: "", l: tr("Select employee...") }, ...opts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} />);
   // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
   const docTypeMap = lkMap("document_types", true);
   const trainingTypeMap = lkMap("training_types", true);
@@ -14767,7 +15162,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           getOpts={getOpts}
           lkMap={lkMap}
           onBack={() => setFolderUserId(null)}
-          onAddDocument={(uid) => { setForm({ user_id: uid }); setFile(null); setShowModal("doc"); }}
+          onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
+          onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
             try {
               const list = await af("/api/hr/documents?user_id=" + folderUserId);
@@ -15039,7 +15435,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Document") : tr("Add Document")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
-            <Sel options={[{ v: "", l: tr("Select employee...") }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            {employeeField(staffOpts.filter(s => s.v))}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
             <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
@@ -15061,7 +15457,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Training Record") : tr("Add Training Record")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
-            <Sel options={[{ v: "", l: tr("Select employee...") }, ...trainingPeopleOpts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            {employeeField(trainingPeopleOpts)}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Name")}</div>
             <Inp t={t} placeholder={tr("e.g. General Cleaning Training")} value={form.training_name || ""} onChange={e => setForm({ ...form, training_name: e.target.value })} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Type")}</div>
@@ -15194,8 +15590,12 @@ const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", last
 // makes anew, so after the shell's own read is refused every later read, a page's supervisors list among
 // them, goes straight to the summary: a supervisor's pages ask for nothing they are refused, and the
 // browser logs no refusal for them.
+//
+// Step 203: everyone, true, is HR Records' read of every person whatever their status. An admin's read
+// is GET /api/users with no status, which already answers everyone; a refused read asks the summary for
+// status=all. Every other caller leaves it off and reads as before.
 const staffListRefused = new WeakMap();
-async function loadPeople(af, query) {
+async function loadPeople(af, query, everyone = false) {
   const q = query || "";
   if (!staffListRefused.get(af)) {
     try { return await af("/api/users" + q); }
@@ -15204,7 +15604,7 @@ async function loadPeople(af, query) {
   const want = new URLSearchParams(q.replace(/^\?/, ""));
   const status = want.get("status");
   const role = want.get("role");
-  const d = await af("/api/hr/employees-summary?status=active");
+  const d = await af("/api/hr/employees-summary?status=" + (everyone ? "all" : "active"));
   return ((d && d.employees) || []).map(hrPerson)
     .filter(p => p.role !== "client_contact" && (!status || p.status === status) && (!role || p.role === role));
 }
