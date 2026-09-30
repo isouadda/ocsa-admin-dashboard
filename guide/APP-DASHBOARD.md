@@ -51,8 +51,9 @@ Who can do this: admins and supervisors
 2. Click a notice to open what it is about. A notice about a filed report opens that report.
 3. Click **Mark all read** to clear the number.
 4. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
-If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins.
-Last checked: 2026-09-27
+5. Notices read in the language the dashboard is shown in. Switch the language and the list is read again in the new one.
+If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins. A notice written before notices could be read in either language shows in the words it was written in.
+Last checked: 2026-09-30
 
 ## Change who gets told about reports and requests (admin dashboard)
 Who can do this: admins
@@ -288,11 +289,15 @@ Last checked: 2026-09-16
 
 ## Create an inspection template (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Inspections**.
-2. On the **Templates** tab, click **New Template**, name it, and click **Create Template**.
-3. Click the template, then add each item under **Add Line Item** with its zone, its **Service Category** and its maximum score.
-4. To change a template's name later, click **Rename** (**Cambiar nombre**) on its card. A template no longer used is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
-Last checked: 2026-09-28
+1. Click **Inspections** (**Inspecciones**).
+2. On the **Templates** (**Plantillas**) tab, click **New Template** (**Nueva plantilla**) and name it.
+3. Under **Kind** (**Tipo**), choose **Supervisor inspection** (**Inspección de supervisor**) for a supervisor's own inspection, or **Audit inspection** (**Inspección de auditoría**) for an audit. A new template starts on Supervisor inspection. Click **Create Template** (**Crear la plantilla**).
+4. Click the template, then add each item under **Add Line Item** (**Agregar un elemento**) with its zone, its **Service Category** (**Categoría de servicio**) and its maximum score.
+5. Each template's card shows its kind. The monthly client report counts and averages supervisor inspections and audit inspections apart, by the kind of their template. A template made before kinds existed is a supervisor inspection until you change it.
+6. To change a template's name or kind later, click **Rename** (**Cambiar nombre**) on its card, change it, and click **Save** (**Guardar**). A new kind also changes how the template's past inspections count in any monthly client report made after the change; a report already made keeps its figures. A template no longer used is deactivated with **Deactivate** (**Desactivar**); nothing is deleted.
+If it does not work: when the kind is refused, the reason shows under **Kind** (**Tipo**). Choose one of the two kinds and save again.
+Words people use for this: inspection template, audit template, supervisor inspection, audit inspection, kind of inspection, type of inspection.
+Last checked: 2026-09-30
 
 ## See who has started a shift today (admin dashboard)
 Who can do this: admins and supervisors
@@ -319,9 +324,9 @@ Who can do this: admins and supervisors
 4. Under the answer, a line says what it is based on: **Based on the app guide** for steps in the staff portal or the admin dashboard, **Based on the ADP guide** for the ADP time clock, **Based on general cleaning guidance** for general cleaning answers, and an OCSA document by its name.
 5. If Help is filling in a report with you and it cannot be sent yet, **Still needed before you can submit:** (**Falta esto antes de poder enviarlo:**) lists the questions left to answer, worded the way the form asks them.
 6. Under each answer, **Was this helpful?** (**¿Le sirvió?**) with Yes and No; after No, **What was missing?** (**¿Qué faltó?**) and Send. **Thanks. This helps Help get better.** (**Gracias. Esto ayuda a mejorar la Ayuda.**)
-If it does not work: if **The connection dropped. Your answer is saved.** shows under the answer, click **Try again** to read the saved answer back. If a question reads Not sent, click **Retry**. Retry sends the same question again, and Help answers it once.
-Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer.
-Last checked: 2026-09-29
+If it does not work: if **The connection dropped. Your answer is saved.** (**Se perdió la conexión. La respuesta quedó guardada.**) shows under the answer, click **Try again** (**Intentar de nuevo**) to read the saved answer back. If **This question is still being answered. The answer will show here.** (**Esta pregunta todavía se está respondiendo. La respuesta aparecerá aquí.**) shows, the question was already sent and Help is still writing its answer; click **Try again** (**Intentar de nuevo**) after a moment to read it. If a question reads Not sent, click **Retry** (**Reintentar**). Retry sends the same question again, and Help answers it once.
+Words people use for this: ask help, what is the answer based on, where does this come from, based on the app guide, rate an answer, still being answered.
+Last checked: 2026-09-30
 
 ## Run a report (admin dashboard)
 Who can do this: admins and supervisors
@@ -334,10 +339,15 @@ Last checked: 2026-09-28
 
 ## Add a site or change its details (admin dashboard)
 Who can do this: admins
-1. Click **Sites**.
-2. To add one, click **Add Site**, fill in the name and address, and click **Create**.
-3. To change one, click the site, then **Edit Details**, and click **Save**.
-Last checked: 2026-09-16
+1. Click **Sites** (**Sitios**).
+2. To add one, click **Add Site** (**Agregar sitio**), fill in the name and address, and click **Create** (**Crear**).
+3. To change one, click the site. On **General Info** (**Información general**), click **Edit Details** (**Editar los detalles**) under **Contract Details** (**Detalles del contrato**).
+4. Under **Contract reference** (**Referencia del contrato**), type the contract's number or name as the client's paperwork gives it, up to 120 characters.
+5. Under **Service lines** (**Líneas de servicio**), tick each service delivered at the site: **Office** (**Oficinas**), **Schools** (**Escuelas**), **Laboratory** (**Laboratorio**), **Industrial** (**Industrial**), **Disinfection** (**Desinfección**), **Post-construction** (**Después de obra**), **Day porter** (**Portero de día**), **Landscaping** (**Jardinería**).
+6. Click **Save** (**Guardar**). **Contract Details** (**Detalles del contrato**) then shows the contract reference and the service lines, and the monthly client report fills them in from there.
+If it does not work: when a service line or the contract reference is refused, the reason shows under that field and the window stays open. Put it right and click **Save** (**Guardar**) again.
+Words people use for this: edit a site, site details, contract number, contract reference, service lines, services at a site, what we do at a site.
+Last checked: 2026-09-30
 
 ## Give one person a permission (admin dashboard)
 Who can do this: admins, and anyone given the manage permissions permission
@@ -798,14 +808,14 @@ Who can do this: anyone who can see reports prepares it; an admin who did not pr
 1. Click **Reports** (**Informes**) in the side panel.
 2. Under **Client reports** (**Informes para clientes**), click **Open** (**Abrir**) on **Monthly client reports** (**Informes mensuales para clientes**).
 3. Click **New monthly report** (**Nuevo informe mensual**), pick the site, check the **First day** (**Primer día**) and **Last day** (**Último día**), and click **Make report** (**Crear informe**).
-4. The report opens with its figures filled in from the records: service days, periodic tasks, inspections, complaints and requests, changes of service, safety, training and staffing. Correct any figure, write the narrative, and click **Next** (**Siguiente**) through each section.
+4. The report opens with its figures filled in from the records: the contract reference and the service lines from the site's details, service days, periodic tasks, inspections, complaints and requests, changes of service, safety, training and staffing. Supervisor inspections and audit inspections are counted and averaged apart, by the kind of their template, with the gap between the two averages for the month and the year to date, and each inspection in the table says its kind. Correct any figure, write the narrative, and click **Next** (**Siguiente**) through each section.
 5. Sign **Prepared by** (**Preparado por**), then click **Send** (**Enviar**) at the end to file it.
 6. An admin other than the person who prepared it clicks **Open** (**Abrir**) on the report in the list and signs **Reviewed by** (**Revisado por**).
 7. Click **Send to the client** (**Enviar al cliente**), tick the site's survey contacts, add any other address with **Add an address** (**Agregar una dirección**), and click **Send** (**Enviar**). The client gets the PDF, a link to acknowledge it, and the site's rating survey.
 8. The list shows who acknowledged it and when. A report not acknowledged 10 days after sending is marked **Overdue** (**Atrasado**).
-If it does not work: the send is refused until both **Prepared by** (**Preparado por**) and **Reviewed by** (**Revisado por**) are signed; the line at the top says which. A figure the records cannot give is left empty for you to fill in.
-Words people use for this: monthly report, client report, monthly performance report, send the report with the invoice, client acknowledgement, reporte mensual, informe mensual.
-Last checked: 2026-09-29
+If it does not work: the send is refused until both **Prepared by** (**Preparado por**) and **Reviewed by** (**Revisado por**) are signed; the line at the top says which. A figure the records cannot give is left empty for you to fill in. When the contract reference or the service lines are empty, set them on the site with **Edit Details** (**Editar los detalles**) before making the report, or type them in. When no audit inspections are counted, check that the audit's template has **Audit inspection** (**Inspección de auditoría**) as its kind.
+Words people use for this: monthly report, client report, monthly performance report, send the report with the invoice, client acknowledgement, audit gap, supervisor and audit inspections, reporte mensual, informe mensual.
+Last checked: 2026-09-30
 
 ## Set when a site's client gets the satisfaction survey (admin dashboard)
 Who can do this: admins who can change settings
