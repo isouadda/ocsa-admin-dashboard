@@ -291,6 +291,9 @@ const RL = { admin: "Admin", supervisor: "Supervisor", custodial_lead: "Custodia
 // sent and compared; a code with no word here is drawn as it arrives.
 const roleWord = (r) => (RL[r] ? tr(RL[r]) : r);
 const personStateOf = (s) => ({ active: tr("active|person"), inactive: tr("inactive|person"), pending: tr("pending") })[s] || s;
+// The same, with a terminated account's own word, the way Staff Management draws one. HR Records draws
+// a person's status with it (Step 203).
+const personStatusWord = (s) => (s === "terminated" ? tr("terminated|person") : personStateOf(s));
 const ET = { full_time: "Full Time", part_time: "Part Time", supplemental: "Supplemental" };
 // What a checklist item says on a screen that only shows it: the display the API sends in the
 // language the call asked for, and the item's own English wherever it sends none. A screen that edits
@@ -14419,7 +14422,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
                   }
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
-                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStateOf(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
+                    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.status !== "active" ? " . " + personStatusWord(e.status) : ""}{e.is_test_account ? " . " + tr("TEST") : ""}</div>
                     {e.employee_id && <span style={{ display: "inline-block", fontSize: 10, fontFamily: "monospace", color: t.goldText, marginTop: 4, padding: "1px 7px", borderRadius: 5, background: t.goldBg, border: "1px solid " + t.goldBorder }}>{e.employee_id}</span>}
                   </div>
                 </div>
@@ -14454,7 +14457,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   );
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -14604,7 +14607,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
   return (
     <div>
-      {/* Header: back + employee profile + add document */}
+      {/* Header: back + employee profile + add document and training */}
       <button onClick={onBack} style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
         <Ic d="M15 18l-6-6 6-6" sz={14} c={t.goldText} /> {tr("Back to Employees")}
       </button>
@@ -14615,8 +14618,11 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         name={fullName + (e.is_test_account ? " (" + tr("TEST") + ")" : "")}
         idCode={e.employee_id}
         subtitle={<span style={{ textTransform: "capitalize" }}>{e.role ? roleOf(e.role) : tr("No role")}{e.hire_date ? " . " + tr("Hired {0}", fmtDate(e.hire_date)) : ""}{(e.email || e.phone) ? <span style={{ textTransform: "none", color: t.textMut }}>{"  .  " + (e.email || "") + (e.email && e.phone ? " . " : "") + (e.phone || "")}</span> : ""}</span>}
-        badges={e.status ? <Bdg l={personStateOf(e.status)} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
-        actions={<Btn t={t} onClick={() => onAddDocument(userId)}>{tr("+ Add Document")}</Btn>}
+        badges={e.status ? <Bdg l={personStatusWord(e.status)} c={e.status === "active" ? GR : e.status === "pending" ? OR : RD} /> : null}
+        actions={<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Btn t={t} onClick={() => onAddDocument(userId, e)}>{tr("+ Add Document")}</Btn>
+          {onAddTraining && <Btn t={t} onClick={() => onAddTraining(userId, e)}>{tr("+ Add Training")}</Btn>}
+        </div>}
       />
 
       {/* Category pills */}
@@ -14924,11 +14930,41 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const [otQ, setOtQ] = useState(""); const [otPage, setOtPage] = useState(1);
   const [hrPerPage, setHrPerPage] = useState(10);
 
-  // The person filter, + Add Document's Employee and + Add Training's Employee all pick from the shell's
-  // staff list, which loadPeople fills for a supervisor from the HR employees summary when the API
-  // refuses them the list. Each saves the person's id.
-  const staffOpts = [{ v: "", l: tr("All Employees") }, ...allStaff.map(s => ({ v: s.id, l: s.firstName + " " + s.lastName }))];
+  // The person filter, + Add Document's Employee and + Add Training's Employee all pick from everyone,
+  // since a record is kept for a person who has left too (Step 203): active people first, then
+  // inactive people, then terminated people, then anyone else, such as someone waiting for approval,
+  // each after the first marked with its status word. loadPeople reads the list for a supervisor from
+  // the HR employees summary when the API refuses them the staff list. Until it answers, and if it
+  // fails, the shell's active list stands in. Each saves the person's id. Every other picker in the
+  // app keeps the shell's active list.
+  const [hrPeople, setHrPeople] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    loadPeople(af, "", true)
+      .then(d => { if (alive) setHrPeople(Array.isArray(d) ? d : (d && Array.isArray(d.users) ? d.users : [])); })
+      .catch(e => { console.warn("HR people:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  const statusRank = (st) => { const i = ["active", "inactive", "terminated"].indexOf(st || "active"); return i < 0 ? 3 : i; };
+  const personLabel = (first, last, st) => ((first || "") + " " + (last || "")).trim() + (st && st !== "active" ? " (" + personStatusWord(st) + ")" : "");
+  const hrList = (hrPeople || allStaff).filter(p => p && p.id != null && p.role !== "client_contact")
+    .map((p, i) => ({ p, i })).sort((a, b) => statusRank(a.p.status) - statusRank(b.p.status) || a.i - b.i).map(x => x.p);
+  const staffOpts = [{ v: "", l: tr("All Employees") }, ...hrList.map(s => ({ v: s.id, l: personLabel(s.firstName, s.lastName, s.status) }))];
   const trainingPeopleOpts = staffOpts.filter(s => s.v);
+  // + Add Document and + Add Training opened from inside a person's folder fill in that person as the
+  // Employee and hold them there: the window names them and offers no other. It is let go when the
+  // window closes.
+  const [fixedUser, setFixedUser] = useState(null);
+  useEffect(() => { if (!showModal) setFixedUser(null); }, [showModal]);
+  const openFromFolder = (kind, uid, emp) => {
+    const known = hrList.find(p => String(p.id) === String(uid));
+    const label = emp ? personLabel(emp.first_name, emp.last_name, emp.status) : known ? personLabel(known.firstName, known.lastName, known.status) : "";
+    setForm({ user_id: uid }); setFile(null); setFixedUser({ id: uid, label }); setShowModal(kind);
+  };
+  // The Employee field of either window: the folder's person, held, or the picker.
+  const employeeField = (opts) => (fixedUser && String(form.user_id) === String(fixedUser.id)
+    ? <Inp t={t} readOnly aria-label={tr("Employee")} data-fixed-employee="" value={fixedUser.label} />
+    : <Sel options={[{ v: "", l: tr("Select employee...") }, ...opts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} />);
   // Each of these shows a choice or picks one by its code, so each reads the choice's displayLabel.
   const docTypeMap = lkMap("document_types", true);
   const trainingTypeMap = lkMap("training_types", true);
@@ -15117,7 +15153,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           getOpts={getOpts}
           lkMap={lkMap}
           onBack={() => setFolderUserId(null)}
-          onAddDocument={(uid) => { setForm({ user_id: uid }); setFile(null); setShowModal("doc"); }}
+          onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
+          onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
             try {
               const list = await af("/api/hr/documents?user_id=" + folderUserId);
@@ -15389,7 +15426,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Document") : tr("Add Document")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
-            <Sel options={[{ v: "", l: tr("Select employee...") }, ...staffOpts.filter(s => s.v)]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            {employeeField(staffOpts.filter(s => s.v))}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
             <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
@@ -15411,7 +15448,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{form.id ? tr("Edit Training Record") : tr("Add Training Record")}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
-            <Sel options={[{ v: "", l: tr("Select employee...") }, ...trainingPeopleOpts]} value={form.user_id || ""} onChange={e => setForm({ ...form, user_id: e.target.value })} t={t} /></div>
+            {employeeField(trainingPeopleOpts)}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Name")}</div>
             <Inp t={t} placeholder={tr("e.g. General Cleaning Training")} value={form.training_name || ""} onChange={e => setForm({ ...form, training_name: e.target.value })} /></div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Training Type")}</div>
@@ -15544,8 +15581,12 @@ const hrPerson = (e) => ({ id: String(e.id), firstName: e.first_name || "", last
 // makes anew, so after the shell's own read is refused every later read, a page's supervisors list among
 // them, goes straight to the summary: a supervisor's pages ask for nothing they are refused, and the
 // browser logs no refusal for them.
+//
+// Step 203: everyone, true, is HR Records' read of every person whatever their status. An admin's read
+// is GET /api/users with no status, which already answers everyone; a refused read asks the summary for
+// status=all. Every other caller leaves it off and reads as before.
 const staffListRefused = new WeakMap();
-async function loadPeople(af, query) {
+async function loadPeople(af, query, everyone = false) {
   const q = query || "";
   if (!staffListRefused.get(af)) {
     try { return await af("/api/users" + q); }
@@ -15554,7 +15595,7 @@ async function loadPeople(af, query) {
   const want = new URLSearchParams(q.replace(/^\?/, ""));
   const status = want.get("status");
   const role = want.get("role");
-  const d = await af("/api/hr/employees-summary?status=active");
+  const d = await af("/api/hr/employees-summary?status=" + (everyone ? "all" : "active"));
   return ((d && d.employees) || []).map(hrPerson)
     .filter(p => p.role !== "client_contact" && (!status || p.status === status) && (!role || p.role === role));
 }

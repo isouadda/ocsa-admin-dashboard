@@ -139,29 +139,31 @@ Last checked: 2026-09-17
 
 ## Add an HR document for an employee (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records**.
-2. Click the **Documents** tab.
-3. Click **+ Add Document**.
-4. Choose the employee and the category, upload the file, and add an expiry date if it has one.
-5. Click **Add**.
-Last checked: 2026-09-16
+1. Click **HR Records** (**Expedientes de personal**).
+2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Document** (**+ Agregar documento**). The person is filled in as the **Employee** (**Persona**) and stays there.
+3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
+4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one.
+5. Click **Add** (**Agregar**).
+Words people use for this: upload a document, add a file to someone's folder, document for someone who left, subir un documento.
+Last checked: 2026-09-30
 
 ## Add a training record (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records**.
-2. Click the **Training** tab.
-3. Click **+ Add Training**.
-4. Choose the employee, type the training name and type, and fill in the dates and score.
-5. Click **Add**.
-Last checked: 2026-09-16
+1. Click **HR Records** (**Expedientes de personal**).
+2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Training** (**+ Agregar capacitación**). The person is filled in as the **Employee** (**Persona**) and stays there.
+3. Or click the **Training** (**Capacitación**) tab, then **+ Add Training** (**+ Agregar capacitación**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
+4. Type the **Training Name** (**Nombre de la capacitación**), choose the **Training Type** (**Tipo de capacitación**), and fill in the **Completed Date** (**Fecha de finalización**), the **Expiry Date** (**Fecha de vencimiento**) and the **Score** (**Puntaje**).
+5. Click **Add** (**Agregar**).
+Words people use for this: log a training, add a certificate of training, training for someone who left, registrar una capacitación.
+Last checked: 2026-09-30
 
 ## Set up and check off an onboarding checklist (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records**.
-2. Click the **Onboarding** tab and choose the employee at the top right.
-3. If they have no checklist, click **Initialize Onboarding**.
-4. Tick each step as it is done. Click **+ Custom Step** to add one.
-Last checked: 2026-09-16
+1. Click **HR Records** (**Expedientes de personal**).
+2. Click the **Onboarding** (**Incorporación**) tab and choose the employee at the top right. The list shows active people first, then inactive and terminated people, each with its status after the name.
+3. If they have no checklist, click **Initialize Onboarding** (**Iniciar la incorporación**).
+4. Tick each step as it is done. Click **+ Custom Step** (**+ Paso personalizado**) to add one.
+Last checked: 2026-09-30
 
 ## Review a reported problem and assign it (admin dashboard)
 Who can do this: admins and supervisors
