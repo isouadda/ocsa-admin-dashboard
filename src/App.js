@@ -1004,7 +1004,7 @@ export default function AdminDashboard() {
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -9703,11 +9703,33 @@ function QuoteFigures({ t, model, calc, busy, stale, phone }) {
   </Crd>);
 }
 
+// The step buttons over a quote or the defaults: each step by its number in the model and its title,
+// so a step reads the same number on both, a red dot on one
+// holding a box a refusal names and an orange one on a step with a check that does not hold.
+function QuoteStepButtons({ t, model, groups, step, onStep, refusal, checks, boxRef }) {
+  return (<div ref={boxRef} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12, scrollMarginTop: 96 }}>{groups.map((x, i) => {
+    const on = i === step;
+    const refused = !!(refusal && refusal.keys.some(k => quoteStepOfKey(model, k) === x.key));
+    const warned = Array.isArray(checks) && checks.some(c => !c.ok && (model.checks || []).some(mc => mc.key === c.key && mc.group === x.key));
+    return (<button key={x.key} onClick={() => onStep(i)} aria-current={on ? "step" : undefined} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, padding: "7px 12px", borderRadius: R.sm, border: "1px solid " + (on ? t.goldBorder : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>
+      <span>{((model.groups || []).indexOf(x) + 1) + ". " + builderText(x.title)}</span>
+      {refused ? <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: RD }} /> : warned ? <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: OR }} /> : null}
+    </button>);
+  })}</div>);
+}
+
 // One quote, or a new one: the client, contact and site above five steps drawn from the model's
 // groups, with Back and Next between them, and the figures beside them, under them at 390. The
 // figures are worked out by the API 400 ms after typing stops. Save posts a new quote or puts one,
 // and a refusal is drawn under the box its keys name. A closed quote reads only.
 function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCreated, showToast }) {
+  // The windows the quote opens: the client's PDF or the worksheet, and the send.
+  const [pdfKind, setPdfKind] = useState(null);
+  const [sendOpen, setSendOpen] = useState(false);
+  // Accepted, declined or void, waiting on its confirmation, and the status post under way.
+  const [closing, setClosing] = useState(null);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusRefusal, setStatusRefusal] = useState("");
   const [qid, setQid] = useState(id === "new" ? null : id);
   // The quote the editor opened with, read once: a new quote saved takes its id without loading again.
   const openedRef = useRef(qid);
@@ -9787,7 +9809,6 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
 
   // The refusal the boxes show: the save's, and while none, the figures'.
   const shownRefusal = refusal || calcRefusal;
-  const stepKeys = (g) => (shownRefusal ? shownRefusal.keys.filter(k => quoteStepOfKey(model, k) === g.key) : []);
   const detailRefused = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
 
   const save = async () => {
@@ -9822,6 +9843,22 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   };
 
   const back = () => { if (dirty && !readOnly) setLeaving(true); else onBack(); };
+  // A quote taken from an answer the API gave after a send or a status: its details and figures as
+  // saved. Nothing typed is lost, since both wait on a quote with no change unsaved.
+  const takeQuote = (q) => { if (!q) return; setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs)); };
+  const setStatus = async () => {
+    if (!closing || statusBusy) return;
+    setStatusBusy(true); setStatusRefusal("");
+    try {
+      const r = await af("/api/quotes/" + encodeURIComponent(qid) + "/status", { method: "POST", body: { status: closing } });
+      takeQuote(r && r.quote);
+      setClosing(null);
+      if (showToast) showToast(tr("Quote marked {0}.", quoteStatusWord(r && r.quote ? r.quote.status : closing).toLowerCase()));
+    } catch (e) { setStatusRefusal(e.message || tr("Request failed")); }
+    setStatusBusy(false);
+  };
+  const CLOSE_ASK = { accepted: "Mark this quote accepted? Once it is, the quote reads only.", declined: "Mark this quote declined? Once it is, the quote reads only.", void: "Void this quote? Once it is, the quote reads only." };
+  const CLOSE_WORD = { accepted: "Mark accepted", declined: "Mark declined", void: "Void" };
   // Back and Next at the foot of a long step bring the next step's top into view.
   const goStep = (i) => { setStep(i); try { if (stepTop.current && stepTop.current.getBoundingClientRect().top < 0) stepTop.current.scrollIntoView({ block: "start" }); } catch (e) {} };
   const groups = model ? model.groups : [];
@@ -9831,15 +9868,6 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   const detailBox = (k, label, type) => (<div style={{ minWidth: 0 }}><Lbl>{label}</Lbl>
     <Inp t={t} type={type || "text"} aria-label={label} value={details[k]} onChange={e => setDetail(k, e.target.value)} disabled={readOnly} style={quoteBoxStyle(!!detailRefused(k))} />
     <QuoteRefusal text={detailRefused(k)} /></div>);
-  const stepBtn = (x, i) => {
-    const on = i === step;
-    const refused = stepKeys(x).length > 0;
-    const warned = calc && Array.isArray(calc.checks) && calc.checks.some(c => !c.ok && (model.checks || []).some(mc => mc.key === c.key && mc.group === x.key));
-    return (<button key={x.key} onClick={() => setStep(i)} aria-current={on ? "step" : undefined} style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, padding: "7px 12px", borderRadius: R.sm, border: "1px solid " + (on ? t.goldBorder : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>
-      <span>{(i + 1) + ". " + builderText(x.title)}</span>
-      {refused ? <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: RD }} /> : warned ? <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", background: OR }} /> : null}
-    </button>);
-  };
 
   return (<div data-quote="">
     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
@@ -9851,6 +9879,25 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       {dirty && !readOnly && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Changes not saved yet")}</span>}
       {model && est && !readOnly && <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>}
     </div>
+    {quote && !isNew && <div data-quote-actions="" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <Btn t={t} v="ghost" onClick={() => setPdfKind("client")} style={{ minHeight: 44 }}>{tr("Preview client PDF")}</Btn>
+      <Btn t={t} v="ghost" onClick={() => setPdfKind("worksheet")} style={{ minHeight: 44 }}>{tr("Internal worksheet")}</Btn>
+      {!closed && <Btn t={t} onClick={() => setSendOpen(true)} disabled={dirty} style={{ minHeight: 44 }}>{tr("Send to the client")}</Btn>}
+      {!closed && ["accepted", "declined", "void"].map(st => <Btn key={st} t={t} v={st === "void" ? "danger" : "ghost"} onClick={() => { setClosing(st); setStatusRefusal(""); }} disabled={dirty} style={{ minHeight: 44 }}>{tr(CLOSE_WORD[st])}</Btn>)}
+      {!closed && dirty && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Save your changes before sending or closing the quote.")}</span>}
+    </div>}
+    {quote && quote.status === "sent" && <div data-quote-sent-line="" style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>
+      {quote.sentAt ? tr("Sent on {0} to {1}.", irWhen(quote.sentAt), (quote.sentTo || []).map(p => p.name || p.email).join(", ") || "--") + " " : ""}
+      <span style={{ color: OR }}>{tr("Saving a change makes this quote a draft again, as revision {0}.", Number(quote.revision || 1) + 1)}</span>
+    </div>}
+    {closed && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("This quote is {0}, so it reads only.", quoteStatusWord(quote.status).toLowerCase())}</div>}
+    {closing && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
+      <div style={{ fontSize: 13, color: t.text, marginBottom: 10 }}>{tr(CLOSE_ASK[closing])}</div>
+      {statusRefusal && <div data-quote-refusal="status" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{statusRefusal}</div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => setClosing(null)} disabled={statusBusy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn><Btn t={t} v={closing === "void" ? "danger" : "primary"} onClick={setStatus} disabled={statusBusy} style={{ minHeight: 44 }}>{statusBusy ? tr("Saving...") : tr(CLOSE_WORD[closing])}</Btn></div>
+    </Crd>}
+    {pdfKind && quote && <QuotePdfWindow token={token} t={t} quote={quote} kind={pdfKind} dirty={dirty} onClose={() => setPdfKind(null)} />}
+    {sendOpen && quote && <QuoteSendWindow af={af} t={t} quote={quote} onClose={() => setSendOpen(false)} onSent={takeQuote} />}
     {leaving && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
       <div style={{ fontSize: 13, color: t.text, marginBottom: 10 }}>{tr("Leave without saving your changes?")}</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><Btn t={t} v="ghost" onClick={() => setLeaving(false)} style={{ minHeight: 44 }}>{tr("Keep editing")}</Btn><Btn t={t} v="danger" onClick={onBack} style={{ minHeight: 44 }}>{tr("Leave")}</Btn></div>
@@ -9875,7 +9922,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       </Crd>
       <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
         <div style={{ flex: "3 1 560px", minWidth: 0 }}>
-          <div ref={stepTop} style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12, scrollMarginTop: 96 }}>{groups.map(stepBtn)}</div>
+          <QuoteStepButtons t={t} model={model} groups={groups} step={step} onStep={setStep} refusal={shownRefusal} checks={calc && calc.checks} boxRef={stepTop} />
           <Crd t={t}>
             {g && <QuoteStep t={t} model={model} group={g} est={est} filled={filled} calc={calc} set={set} setTask={setTask} setList={setList} refusal={shownRefusal} readOnly={readOnly} />}
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
@@ -9891,6 +9938,240 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
         </div>
       </div>
     </div>}
+  </div>);
+}
+
+// The client's PDF, GET /api/quotes/:id/pdf, or the internal worksheet, /worksheet.pdf, drawn as the
+// quote was last saved, in the language picked, which starts as the screen's.
+function QuotePdfWindow({ token, t, quote, kind, dirty, onClose }) {
+  const [lang, setLang] = useState(() => getLang());
+  const [pdf, setPdf] = useState({ url: "", filename: "", loading: true, error: "" });
+  const [again, setAgain] = useState(0);
+  const worksheet = kind === "worksheet";
+  useEffect(() => {
+    let alive = true;
+    setPdf(p => ({ url: p.url, filename: p.filename, loading: true, error: "" }));
+    const path = "/api/quotes/" + encodeURIComponent(quote.id) + (worksheet ? "/worksheet.pdf" : "/pdf") + "?locale=" + lang;
+    apiDownload(path, token, quote.number + (worksheet ? "-worksheet" : "") + ".pdf")
+      .then(f => {
+        const url = URL.createObjectURL(f.blob);
+        if (!alive) { URL.revokeObjectURL(url); return; }
+        setPdf(p => { if (p.url) URL.revokeObjectURL(p.url); return { url, filename: f.filename, loading: false, error: "" }; });
+      })
+      .catch(e => { if (alive) setPdf(p => ({ url: p.url, filename: p.filename, loading: false, error: e.message || tr("Request failed") })); });
+    return () => { alive = false; };
+  }, [token, quote.id, quote.number, worksheet, lang, again]);
+  useEffect(() => () => { setPdf(p => { if (p.url) URL.revokeObjectURL(p.url); return p; }); }, []);
+  const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
+  return (<Mdl t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} data-quote-pdf={kind}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{worksheet ? tr("Internal worksheet") : tr("Client PDF")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{quote.number}{Number(quote.revision) > 1 ? " \u00b7 " + tr("Revision {0}", quote.revision) : ""}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{worksheet ? tr("Every input, task line, figure and check, with the wages, burden and margin. It stays inside the company.") : tr("What the client receives: the scope, how often each task is done, the price and the terms. It shows no hour, rate, cost or margin.")}</div>
+    {dirty && <div style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{tr("The PDF shows the quote as last saved.")}</div>}
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+      <span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language")}</span>{LANGUAGES.map(langBtn)}
+      <div style={{ flex: 1 }} />
+      {pdf.url && <a href={pdf.url} download={pdf.filename || "quote.pdf"} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a>}
+    </div>
+    {pdf.loading && !pdf.url && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading the PDF...")}</div>}
+    {pdf.error && <LoadFailed t={t} text={pdf.error} onRetry={() => setAgain(n => n + 1)} />}
+    {pdf.url && <iframe title={worksheet ? tr("Internal worksheet") : tr("Client PDF")} src={pdf.url} style={{ flex: 1, width: "100%", minHeight: 360, border: "1px solid " + t.border, borderRadius: 8, background: "#FFFFFF" }} />}
+  </div></Mdl>);
+}
+
+// Send to the client: the quote's contact first, ticked, and any address added, a message, and the
+// language of the attached page. The mail carries the client's PDF only. The answer says how many it
+// reached and how many it did not, and a markedSent of false says the quote changed while it mailed.
+function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
+  const contact = quote.contactEmail ? [{ name: String(quote.contactName || ""), email: String(quote.contactEmail) }] : [];
+  const [picked, setPicked] = useState(() => contact.length > 0);
+  const [added, setAdded] = useState([]);
+  const [draft, setDraft] = useState({ name: "", email: "" });
+  const [message, setMessage] = useState("");
+  const [lang, setLang] = useState(() => getLang());
+  const [refusal, setRefusal] = useState({ text: "", code: "", keys: [] });
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState(null);
+  const sendingRef = useRef(false);
+  const to = (picked ? contact : []).concat(added);
+  const addOne = () => {
+    const email = draft.email.trim();
+    if (!email) return;
+    setAdded(prev => prev.concat([{ name: draft.name.trim(), email }]));
+    setDraft({ name: "", email: "" });
+  };
+  const send = async () => {
+    if (sendingRef.current || to.length === 0) return;
+    sendingRef.current = true; setSending(true); setRefusal({ text: "", code: "", keys: [] });
+    try {
+      const d = await af("/api/quotes/" + encodeURIComponent(quote.id) + "/send", { method: "POST", body: { to, message: message.trim() || null, locale: lang } });
+      setDone({ sent: Number(d && d.sent) || 0, failed: Number(d && d.failed) || 0, markedSent: !(d && d.markedSent === false) });
+      if (d && d.quote) onSent(d.quote);
+    } catch (e) {
+      setRefusal({ text: e.message || tr("Request failed"), code: String((e && e.code) || ""), keys: quoteKeysOf(e) });
+      if (e && e.body && e.body.quote) onSent(e.body.quote);
+    }
+    sendingRef.current = false; setSending(false);
+  };
+  const toCodes = ["quotes.noRecipients", "quotes.badEmail", "quotes.tooManyRecipients"];
+  const atTo = toCodes.indexOf(refusal.code) >= 0;
+  const atMessage = refusal.code === "quotes.badDetails" && refusal.keys.indexOf("message") >= 0;
+  const named = (i) => refusal.code === "quotes.badEmail" && refusal.keys.indexOf(String(i)) >= 0;
+  const who = (c) => (c.name ? c.name + " (" + c.email + ")" : c.email);
+  const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
+  return (<Mdl t={t} onClose={() => { if (!sending) onClose(); }}><div style={{ padding: 20 }} data-quote-send="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Send to the client")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{quote.number}{quote.clientName ? " \u00b7 " + quote.clientName : ""}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={sending}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !atTo && !atMessage && <div data-quote-refusal="top" style={{ fontSize: 13, color: RD, marginBottom: 12 }}>{refusal.text}</div>}
+    {done ? (<div data-quote-sent="">
+      <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("Mailed to {0} of {1}.", done.sent, done.sent + done.failed)}</div>
+      {done.failed > 0 && <div style={{ fontSize: 13, color: OR, marginBottom: 8 }}>{trn("{0} address could not be reached.|count", done.failed)}</div>}
+      {!done.markedSent && <div style={{ fontSize: 13, color: OR, marginBottom: 8 }}>{tr("The quote changed while it was mailing, so it was not marked sent.")}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn></div>
+    </div>) : (<div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The mail carries the client's PDF only: the scope, how often each task is done, and the price. It is written in English and then Spanish, with your message above both.")}</div>
+      <Lbl>{tr("Recipients")}</Lbl>
+      {contact.map((c) => (<label key="contact" style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, border: "1px solid " + (picked && named(0) ? RD : "transparent"), borderRadius: 8 }}>
+        <span style={chkWrap}><input type="checkbox" checked={picked} onChange={() => setPicked(v => !v)} style={{ width: 22, height: 22 }} /></span>
+        <span style={{ minWidth: 0, wordBreak: "break-word" }}>{who(c)}</span>
+      </label>))}
+      {added.map((c, i) => (<div key={"a" + i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.hover, borderRadius: 8, marginTop: 6, border: "1px solid " + (named((picked ? contact.length : 0) + i) ? RD : "transparent") }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: t.text, wordBreak: "break-word" }}>{who(c)}</span>
+        <Btn t={t} v="ghost" onClick={() => setAdded(prev => prev.filter((x, j) => j !== i))} aria-label={tr("Remove") + ": " + c.email} style={{ minHeight: 44, padding: "10px 12px", fontSize: 12 }}>{tr("Remove")}</Btn>
+      </div>))}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+        <div style={{ flex: "1 1 140px", minWidth: 0 }}><Inp t={t} aria-label={tr("Name")} placeholder={tr("Name")} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={draft.email} onChange={e => setDraft({ ...draft, email: e.target.value })} onKeyDown={e => { if (e.key === "Enter") addOne(); }} /></div>
+        <Btn t={t} v="ghost" onClick={addOne} disabled={!draft.email.trim()} style={{ minHeight: 44 }}>{tr("Add an address")}</Btn>
+      </div>
+      {atTo && <QuoteRefusal text={refusal.text} />}
+      <div style={{ marginTop: 14 }}><Lbl>{tr("Message")}</Lbl><TArea t={t} aria-label={tr("Message")} rows={4} maxLength={2000} value={message} onChange={e => setMessage(e.target.value)} style={quoteBoxStyle(atMessage)} />{atMessage && <QuoteRefusal text={refusal.text} />}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 12 }}><span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language of the PDF")}</span>{LANGUAGES.map(langBtn)}</div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" onClick={onClose} disabled={sending} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={send} disabled={sending || to.length === 0} style={{ minHeight: 44, minWidth: 96 }}>{sending ? tr("Sending...") : tr("Send")}</Btn>
+      </div>
+    </div>)}
+  </div></Mdl>);
+}
+
+// Settings, Quote defaults, for admins: the company's own starting values, which every new quote
+// takes in place of the model's, from GET /api/quotes/defaults and saved with PUT. The model's
+// inputs and the task lines' rates are grouped as on the quote, each box empty until the company sets
+// it and showing greyed the model's own value it takes until then. A quote already made keeps its own
+// values. The days a quote stays valid and the terms in English and Spanish go on the client's PDF.
+function QuoteDefaultsPanel({ af, t, showToast, initial }) {
+  const [model, setModel] = useState(null);
+  const [held, setHeld] = useState(initial || null);
+  const [est, setEst] = useState(null);
+  const [form, setForm] = useState({ validDays: "", termsEn: "", termsEs: "" });
+  const [failed, setFailed] = useState("");
+  const [step, setStep] = useState(0);
+  const [refusal, setRefusal] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const takeHeld = (h) => {
+    const d = (h && h.defaults) || {};
+    setHeld(h);
+    setEst({ values: Object.assign({}, d.values || {}), tasks: Object.keys(d.tasks || {}).reduce((m, k) => Object.assign(m, { [k]: Object.assign({}, d.tasks[k]) }), {}), lists: {} });
+    setForm({ validDays: h && h.validDays != null ? String(h.validDays) : "", termsEn: (h && h.termsEn) || "", termsEs: (h && h.termsEs) || "" });
+  };
+  const load = useCallback(async () => {
+    setFailed("");
+    try {
+      const [m, h] = await Promise.all([af("/api/quotes/model"), af("/api/quotes/defaults")]);
+      if (!m || !Array.isArray(m.groups)) throw new Error(tr("This did not load."));
+      setModel(m); takeHeld(h);
+    } catch (e) { setFailed(e.message || tr("This did not load.")); console.warn("Quote defaults:", e.message); }
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  if (failed) return <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>;
+  if (!model || !est) return <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
+  // The model's own values, which a box left empty takes, shown greyed in it.
+  const own = { values: {}, tasks: {} };
+  model.groups.forEach(g => (g.inputs || []).forEach(i => { own.values[i.key] = i.default; }));
+  const groups = model.groups.filter(g => (g.inputs || []).length > 0 || g.key === QUOTE_TASK_STEP);
+  const g = groups[Math.min(step, groups.length - 1)];
+  const set = (k, v) => setEst(e => Object.assign({}, e, { values: Object.assign({}, e.values, { [k]: v }) }));
+  const setTask = (k, patch) => setEst(e => Object.assign({}, e, { tasks: Object.assign({}, e.tasks, { [k]: Object.assign({}, e.tasks[k] || {}, patch) }) }));
+  const refusedText = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setRefusal(null);
+    // What the company holds, with the boxes laid over it: a box left empty is left out, so the model's
+    // own value stands for it. Anything the page does not draw, a list or a task's frequency, is kept.
+    const heldDefaults = (held && held.defaults) || {};
+    const byKey = {};
+    model.groups.forEach(x => (x.inputs || []).forEach(i => { byKey[i.key] = i; }));
+    const values = {};
+    Object.keys(est.values).forEach(k => {
+      const input = byKey[k];
+      if (!input) return;
+      const v = est.values[k];
+      if (input.type === "number") { const n = quoteNumberOut(input, v); if (n !== null) values[k] = n; }
+      else if (v !== null && v !== undefined && v !== "") values[k] = v;
+    });
+    const tasks = {};
+    Object.keys(Object.assign({}, heldDefaults.tasks || {}, est.tasks)).forEach(k => {
+      const out = Object.assign({}, (heldDefaults.tasks || {})[k] || {});
+      delete out.rate;
+      const n = quoteNumberOut(null, (est.tasks[k] || {}).rate);
+      if (n !== null) out.rate = n;
+      if (Object.keys(out).length > 0) tasks[k] = out;
+    });
+    const body = {
+      defaults: { values, tasks, lists: heldDefaults.lists || {} },
+      validDays: form.validDays.trim() === "" ? undefined : (isFinite(Number(form.validDays)) ? Number(form.validDays) : form.validDays),
+      termsEn: form.termsEn.trim() || null,
+      termsEs: form.termsEs.trim() || null,
+    };
+    try {
+      const h = await af("/api/quotes/defaults", { method: "PUT", body });
+      takeHeld(h);
+      if (showToast) showToast(tr("Quote defaults saved."));
+    } catch (e) {
+      const keys = quoteKeysOf(e);
+      setRefusal({ text: e.message || tr("Request failed"), keys });
+      const first = groups.findIndex(x => keys.some(k => quoteStepOfKey(model, k) === x.key));
+      if (first >= 0 && !keys.some(k => quoteStepOfKey(model, k) === g.key)) setStep(first);
+    }
+    savingRef.current = false; setSaving(false);
+  };
+  const who = held && held.updatedBy && held.updatedBy.name ? held.updatedBy.name : "";
+  return (<div data-quote-defaults="">
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{tr("Quote defaults")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The starting values every new quote takes. A box left empty takes the model's own value, shown greyed. A quote already made keeps its own values.")}</div>
+          {held && held.updatedAt && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt))}</div>}
+        </div>
+        <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+      </div>
+      {refusal && <div data-quote-refusal="top" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal.text}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginTop: 14 }}>
+        <div style={{ minWidth: 0 }}><Lbl>{tr("Days a quote stays valid")}</Lbl><Inp t={t} type="number" inputMode="numeric" min={1} max={365} step={1} aria-label={tr("Days a quote stays valid")} value={form.validDays} onChange={e => setForm(f => ({ ...f, validDays: e.target.value }))} style={quoteBoxStyle(!!refusedText("validDays"))} /><QuoteRefusal text={refusedText("validDays")} /></div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 14 }}>
+        <div style={{ minWidth: 0 }}><Lbl>{tr("Terms in English")}</Lbl><TArea t={t} aria-label={tr("Terms in English")} rows={5} maxLength={5000} value={form.termsEn} onChange={e => setForm(f => ({ ...f, termsEn: e.target.value }))} style={quoteBoxStyle(!!refusedText("termsEn"))} /><QuoteRefusal text={refusedText("termsEn")} /></div>
+        <div style={{ minWidth: 0 }}><Lbl>{tr("Terms in Spanish")}</Lbl><TArea t={t} aria-label={tr("Terms in Spanish")} rows={5} maxLength={5000} value={form.termsEs} onChange={e => setForm(f => ({ ...f, termsEs: e.target.value }))} style={quoteBoxStyle(!!refusedText("termsEs"))} /><QuoteRefusal text={refusedText("termsEs")} /></div>
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.4 }}>{tr("The terms print on the client's PDF. A Spanish PDF prints the English terms while no Spanish is saved.")}</div>
+    </Crd>
+    <QuoteStepButtons t={t} model={model} groups={groups} step={Math.min(step, groups.length - 1)} onStep={setStep} refusal={refusal} checks={null} />
+    <Crd t={t}>
+      {g && <QuoteStep t={t} model={model} group={g} est={est} filled={own} calc={null} set={set} setTask={setTask} setList={() => {}} refusal={refusal} readOnly={false} ratesOnly />}
+    </Crd>
   </div>);
 }
 
@@ -10396,8 +10677,17 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, selfId = "", lkMap }) {
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap }) {
   const [cats, setCats] = useState([]);
+  // Quote defaults (Step 208) is an admin's who holds build_quotes, and shows once GET
+  // /api/quotes/defaults answers; a 404 or a refusal leaves it off.
+  const [quoteDefaults, setQuoteDefaults] = useState(null);
+  useEffect(() => {
+    if (!canSetQuoteDefaults) { setQuoteDefaults(null); return undefined; }
+    let alive = true;
+    af("/api/quotes/defaults").then(d => { if (alive) setQuoteDefaults(d && typeof d === "object" ? d : null); }).catch(e => { if (alive) setQuoteDefaults(null); console.warn("Quote defaults:", e.message); });
+    return () => { alive = false; };
+  }, [af, canSetQuoteDefaults]);
   const [selCat, setSelCat] = useState(null);
   // Each tab is a capability's: Company and Who gets told are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
@@ -10408,6 +10698,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "site", label: tr("Site Lookups"), open: canManageLookups },
     { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
     { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
+    { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -10560,6 +10851,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       </div>}
 
       {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
+
+      {tab === "quotes" && canSetQuoteDefaults && quoteDefaults && <QuoteDefaultsPanel af={af} t={t} showToast={showToast} initial={quoteDefaults} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
