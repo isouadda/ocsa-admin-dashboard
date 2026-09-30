@@ -2920,6 +2920,8 @@ export const WORDS = {
   "Day porter|service line": { es: "Conserje de d\u00eda" },
   "Landscaping|service line": { es: "Jardiner\u00eda" },
   "This question is still being answered. The answer will show here.": { es: "Esta pregunta todav\u00eda se est\u00e1 respondiendo. La respuesta aparecer\u00e1 aqu\u00ed." },
+  "Which site is this for?": { es: "\u00bfPara qu\u00e9 sitio es este reporte?" },
+  "No particular site": { es: "Ning\u00fan sitio en particular" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

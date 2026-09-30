@@ -12624,19 +12624,40 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const [linksOpen, setLinksOpen] = useState(false);
   const startable = offered.filter(formStartable);
   const readCatalog = async (query) => { const d = await af("/api/forms" + (query || "")); return d && Array.isArray(d.forms) ? d.forms : []; };
+  // Step 205: the sites a form started here may name, GET /api/forms/my-sites (STEP204_CONTRACT.md,
+  // section 4), read beside the catalog. A 404, an empty list or any other failed read leaves the
+  // question out, and a form starts as it always did.
+  const readMySites = () => af("/api/forms/my-sites")
+    .then(d => { const list = d && Array.isArray(d.sites) ? d.sites.filter(x => x && x.id != null) : []; return list.length ? list : null; })
+    .catch(e => { console.warn("Form sites:", e.message); return null; });
+  const PICKER_EMPTY = { loading: false, forms: [], error: "", sites: null, form: null, refusal: "" };
   const openPicker = async () => {
-    setPicker({ loading: true, forms: [], error: "" }); setOpenError("");
-    try { setPicker({ loading: false, forms: (await readCatalog("?app=dashboard")).filter(formStartable), error: "" }); }
-    catch (e) { setPicker({ loading: false, forms: [], error: e.message || tr("Request failed") }); }
+    setPicker(Object.assign({}, PICKER_EMPTY, { loading: true })); setOpenError("");
+    const mySites = readMySites();
+    try { const [list, sitesOffered] = await Promise.all([readCatalog("?app=dashboard"), mySites]); setPicker(Object.assign({}, PICKER_EMPTY, { forms: list.filter(formStartable), sites: sitesOffered })); }
+    catch (e) { setPicker(Object.assign({}, PICKER_EMPTY, { error: e.message || tr("Request failed") })); }
   };
-  // A form started here is filed from the dashboard, and the start says so (Step 175).
-  const startForm = async (f) => {
+  // A form picked asks Which site is this for? when there are sites to name, with No particular site
+  // last and nothing picked until one is chosen. Otherwise it starts at once, as it always did.
+  const pickForm = (f) => {
     if (starting) return;
-    setStarting(f.code);
+    if (picker && picker.sites) { setPicker(prev => Object.assign({}, prev, { form: f, refusal: "", error: "" })); return; }
+    startForm(f, null);
+  };
+  // A form started here is filed from the dashboard, and the start says so (Step 175). A site chosen
+  // goes as siteId; No particular site sends what it always sent. A refusal of the site is drawn
+  // under the sites, and any other refusal at the top, as before.
+  const startForm = async (f, siteId) => {
+    if (starting) return;
+    setStarting(picker && picker.form ? "site:" + (siteId || "") : f.code);
+    const body = { source: "admin" }; if (siteId) body.siteId = siteId;
     try {
-      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body: { source: "admin" } });
+      const r = await af("/api/forms/" + encodeURIComponent(f.code) + "/drafts", { method: "POST", body });
       setPicker(null); setFill({ form: f, draft: formDraftOf(r) });
-    } catch (e) { setPicker(prev => Object.assign({}, prev || { loading: false, forms: [] }, { error: e.message || tr("Request failed") })); }
+    } catch (e) {
+      const siteRefused = !!siteId && !!e && (e.code === "forms.siteNotYours" || e.code === "sites.notFound");
+      setPicker(prev => Object.assign({}, prev || PICKER_EMPTY, siteRefused ? { refusal: e.message || tr("Request failed"), error: "" } : { error: e.message || tr("Request failed"), refusal: "" }));
+    }
     setStarting("");
   };
   // A draft resumed from the list: the catalog in the screen's language and the draft itself, read
@@ -12721,13 +12742,25 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       </div>
       {picker.loading && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
       {picker.error && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{picker.error}</div>}
-      {!picker.loading && !picker.error && picker.forms.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>{tr("No form to start.")}</div>}
-      <div role="list" aria-label={tr("Pick a form to start")}>
+      {!picker.form && !picker.loading && !picker.error && picker.forms.length === 0 && <div style={{ fontSize: 13, color: t.textMut, marginBottom: 10 }}>{tr("No form to start.")}</div>}
+      {!picker.form && <div role="list" aria-label={tr("Pick a form to start")}>
         {picker.forms.map(f => (
-          <button key={f.code} role="listitem" onClick={() => startForm(f)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === f.code ? tr("Opening...") : formTitleName(f)}</button>
+          <button key={f.code} role="listitem" onClick={() => pickForm(f)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === f.code ? tr("Opening...") : formTitleName(f)}</button>
         ))}
-      </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 6 }}>
+      </div>}
+      {picker.form && <div data-form-site-question="">
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 4 }}>{formTitleName(picker.form)}</div>
+        <div id="form-site-question" style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Which site is this for?")}</div>
+        <div role="list" aria-labelledby="form-site-question">
+          {picker.sites.map(x => (
+            <button key={x.id} role="listitem" onClick={() => startForm(picker.form, String(x.id))} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: t.hover, color: t.text, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY, overflowWrap: "anywhere" }}>{starting === "site:" + x.id ? tr("Opening...") : String(x.name || x.id)}</button>
+          ))}
+          <button role="listitem" onClick={() => startForm(picker.form, null)} disabled={!!starting} style={{ display: "block", width: "100%", minHeight: 44, marginBottom: 8, padding: "10px 14px", textAlign: "left", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{starting === "site:" ? tr("Opening...") : tr("No particular site")}</button>
+        </div>
+        {picker.refusal && <div data-form-site-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{picker.refusal}</div>}
+      </div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 6 }}>
+        {picker.form && <Btn t={t} v="ghost" onClick={() => setPicker(prev => Object.assign({}, prev, { form: null, refusal: "", error: "" }))} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Back")}</Btn>}
         <Btn t={t} v="ghost" onClick={() => setPicker(null)} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       </div>
     </div></Mdl>)}

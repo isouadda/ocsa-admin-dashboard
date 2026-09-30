@@ -593,13 +593,15 @@ Last checked: 2026-09-28
 ## Start and file a form from the dashboard (admin dashboard)
 Who can do this: supervisors and admins, for the forms the server lets them start
 1. Click **Forms** (**Formularios**). On **Filed forms** (**Formularios presentados**), click **Start a form** (**Iniciar un formulario**).
-2. **Pick a form to start** (**Elija un formulario para iniciar**) lists the forms you can start. Click one; the window opens on Section 1.
-3. Answer the questions. **Next** (**Siguiente**) saves the section and goes on, **Back** (**Atrás**) returns, and **Save** (**Guardar**) saves where you are. A table takes rows with **Add row** (**Agregar fila**) and **Remove row** (**Quitar fila**); a photos question takes pictures with **Add photos** (**Agregar fotos**); a sign-off opens the signature box with **Sign** (**Firmar**). A number question takes digits, a minus sign and a decimal point. Where the form asks for a customer's or an employee's signature, a card shows **Name** (**Nombre**) and **Role** (**Puesto**) and a box to draw in: the person signing types their name and role, draws, and you click **Save signature** (**Guardar firma**). **Clear** (**Borrar**) lets them sign again while the form is open; a new signature replaces the old one.
-4. After the last section comes **Review** (**Revisar**). **These still need an answer** (**Estas todavía necesitan respuesta**) lists any required question left blank.
-5. Click **Send** (**Enviar**), then confirm. **Not yet** (**Todavía no**) goes back. The filing then appears under **Submitted** (**Enviado**), marked **From the dashboard** (**Desde el panel**).
+2. **Pick a form to start** (**Elija un formulario para iniciar**) lists the forms you can start. Click one.
+3. **Which site is this for?** (**¿Para qué sitio es este reporte?**) lists every active site. Click the site the report is about, or **No particular site** (**Ningún sitio en particular**), the last choice. Nothing is picked until you click one, and **Back** (**Volver**) returns to the forms. The window then opens on Section 1, and a site you chose fills the form's Site question.
+4. Answer the questions. **Next** (**Siguiente**) saves the section and goes on, **Back** (**Atrás**) returns, and **Save** (**Guardar**) saves where you are. A table takes rows with **Add row** (**Agregar fila**) and **Remove row** (**Quitar fila**); a photos question takes pictures with **Add photos** (**Agregar fotos**); a sign-off opens the signature box with **Sign** (**Firmar**). A number question takes digits, a minus sign and a decimal point. Where the form asks for a customer's or an employee's signature, a card shows **Name** (**Nombre**) and **Role** (**Puesto**) and a box to draw in: the person signing types their name and role, draws, and you click **Save signature** (**Guardar firma**). **Clear** (**Borrar**) lets them sign again while the form is open; a new signature replaces the old one.
+5. After the last section comes **Review** (**Revisar**). **These still need an answer** (**Estas todavía necesitan respuesta**) lists any required question left blank.
+6. Click **Send** (**Enviar**), then confirm. **Not yet** (**Todavía no**) goes back. The filing then appears under **Submitted** (**Enviado**), marked **From the dashboard** (**Desde el panel**).
 iPhone photos are accepted; a HEIC photo arrives as a normal picture.
-Words people use for this: start a form, fill a form on the computer, file a form from the office, new report from the dashboard.
-Last checked: 2026-09-28
+If it does not work: when a site is refused, the reason shows under the list of sites. Click another site, or **No particular site** (**Ningún sitio en particular**). **Continue** (**Continuar**) on an unfinished form opens it without asking for a site.
+Words people use for this: start a form, fill a form on the computer, file a form from the office, new report from the dashboard, which site, form for a site.
+Last checked: 2026-09-30
 
 ## Continue an unfinished form (admin dashboard)
 Who can do this: the person who started it
