@@ -3016,6 +3016,8 @@ export const WORDS = {
   "People": { es: "Personas" },
   "Message {0}": { es: "Escribir a {0}" },
   "Direct message": { es: "Mensaje directo" },
+  "Direct messages": { es: "Mensajes directos" },
+  "No direct messages yet. New message starts one.": { es: "Todav\u00eda no hay mensajes directos. Nuevo mensaje empieza uno." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

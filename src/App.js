@@ -3212,10 +3212,11 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose }) {
   </div></Mdl>);
 }
 
-// Messages: the general chat and every site chat on top, private conversations under them. Under
-// 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
-// Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
-// (Step 179; the read route arriving with it, its refusal is quiet until then).
+// Messages: the general chat and every site chat on top, then direct messages between office people
+// (Step 213), then private conversations. Under 700 pixels the list and the conversation stack, the
+// list hidden once a conversation is open, with Back. Unread counts come from the API's unreadCount,
+// and opening a conversation marks it read (Step 179; the read route arriving with it, its refusal is
+// quiet until then).
 function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, people = [] }) {
   const [channels, setChannels] = useState([]);
   // Step 213: everyone the office can write to, from GET /api/chat/people, or null until it answers.
@@ -3230,6 +3231,11 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const [startError, setStartError] = useState("");
   // The chat just opened for someone, named and pictured until the lists name it.
   const [named, setNamed] = useState(null);
+  // Step 213: the caller's direct chats with other office people, from GET /api/chat/direct-inbox,
+  // or null until it answers with a list. A 404 or a refusal leaves the section off; any other
+  // failure says so in its place.
+  const [direct, setDirect] = useState(null);
+  const [directFailed, setDirectFailed] = useState(false);
   // Someone found by Search staff who has no private chat yet (Step 205), picked, or null.
   const [waiting, setWaiting] = useState(null);
   const [dms, setDms] = useState([]);
@@ -3261,7 +3267,10 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   // Channels are the general chat and the site chats. A private chat is listed under Private
   // conversations, and a direct chat between office people (Step 212) is not a channel either.
   const loadChannels = () => af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.type !== "admin_dm" && c.type !== "direct"))).catch(e => console.warn("Channels:", e.message));
-  useEffect(() => { loadDms(); loadChannels(); }, []);
+  const loadDirect = () => af("/api/chat/direct-inbox")
+    .then(d => { setDirect(Array.isArray(d) ? d : null); setDirectFailed(false); })
+    .catch(e => { if (e && (e.status === 404 || e.status === 403)) { setDirect(null); setDirectFailed(false); } else setDirectFailed(true); console.warn("Direct messages:", e.message); });
+  useEffect(() => { loadDms(); loadChannels(); loadDirect(); }, []);
   useEffect(() => {
     let alive = true;
     af("/api/chat/people").then(d => { if (alive) setEveryone(d && Array.isArray(d.people) ? d.people : null); }).catch(e => { if (alive) setEveryone(null); console.warn("Chat people:", e.message); });
@@ -3270,6 +3279,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const markRead = async (id) => {
     try { await af("/api/chat/channels/" + encodeURIComponent(id) + "/read", { method: "POST" }); } catch (e) { return; }
     setDms(p => p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d));
+    setDirect(p => (Array.isArray(p) ? p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d) : p));
     setChannels(p => p.map(c => c.id === id ? { ...c, unreadCount: 0 } : c));
     if (onRead) onRead();
   };
@@ -3284,9 +3294,10 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
+  const activeDirect = (direct || []).find(dm => dm.channelId === sel);
   const namedHere = named && named.channelId === sel ? named : null;
   // A direct chat is two people writing as themselves; in a private chat the office writes as one.
-  const isDirect = !!(namedHere && namedHere.kind === "office");
+  const isDirect = !!activeDirect || !!(namedHere && namedHere.kind === "office");
   const canTag = !!activeChannel;
   // The tags still in the text are the ones sent, at most ten and no repeats.
   const liveMentions = () => { const ids = []; mentions.forEach(m => { if (reply.indexOf("@" + m.name) >= 0 && ids.indexOf(m.id) < 0) ids.push(m.id); }); return ids.slice(0, 10); };
@@ -3313,7 +3324,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
       if (!id) throw new Error(tr("Request failed"));
       setNamed({ channelId: String(id), name: p.name, photoUrl: p.photoUrl || null, kind: p.kind });
       setNewOpen(false); setQ("");
-      loadDms(); loadChannels();
+      loadDms(); loadChannels(); loadDirect();
       await open(String(id));
       // The chat opens ready to type.
       setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 0);
@@ -3353,7 +3364,9 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
     .filter(p => p && p.id != null && String(p.id) !== String(user && user.id) && !hasChat.has(String(p.id)) && !p.isTestAccount && !p.is_test_account && (!p.status || p.status === "active") && personName(p).toLowerCase().includes(needle))
     .sort((a, b) => personName(a).localeCompare(personName(b)));
   // Found by the search with no chat yet: Message <name>, which opens the chat as New message does.
-  const hasChatWith = (p) => (p.kind === "office" ? false : hasChat.has(String(p.userId)));
+  const hasDirect = new Set((direct || []).map(dm => String(dm.otherUserId)));
+  const hasChatWith = (p) => (p.kind === "office" ? hasDirect.has(String(p.userId)) : hasChat.has(String(p.userId)));
+  const directShown = (direct || []).filter(dm => (dm.otherName || "").toLowerCase().includes(needle) || foundIds.has(String(dm.otherUserId)));
   const toStart = canStart && needle && !dmsFailed ? (found || []).filter(p => p && p.userId != null && !hasChatWith(p)) : [];
   const pickWaiting = (p) => { setSel(null); setTagOpen(false); setMentions([]); setWaiting({ id: p.id, name: personName(p) }); };
   const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
@@ -3384,9 +3397,21 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: t.textMut }}>{channelKind(c)}</span>{unreadPill(Number(c.unreadCount) || 0)}</div>
               </div>
             </button>); })}
+          {(directFailed || (direct && (!needle || directShown.length > 0))) && <div data-direct-messages="" style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Direct messages")}</div>}
+          {directFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDirect} />}
+          {!directFailed && direct && direct.length === 0 && !needle && <div style={{ padding: "4px 10px 10px", color: t.textMut, fontSize: 12 }}>{tr("No direct messages yet. New message starts one.")}</div>}
+          {!directFailed && directShown.map(dm => { const active = dm.channelId === sel; return (
+            <button key={dm.channelId} data-direct-chat="" onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+              {chatFace(dm.otherName, dm.otherPhotoUrl, 38, active ? GO : t.textSec)}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}><span style={{ fontSize: 13, fontWeight: dm.unreadCount > 0 ? 700 : 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.otherName}</span>{dm.lastMessageAt && <span style={{ fontSize: 10, color: t.textMut, flexShrink: 0 }}>{fd(dm.lastMessageAt)}</span>}</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: dm.unreadCount > 0 ? t.text : t.textMut, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dm.lastMessage || tr("No messages yet")}</span>{unreadPill(Number(dm.unreadCount) || 0)}</div>
+              </div>
+            </button>
+          ); })}
           {(!needle || dmsFailed || filtered.length > 0 || noChat.length > 0 || toStart.length === 0) && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>}
           {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
-          {!dmsFailed && filtered.length === 0 && noChat.length === 0 && toStart.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
+          {!dmsFailed && filtered.length === 0 && noChat.length === 0 && toStart.length === 0 && directShown.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
@@ -3434,8 +3459,8 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
             {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
-            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : (namedHere ? namedHere.name : ""), !activeDm && namedHere ? namedHere.photoUrl : null, 34)}
-            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("Private message")}</div></div>
+            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : activeDirect ? activeDirect.otherName : (namedHere ? namedHere.name : ""), activeDirect ? activeDirect.otherPhotoUrl : (!activeDm && namedHere ? namedHere.photoUrl : null), 34)}
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || activeDirect?.otherName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
             {msgsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={() => open(sel)} style={{ padding: 40 }} />}

@@ -2903,3 +2903,5 @@ Search chats and people,Buscar chats y personas,"Messages, the search box over t
 People,Personas,"Messages, the list, the heading over people found by the search who have no chat yet"
 Message {0},Escribir a {0},"Messages, the list, a person found by the search with no chat yet; {0} is their name"
 Direct message,Mensaje directo,"Messages, under the name at the top of a chat between two office people"
+Direct messages,Mensajes directos,"Messages, the list, the heading over the chats between two office people"
+No direct messages yet. New message starts one.,Todavía no hay mensajes directos. Nuevo mensaje empieza uno.,"Messages, the list, under Direct messages when there are none"
