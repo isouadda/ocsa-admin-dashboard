@@ -3160,12 +3160,76 @@ function newSendId() {
   let s = ""; while (s.length < 32) s += Math.random().toString(36).slice(2); return s.slice(0, 32);
 }
 
+// A person's photo in the chat list, or their initials while there is none.
+const chatFace = (name, url, sz, color) => (url ? <img src={url} alt="" style={{ width: sz, height: sz, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} /> : <Ini name={name} sz={sz} color={color} />);
+
+// New message (Step 213): everyone active the office can write to, from GET /api/chat/people, the
+// office first and then staff, with a search by name or badge that the API reads. Picking a person
+// hands them to onPick, which opens the chat; a refusal is drawn in the window.
+function NewMessageWindow({ af, t, starting, error, onPick, onClose }) {
+  const [q, setQ] = useState("");
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const want = q.trim();
+    const h = setTimeout(() => {
+      af("/api/chat/people" + (want ? "?q=" + encodeURIComponent(want) : ""))
+        .then(d => { if (alive) { setList(d && Array.isArray(d.people) ? d.people : []); setFailed(""); } })
+        .catch(e => { if (alive) setFailed(e.message || tr("This did not load.")); console.warn("Chat people:", e.message); });
+    }, want ? 250 : 0);
+    return () => { alive = false; clearTimeout(h); };
+  }, [af, q, again]);
+  const groups = [
+    { key: "office", label: tr("Office|people"), rows: (list || []).filter(p => p && p.kind === "office") },
+    { key: "staff", label: tr("Staff"), rows: (list || []).filter(p => p && p.kind !== "office") },
+  ];
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-new-message="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New message")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Picking someone in the office opens your direct chat with them. Picking a staff member opens their private chat with the office.")}</div>
+    <Inp t={t} type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search by name or badge")} aria-label={tr("Search by name or badge")} autoFocus style={{ marginBottom: 8 }} />
+    {error && <div data-new-message-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 8 }}>{error}</div>}
+    <div style={{ maxHeight: "calc(100vh / var(--zoom, 1) - 300px)", minHeight: 160, overflowY: "auto" }}>
+      {failed && <LoadFailed t={t} text={failed} onRetry={() => setAgain(n => n + 1)} />}
+      {!failed && list === null && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+      {!failed && list !== null && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>}
+      {!failed && groups.map(g => (g.rows.length === 0 ? null : <div key={g.key} data-new-message-group={g.key}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{g.label}</div>
+        {g.rows.map(p => (<button key={p.userId} onClick={() => onPick(p)} disabled={!!starting} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "6px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: starting ? "default" : "pointer", textAlign: "left" }} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+          {chatFace(p.name, p.photoUrl, 34, t.textSec)}
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 13, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</span>
+            {p.role && <span style={{ display: "block", fontSize: 11, color: t.textMut }}>{roleWord(p.role)}</span>}
+          </span>
+          {String(starting) === String(p.userId) && <span style={{ fontSize: 11, color: t.textMut, flexShrink: 0 }}>{tr("Opening...")}</span>}
+        </button>))}
+      </div>))}
+    </div>
+  </div></Mdl>);
+}
+
 // Messages: the general chat and every site chat on top, private conversations under them. Under
 // 700 pixels the list and the conversation stack, the list hidden once a conversation is open, with
 // Back. Unread counts come from the API's unreadCount, and opening a conversation marks it read
 // (Step 179; the read route arriving with it, its refusal is quiet until then).
 function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, people = [] }) {
   const [channels, setChannels] = useState([]);
+  // Step 213: everyone the office can write to, from GET /api/chat/people, or null until it answers.
+  // While it does not, New message is not drawn and Search staff works as Step 205 left it.
+  const [everyone, setEveryone] = useState(null);
+  const canStart = Array.isArray(everyone);
+  // The people the list's search finds through the same route, which also reads badges.
+  const [found, setFound] = useState(null);
+  const [newOpen, setNewOpen] = useState(false);
+  // The person whose chat is being opened, and the refusal when it is not.
+  const [starting, setStarting] = useState("");
+  const [startError, setStartError] = useState("");
+  // The chat just opened for someone, named and pictured until the lists name it.
+  const [named, setNamed] = useState(null);
   // Someone found by Search staff who has no private chat yet (Step 205), picked, or null.
   const [waiting, setWaiting] = useState(null);
   const [dms, setDms] = useState([]);
@@ -3194,8 +3258,15 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   // A message shows once, matched by its id or its clientId.
   const withMessage = (list, msg) => (list.some(m => m.id === msg.id || (!!msg.clientId && m.clientId === msg.clientId)) ? list : [...list, msg]);
   const loadDms = () => af("/api/chat/dm-inbox").then(d => { setDms(Array.isArray(d) ? d : []); setDmsFailed(false); }).catch(e => { setDms([]); setDmsFailed(true); console.warn(e.message); });
-  const loadChannels = () => af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.type !== "admin_dm"))).catch(e => console.warn("Channels:", e.message));
+  // Channels are the general chat and the site chats. A private chat is listed under Private
+  // conversations, and a direct chat between office people (Step 212) is not a channel either.
+  const loadChannels = () => af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.type !== "admin_dm" && c.type !== "direct"))).catch(e => console.warn("Channels:", e.message));
   useEffect(() => { loadDms(); loadChannels(); }, []);
+  useEffect(() => {
+    let alive = true;
+    af("/api/chat/people").then(d => { if (alive) setEveryone(d && Array.isArray(d.people) ? d.people : null); }).catch(e => { if (alive) setEveryone(null); console.warn("Chat people:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
   const markRead = async (id) => {
     try { await af("/api/chat/channels/" + encodeURIComponent(id) + "/read", { method: "POST" }); } catch (e) { return; }
     setDms(p => p.map(d => d.channelId === id ? { ...d, unreadCount: 0 } : d));
@@ -3213,6 +3284,9 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   useEffect(() => { if (!sel) return; const iv = setInterval(async () => { try { const m = await af("/api/chat/channels/" + encodeURIComponent(sel) + "/messages"); const list = Array.isArray(m) ? m : []; setMsgs(list); setMsgsFailed(false); landed(sel, list); } catch (e) { console.warn("Chat poll:", e.message); } }, 12000); return () => clearInterval(iv); }, [sel]);
   const activeChannel = channels.find(c => c.id === sel);
   const activeDm = dms.find(dm => dm.channelId === sel);
+  const namedHere = named && named.channelId === sel ? named : null;
+  // A direct chat is two people writing as themselves; in a private chat the office writes as one.
+  const isDirect = !!(namedHere && namedHere.kind === "office");
   const canTag = !!activeChannel;
   // The tags still in the text are the ones sent, at most ten and no repeats.
   const liveMentions = () => { const ids = []; mentions.forEach(m => { if (reply.indexOf("@" + m.name) >= 0 && ids.indexOf(m.id) < 0) ids.push(m.id); }); return ids.slice(0, 10); };
@@ -3229,6 +3303,23 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
     catch (e) { if (showToast) showToast(e && e.code && e.message ? e.message : tr("Your message did not send."), "error"); }
     setSending(false);
   };
+  const startWith = async (p) => {
+    if (starting || !p || p.userId == null) return;
+    setStarting(String(p.userId)); setStartError("");
+    try {
+      const d = await af(p.kind === "office" ? "/api/chat/direct" : "/api/chat/staff-line", { method: "POST", body: { userId: p.userId } });
+      const ch = d && d.channel;
+      const id = ch && (ch.id || ch.channelId);
+      if (!id) throw new Error(tr("Request failed"));
+      setNamed({ channelId: String(id), name: p.name, photoUrl: p.photoUrl || null, kind: p.kind });
+      setNewOpen(false); setQ("");
+      loadDms(); loadChannels();
+      await open(String(id));
+      // The chat opens ready to type.
+      setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 0);
+    } catch (e) { setStartError(e.message || tr("Request failed")); }
+    setStarting("");
+  };
   const onReplyChange = (v) => { setReply(v); if (canTag && v.length > reply.length && v.endsWith("@")) setTagOpen(true); };
   const pickMember = (m) => {
     const name = String(m.name || "");
@@ -3237,7 +3328,19 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
     setTagOpen(false);
     if (inputRef.current) inputRef.current.focus();
   };
-  const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()));
+  // Since Step 213 the search also asks GET /api/chat/people, which reads names and badges, once
+  // typing stops. A conversation shows when its name holds the search or its person is found.
+  useEffect(() => {
+    const want = q.trim();
+    if (!canStart || !want) { setFound(null); return undefined; }
+    let alive = true;
+    const h = setTimeout(() => {
+      af("/api/chat/people?q=" + encodeURIComponent(want)).then(d => { if (alive) setFound(d && Array.isArray(d.people) ? d.people : []); }).catch(e => { if (alive) setFound([]); console.warn("Chat people:", e.message); });
+    }, 250);
+    return () => { alive = false; clearTimeout(h); };
+  }, [af, q, canStart]);
+  const foundIds = new Set((found || []).map(p => String(p.userId)));
+  const filtered = dms.filter(dm => (dm.staffName || "").toLowerCase().includes(q.trim().toLowerCase()) || foundIds.has(String(dm.staffUserId)));
   // Search staff also finds any active person on the staff list the shell loads, Step 205. Someone
   // with a private chat is found through it, as always; anyone else is listed after the
   // conversations. The API has no route an admin can start someone's private chat through, so
@@ -3246,9 +3349,12 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const needle = q.trim().toLowerCase();
   const personName = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
   const hasChat = new Set(dms.map(dm => String(dm.staffUserId)));
-  const noChat = !needle || dmsFailed ? [] : (Array.isArray(people) ? people : [])
+  const noChat = !needle || dmsFailed || canStart ? [] : (Array.isArray(people) ? people : [])
     .filter(p => p && p.id != null && String(p.id) !== String(user && user.id) && !hasChat.has(String(p.id)) && !p.isTestAccount && !p.is_test_account && (!p.status || p.status === "active") && personName(p).toLowerCase().includes(needle))
     .sort((a, b) => personName(a).localeCompare(personName(b)));
+  // Found by the search with no chat yet: Message <name>, which opens the chat as New message does.
+  const hasChatWith = (p) => (p.kind === "office" ? false : hasChat.has(String(p.userId)));
+  const toStart = canStart && needle && !dmsFailed ? (found || []).filter(p => p && p.userId != null && !hasChatWith(p)) : [];
   const pickWaiting = (p) => { setSel(null); setTagOpen(false); setMentions([]); setWaiting({ id: p.id, name: personName(p) }); };
   const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
   const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : tr("General chat"));
@@ -3257,14 +3363,16 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const showTalk = !phone || !!sel || !!waiting;
   const rowStyle = (active) => ({ display: "flex", alignItems: "center", gap: 10, width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: 10, marginBottom: 2, border: "none", cursor: "pointer", textAlign: "left", background: active ? t.goldBg : "transparent" });
   return (<div>
-    <SecT t={t}>{tr("Messages")}</SecT>
+    <SecT t={t} action={canStart ? tr("New message") : null} onAction={() => { setStartError(""); setNewOpen(true); }}>{tr("Messages")}</SecT>
+    {newOpen && <NewMessageWindow af={af} t={t} starting={starting} error={startError} onPick={startWith} onClose={() => { setNewOpen(false); setStartError(""); }} />}
     <Crd t={t} style={{ padding: 0, overflow: "hidden", display: "flex", height: "calc(100vh / var(--zoom, 1) - 168px)", minHeight: 420 }}>
       {showList && <div style={{ width: phone ? "100%" : 300, borderRight: phone ? "none" : "1px solid " + t.border, display: "flex", flexDirection: "column", flexShrink: 0 }}>
         <div style={{ padding: "14px 14px 10px", borderBottom: "1px solid " + t.border }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, background: t.inputBg, border: "1px solid " + t.inputBorder, borderRadius: 22, padding: "7px 12px", minHeight: 44 }}>
             <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" sz={14} c={t.textMut} />
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search staff")} aria-label={tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={canStart ? tr("Search chats and people") : tr("Search staff")} aria-label={canStart ? tr("Search chats and people") : tr("Search staff")} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", color: t.text, fontSize: 13, fontFamily: FONT_BODY }} />
           </div>
+          {startError && !newOpen && <div data-chat-start-refusal="" style={{ fontSize: 12, color: RD, padding: "6px 4px 0" }}>{startError}</div>}
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 6 }}>
           {shownChannels.length > 0 && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Channels")}</div>}
@@ -3276,9 +3384,9 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, marginTop: 2 }}><span style={{ fontSize: 11, color: t.textMut }}>{channelKind(c)}</span>{unreadPill(Number(c.unreadCount) || 0)}</div>
               </div>
             </button>); })}
-          <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>
+          {(!needle || dmsFailed || filtered.length > 0 || noChat.length > 0 || toStart.length === 0) && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("Private conversations")}</div>}
           {dmsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={loadDms} />}
-          {!dmsFailed && filtered.length === 0 && noChat.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
+          {!dmsFailed && filtered.length === 0 && noChat.length === 0 && toStart.length === 0 && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 12 }}>{tr("No conversations.")}</div>}
           {filtered.map(dm => { const active = dm.channelId === sel; return (
             <button key={dm.channelId} onClick={() => open(dm.channelId)} style={rowStyle(active)} onMouseEnter={e => { if (!active) e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
               <Ini name={dm.staffName} sz={38} color={active ? GO : t.textSec} />
@@ -3297,6 +3405,16 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
               </div>
             </button>
           ); })}
+          {toStart.length > 0 && <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.textMut, padding: "8px 10px 4px" }}>{tr("People")}</div>}
+          {toStart.map(p => (
+            <button key={"start-" + p.userId} data-chat-start={p.kind === "office" ? "office" : "staff"} onClick={() => startWith(p)} disabled={!!starting} style={rowStyle(false)} onMouseEnter={e => { e.currentTarget.style.background = t.hover; }} onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+              {chatFace(p.name, p.photoUrl, 38, t.textSec)}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tr("Message {0}", p.name)}</div>
+                <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{String(starting) === String(p.userId) ? tr("Opening...") : (p.role ? roleWord(p.role) : "")}</div>
+              </div>
+            </button>
+          ))}
         </div>
       </div>}
       {showTalk && <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", position: "relative" }}>
@@ -3316,13 +3434,13 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
         ) : (<>
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: "1px solid " + t.border }}>
             {phone && <button onClick={() => { setSel(null); setTagOpen(false); }} aria-label={tr("Back")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: t.goldText }}><Ic d="M15 18l-6-6 6-6" sz={18} c={t.goldText} /></button>}
-            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : <Ini name={activeDm?.staffName} sz={34} />}
-            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : tr("Private message")}</div></div>
+            {activeChannel ? <div style={{ width: 34, height: 34, borderRadius: 10, background: t.goldBg, display: "flex", alignItems: "center", justifyContent: "center" }}><ChI sz={16} c={t.goldText} /></div> : chatFace(activeDm ? activeDm.staffName : (namedHere ? namedHere.name : ""), !activeDm && namedHere ? namedHere.photoUrl : null, 34)}
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{activeChannel ? activeChannel.name : (activeDm?.staffName || (namedHere ? namedHere.name : "") || tr("Conversation"))}</div><div style={{ fontSize: 11, color: t.textMut }}>{activeChannel ? channelKind(activeChannel) : isDirect ? tr("Direct message") : tr("Private message")}</div></div>
           </div>
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
             {msgsFailed && <LoadFailed t={t} text={tr("Messages did not load.")} onRetry={() => open(sel)} style={{ padding: 40 }} />}
             {!msgsFailed && msgs.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No messages yet.")}</div>}
-            {msgs.map((m, i) => { const isMe = user && m.senderId === user.id ? true : (m.senderRole === "admin" || m.senderRole === "supervisor") && !activeChannel; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
+            {msgs.map((m, i) => { const isMe = user && m.senderId === user.id ? true : (m.senderRole === "admin" || m.senderRole === "supervisor") && !activeChannel && !isDirect; const showN = i === 0 || msgs[i - 1].senderId !== m.senderId; return (
               <div key={m.id} style={{ display: "flex", flexDirection: isMe ? "row-reverse" : "row", gap: 8, marginBottom: showN ? 12 : 4, alignItems: "flex-end" }}>
                 {!isMe && showN && <Ini name={m.senderName} sz={28} color={t.textSec} />}{!isMe && !showN && <div style={{ width: 28 }} />}
                 <div style={{ maxWidth: "75%" }}>{!isMe && showN && <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 3, color: t.textSec }}>{m.senderName}</div>}<div style={{ padding: "8px 12px", borderRadius: isMe ? "12px 12px 2px 12px" : "12px 12px 12px 2px", background: isMe ? BL : t.cardAlt, border: isMe ? "none" : "1px solid " + t.border, color: isMe ? "#F8F7F4" : t.text, fontSize: 13, lineHeight: 1.45, wordBreak: "break-word" }}><MentionText text={m.text} mentions={m.mentions} color={isMe ? "#F8F7F4" : t.goldText} /></div><div style={{ fontSize: 9, color: t.textMut, marginTop: 2, textAlign: isMe ? "right" : "left" }}>{ft(m.sentAt)}</div></div>
