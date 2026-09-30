@@ -5497,6 +5497,173 @@ function InjuryLogView({ af, token, t, allStaff = [] }) {
   </div>);
 }
 
+// OCSA-FRM-029, the log's annual summary (STEP202_CONTRACT.md, section 5): the year's totals, the
+// establishment, the two figures a holder of record_injuries types and saves, and the company
+// executive's certification, which an admin makes with the signature box every sign-off uses. A year's
+// summary is posted from February 1 to April 30 of the year after it, its postingWindow. Until it is
+// certified in that window, or when the log changed after it was, a banner says to post it.
+const injuryPostingDue = (s) => {
+  const w = s && s.postingWindow;
+  if (!w || !w.from || !w.to) return false;
+  const today = toISO(new Date());
+  if (today < String(w.from).slice(0, 10) || today > String(w.to).slice(0, 10)) return false;
+  return !s.certified || s.changedSinceCertified === true;
+};
+const InjuryPostingBanner = ({ t, year, onOpen }) => (<div data-posting-banner="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14, padding: "10px 14px", borderRadius: 8, background: t.orangeSubtle, border: "1px solid " + t.orangeBorder }}>
+  <div style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13, fontWeight: 600, color: OR }}>{tr("Post the {0} summary from February 1 to April 30.", year)}</div>
+  {onOpen && <Btn t={t} v="ghost" onClick={onOpen} style={{ minHeight: 44 }}>{tr("Open|verb")}</Btn>}
+</div>);
+// What a figure box holds, sent as a whole number when it reads as one, as null when it is empty, and
+// otherwise as typed, for the API to refuse in its own words.
+const summaryFigure = (v) => {
+  const s = String(v == null ? "" : v).trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : s;
+};
+
+// pending is the summary the Reports page read for last year when it is due to be posted, so the
+// banner is here whichever year is picked, and the page opens on that year.
+function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged }) {
+  const [year, setYear] = useState(() => (pending && Number(pending.year)) || new Date().getFullYear());
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [figures, setFigures] = useState({ averageEmployees: "", totalHours: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [saveRefusal, setSaveRefusal] = useState({ text: "", keys: [] });
+  const [savedLine, setSavedLine] = useState(false);
+  const [signer, setSigner] = useState({ name: "", title: "" });
+  const [certifying, setCertifying] = useState(false);
+  const certifyingRef = useRef(false);
+  const [certRefusal, setCertRefusal] = useState("");
+  const [notReady, setNotReady] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const shown = (d) => {
+    setData(d);
+    setFigures({ averageEmployees: d.averageEmployees == null ? "" : String(d.averageEmployees), totalHours: d.totalHours == null ? "" : String(d.totalHours) });
+  };
+  // One read per year picked. An answer for a year no longer picked is dropped.
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    setData(null); setFailed(false); setSaveRefusal({ text: "", keys: [] }); setSavedLine(false); setCertRefusal(""); setNotReady(""); setExportError("");
+    af("/api/injury-summary?year=" + year)
+      .then(d => { if (seq.current === mine) { if (d && d.totals) shown(d); else setFailed(true); } })
+      .catch(e => { if (seq.current === mine) setFailed(true); console.warn("Annual summary:", e.message); });
+  }, [af, year]);
+  useEffect(() => { load(); }, [load]);
+
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setSaveRefusal({ text: "", keys: [] }); setSavedLine(false); setNotReady("");
+    // An answer that arrives after another year was picked is left off that year's page.
+    const mine = seq.current;
+    try {
+      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { averageEmployees: summaryFigure(figures.averageEmployees), totalHours: summaryFigure(figures.totalHours) } });
+      if (seq.current === mine) { if (d && d.totals) shown(d); else load(); setSavedLine(true); }
+      if (onChanged) onChanged();
+    } catch (e) {
+      if (seq.current === mine) setSaveRefusal({ text: e.message || tr("Request failed"), keys: e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [] });
+    }
+    savingRef.current = false; setSaving(false);
+  };
+  // The signature is the box's PNG. injurySummary.notReady is drawn at the top of the page, since what
+  // it asks for is the two figures above, and any other refusal in the box, the way a sign-off's is.
+  const certify = async (signature) => {
+    if (certifyingRef.current) return;
+    certifyingRef.current = true; setCertifying(true); setCertRefusal(""); setNotReady(""); setSavedLine(false);
+    const mine = seq.current;
+    try {
+      const d = await af("/api/injury-summary/" + year + "/certify", { method: "POST", body: { name: signer.name.trim(), title: signer.title.trim(), signature } });
+      if (seq.current === mine) { if (d && d.totals) shown(d); else load(); setSigner({ name: "", title: "" }); }
+      if (onChanged) onChanged();
+    } catch (e) {
+      if (seq.current !== mine) { /* another year is on the page now */ }
+      else if (e && e.code === "injurySummary.notReady") setNotReady(e.message || tr("Request failed"));
+      else setCertRefusal(e.message || tr("Request failed"));
+    }
+    certifyingRef.current = false; setCertifying(false);
+  };
+  const exportPdf = async () => {
+    if (exporting) return;
+    setExporting(true); setExportError("");
+    try { await saveDownload("/api/injury-summary/" + year + ".pdf", token, "OCSA-FRM-029-" + year + ".pdf"); }
+    catch (e) { setExportError(e.message || tr("Request failed")); }
+    setExporting(false);
+  };
+
+  const refusedFor = (key) => (saveRefusal.keys.indexOf(key) >= 0 ? saveRefusal.text : "");
+  const refusalElsewhere = saveRefusal.text && !saveRefusal.keys.some(k => k === "averageEmployees" || k === "totalHours") ? saveRefusal.text : "";
+  const changed = !!data && (figures.averageEmployees !== (data.averageEmployees == null ? "" : String(data.averageEmployees)) || figures.totalHours !== (data.totalHours == null ? "" : String(data.totalHours)));
+  const certified = data && data.certified ? data.certified : null;
+  const stale = !!(data && data.changedSinceCertified === true);
+  const dueYear = data && injuryPostingDue(data) ? data.year : (pending && Number(pending.year) !== year ? pending.year : null);
+  const hint = data && data.hints && data.hints.activeStaffAverage != null && Number.isFinite(Number(data.hints.activeStaffAverage))
+    ? Number(data.hints.activeStaffAverage).toLocaleString(localeTag(), { maximumFractionDigits: 1 }) : null;
+  const est = (data && data.establishment) || {};
+  const smallHead = { fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 };
+  const line = (label, value) => (<div style={{ marginBottom: 10 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 2 }}>{label}</div>
+    <div style={{ fontSize: 13, color: value ? t.text : t.textMut, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{value || "--"}</div>
+  </div>);
+  return (<div>
+    {dueYear != null && <InjuryPostingBanner t={t} year={dueYear} onOpen={Number(dueYear) !== year ? () => setYear(Number(dueYear)) : null} />}
+    {notReady && <div data-summary-refusal="notReady" style={{ fontSize: 13, color: RD, fontWeight: 600, marginBottom: 12 }}>{notReady}</div>}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <InjuryYearPicker t={t} year={year} onChange={setYear} />
+      {data && <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn></div>}
+    </div>
+    {exportError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
+      data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      (<>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={smallHead}>{tr("Totals for {0}", year)}</div>
+          <InjuryTotals t={t} totals={data.totals} />
+        </Crd>
+        <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={smallHead}>{tr("Establishment")}</div>
+          {line(tr("Name"), est.name)}
+          {line(tr("Address"), est.address)}
+          <div style={{ marginTop: 6, marginBottom: 12, maxWidth: 420 }}>
+            <Lbl>{tr("Annual average number of employees")}</Lbl>
+            <Inp t={t} type="number" min="0" step="1" inputMode="numeric" aria-label={tr("Annual average number of employees")} value={figures.averageEmployees} onChange={e => { setFigures({ ...figures, averageEmployees: e.target.value }); setSavedLine(false); }} />
+            {hint != null && <div data-staff-hint="" style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("To check against: {0} active staff accounts on average, counted on the first of each month.", hint)}</div>}
+            {refusedFor("averageEmployees") && <div data-summary-refusal="averageEmployees" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusedFor("averageEmployees")}</div>}
+          </div>
+          <div style={{ marginBottom: 12, maxWidth: 420 }}>
+            <Lbl>{tr("Total hours worked by all employees last year")}</Lbl>
+            <Inp t={t} type="number" min="0" step="1" inputMode="numeric" aria-label={tr("Total hours worked by all employees last year")} value={figures.totalHours} onChange={e => { setFigures({ ...figures, totalHours: e.target.value }); setSavedLine(false); }} />
+            {refusedFor("totalHours") && <div data-summary-refusal="totalHours" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusedFor("totalHours")}</div>}
+          </div>
+          {refusalElsewhere && <div data-summary-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusalElsewhere}</div>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Btn t={t} onClick={save} disabled={saving || !changed} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+            {savedLine && <span style={{ fontSize: 12, color: GR }}>{tr("Saved")}</span>}
+          </div>
+        </Crd>
+        <Crd t={t}>
+          <div style={smallHead}>{tr("Certification")}</div>
+          {certified
+            ? <div data-certified="" style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("Certified by {0}, {1}, on {2}", certified.name || "--", certified.title || "--", certified.at ? irWhen(certified.at) : "--")}</div>
+            : <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("Not certified yet.")}</div>}
+          {certified && stale && <div data-certified-stale="" style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("The injury log changed after this summary was certified. It needs certifying again.")}</div>}
+          {isAdmin && (!certified || stale) && (<div style={{ marginTop: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 10, maxWidth: 560 }}>
+              <div><Lbl>{tr("Company executive")}</Lbl><Inp t={t} aria-label={tr("Company executive")} value={signer.name} onChange={e => setSigner({ ...signer, name: e.target.value })} /></div>
+              <div><Lbl>{tr("Title|job")}</Lbl><Inp t={t} aria-label={tr("Title|job")} value={signer.title} onChange={e => setSigner({ ...signer, title: e.target.value })} /></div>
+            </div>
+            <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 4, maxWidth: 560 }}>{tr("I certify that I have examined the injury log and that to the best of my knowledge this annual summary is correct and complete.")}</div>
+            <SignatureBox t={t} label={tr("Signature")} busy={certifying} refusal={certRefusal} onSign={certify}
+              signWord={tr("Certify")} busyWord={tr("Certifying...")} blocked={!signer.name.trim() || !signer.title.trim()} />
+          </div>)}
+        </Crd>
+      </>)}
+  </div>);
+}
+
 // Inline create / edit panel for report definitions.
 function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   const isEdit = !!(initial && initial.id);
@@ -5715,6 +5882,19 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     af("/api/injury-log?year=" + new Date().getFullYear()).then(d => { if (alive) setInjuryLive(!!(d && Array.isArray(d.cases))); }).catch(e => { if (alive) setInjuryLive(false); console.warn("Injury log:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // The annual summary is offered once GET /api/injury-summary answers. It is read for last year, the
+  // one year whose posting window today can fall in, so the same read says whether the banner shows.
+  // It is read again when the summary changes, and a failure then leaves the page as it was.
+  const [summaryLive, setSummaryLive] = useState(false);
+  const [summaryDue, setSummaryDue] = useState(null);
+  const [summaryRead, setSummaryRead] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    af("/api/injury-summary?year=" + (new Date().getFullYear() - 1))
+      .then(d => { if (!alive) return; const ok = !!(d && typeof d === "object" && d.totals && typeof d.totals === "object"); setSummaryLive(ok); setSummaryDue(ok && injuryPostingDue(d) ? d : null); })
+      .catch(e => { if (alive && summaryRead === 0) { setSummaryLive(false); setSummaryDue(null); } console.warn("Annual summary:", e.message); });
+    return () => { alive = false; };
+  }, [af, summaryRead]);
 
   const expIss = async () => { setExp(true); try { const d = await af("/api/issues"); dlCSV("ocsa-issues.csv", ["Title", "Site", "Zone", "Severity", "Status", "Reported By", "Date"], d.map(r => [r.title, r.site_name, r.zone, r.severity, r.status, r.reported_by_name, r.reported_at])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
   const expChem = async () => { setExp(true); try { const d = await af("/api/reports/chemical-usage"); dlCSV("ocsa-chemicals.csv", ["Chemical", "QR", "Green", "EPA", "Site", "Qty", "Unit"], d.chemicals.map(r => [r.name, r.qr_code, r.is_green_certified, r.epa_reg_number, r.site_name, r.total_quantity, r.unit])); showToast(tr("Downloaded")); } catch (e) { showToast(e.message, "error"); } setExp(false); };
@@ -5782,6 +5962,16 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     </div>);
   }
 
+  if (view === "injury-summary" && summaryLive) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Annual summary")}</div>
+      </div>
+      <InjurySummaryView af={af} token={token} t={t} isAdmin={isAdmin} pending={summaryDue} onChanged={() => setSummaryRead(n => n + 1)} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -5797,6 +5987,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   ];
   const safetyRecords = [
     ...(injuryLive ? [{ id: "injury-log", name: tr("Injury log"), line: tr("Every recordable injury and illness of a year, with its totals.") }] : []),
+    ...(summaryLive ? [{ id: "injury-summary", name: tr("Annual summary"), line: tr("The year's totals and their certification, posted from February 1 to April 30.") }] : []),
   ];
   // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
   const reportGroup = (heading, list) => (list.length > 0 && <div style={{ marginBottom: 18 }}>
@@ -5815,6 +6006,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   </div>);
   return (<div>
     <SecT t={t} action={tr("New report")} onAction={newReport}>{tr("Reports")}</SecT>
+    {summaryLive && summaryDue && <InjuryPostingBanner t={t} year={summaryDue.year} onOpen={() => setView("injury-summary")} />}
     {reportGroup(tr("Client reports"), clientReports)}
     {reportGroup(tr("Safety records"), safetyRecords)}
     {defs === null ?
@@ -10052,7 +10244,9 @@ const SIGNATURE_MAX_BYTES = 300 * 1024;
 const dataUrlBytes = (url) => Math.floor((String(url).split(",")[1] || "").length * 3 / 4);
 // Since Step 169 the box takes the word for its sending button and its busy line, so a customer's
 // signature card can read Save signature, and draws Cancel only when it is given somewhere to go.
-function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, busyWord }) {
+// Since Step 203 blocked holds the sending button off while something the box does not hold is still
+// empty, such as the certifier's name and title on the annual summary.
+function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, busyWord, blocked = false }) {
   const canvasRef = useRef(null);
   const [drawn, setDrawn] = useState(false);
   const drawing = useRef(false);
@@ -10122,7 +10316,7 @@ function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, bus
     <div style={{ fontSize: 11, color: t.textMut, marginTop: 6 }}>{tr("Sign with your mouse or finger")}</div>
     {refusal && <div data-signature-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal}</div>}
     <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy} style={{ minHeight: 44, minWidth: 88 }}>{busy ? (busyWord || tr("Signing...")) : (signWord || tr("Sign"))}</Btn>
+      <Btn t={t} onClick={() => onSign(exportPng())} disabled={!drawn || !!busy || !!blocked} style={{ minHeight: 44, minWidth: 88 }}>{busy ? (busyWord || tr("Signing...")) : (signWord || tr("Sign"))}</Btn>
       <Btn t={t} v="ghost" onClick={paint} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Clear")}</Btn>
       {onCancel && <Btn t={t} v="ghost" onClick={onCancel} disabled={!!busy} style={{ minHeight: 44, minWidth: 88 }}>{tr("Cancel")}</Btn>}
     </div>

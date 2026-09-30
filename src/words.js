@@ -2890,6 +2890,22 @@ export const WORDS = {
   "Skin disorders": { es: "Trastornos de la piel" },
   "Respiratory conditions": { es: "Afecciones respiratorias" },
   "Poisonings": { es: "Intoxicaciones" },
+  "Annual summary": { es: "Resumen anual" },
+  "The year's totals and their certification, posted from February 1 to April 30.": { es: "Los totales del a\u00f1o y su certificaci\u00f3n, que se publican del 1 de febrero al 30 de abril." },
+  "Post the {0} summary from February 1 to April 30.": { es: "Publique el resumen de {0} del 1 de febrero al 30 de abril." },
+  "Establishment": { es: "Establecimiento" },
+  "Annual average number of employees": { es: "Promedio anual de empleados" },
+  "Total hours worked by all employees last year": { es: "Total de horas trabajadas por todos los empleados el a\u00f1o pasado" },
+  "To check against: {0} active staff accounts on average, counted on the first of each month.": { es: "Para comparar: {0} cuentas activas del personal en promedio, contadas el primer d\u00eda de cada mes." },
+  "Certification": { es: "Certificaci\u00f3n" },
+  "Certified by {0}, {1}, on {2}": { es: "Certificado por {0}, {1}, el {2}" },
+  "Not certified yet.": { es: "Todav\u00eda no est\u00e1 certificado." },
+  "The injury log changed after this summary was certified. It needs certifying again.": { es: "El registro de lesiones cambi\u00f3 despu\u00e9s de que se certific\u00f3 este resumen. Hay que certificarlo de nuevo." },
+  "Company executive": { es: "Ejecutivo de la empresa" },
+  "Title|job": { es: "Cargo" },
+  "I certify that I have examined the injury log and that to the best of my knowledge this annual summary is correct and complete.": { es: "Certifico que he examinado el registro de lesiones y que, a mi leal saber y entender, este resumen anual es correcto y completo." },
+  "Certify": { es: "Certificar" },
+  "Certifying...": { es: "Certificando..." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
