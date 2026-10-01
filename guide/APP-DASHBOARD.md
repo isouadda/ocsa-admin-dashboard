@@ -457,11 +457,11 @@ Last checked: 2026-09-27
 ## Find a staff member's badge number (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**).
-2. The **Badge** (**Credencial**) column sits right after the name. Type the person's name in the search box to find them faster.
-3. Or open the person's profile: under **Contact Information** (**Datos de contacto**), the **Badge number** (**Número de credencial**) line shows it, or **Not set** (**Sin indicar**) if the account has none.
+2. The **Badge** (**Número de empleado**) column sits right after the name. Type the person's name in the search box to find them faster.
+3. Or open the person's profile: under **Contact Information** (**Datos de contacto**), the **Badge number** (**Número de empleado**) line shows it, or **Not set** (**Sin indicar**) if the account has none.
 4. The badge number is what the person types to sign in on the staff portal, and it is on their temporary PIN slip. It comes from ADP or from the invite. When it shows **Not set** (**Sin indicar**), an admin can click **Generate badge number** (**Generar número de empleado**) on the profile.
 Words people use for this: badge number, employee number, what number do they sign in with, lost their slip, credencial, número de empleado.
-Last checked: 2026-09-26
+Last checked: 2026-10-01
 
 ## Verify and sign a safety inspection (admin dashboard)
 Who can do this: any supervisor or admin other than the person who did the inspection
@@ -895,12 +895,12 @@ Who can do this: people given Build quotes, admins by default
 4. Work through the five steps with **Next** (**Siguiente**) and **Back** (**Atrás**), or click a step's name: **Building profile** (**Perfil del edificio**), **Workload** (**Carga de trabajo**), **Staffing** (**Personal**), **Equipment and supplies** (**Equipo y suministros**) and **Cost summary** (**Resumen de costos**). Each box has its help under it, and a share such as the margin is typed as a percent.
 5. In **Building profile** (**Perfil del edificio**), type each zone's total, carpet and hard floor square feet and its rooms, then the restroom fixtures, the dispensers, the high-touch points and the glass.
 6. In **Workload** (**Carga de trabajo**), check each task line's **Rate per hour** (**Tasa por hora**) and pick its **Frequency** (**Frecuencia**). **Times per month** (**Veces al mes**) follows the frequency until you type a count over it; clear the count to follow the frequency again. For the lines entered by hand, type the **Hours each time** (**Horas cada vez**).
-7. In **Equipment and supplies** (**Equipo y suministros**), change the quantities and unit costs, and use **Add row** (**Agregar fila**) and **Remove row** (**Quitar fila**). The other direct costs are in **Cost summary** (**Resumen de costos**), with the term, the wages, the burden, the overhead and the margin.
+7. In **Equipment and supplies** (**Equipo y suministros**), the equipment and supplies lists start with the rows set in Quote defaults, or with none: an empty list says **No rows yet. Add a row to price it.** (**Todavía no hay filas. Agregue una para cotizarla.**) and its total is zero. Use **Add row** (**Agregar fila**) and **Remove row** (**Quitar fila**), and type each row's quantity and unit cost. The other direct costs are in **Cost summary** (**Resumen de costos**), with the term, the wages, the burden, the overhead and the margin.
 8. Click **Save** (**Guardar**). The quote gets its number and shows on the list as **Draft** (**Borrador**).
 9. To change a quote later, click its row on the list, change it and click **Save** (**Guardar**). A quote already sent goes back to **Draft** (**Borrador**) as its next revision and needs sending again.
 If it does not work: a value that cannot be taken is named under its box, the step holding it gets a red dot, and the line at the top says what to fix. **Changes not saved yet** (**Cambios todavía sin guardar**) beside Save means the last change is not saved. When **Quotes** (**Cotizaciones**) is not in the side panel, your account does not have **Build quotes** (**Preparar cotizaciones**). An admin grants it under **Settings** (**Configuración**), **Roles and Permissions** (**Roles y permisos**).
 Words people use for this: quote, bid, estimate, price a job, workload calculator, bid model, t01, new quote, cotización, presupuesto.
-Last checked: 2026-09-30
+Last checked: 2026-10-01
 
 ## Read a quote's figures and checks (admin dashboard)
 Who can do this: people given Build quotes, admins by default
@@ -940,20 +940,21 @@ Who can do this: admins given Build quotes
 2. Set the **Days a quote stays valid** (**Días que una cotización es válida**), from 1 to 365.
 3. Type the **Terms in English** (**Términos en inglés**) and the **Terms in Spanish** (**Términos en español**). They print on the client's PDF, and a Spanish PDF prints the English terms while no Spanish is saved.
 4. Click through the steps and type the company's own starting values: the wage rates, the burden rates, the overhead and the margin above all, and in **Workload** (**Carga de trabajo**) the **Rate per hour** (**Tasa por hora**) of any task line. A box left empty takes the model's own value, shown greyed, and a share such as the margin is typed as a percent.
-5. Click **Save** (**Guardar**). Every new quote starts from these values. A quote already made keeps its own.
-If it does not work: a value outside its range is named under its box, and the step holding it gets a red dot. When the tab is not there, your account is not an admin with **Build quotes** (**Preparar cotizaciones**).
-Words people use for this: quote defaults, default wage, default margin, burden rates, quote terms, terms and conditions, how long a quote is valid, valores iniciales.
-Last checked: 2026-09-30
+5. In **Equipment and supplies** (**Equipo y suministros**) and **Cost summary** (**Resumen de costos**), the equipment, supplies and other direct costs lists start blank. Add the rows every new quote should start with, using **Add row** (**Agregar fila**) and **Remove row** (**Quitar fila**), or leave a list empty so new quotes start with none. Each list's total shows as you type.
+6. Click **Save** (**Guardar**). Every new quote starts from these values and rows. A quote already made keeps its own.
+If it does not work: a value outside its range is named under its box, a row's bad quantity or unit cost under that box, and the step holding it gets a red dot. When the tab is not there, your account is not an admin with **Build quotes** (**Preparar cotizaciones**). The lists show once the server starts quotes with no equipment or supplies of its own.
+Words people use for this: quote defaults, default wage, default margin, burden rates, quote terms, terms and conditions, how long a quote is valid, starting equipment, starting supplies, valores iniciales.
+Last checked: 2026-10-01
 
 ## Start a message to anyone (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**), then **New message** (**Nuevo mensaje**) at the top right.
-2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o credencial**) to narrow it.
+2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o número de empleado**) to narrow it.
 3. Click the person. Someone in the office opens your direct chat with them, and a staff member opens their private chat with the office. A chat already there opens with its messages.
 4. The chat opens with the message box ready. Type and press Enter.
 If it does not work: a person who is no longer active is not listed. When a line in the window says the chat could not be opened, try again; if it keeps saying so, the person may no longer be active.
 Words people use for this: new message, start a chat, message someone new, write to anyone, message a supervisor, message a staff member who has not written, nuevo mensaje.
-Last checked: 2026-09-30
+Last checked: 2026-10-01
 
 ## Message another office person directly (admin dashboard)
 Who can do this: admins and supervisors
@@ -1025,4 +1026,77 @@ Who can do this: supervisors and admins, for the forms the server lets them star
 5. On **Review** (**Revisar**), click **Send** (**Enviar**) and confirm.
 If it does not work: when the evaluation is not in the list of forms, the server does not offer it yet, or your account cannot start it.
 Words people use for this: product evaluation, equipment trial, chemical trial, pur-008, purchasing evaluation, evaluación de productos.
+Last checked: 2026-10-01
+
+## Read a site's workload plan (admin dashboard)
+Who can do this: anyone who can open Sites
+1. Click **Sites** (**Sitios**) in the side panel and click the site, or click its row under **Workload plans** (**Planes de carga de trabajo**).
+2. Click the **Workload plan** (**Plan de carga de trabajo**) tab, beside **Scope of Work** (**Alcance del trabajo**).
+3. The tiles show **Hours a month** (**Horas al mes**), **Hours a service day** (**Horas por día de servicio**), **Staff recommended** (**Personal recomendado**), **Staff minimum** (**Personal mínimo**) and **Cleaners assigned** (**Limpiadores asignados**), the cleaners with an active assignment at the site today. A figure the plan does not hold reads --.
+4. The line under the tiles names the quote the plan came from, its revision, the day it was taken and who took it, and the note. **Figures** (**Cifras**) lists the building's square feet, rooms and fixtures and the hours and staffing worked from them, and **Tasks** (**Tareas**) lists each task with its quantity, its rate, how often it is done and its hours. The plan shows no price.
+5. **Earlier plans** (**Planes anteriores**) lists the plans the site had before, newest first: when each was taken and ended, and why.
+If it does not work: **No workload plan yet.** (**Todavía no hay plan de carga de trabajo.**) means the site has none; see Make a site's workload plan. An orange line, **The quote changed after this plan took it. Use the quote again to update the plan.** (**La cotización cambió después de que este plan la tomó. Vuelva a usar la cotización para actualizar el plan.**), means the plan still holds the quote as it was; see Update or end a site's workload plan. When the tab is not there, the server does not offer workload plans yet.
+Words people use for this: staffing plan, workload plan, hours for a building, how many cleaners, how many people a site needs, labor hours, plan de carga de trabajo.
+Last checked: 2026-10-01
+
+## Make a site's workload plan (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. Open the site's **Workload plan** (**Plan de carga de trabajo**) tab. A site with no plan shows **Make a workload plan** (**Hacer un plan de carga de trabajo**).
+2. Click it. A **New quote** (**Nueva cotización**) opens with the site already picked under **Site on file** (**Sitio registrado**).
+3. Work the building through the quote's steps, as in Make a quote, and click **Save** (**Guardar**).
+4. Under **Workload plan** (**Plan de carga de trabajo**) on the saved quote, add a **Note** (**Nota**) if you want one, and click **Use as this site's workload plan** (**Usar como plan de carga de trabajo de este sitio**).
+5. Go back to the site: its Workload plan tab shows the plan.
+If it does not work: the button is off and says **Save first** (**Guarde primero**) while a change is not saved. Only an active site takes a plan, and a declined or void quote cannot be one; the line under the button says why.
+Words people use for this: make a staffing plan, plan a building, workload for a site, hours for a building, how many cleaners, hacer un plan de carga de trabajo.
+Last checked: 2026-10-01
+
+## Use a saved quote as a site's workload plan (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. From the site: open its **Workload plan** (**Plan de carga de trabajo**) tab and click **Use a saved quote** (**Usar una cotización guardada**). It lists the site's saved quotes with their status and revision, leaving out the declined and void ones.
+2. Add a **Note** (**Nota**) if you want one, and click **Use this quote** (**Usar esta cotización**) on the quote.
+3. Or from the quote: open it under **Quotes** (**Cotizaciones**), with the site picked under **Site on file** (**Sitio registrado**) and saved, and click **Use as this site's workload plan** (**Usar como plan de carga de trabajo de este sitio**).
+4. A site has one plan at a time. The plan it had moves to **Earlier plans** (**Planes anteriores**) as replaced by a newer plan.
+5. A quote that is a site's plan says **Workload plan for {0}** (**Plan de carga de trabajo de {0}**) with the site's name, and one that was says **Was the workload plan for {0}** (**Fue el plan de carga de trabajo de {0}**).
+If it does not work: a quote for another site, or for none, is refused, and the line under the button says so; set its site to this one, save it, and try again. Draft, sent and accepted quotes can all be used.
+Words people use for this: staffing plan from a quote, use a quote as the plan, which estimate is the plan, set the site's plan, hours for a building, usar la cotización.
+Last checked: 2026-10-01
+
+## Update or end a site's workload plan (admin dashboard)
+Who can do this: people given Build quotes, admins by default
+1. A plan holds the quote as it was when the plan took it. Saving the quote later does not change the plan: beside Save the quote says **Saving does not change the site's plan. Use the quote again to update it.** (**Guardar no cambia el plan del sitio. Vuelva a usar la cotización para actualizarlo.**), and its plan line says **Changed since** (**Cambió desde entonces**).
+2. On the site's **Workload plan** (**Plan de carga de trabajo**) tab, an orange line says the quote changed. Click **Update the plan** (**Actualizar el plan**) to take the quote as it is now, with the same note.
+3. To open the quote behind the plan, click **Open the quote** (**Abrir la cotización**).
+4. To end a plan, click **End the plan** (**Terminar el plan**), type the **Reason** (**Motivo**), and click **End the plan** (**Terminar el plan**) again. The site has no plan until a quote is used again.
+If it does not work: End the plan stays off until a reason is typed, up to 500 characters. **The plan already has this quote as it was saved. Nothing changed.** (**El plan ya tiene esta cotización tal como se guardó. No cambió nada.**) means the quote has not changed since the plan took it.
+Words people use for this: update the staffing plan, refresh the plan, end the plan, plan out of date, how many cleaners now, actualizar el plan.
+Last checked: 2026-10-01
+
+## Print a site's workload plan (admin dashboard)
+Who can do this: anyone who can open Sites
+1. Open the site's **Workload plan** (**Plan de carga de trabajo**) tab.
+2. Click **Print the plan** (**Imprimir el plan**).
+3. Pick the **Language** (**Idioma**). The page shows the site, the day the plan was taken and by whom, the quote and revision, the hours, the staffing, the task table and the people assigned as of the day it prints. It shows no price.
+4. Click **Download PDF** (**Descargar el PDF**) to keep a copy or print it.
+If it does not work: Print the plan shows only while the site has a plan.
+Words people use for this: print the staffing plan, workload plan pdf, hours for a building on paper, plan for the assessor, imprimir el plan.
+Last checked: 2026-10-01
+
+## See which sites have a workload plan (admin dashboard)
+Who can do this: anyone who can open Sites
+1. Click **Sites** (**Sitios**) in the side panel.
+2. **Workload plans** (**Planes de carga de trabajo**), above the site list, shows every active site: the quote and revision its plan came from, or **No plan yet** (**Todavía sin plan**), and the **Hours a month** (**Horas al mes**), **Staff recommended** (**Personal recomendado**) and **Cleaners assigned** (**Limpiadores asignados**). **Changed since** (**Cambió desde entonces**) marks a plan whose quote was saved after the plan took it.
+3. Click a row to open that site on its Workload plan tab.
+If it does not work: the table is not there until the server offers workload plans.
+Words people use for this: which sites have a plan, staffing plans, hours by site, how many cleaners each site has, planes de carga de trabajo.
+Last checked: 2026-10-01
+
+## Read a completed inspection, its photos and its signature (admin dashboard)
+Who can do this: anyone who can open Inspections
+1. Click **Inspections** (**Inspecciones**), then the **Completed** (**Completadas**) tab, and click the inspection.
+2. The top shows the score, who completed it and when. Click an item to open it: its score, its notes, and its **Photos ({0})** (**Fotos ({0})**) as small pictures. **Click photo to open full size** (**Haga clic en la foto para verla en tamaño completo**).
+3. **Photos of the whole inspection** (**Fotos de toda la inspección**) holds the photos taken of the inspection as a whole.
+4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
+5. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signature. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
+If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
+Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
 Last checked: 2026-10-01

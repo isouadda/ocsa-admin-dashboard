@@ -1009,13 +1009,13 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} />}
-        {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
-        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -2036,8 +2036,28 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
-function SitesPage({ af, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
+function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
   const [selectedSite, setSelectedSite] = useState(null);
+  // Step 218: the site's workload plan, once GET /api/sites/:id/workload-plan answers with the
+  // contract's keys. The tab draws it from here, and it is read again after a change.
+  const [workload, setWorkload] = useState(null);
+  const [workloadAgain, setWorkloadAgain] = useState(0);
+  useEffect(() => { setWorkload(null); }, [selectedSite]);
+  // Every active site's plan at once, GET /api/workload-plans, read each time the list shows, so a
+  // plan taken or ended on a site is there on the way back.
+  const [plansAll, setPlansAll] = useState(null);
+  useEffect(() => {
+    if (selectedSite) return undefined;
+    let alive = true;
+    af("/api/workload-plans").then(d => { if (alive) setPlansAll(d && Array.isArray(d.sites) ? d.sites : null); }).catch(e => { console.warn("Workload plans:", e.message); });
+    return () => { alive = false; };
+  }, [af, selectedSite]);
+  useEffect(() => {
+    if (!selectedSite) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(selectedSite) + "/workload-plan").then(d => { if (alive) setWorkload(workloadAnswerOf(d)); }).catch(e => { console.warn("Workload plan:", e.message); });
+    return () => { alive = false; };
+  }, [af, selectedSite, workloadAgain]);
   // Step 196: the site's client survey schedule, for a holder of manage_settings once the route
   // answers for this site. The answer is handed to the editor, which reads nothing twice.
   const [survey, setSurvey] = useState(null);
@@ -2157,9 +2177,9 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   const staffList = allStaff;
   const load = () => loadSites();
 
-  const openProfile = async (siteId) => {
+  const openProfile = async (siteId, tab) => {
     setSelectedSite(siteId);
-    setSiteTab("general");
+    setSiteTab(tab || "general");
     setTimeline([]);
     setTlOffset(0);
     setTlCat("all");
@@ -2485,7 +2505,9 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
     const tabs = [
       { k: "general", l: tr("General Info") }, { k: "tasks", l: tr("Service Details") },
       { k: "shifts", l: tr("Shifts & Schedule") }, { k: "supplies", l: tr("Supplies") },
-      { k: "scope", l: tr("Scope of Work") }, { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") },
+      { k: "scope", l: tr("Scope of Work") },
+      ...(workload ? [{ k: "plan", l: tr("Workload plan") }] : []),
+      { k: "chat", l: tr("Chat") }, { k: "timeline", l: tr("Timeline") },
       ...(blocksLive ? [{ k: "blocks", l: tr("Shift names") }] : []),
       ...(survey ? [{ k: "survey", l: tr("Client survey") }] : [])
     ];
@@ -2737,6 +2759,9 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
         </Crd>
       </div>}
 
+      {/* WORKLOAD PLAN TAB (Step 218) */}
+      {siteTab === "plan" && workload && <SiteWorkloadPlan key={selectedSite} af={af} token={token} t={t} siteId={selectedSite} data={workload} canBuild={canBuildQuotes} onReload={() => setWorkloadAgain(n => n + 1)} showToast={showToast} />}
+
       {/* TIMELINE TAB */}
       {siteTab === "timeline" && <div>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
@@ -2894,7 +2919,21 @@ function SitesPage({ af, showToast, canManageSites = false, canManageTasks = fal
   }
 
   // ---- LIST VIEW ----
+  // Step 218: which sites have a workload plan, above the site list. A row opens the site on its
+  // Workload plan tab. The figures are hours and people, with no price.
+  const planCols = [
+    { header: tr("Site"), tdStyle: { minWidth: 140 }, render: r => <span style={{ fontWeight: 600, color: t.text }}>{r.siteName}</span> },
+    { header: tr("Plan"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.plan ? <span>{tr("Quote {0}, revision {1}", r.plan.quoteNumber || "--", r.plan.quoteRevision != null ? r.plan.quoteRevision : "--")}{r.plan.stale ? <div style={{ marginTop: 4 }}><Bdg l={tr("Changed since")} c={OR} /></div> : null}</span> : <span style={{ color: t.textMut }}>{tr("No plan yet")}</span>) },
+    { header: tr("Hours a month"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.monthlyHours) : "--") },
+    { header: tr("Staff recommended"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.recommendedStaff) : "--") },
+    { header: tr("Cleaners assigned"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => workloadNum(r.assigned ? r.assigned.cleaners : null) },
+  ];
   return (<div>
+    {plansAll && <div data-workload-plans="" style={{ marginBottom: 24 }}>
+      <SecT t={t}>{tr("Workload plans")}</SecT>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
+      <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
+    </div>}
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -8663,7 +8702,19 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 const INSPECTION_KINDS = ["supervisor", "audit"];
 const inspectionKindWord = (k) => (k === "audit" ? tr("Audit inspection") : k === "supervisor" ? tr("Supervisor inspection") : String(k || ""));
 const inspectionKindOpts = () => INSPECTION_KINDS.map(k => ({ v: k, l: inspectionKindWord(k) }));
-function InspectionsPage({ af, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
+// A filed inspection's photos on a card (Step 218): photo_urls, or the one photo_url an older answer holds.
+const inspectionPhotosOf = (sr) => {
+  const urls = (sr && Array.isArray(sr.photo_urls) ? sr.photo_urls : []).filter(u => typeof u === "string" && u);
+  return urls.length ? urls : (sr && sr.photo_url ? [sr.photo_url] : []);
+};
+// The photos of the inspection as a whole, from the result.
+const inspectionOverallPhotosOf = (d) => (d && d.result && Array.isArray(d.result.photo_urls) ? d.result.photo_urls.filter(u => typeof u === "string" && u) : []);
+// Photos as thumbnails, each opening full size in a new tab.
+const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+  {urls.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
+</div>);
+
+function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
   const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
@@ -8870,17 +8921,42 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
 
   const exportCSV = (d) => {
     const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
-    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", "Photo URL"];
+    // Step 218: with capture in the answer, the photo column holds every photo on the card.
+    const many = !!d.capture;
+    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", many ? "Photo URLs" : "Photo URL"];
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
+      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
   };
 
-  const exportPrint = (d) => {
+  // The printed report. With capture in the answer (Step 218) it carries every photo on each card,
+  // the photos of the whole inspection, and the signature, read with the token and embedded as a data
+  // URL. The window opens in the click, so a popup blocker lets it through, and is written once the
+  // signature is read.
+  const exportPrint = async (d) => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const many = !!d.capture;
+    const sigs = [];
+    if (many) {
+      for (const sg of (Array.isArray(d.signatures) ? d.signatures : [])) {
+        let url = "";
+        if (sg && sg.path) {
+          try {
+            const f = await apiDownload(sg.path, token);
+            url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(f.blob); });
+          } catch (e) { console.warn("Inspection signature:", e.message); }
+        }
+        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null });
+      }
+    }
+    const photoImgs = (urls, size) => urls.map(u => '<img src="' + esc(u) + '" style="width:' + size[0] + 'px;height:' + size[1] + 'px;object-fit:cover;border-radius:4px;margin:2px" />').join("");
+    const overall = many ? inspectionOverallPhotosOf(d) : [];
     const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
     const scoreColor = pct >= 80 ? "#2ECC71" : pct >= 60 ? "#F39C12" : "#E74C3C";
     const itemRows = (d.items || []).map(item => {
@@ -8904,7 +8980,7 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
             </div>
           </td>
           <td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">${sr?.notes || ""}</td>
-          <td style="padding:10px 8px;text-align:center">${sr?.photo_url ? `<img src="${sr.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />` : ""}</td>
+          <td style="padding:10px 8px;text-align:center">${many ? photoImgs(inspectionPhotosOf(sr), [80, 60]) : (sr?.photo_url ? `<img src="${sr.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />` : "")}</td>
         </tr>`;
     }).join("");
 
@@ -8949,10 +9025,11 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
           <thead><tr><th>${tr("Item")}</th><th>${tr("Zone")}</th><th>${tr("Category")}</th><th>${tr("Score")}</th><th>${tr("Notes")}</th><th>${tr("Photo")}</th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
+        ${overall.length ? `<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Photos of the whole inspection")}</div>${photoImgs(overall, [160, 120])}</div>` : ""}
+        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div>
       </body></html>`;
 
-    const w = window.open("", "_blank");
     w.document.write(html);
     w.document.close();
     setTimeout(() => w.print(), 600);
@@ -9088,7 +9165,15 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
                             <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, padding: "8px 12px", background: t.cardAlt, borderRadius: 8 }}>{sr.notes}</div>
                           </div>
                         )}
-                        {sr.photo_url ? (
+                        {d.capture ? (inspectionPhotosOf(sr).length > 0 ? (
+                          <div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", inspectionPhotosOf(sr).length)}</div>
+                            <InspectionThumbs t={t} urls={inspectionPhotosOf(sr)} mark={item.id} />
+                            <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("No photo attached for this item.")}</div>
+                        )) : sr.photo_url ? (
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Attached Photo")}</div>
                             <a href={sr.photo_url} target="_blank" rel="noreferrer">
@@ -9109,6 +9194,21 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
             );
           })}
         </div>
+
+        {/* Step 218: the photos of the whole inspection and the signature, once the answer carries capture. */}
+        {isComplete && d.capture && inspectionOverallPhotosOf(d).length > 0 && <Crd t={t} style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos of the whole inspection")}</div>
+          <InspectionThumbs t={t} urls={inspectionOverallPhotosOf(d)} mark="overall" />
+        </Crd>}
+        {isComplete && d.capture && <Crd t={t} style={{ marginTop: 16 }}>
+          <div data-inspection-signature="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Signature")}</div>
+          {(Array.isArray(d.signatures) ? d.signatures : []).length === 0
+            ? <div data-inspection-unsigned="" style={{ fontSize: 13, color: t.textMut }}>{tr("Not signed")}</div>
+            : d.signatures.map((sg, i) => (<div key={sg.line || i} data-inspection-signed={sg.line || ""} style={{ marginBottom: 8 }}>
+              {sg.path ? <SignatureImage t={t} token={token} path={sg.path} signKey={sg.line} /> : null}
+              <div style={{ fontSize: 12, color: t.textSec }}>{tr("Signed by {0}, {1}", sg.signerName || "--", sg.signedAt ? fmtDT(sg.signedAt) : "--")}</div>
+            </div>))}
+        </Crd>}
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
@@ -9629,7 +9729,8 @@ const quoteDetailsIn = (q) => ({
 });
 
 // The list, newest first, from GET /api/quotes?status=&q=. A row opens its quote at #quotes/<id>, and
-// New quote opens #quotes/new, so a refresh keeps the quote open.
+// New quote opens #quotes/new, so a refresh keeps the quote open. #quotes/new/<siteId>, from a site's
+// Workload plan tab, opens a new quote with that site picked.
 function QuotesPage({ af, token, t, sites = [], phone = false, route = [], onRoute, showToast }) {
   const [rows, setRows] = useState(null);
   const [failed, setFailed] = useState("");
@@ -9662,7 +9763,7 @@ function QuotesPage({ af, token, t, sites = [], phone = false, route = [], onRou
   const close = () => { if (onRoute) onRoute([]); };
   const created = (id) => { quiet.current = String(id); if (onRoute) onRoute([String(id)]); };
 
-  if (openId) return <QuoteEditor key={editorKey} af={af} token={token} t={t} sites={sites} phone={phone} id={openId} onBack={close} onCreated={created} showToast={showToast} />;
+  if (openId) return <QuoteEditor key={editorKey} af={af} token={token} t={t} sites={sites} phone={phone} id={openId} startSiteId={openId === "new" && route[1] ? String(route[1]) : ""} onBack={close} onCreated={created} showToast={showToast} />;
   const cols = [
     { header: tr("Number"), tdStyle: { whiteSpace: "nowrap" }, render: r => (<span><span style={{ fontWeight: 600, color: t.text }}>{r.number}</span>{Number(r.revision) > 1 ? <div style={{ fontSize: 10, color: t.textMut }}>{tr("Revision {0}", r.revision)}</div> : null}</span>) },
     { header: tr("Client"), tdStyle: { minWidth: 120, color: t.text }, render: r => r.clientName || "--" },
@@ -9831,7 +9932,7 @@ function QuoteList({ t, list, rows, setRows, total, refusal, readOnly }) {
     {list.help ? <div style={{ fontSize: 11, color: t.textMut, margin: "2px 0 6px", lineHeight: 1.4 }}>{builderText(list.help)}</div> : null}
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
       <thead><tr>{(list.columns || []).map(c => <th key={c.key} style={thSt}>{builderText(c.label)}</th>)}{!readOnly && <th style={thSt}></th>}</tr></thead>
-      <tbody>{rows.length === 0 && <tr><td colSpan={(list.columns || []).length + 1} style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("No rows.")}</td></tr>}
+      <tbody>{rows.length === 0 && <tr><td colSpan={(list.columns || []).length + 1} data-quote-list-empty="" style={{ padding: 14, fontSize: 12, color: t.textMut }}>{readOnly ? tr("No rows.") : tr("No rows yet. Add a row to price it.")}</td></tr>}
         {rows.map((r, i) => { const d = r.key ? defaults[r.key] : null; return (<tr key={r._id || i} style={{ borderTop: "1px solid " + t.border }}>
           {(list.columns || []).map(c => {
             const lab = builderText(c.label);
@@ -9855,12 +9956,12 @@ function QuoteList({ t, list, rows, setRows, total, refusal, readOnly }) {
 // One step of the model: its sections in order, each with its inputs, a table where the section has
 // rows and columns, and the list that shares its key. The Workload step draws the task lines, and
 // Equipment and supplies the lists no section holds.
-function QuoteStep({ t, model, group, est, filled, calc, set, setTask, setList, refusal, readOnly, ratesOnly }) {
+function QuoteStep({ t, model, group, est, filled, calc, set, setTask, setList, refusal, readOnly, ratesOnly, withLists }) {
   const refusedText = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
   const sections = group.sections || [];
   const inSection = (s) => (group.inputs || []).filter(i => i.section === s.key);
   const loose = (group.inputs || []).filter(i => !sections.some(s => s.key === i.section));
-  const lists = ratesOnly ? [] : (model.lists || []);
+  const lists = ratesOnly && !withLists ? [] : (model.lists || []);
   const listsHere = (sectionKey) => lists.filter(l => { const h = quoteListHome(model, l); return h.group === group.key && h.section === sectionKey; });
   const results = (calc && calc.results) || {};
   const grid = (inputs) => (<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
@@ -9941,7 +10042,10 @@ function QuoteStepButtons({ t, model, groups, step, onStep, refusal, checks, box
 // groups, with Back and Next between them, and the figures beside them, under them at 390. The
 // figures are worked out by the API 400 ms after typing stops. Save posts a new quote or puts one,
 // and a refusal is drawn under the box its keys name. A closed quote reads only.
-function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCreated, showToast }) {
+// Step 218: a saved quote with a site can be used as that site's workload plan, once the quote's
+// answer carries plans (STEP217_CONTRACT_B_SITE_WORKLOAD_PLANS.md, section 5), and the plans taken
+// from it are listed. Saving a quote never changes a plan; it makes a current one stale.
+function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId = "", onBack, onCreated, showToast }) {
   // The windows the quote opens: the client's PDF or the worksheet, and the send.
   const [pdfKind, setPdfKind] = useState(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -9972,6 +10076,25 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   const estRef = useRef(null);
   estRef.current = est;
   const calcSeq = useRef(0);
+  // The plans taken from this quote, from GET /api/quotes/:id, or null while the answer carries none.
+  const [plans, setPlans] = useState(null);
+  const [planNote, setPlanNote] = useState("");
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planRefusal, setPlanRefusal] = useState({ text: "", at: "" });
+  const [planSame, setPlanSame] = useState(false);
+  const planBusyRef = useRef(false);
+  const readPlans = useCallback((quoteId) => {
+    af("/api/quotes/" + encodeURIComponent(quoteId)).then(d => { if (d && d.quote && Array.isArray(d.quote.plans)) setPlans(d.quote.plans); }).catch(e => console.warn("Quote plans:", e.message));
+  }, [af]);
+  // A new quote opened from a site's Workload plan tab starts with that site picked; the client, the
+  // site name and the address fill from it on save, as they do for any site picked.
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current || qid || !startSiteId) return;
+    if (!(sites || []).some(x => String(x.id) === String(startSiteId))) return;
+    startedRef.current = true;
+    setDetails(d => (d.siteId ? d : Object.assign({}, d, { siteId: String(startSiteId) })));
+  }, [qid, startSiteId, sites]);
 
   const load = useCallback(async () => {
     setFailed("");
@@ -9989,6 +10112,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
         const q = d && d.quote;
         if (!q) throw new Error(tr("This did not load."));
         setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs));
+        setPlans(Array.isArray(q.plans) ? q.plans : null);
         setCalc({ inputs: q.inputs, results: q.results || {}, taskHours: q.taskHours || {}, checks: q.checks || [], taskDetail: null });
         // The saved quote carries no task detail, so the figures are worked once for the quantities
         // and the counts the Workload step shows.
@@ -10049,6 +10173,8 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       setCalcRefusal(null); setDirty(false);
       if (showToast) showToast(tr("Quote saved."));
       if (isNew) { setQid(q.id); if (onCreated) onCreated(q.id); }
+      // A save makes a current plan taken from the quote stale, and the plans are read again.
+      if (Array.isArray(q.plans)) setPlans(q.plans); else readPlans(q.id);
     } catch (e) {
       const keys = quoteKeysOf(e);
       setRefusal({ text: e.message || tr("Request failed"), keys, code: e.code });
@@ -10062,6 +10188,24 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   };
 
   const back = () => { if (dirty && !readOnly) setLeaving(true); else onBack(); };
+  // Use as this site's workload plan: the quote as saved, with an optional note. A refusal is drawn
+  // under the button, or under the note for workloadPlans.badNote.
+  const usePlan = async () => {
+    if (planBusyRef.current || !quote || !quote.siteId || dirty) return;
+    planBusyRef.current = true; setPlanBusy(true); setPlanRefusal({ text: "", at: "" }); setPlanSame(false);
+    try {
+      const d = await af("/api/sites/" + encodeURIComponent(String(quote.siteId)) + "/workload-plan", { method: "POST", body: { quoteId: quote.id, note: planNote.trim() || null } });
+      if (d && d.changed === false) setPlanSame(true);
+      else if (showToast) showToast(tr("Workload plan saved."));
+      setPlanNote("");
+      readPlans(quote.id);
+    } catch (e) { setPlanRefusal({ text: e.message || tr("Request failed"), at: e && e.code === "workloadPlans.badNote" ? "note" : "use" }); }
+    planBusyRef.current = false; setPlanBusy(false);
+  };
+  const planList = Array.isArray(plans) ? plans.slice().sort((a, b) => (a.current === b.current ? String(b.adoptedAt || "").localeCompare(String(a.adoptedAt || "")) : a.current ? -1 : 1)) : [];
+  const isPlan = planList.some(x => x && x.current);
+  const planShown = !!(quote && !isNew && quote.siteId && Array.isArray(plans));
+  const planTakes = planShown && quote.status !== "declined" && quote.status !== "void";
   // A quote taken from an answer the API gave after a send or a status: its details and figures as
   // saved. Nothing typed is lost, since both wait on a quote with no change unsaved.
   const takeQuote = (q) => { if (!q) return; setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs)); };
@@ -10096,6 +10240,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       {quote && Number(quote.revision) > 1 && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Revision {0}", quote.revision)}</span>}
       <div style={{ flex: 1 }} />
       {dirty && !readOnly && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Changes not saved yet")}</span>}
+      {isPlan && !readOnly && <span data-quote-plan-save-line="" style={{ fontSize: 12, color: t.textSec, maxWidth: 360, lineHeight: 1.4 }}>{tr("Saving does not change the site's plan. Use the quote again to update it.")}</span>}
       {model && est && !readOnly && <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>}
     </div>
     {quote && !isNew && <div data-quote-actions="" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
@@ -10110,6 +10255,29 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       <span style={{ color: OR }}>{tr("Saving a change makes this quote a draft again, as revision {0}.", Number(quote.revision || 1) + 1)}</span>
     </div>}
     {closed && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("This quote is {0}, so it reads only.", quoteStatusWord(quote.status).toLowerCase())}</div>}
+    {planShown && (planTakes || planList.length > 0) && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
+      <div data-quote-plans="">
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Workload plan")}</div>
+        {planList.map((x, i) => (<div key={x.planId || i} data-quote-plan={x.current ? (x.stale ? "stale" : "current") : "earlier"} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: x.current ? t.text : t.textSec, padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <span style={{ fontWeight: x.current ? 600 : 400 }}>{x.current ? tr("Workload plan for {0}", x.siteName || "--") : tr("Was the workload plan for {0}", x.siteName || "--")}</span>
+          <span style={{ color: t.textMut }}>{tr("Revision {0}", x.quoteRevision != null ? x.quoteRevision : "--")}</span>
+          {x.adoptedAt ? <span style={{ color: t.textMut }}>{tr("Taken on {0}", irDay(x.adoptedAt))}</span> : null}
+          {x.current && x.stale && <Bdg l={tr("Changed since")} c={OR} />}
+        </div>))}
+        {planTakes && <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Makes this quote the site's workload plan: its hours, staffing and tasks, with no price. A save after that does not change the plan.")}</div>
+          <div style={{ maxWidth: 520 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={planNote} onChange={e => setPlanNote(e.target.value)} style={quoteBoxStyle(planRefusal.at === "note")} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional. It shows with the plan.")}</div>
+            {planRefusal.at === "note" && <QuoteRefusal text={planRefusal.text} />}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+            <Btn t={t} onClick={usePlan} disabled={planBusy || dirty} style={{ minHeight: 44 }}>{planBusy ? tr("Saving...") : tr("Use as this site's workload plan")}</Btn>
+            {dirty && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Save first")}</span>}
+          </div>
+          {planRefusal.at === "use" && <QuoteRefusal text={planRefusal.text} />}
+          {planSame && <div data-quote-plan-same="" style={{ fontSize: 12, color: t.textSec, marginTop: 8 }}>{tr("The plan already has this quote as it was saved. Nothing changed.")}</div>}
+        </div>}
+      </div>
+    </Crd>}
     {closing && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
       <div style={{ fontSize: 13, color: t.text, marginBottom: 10 }}>{tr(CLOSE_ASK[closing])}</div>
       {statusRefusal && <div data-quote-refusal="status" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{statusRefusal}</div>}
@@ -10160,18 +10328,18 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   </div>);
 }
 
-// The client's PDF, GET /api/quotes/:id/pdf, or the internal worksheet, /worksheet.pdf, drawn as the
-// quote was last saved, in the language picked, which starts as the screen's.
-function QuotePdfWindow({ token, t, quote, kind, dirty, onClose }) {
+// A PDF the API draws, in a window: the language picked, which starts as the screen's, Download PDF,
+// and the page itself. pathFor gives the route for a language. The quote's two PDFs and a site's
+// workload plan open in it.
+function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose }) {
   const [lang, setLang] = useState(() => getLang());
   const [pdf, setPdf] = useState({ url: "", filename: "", loading: true, error: "" });
   const [again, setAgain] = useState(0);
-  const worksheet = kind === "worksheet";
+  const path = pathFor(lang);
   useEffect(() => {
     let alive = true;
     setPdf(p => ({ url: p.url, filename: p.filename, loading: true, error: "" }));
-    const path = "/api/quotes/" + encodeURIComponent(quote.id) + (worksheet ? "/worksheet.pdf" : "/pdf") + "?locale=" + lang;
-    apiDownload(path, token, quote.number + (worksheet ? "-worksheet" : "") + ".pdf")
+    apiDownload(path, token, fallbackName)
       .then(f => {
         const url = URL.createObjectURL(f.blob);
         if (!alive) { URL.revokeObjectURL(url); return; }
@@ -10179,28 +10347,41 @@ function QuotePdfWindow({ token, t, quote, kind, dirty, onClose }) {
       })
       .catch(e => { if (alive) setPdf(p => ({ url: p.url, filename: p.filename, loading: false, error: e.message || tr("Request failed") })); });
     return () => { alive = false; };
-  }, [token, quote.id, quote.number, worksheet, lang, again]);
+  }, [token, path, fallbackName, again]);
   useEffect(() => () => { setPdf(p => { if (p.url) URL.revokeObjectURL(p.url); return p; }); }, []);
   const langBtn = (x) => { const on = lang === x.id; return <button key={x.id} onClick={() => setLang(x.id)} aria-pressed={on} title={x.label} style={{ minHeight: 44, minWidth: 44, padding: "0 10px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: on ? 600 : 500, fontFamily: FONT_BODY, cursor: "pointer" }}>{x.label}</button>; };
-  return (<Mdl t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} data-quote-pdf={kind}>
+  return (<Mdl t={t} onClose={onClose} tall><div style={{ padding: 16, display: "flex", flexDirection: "column", height: "100%" }} {...(boxProps || {})}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{worksheet ? tr("Internal worksheet") : tr("Client PDF")}</div>
-        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{quote.number}{Number(quote.revision) > 1 ? " \u00b7 " + tr("Revision {0}", quote.revision) : ""}</div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
+        {sub ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{sub}</div> : null}
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{worksheet ? tr("Every input, task line, figure and check, with the wages, burden and margin. It stays inside the company.") : tr("What the client receives: the scope, how often each task is done, the price and the terms. It shows no hour, rate, cost or margin.")}</div>
-    {dirty && <div style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{tr("The PDF shows the quote as last saved.")}</div>}
+    {help ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{help}</div> : null}
+    {note ? <div style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{note}</div> : null}
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
       <span style={{ fontSize: 12, color: t.textMut, marginRight: 4 }}>{tr("Language")}</span>{LANGUAGES.map(langBtn)}
       <div style={{ flex: 1 }} />
-      {pdf.url && <a href={pdf.url} download={pdf.filename || "quote.pdf"} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a>}
+      {pdf.url && <a href={pdf.url} download={pdf.filename || fallbackName} style={{ display: "inline-flex", alignItems: "center", minHeight: 44, padding: "10px 18px", borderRadius: R.sm, border: "1px solid " + t.borderSolid, background: t.btnGhost, color: t.text, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, textDecoration: "none" }}>{tr("Download PDF")}</a>}
     </div>
     {pdf.loading && !pdf.url && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading the PDF...")}</div>}
     {pdf.error && <LoadFailed t={t} text={pdf.error} onRetry={() => setAgain(n => n + 1)} />}
-    {pdf.url && <iframe title={worksheet ? tr("Internal worksheet") : tr("Client PDF")} src={pdf.url} style={{ flex: 1, width: "100%", minHeight: 360, border: "1px solid " + t.border, borderRadius: 8, background: "#FFFFFF" }} />}
+    {pdf.url && <iframe title={title} src={pdf.url} style={{ flex: 1, width: "100%", minHeight: 360, border: "1px solid " + t.border, borderRadius: 8, background: "#FFFFFF" }} />}
   </div></Mdl>);
+}
+
+// The client's PDF, GET /api/quotes/:id/pdf, or the internal worksheet, /worksheet.pdf, drawn as the
+// quote was last saved, in the language picked, which starts as the screen's.
+function QuotePdfWindow({ token, t, quote, kind, dirty, onClose }) {
+  const worksheet = kind === "worksheet";
+  return (<PdfWindow token={token} t={t} onClose={onClose} boxProps={{ "data-quote-pdf": kind }}
+    title={worksheet ? tr("Internal worksheet") : tr("Client PDF")}
+    sub={quote.number + (Number(quote.revision) > 1 ? " \u00b7 " + tr("Revision {0}", quote.revision) : "")}
+    help={worksheet ? tr("Every input, task line, figure and check, with the wages, burden and margin. It stays inside the company.") : tr("What the client receives: the scope, how often each task is done, the price and the terms. It shows no hour, rate, cost or margin.")}
+    note={dirty ? tr("The PDF shows the quote as last saved.") : ""}
+    pathFor={(lang) => "/api/quotes/" + encodeURIComponent(quote.id) + (worksheet ? "/worksheet.pdf" : "/pdf") + "?locale=" + lang}
+    fallbackName={quote.number + (worksheet ? "-worksheet" : "") + ".pdf"} />);
 }
 
 // Send to the client: the quote's contact first, ticked, and any address added, a message, and the
@@ -10289,6 +10470,13 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
 // inputs and the task lines' rates are grouped as on the quote, each box empty until the company sets
 // it and showing greyed the model's own value it takes until then. A quote already made keeps its own
 // values. The days a quote stays valid and the terms in English and Spanish go on the client's PDF.
+// Step 218: the equipment, supplies and other direct costs lists are drawn as the quote draws them,
+// starting from defaults.lists as the API answers it and blank when it holds none, and saved in
+// defaults.lists. Each list's total is the API's, worked by the calculate route from the rows. They
+// show once the model's lists carry no starting rows of their own (QUOTE_STARTER_LISTS.md, the API's
+// Step 215); before that a list sent here would take the place of the model's rows, so the panel
+// sends back the lists it was given, as it always has.
+const quoteListsInDefaults = (model) => !!(model && Array.isArray(model.lists) && model.lists.length > 0 && model.lists.every(l => !(Array.isArray(l.defaults) && l.defaults.length > 0)));
 function QuoteDefaultsPanel({ af, t, showToast, initial }) {
   const [model, setModel] = useState(null);
   const [held, setHeld] = useState(initial || null);
@@ -10299,36 +10487,63 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
   const [refusal, setRefusal] = useState(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const takeHeld = (h) => {
+  // The lists' totals, worked by POST /api/quotes/calculate from the rows 400 ms after typing stops,
+  // and a refusal of those rows.
+  const [listCalc, setListCalc] = useState(null);
+  const [listRefusal, setListRefusal] = useState(null);
+  const [listEdits, setListEdits] = useState(0);
+  const estRef = useRef(null);
+  estRef.current = est;
+  const takeHeld = (h, m) => {
     const d = (h && h.defaults) || {};
+    // Every list of the model, so one emptied is sent as [] and starts every new quote empty.
+    const held = quoteEstimateIn({ lists: d.lists || {} }).lists;
+    const lists = {};
+    ((m && m.lists) || []).forEach(l => { lists[l.key] = held[l.key] || []; });
     setHeld(h);
-    setEst({ values: Object.assign({}, d.values || {}), tasks: Object.keys(d.tasks || {}).reduce((m, k) => Object.assign(m, { [k]: Object.assign({}, d.tasks[k]) }), {}), lists: {} });
+    setEst({ values: Object.assign({}, d.values || {}), tasks: Object.keys(d.tasks || {}).reduce((acc, k) => Object.assign(acc, { [k]: Object.assign({}, d.tasks[k]) }), {}), lists });
     setForm({ validDays: h && h.validDays != null ? String(h.validDays) : "", termsEn: (h && h.termsEn) || "", termsEs: (h && h.termsEs) || "" });
+    setListEdits(n => n + 1);
   };
   const load = useCallback(async () => {
     setFailed("");
     try {
       const [m, h] = await Promise.all([af("/api/quotes/model"), af("/api/quotes/defaults")]);
       if (!m || !Array.isArray(m.groups)) throw new Error(tr("This did not load."));
-      setModel(m); takeHeld(h);
+      setModel(m); takeHeld(h, m);
     } catch (e) { setFailed(e.message || tr("This did not load.")); console.warn("Quote defaults:", e.message); }
   }, [af]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!listEdits || !quoteListsInDefaults(model) || !estRef.current) return undefined;
+    let alive = true;
+    const h = setTimeout(() => {
+      const lists = quoteEstimateOut(model, { values: {}, tasks: {}, lists: estRef.current.lists }, null).lists;
+      af("/api/quotes/calculate", { method: "POST", body: { inputs: { lists } } })
+        .then(c => { if (alive) { setListCalc(c && c.results ? c.results : null); setListRefusal(null); } })
+        .catch(e => { if (alive) setListRefusal({ text: e.message || tr("Request failed"), keys: quoteKeysOf(e) }); });
+    }, 400);
+    return () => { alive = false; clearTimeout(h); };
+  }, [listEdits, model, af]);
   if (failed) return <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>;
   if (!model || !est) return <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
   // The model's own values, which a box left empty takes, shown greyed in it.
   const own = { values: {}, tasks: {} };
   model.groups.forEach(g => (g.inputs || []).forEach(i => { own.values[i.key] = i.default; }));
-  const groups = model.groups.filter(g => (g.inputs || []).length > 0 || g.key === QUOTE_TASK_STEP);
+  const listsOn = quoteListsInDefaults(model);
+  const groups = model.groups.filter(g => (g.inputs || []).length > 0 || g.key === QUOTE_TASK_STEP || (listsOn && (model.lists || []).some(l => quoteListHome(model, l).group === g.key)));
   const g = groups[Math.min(step, groups.length - 1)];
   const set = (k, v) => setEst(e => Object.assign({}, e, { values: Object.assign({}, e.values, { [k]: v }) }));
   const setTask = (k, patch) => setEst(e => Object.assign({}, e, { tasks: Object.assign({}, e.tasks, { [k]: Object.assign({}, e.tasks[k] || {}, patch) }) }));
+  const setList = (k, rows) => { setEst(e => Object.assign({}, e, { lists: Object.assign({}, e.lists, { [k]: rows }) })); setListEdits(n => n + 1); };
+  const shownRefusal = refusal || listRefusal;
   const refusedText = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
   const save = async () => {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true); setRefusal(null);
     // What the company holds, with the boxes laid over it: a box left empty is left out, so the model's
-    // own value stands for it. Anything the page does not draw, a list or a task's frequency, is kept.
+    // own value stands for it. A task's frequency, which the page does not draw, is kept. The lists are
+    // sent as they stand, each row with key null.
     const heldDefaults = (held && held.defaults) || {};
     const byKey = {};
     model.groups.forEach(x => (x.inputs || []).forEach(i => { byKey[i.key] = i; }));
@@ -10349,14 +10564,14 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
       if (Object.keys(out).length > 0) tasks[k] = out;
     });
     const body = {
-      defaults: { values, tasks, lists: heldDefaults.lists || {} },
+      defaults: { values, tasks, lists: listsOn ? quoteEstimateOut(model, { values: {}, tasks: {}, lists: est.lists }, null).lists : (heldDefaults.lists || {}) },
       validDays: form.validDays.trim() === "" ? undefined : (isFinite(Number(form.validDays)) ? Number(form.validDays) : form.validDays),
       termsEn: form.termsEn.trim() || null,
       termsEs: form.termsEs.trim() || null,
     };
     try {
       const h = await af("/api/quotes/defaults", { method: "PUT", body });
-      takeHeld(h);
+      takeHeld(h, model);
       if (showToast) showToast(tr("Quote defaults saved."));
     } catch (e) {
       const keys = quoteKeysOf(e);
@@ -10373,6 +10588,7 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
         <div style={{ flex: "1 1 320px", minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{tr("Quote defaults")}</div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The starting values every new quote takes. A box left empty takes the model's own value, shown greyed. A quote already made keeps its own values.")}</div>
+          {listsOn && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The equipment, supplies and other direct costs lists start every new quote with the rows set here, or with none.")}</div>}
           {held && held.updatedAt && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt))}</div>}
         </div>
         <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
@@ -10387,10 +10603,191 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
       </div>
       <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.4 }}>{tr("The terms print on the client's PDF. A Spanish PDF prints the English terms while no Spanish is saved.")}</div>
     </Crd>
-    <QuoteStepButtons t={t} model={model} groups={groups} step={Math.min(step, groups.length - 1)} onStep={setStep} refusal={refusal} checks={null} />
+    <QuoteStepButtons t={t} model={model} groups={groups} step={Math.min(step, groups.length - 1)} onStep={setStep} refusal={shownRefusal} checks={null} />
     <Crd t={t}>
-      {g && <QuoteStep t={t} model={model} group={g} est={est} filled={own} calc={null} set={set} setTask={setTask} setList={() => {}} refusal={refusal} readOnly={false} ratesOnly />}
+      {g && <QuoteStep t={t} model={model} group={g} est={est} filled={own} calc={{ results: listCalc || {}, taskDetail: null, taskHours: null }} set={set} setTask={setTask} setList={setList} refusal={shownRefusal} readOnly={false} ratesOnly withLists={listsOn} />}
     </Crd>
+  </div>);
+}
+
+// ===== SITE WORKLOAD PLANS (Step 218) =====
+// A saved quote taken as a site's workload and staffing plan, from the API's Step 217
+// (STEP217_CONTRACT_B_SITE_WORKLOAD_PLANS.md). The plan is a snapshot of the quote's hours, staffing
+// and task lines worked when it was taken, and carries no dollar figure: the money stays in the quote.
+// Each part shows once its route answers with the contract's keys; a 404, a 403 or any other answer
+// leaves it off.
+const workloadAnswerOf = (d) => (d && typeof d === "object" && Object.prototype.hasOwnProperty.call(d, "plan") && Array.isArray(d.history) && d.assigned && typeof d.assigned === "object" ? d : null);
+const workloadNum = (v) => (v === null || v === undefined || v === "" || !isFinite(Number(v)) ? "--" : quoteNum(v));
+const workloadTile = (t, label, value, mark) => (<div key={mark} data-plan-tile={mark} style={{ textAlign: "center", padding: "10px 6px", background: t.hover, borderRadius: 8, minWidth: 0 }}>
+  <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.goldText }}>{value}</div>
+  <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{label}</div>
+</div>);
+// Who took or ended a plan, as the answer names them.
+const workloadWho = (p) => (p && typeof p === "object" && p.name ? String(p.name) : "");
+
+// A site's Workload plan tab. Everyone who reads the site reads the plan: the headline, the line
+// naming the quote it came from, the figures, the task table and the earlier plans. A holder of
+// build_quotes also opens the quote, updates a plan whose quote changed, ends a plan with a reason,
+// and, with no plan, makes one from a new quote or uses one of the site's saved quotes. A refusal is
+// drawn word for word under the control that sent it, by its code.
+function SiteWorkloadPlan({ af, token, t, siteId, data, canBuild = false, onReload, showToast }) {
+  const plan = data.plan && typeof data.plan === "object" ? data.plan : null;
+  const history = (Array.isArray(data.history) ? data.history : []).slice().sort((a, b) => String(b.adoptedAt || "").localeCompare(String(a.adoptedAt || "")));
+  const assigned = data.assigned || {};
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState({ text: "", at: "" });
+  const [ending, setEnding] = useState(false);
+  const [reason, setReason] = useState("");
+  const [picking, setPicking] = useState(false);
+  const [quotes, setQuotes] = useState(null);
+  const [quotesFailed, setQuotesFailed] = useState("");
+  const [note, setNote] = useState("");
+  const [sameLine, setSameLine] = useState(false);
+  const busyRef = useRef(false);
+  const base = "/api/sites/" + encodeURIComponent(siteId) + "/workload-plan";
+  const refusedAt = (at) => (refusal.text && refusal.at === at ? <QuoteRefusal text={refusal.text} /> : null);
+  // This site's saved quotes, declined and void left out, for Use a saved quote.
+  const loadQuotes = useCallback(() => {
+    setQuotesFailed("");
+    af("/api/quotes?siteId=" + encodeURIComponent(siteId))
+      .then(d => setQuotes((d && Array.isArray(d.quotes) ? d.quotes : []).filter(q => q && String(q.siteId) === String(siteId) && q.status !== "declined" && q.status !== "void")))
+      .catch(e => { setQuotes([]); setQuotesFailed(e.message || tr("This did not load.")); });
+  }, [af, siteId]);
+  useEffect(() => { if (picking) loadQuotes(); }, [picking, loadQuotes]);
+  // Take a quote as the plan. at names the control that sent it, where a refusal is drawn; a note
+  // refused is drawn under the note box.
+  const take = async (quoteId, takeNote, at) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(at); setRefusal({ text: "", at: "" }); setSameLine(false);
+    try {
+      const d = await af(base, { method: "POST", body: { quoteId, note: takeNote && String(takeNote).trim() ? String(takeNote).trim() : null } });
+      if (d && d.changed === false) setSameLine(true);
+      else if (showToast) showToast(tr("Workload plan saved."));
+      setPicking(false); setNote("");
+      onReload();
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), at: e && e.code === "workloadPlans.badNote" && at !== "update" ? "note" : at }); }
+    busyRef.current = false; setBusy("");
+  };
+  const end = async () => {
+    if (busyRef.current || !reason.trim()) return;
+    busyRef.current = true; setBusy("end"); setRefusal({ text: "", at: "" }); setSameLine(false);
+    try {
+      await af(base + "/end", { method: "POST", body: { reason: reason.trim() } });
+      setEnding(false); setReason("");
+      if (showToast) showToast(tr("Workload plan ended."));
+      onReload();
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), at: e && e.code === "workloadPlans.badNote" ? "reason" : "end" }); }
+    busyRef.current = false; setBusy("");
+  };
+  const small = { minHeight: 44, padding: "8px 12px", fontSize: 12 };
+  const head = { fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 };
+  const taskCols = [
+    { header: tr("Task"), tdStyle: { minWidth: 160 }, render: r => (<span><span style={{ color: t.text, fontWeight: 600 }}>{builderText(r.label)}</span>{r.group ? <div style={{ fontSize: 11, color: t.textMut }}>{builderText(r.group)}</div> : null}</span>) },
+    { header: tr("Quantity"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => workloadNum(r.quantity) + (r.unit ? " " + builderText(r.unit) : "") },
+    { header: tr("Rate per hour"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => workloadNum(r.rate) },
+    { header: tr("Frequency"), tdStyle: { minWidth: 110, color: t.textSec }, render: r => builderText(r.frequency) || "--" },
+    { header: tr("Times per month"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (<span>{workloadNum(r.timesPerMonth)}{r.typed ? <div style={{ fontSize: 10, color: t.textMut }}>{tr("Typed by hand")}</div> : null}</span>) },
+    { header: tr("Hours each time"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => workloadNum(r.hoursPerOccurrence) },
+    { header: tr("Hours per month"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text, fontWeight: 600 }, render: r => workloadNum(r.hoursPerMonth) },
+  ];
+  const h = (plan && plan.headline) || {};
+  const tiles = plan
+    ? [workloadTile(t, tr("Hours a month"), workloadNum(h.monthlyHours), "monthlyHours"), workloadTile(t, tr("Hours a service day"), workloadNum(h.hoursPerServiceDay), "hoursPerServiceDay"), workloadTile(t, tr("Staff recommended"), workloadNum(h.recommendedStaff), "recommendedStaff"), workloadTile(t, tr("Staff minimum"), workloadNum(h.minimumStaff), "minimumStaff"), workloadTile(t, tr("Cleaners assigned"), workloadNum(assigned.cleaners), "cleaners")]
+    : [workloadTile(t, tr("Cleaners assigned"), workloadNum(assigned.cleaners), "cleaners")];
+  const takenBy = plan ? workloadWho(plan.adoptedBy) : "";
+  return (<div data-workload-plan={plan ? (plan.stale ? "stale" : "current") : "none"}>
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+        <div style={{ flex: "1 1 260px", minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Workload plan")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The hours this building needs, task by task, and the staff that follows, from the quote used as its plan. It shows no price.")}</div>
+        </div>
+        {plan && <Btn t={t} v="ghost" onClick={() => setPdfOpen(true)} style={small}>{tr("Print the plan")}</Btn>}
+      </div>
+      {plan && plan.stale && <div data-plan-stale="" style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 10, lineHeight: 1.5 }}>{tr("The quote changed after this plan took it. Use the quote again to update the plan.")}</div>}
+      {!plan && <div data-plan-none="" style={{ fontSize: 13, color: t.textSec, marginBottom: 10 }}>{tr("No workload plan yet.")}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))", gap: 10 }}>{tiles}</div>
+      {plan && <div data-plan-from="" style={{ fontSize: 12, color: t.textSec, marginTop: 12, lineHeight: 1.5 }}>
+        {takenBy ? tr("From quote {0}, revision {1}, taken on {2} by {3}.", plan.quoteNumber || "--", plan.quoteRevision != null ? plan.quoteRevision : "--", plan.adoptedAt ? irDay(plan.adoptedAt) : "--", takenBy) : tr("From quote {0}, revision {1}, taken on {2}.", plan.quoteNumber || "--", plan.quoteRevision != null ? plan.quoteRevision : "--", plan.adoptedAt ? irDay(plan.adoptedAt) : "--")}
+        {plan.note ? <div style={{ color: t.text, marginTop: 4, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{plan.note}</div> : null}
+      </div>}
+      {sameLine && <div data-plan-same="" style={{ fontSize: 12, color: t.textSec, marginTop: 10 }}>{tr("The plan already has this quote as it was saved. Nothing changed.")}</div>}
+      {canBuild && <div data-plan-actions="" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start", marginTop: 14 }}>
+        {plan && plan.quoteId && <Btn t={t} v="ghost" onClick={() => { window.location.hash = "quotes/" + encodeURIComponent(String(plan.quoteId)); }} style={small}>{tr("Open the quote")}</Btn>}
+        {plan && plan.stale && <div><Btn t={t} onClick={() => take(plan.quoteId, plan.note, "update")} disabled={!!busy} style={small}>{busy === "update" ? tr("Saving...") : tr("Update the plan")}</Btn>{refusedAt("update")}</div>}
+        {plan && !ending && <Btn t={t} v="danger" onClick={() => { setEnding(true); setRefusal({ text: "", at: "" }); }} disabled={!!busy} style={small}>{tr("End the plan")}</Btn>}
+        {!plan && <Btn t={t} onClick={() => { window.location.hash = "quotes/new/" + encodeURIComponent(String(siteId)); }} style={small}>{tr("Make a workload plan")}</Btn>}
+        {!plan && !picking && <Btn t={t} v="ghost" onClick={() => { setPicking(true); setRefusal({ text: "", at: "" }); }} style={small}>{tr("Use a saved quote")}</Btn>}
+      </div>}
+      {canBuild && plan && ending && <div data-plan-ending="" style={{ marginTop: 14, padding: 14, borderRadius: 10, border: "1px solid " + t.border, background: t.hover }}>
+        <div style={{ fontSize: 13, color: t.text, marginBottom: 10, lineHeight: 1.5 }}>{tr("End this site's workload plan? It moves to the earlier plans, and the site has no plan until a quote is used again.")}</div>
+        <Lbl>{tr("Reason")}</Lbl>
+        <TArea t={t} rows={2} maxLength={500} aria-label={tr("Reason")} value={reason} onChange={e => setReason(e.target.value)} style={quoteBoxStyle(refusal.at === "reason")} />
+        {refusedAt("reason")}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => { setEnding(false); setReason(""); setRefusal({ text: "", at: "" }); }} disabled={busy === "end"} style={small}>{tr("Cancel")}</Btn>
+          <Btn t={t} v="danger" onClick={end} disabled={!!busy || !reason.trim()} style={small}>{busy === "end" ? tr("Saving...") : tr("End the plan")}</Btn>
+        </div>
+        {refusedAt("end")}
+      </div>}
+      {canBuild && !plan && picking && <div data-plan-picking="" style={{ marginTop: 14, padding: 14, borderRadius: 10, border: "1px solid " + t.border, background: t.hover }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Use a saved quote")}</div>
+          <button onClick={() => { setPicking(false); setRefusal({ text: "", at: "" }); }} aria-label={tr("Close")} style={xBtn}><XI sz={16} c={t.textMut} /></button>
+        </div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("This site's saved quotes. Declined and void quotes are left out.")}</div>
+        <Lbl>{tr("Note")}</Lbl>
+        <TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={note} onChange={e => setNote(e.target.value)} style={quoteBoxStyle(refusal.at === "note")} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional. It shows with the plan.")}</div>
+        {refusedAt("note")}
+        <div style={{ marginTop: 10 }}>
+          {quotes === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+            : quotesFailed ? <LoadFailed t={t} text={quotesFailed} onRetry={loadQuotes} />
+            : quotes.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No saved quote names this site yet.")}</div>
+            : quotes.map(q => (<div key={q.id} data-plan-quote={q.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "8px 0", borderTop: "1px solid " + t.border }}>
+              <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{q.number}</div>
+                <div style={{ fontSize: 11, color: t.textMut }}>{tr("Revision {0}", q.revision != null ? q.revision : 1)}{q.updatedAt ? ", " + irDay(q.updatedAt) : ""}</div>
+              </div>
+              <Bdg l={quoteStatusWord(q.status)} c={quoteStatusColor(q.status)} />
+              <div><Btn t={t} onClick={() => take(q.id, note, "quote:" + q.id)} disabled={!!busy} style={small}>{busy === "quote:" + q.id ? tr("Saving...") : tr("Use this quote")}</Btn>{refusedAt("quote:" + q.id)}</div>
+            </div>))}
+        </div>
+      </div>}
+    </Crd>
+    {plan && Array.isArray(plan.figures) && plan.figures.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={head}>{tr("Figures")}</div>
+      <div data-plan-figures="" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", columnGap: 20 }}>
+        {plan.figures.map((f, i) => (<div key={f.key || i} data-plan-figure={f.key} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, padding: "5px 0", borderTop: "1px solid " + t.border }}>
+          <span style={{ color: t.textSec, minWidth: 0 }}>{builderText(f.label)}</span><span style={{ color: t.text, whiteSpace: "nowrap", fontWeight: 500 }}>{quoteFigure(f.value, f.unit)}</span>
+        </div>))}
+      </div>
+    </Crd>}
+    {plan && Array.isArray(plan.tasks) && plan.tasks.length > 0 && <div style={{ marginBottom: 16 }}>
+      <div style={{ ...head, marginBottom: 8 }}>{tr("Tasks")}</div>
+      <DataTable t={t} columns={taskCols} rows={plan.tasks} empty={tr("No rows.")} />
+    </div>}
+    {history.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={head}>{tr("Earlier plans")}</div>
+      <div data-plan-history="">{history.map((x, i) => {
+        const took = workloadWho(x.adoptedBy); const ended = workloadWho(x.endedBy);
+        return (<div key={x.id || i} style={{ padding: "8px 0", borderTop: i ? "1px solid " + t.border : "none", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Quote {0}, revision {1}", x.quoteNumber || "--", x.quoteRevision != null ? x.quoteRevision : "--")}</div>
+          <div>{took ? tr("Taken on {0} by {1}", x.adoptedAt ? irDay(x.adoptedAt) : "--", took) : tr("Taken on {0}", x.adoptedAt ? irDay(x.adoptedAt) : "--")}</div>
+          {x.endedAt && <div>{ended ? tr("Ended on {0} by {1}", irDay(x.endedAt), ended) : tr("Ended on {0}", irDay(x.endedAt))}</div>}
+          {x.endReason === "replaced" && <div>{tr("Replaced by a newer plan")}</div>}
+          {x.endReason === "ended" && x.endNote ? <div style={{ overflowWrap: "anywhere" }}>{tr("Reason: {0}", x.endNote)}</div> : null}
+          {x.note ? <div style={{ color: t.textMut, overflowWrap: "anywhere" }}>{x.note}</div> : null}
+        </div>);
+      })}</div>
+    </Crd>}
+    {pdfOpen && plan && <PdfWindow token={token} t={t} onClose={() => setPdfOpen(false)} boxProps={{ "data-plan-pdf": "" }}
+      title={tr("Workload plan")}
+      sub={tr("Quote {0}, revision {1}", plan.quoteNumber || "--", plan.quoteRevision != null ? plan.quoteRevision : "--")}
+      help={tr("The plan as the site reads it: the hours, the staffing and the task table. It shows no price.")}
+      pathFor={(lang) => base + "/pdf?locale=" + lang}
+      fallbackName="workload-plan.pdf" />}
   </div>);
 }
 
@@ -11652,17 +12049,19 @@ function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, bus
   </div>);
 }
 // The signature a stamp carries, streamed by the API and drawn about 48 pixels high above the line
-// that says who signed. A stamp with no signature draws nothing here.
-function SignatureImage({ t, token, responseId, signKey }) {
+// that says who signed. A stamp with no signature draws nothing here. path, when given, is the route
+// the API names for the image, as a filed inspection's signatures carry it (Step 218).
+function SignatureImage({ t, token, responseId, signKey, path }) {
   const [url, setUrl] = useState("");
+  const src = path || ("/api/forms/responses/" + encodeURIComponent(responseId) + "/signatures/" + encodeURIComponent(signKey));
   useEffect(() => {
     let alive = true;
     let made = "";
-    apiDownload("/api/forms/responses/" + encodeURIComponent(responseId) + "/signatures/" + encodeURIComponent(signKey), token)
+    apiDownload(src, token)
       .then(f => { made = URL.createObjectURL(f.blob); if (alive) setUrl(made); else URL.revokeObjectURL(made); })
       .catch(() => { if (alive) setUrl(""); });
     return () => { alive = false; if (made) URL.revokeObjectURL(made); };
-  }, [responseId, signKey, token]);
+  }, [src, token]);
   if (!url) return null;
   return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
 }
