@@ -1112,6 +1112,188 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
   </div>);
 }
 
+// ===== EMPLOYMENT (Step 232, Part A) =====
+// A person's employment with its reason recorded (STEP223_CONTRACT_v2.md): ended, on leave, back from
+// leave, rehired, every event kept as history. Staff Management's profile shows it with the windows
+// that change it, and HR Records' folder shows the same card read only. Nothing shows until
+// GET /api/users/:id/employment answers with status and events; until then the profile keeps
+// Deactivate and Reactivate as they were.
+const employmentAnswerOf = (d) => (d && typeof d === "object" && typeof d.status === "string" && Array.isArray(d.events) ? d : null);
+const EMPLOYMENT_KIND = { ended: "Employment ended", leave: "On leave", returned: "Returned from leave", rehired: "Rehired", status_changed: "Status changed", confirmed: "Confirmed still working" };
+const employmentKindWord = (k) => (EMPLOYMENT_KIND[k] ? tr(EMPLOYMENT_KIND[k]) : String(k || ""));
+// The event that explains the state a person is in: an ended event for someone terminated, a leave for
+// someone inactive. A person in either state without one reads No reason recorded.
+const employmentExplains = (status, ev) => !!(ev && ((status === "terminated" && ev.kind === "ended") || (status === "inactive" && ev.kind === "leave")));
+const employmentNeedsReason = (d) => !!(d && (d.status === "inactive" || d.status === "terminated") && !employmentExplains(d.status, d.current));
+// The status as the card and the lists say it: On leave for someone inactive whose latest event is a
+// leave, and the person's status word otherwise.
+const employmentStateWord = (status, current) => (status === "inactive" && current && current.kind === "leave" ? tr("On leave") : status === "terminated" ? tr("terminated|person") : personStateOf(status));
+const employmentStateColor = (status) => (status === "active" ? GR : status === "pending" || status === "inactive" ? OR : RD);
+const employmentWho = (p) => (p && typeof p === "object" && p.name ? String(p.name) : "");
+// The reasons, GET /api/users/employment-reasons, in the screen's language, read once a language.
+const employmentReasonsCache = {};
+const loadEmploymentReasons = (af) => {
+  const lang = getLang();
+  if (!employmentReasonsCache[lang]) {
+    employmentReasonsCache[lang] = af("/api/users/employment-reasons")
+      .then(d => ({ ended: d && Array.isArray(d.ended) ? d.ended : [], leave: d && Array.isArray(d.leave) ? d.leave : [] }))
+      .catch(e => { delete employmentReasonsCache[lang]; throw e; });
+  }
+  return employmentReasonsCache[lang];
+};
+// The latest ended event in a person's history, whose rehireEligible says whether they left eligible.
+const employmentLastEnded = (d) => ((d && Array.isArray(d.events) ? d.events : []).filter(e => e && e.kind === "ended").sort((a, b) => String(b.recordedAt || "").localeCompare(String(a.recordedAt || "")))[0] || null);
+
+// The Employment card: the status with its reason, the last day or the expected return, rehire
+// eligibility for an ended employment, the note, who recorded it and when, and every event newest
+// first. onRecord, when given, offers Record the reason for a person whose state has none; staffHref,
+// when given, is the read only card's link to Staff Management, where the buttons are.
+function EmploymentCard({ t, data, onRecord, staffHref }) {
+  const [open, setOpen] = useState(false);
+  const cur = data.current || null;
+  const explained = employmentExplains(data.status, cur);
+  const events = (data.events || []).slice().sort((a, b) => String(b.recordedAt || "").localeCompare(String(a.recordedAt || "")));
+  const line = { fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 };
+  const recorded = (ev) => { const who = employmentWho(ev.recordedBy); const when = ev.recordedAt ? irDay(ev.recordedAt) : "--"; return who ? tr("Recorded by {0} on {1}", who, when) : tr("Recorded on {0}", when); };
+  const detail = (ev) => [
+    ev.reasonLabel ? String(ev.reasonLabel) : "",
+    ev.kind === "ended" && ev.lastDay ? tr("Last day {0}", fdLong(ev.lastDay)) : "",
+    ev.kind === "ended" && ev.rehireEligible === true ? tr("Eligible for rehire") : "",
+    ev.kind === "ended" && ev.rehireEligible === false ? tr("Not eligible for rehire") : "",
+    ev.kind === "leave" && ev.expectedReturn ? tr("Expected back {0}", fdLong(ev.expectedReturn)) : "",
+  ].filter(Boolean).join(". ");
+  return (<Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
+    <div data-employment={data.status}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Employment")}</div>
+        {staffHref ? <a href={staffHref} style={{ fontSize: 12, color: t.goldText, fontWeight: 600, minHeight: 44, display: "inline-flex", alignItems: "center" }}>{tr("Open in Staff Management")}</a> : null}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        <Bdg l={employmentStateWord(data.status, cur)} c={employmentStateColor(data.status)} />
+        {explained && cur.reasonLabel ? <span data-employment-reason="" style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{cur.reasonLabel}</span> : null}
+      </div>
+      {explained && cur.kind === "ended" && <div style={line}>{[cur.lastDay ? tr("Last day {0}", fdLong(cur.lastDay)) : "", cur.rehireEligible === true ? tr("Eligible for rehire") : cur.rehireEligible === false ? tr("Not eligible for rehire") : ""].filter(Boolean).join(". ")}</div>}
+      {explained && cur.kind === "leave" && cur.expectedReturn && <div style={line}>{tr("Expected back {0}", fdLong(cur.expectedReturn))}</div>}
+      {explained && cur.note ? <div style={{ ...line, color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cur.note}</div> : null}
+      {explained && <div style={{ ...line, color: t.textMut }}>{recorded(cur)}</div>}
+      {employmentNeedsReason(data) && <div data-employment-no-reason="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        <span style={{ fontSize: 13, color: OR, fontWeight: 600 }}>{tr("No reason recorded")}</span>
+        {onRecord ? <Btn t={t} v="ghost" onClick={onRecord} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Record the reason")}</Btn> : null}
+      </div>}
+      {events.length > 0 && <div style={{ marginTop: 10 }}>
+        <Btn t={t} v="ghost" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("History ({0})", events.length)}</Btn>
+        {open && <div data-employment-history="" style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
+          {events.map((ev, i) => (<div key={ev.id || i} style={{ padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, color: t.text }}>{employmentKindWord(ev.kind)}</div>
+            {detail(ev) ? <div>{detail(ev)}</div> : null}
+            {ev.note ? <div style={{ color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
+            <div style={{ color: t.textMut }}>{recorded(ev)}</div>
+          </div>))}
+        </div>}
+      </div>}
+    </div>
+  </Crd>);
+}
+
+// The windows that change a person's employment: end, leave, return and rehire, and, with record, the
+// reason for someone already ended or on leave, which the same route records without changing
+// anything. A refusal is drawn word for word under the field its keys name, and anything else at
+// the top. Each window says what will happen before it is sent.
+const EMPLOYMENT_SEND = { end: "End employment", leave: "Put on leave", "return": "Return from leave", rehire: "Rehire" };
+function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast }) {
+  const today = toISO(new Date());
+  const [reasons, setReasons] = useState(null);
+  const [f, setF] = useState({ reason: "", lastDay: "", rehireEligible: "", expectedReturn: "", hireDate: "", note: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (mode !== "end" && mode !== "leave") return undefined;
+    let alive = true;
+    loadEmploymentReasons(af).then(d => { if (alive) setReasons(d[mode === "end" ? "ended" : "leave"] || []); }).catch(e => { if (alive) { setReasons([]); setRefusal({ text: e.message || tr("Request failed"), field: "" }); } });
+    return () => { alive = false; };
+  }, [af, mode]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const FIELDS = ["reason", "lastDay", "rehireEligible", "expectedReturn", "hireDate", "note"];
+  const fieldOf = (e) => { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; return keys.find(k => FIELDS.indexOf(k) >= 0) || ""; };
+  const noteNeeded = f.reason === "other";
+  const ready = mode === "end" ? !!(f.reason && f.lastDay && f.rehireEligible && (!noteNeeded || f.note.trim()))
+    : mode === "leave" ? !!(f.reason && (!noteNeeded || f.note.trim()))
+    : mode === "rehire" ? !!f.hireDate : true;
+  const send = async () => {
+    if (savingRef.current || !ready) return;
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    const note = f.note.trim() || null;
+    const body = mode === "end" ? { reason: f.reason, lastDay: f.lastDay, rehireEligible: f.rehireEligible === "yes", note }
+      : mode === "leave" ? { reason: f.reason, expectedReturn: f.expectedReturn || null, note }
+      : mode === "rehire" ? { hireDate: f.hireDate, note } : { note };
+    try {
+      const d = await af("/api/users/" + encodeURIComponent(userId) + "/employment/" + mode, { method: "POST", body });
+      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : tr("Employment updated."));
+      onSaved(d);
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    savingRef.current = false; setSaving(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-employment-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
+  const reasonOpts = [{ v: "", l: reasons === null ? tr("Loading...") : tr("Choose a reason") }].concat((reasons || []).map(r => ({ v: String(r.code), l: String(r.label || r.code) })));
+  const lastEnded = employmentLastEnded(data);
+  const notEligible = mode === "rehire" && !!lastEnded && lastEnded.rehireEligible === false;
+  const who = name || tr("this person");
+  const confirmLine = record ? (mode === "end" ? tr("This records the reason {0} left. Their status and sites do not change.", who) : tr("This records the reason {0} is on leave. Their status and sites do not change.", who))
+    : mode === "end" ? tr("End the employment of {0}? Every site they are assigned to ends with it.", who)
+    : mode === "leave" ? tr("Put {0} on leave? They cannot sign in while on leave, and they keep their sites.", who)
+    : mode === "return" ? tr("Bring {0} back from leave? They can sign in again.", who)
+    : tr("Rehire {0}? They can sign in again, and their history stays.", who);
+  const title = record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode]);
+  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
+        {name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-employment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {(mode === "end" || mode === "leave") && <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Reason")}</Lbl>
+      <Sel t={t} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} options={reasonOpts} style={box("reason")} />
+      {under("reason")}
+      {mode === "end" && f.reason === "dismissed" && <div data-employment-letter="" style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>
+        {tr("Record the termination letter in HR Records, under Disciplinary.")} <a href={"#hr/" + encodeURIComponent(String(userId))} style={{ color: t.goldText, fontWeight: 600 }}>{tr("Open in HR Records")}</a>
+      </div>}
+    </div>}
+    {mode === "end" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={f.lastDay} onChange={e => set("lastDay", e.target.value)} style={box("lastDay")} />{under("lastDay")}</div>
+      <div><Lbl>{tr("Eligible for rehire?")}</Lbl><Sel t={t} aria-label={tr("Eligible for rehire?")} value={f.rehireEligible} onChange={e => set("rehireEligible", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "yes", l: tr("Yes") }, { v: "no", l: tr("No") }]} style={box("rehireEligible")} />{under("rehireEligible")}</div>
+    </div>}
+    {mode === "leave" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
+      <Lbl>{tr("Expected return")}</Lbl><Inp t={t} type="date" min={today} aria-label={tr("Expected return")} value={f.expectedReturn} onChange={e => set("expectedReturn", e.target.value)} style={box("expectedReturn")} />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional.")}</div>{under("expectedReturn")}
+    </div>}
+    {mode === "rehire" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
+      <Lbl>{tr("New hire date")}</Lbl><Inp t={t} type="date" aria-label={tr("New hire date")} value={f.hireDate} onChange={e => set("hireDate", e.target.value)} style={box("hireDate")} />{under("hireDate")}
+    </div>}
+    <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Note")}</Lbl>
+      <TArea t={t} rows={3} maxLength={2000} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} style={box("note")} />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{noteNeeded ? tr("Required for Other.") : tr("Optional.")}</div>
+      {under("note")}
+    </div>
+    {notEligible && <div data-employment-not-eligible="" style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("Marked not eligible for rehire when they left.")}</div>}
+    <div data-employment-confirm="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 14 }}>{confirmLine}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={saving} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} v={mode === "end" && !record ? "danger" : "primary"} onClick={send} disabled={saving || !ready} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode])}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The buttons that change a person's employment, by status: Put on leave and End employment for
+// someone active, Return from leave and End employment for someone inactive, Rehire for someone
+// terminated. Never on the signed-in person's own profile.
+const employmentActions = (status) => (status === "active" ? ["leave", "end"] : status === "inactive" ? ["return", "end"] : status === "terminated" ? ["rehire"] : []);
+
 function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null }) {
   // The API's rank rule (routes/users.js): without manage_admins a person changes no account at or
   // above their own rank, admin over supervisor over everyone else, and not their own account. The
@@ -1137,6 +1319,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [empIdError, setEmpIdError] = useState("");
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
+  // Step 232: the open person's employment, once GET /api/users/:id/employment answers, and the
+  // window open on it.
+  const [employment, setEmployment] = useState(null); const [empWin, setEmpWin] = useState(null);
+  const loadEmployment = (id) => { af("/api/users/" + encodeURIComponent(id) + "/employment").then(d => setEmployment(employmentAnswerOf(d))).catch(e => { setEmployment(null); console.warn("Employment:", e.message); }); };
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
@@ -1197,13 +1383,20 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
-  const openProfile = async (id) => {
+  const openProfile = async (id, tab) => {
+    setEmployment(null); setEmpWin(null);
     try {
       const d = await af("/api/users/profile/" + id);
-      setProfile(d); setProfileTab("info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
+      setProfile(d); setProfileTab(tab || "info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
+      loadEmployment(id);
     } catch (e) { showToast(e.message, "error"); }
   };
-  const closeProfile = () => { setProfile(null); setProfileEdit(null); };
+  const closeProfile = () => { setProfile(null); setProfileEdit(null); setEmployment(null); setEmpWin(null); };
+  // After an employment change: the profile read again on the tab it is on, its employment, and the list.
+  const refreshProfile = async (id) => {
+    try { const d = await af("/api/users/profile/" + id); setProfile(d); } catch (e) { showToast(e.message, "error"); }
+    loadEmployment(id); load(); if (loadStaff) loadStaff();
+  };
 
   // Load HR data for the HR Files tab
   const loadHrData = async (userId) => {
@@ -1534,11 +1727,14 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
           {canChange(u) && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
           {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
-          {canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
-          {canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {!employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
+          {!employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
           {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
+
+      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
@@ -1547,6 +1743,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* INFO TAB */}
       {profileTab === "info" && <div>
+        {employment && <EmploymentCard t={t} data={employment} onRecord={canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
