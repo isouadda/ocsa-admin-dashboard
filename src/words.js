@@ -3008,6 +3008,16 @@ export const WORDS = {
     en: { one: "{0} address could not be reached.", other: "{0} addresses could not be reached." },
     es: { one: "No se pudo entregar a {0} direcci\u00f3n.", other: "No se pudo entregar a {0} direcciones." },
   },
+  "New message": { es: "Nuevo mensaje" },
+  "Picking someone in the office opens your direct chat with them. Picking a staff member opens their private chat with the office.": { es: "Al elegir a alguien de la oficina se abre su chat directo con esa persona. Al elegir a alguien del personal se abre su chat privado con la oficina." },
+  "Search by name or badge": { es: "Buscar por nombre o credencial" },
+  "Office|people": { es: "Oficina" },
+  "Search chats and people": { es: "Buscar chats y personas" },
+  "People": { es: "Personas" },
+  "Message {0}": { es: "Escribir a {0}" },
+  "Direct message": { es: "Mensaje directo" },
+  "Direct messages": { es: "Mensajes directos" },
+  "No direct messages yet. New message starts one.": { es: "Todav\u00eda no hay mensajes directos. Nuevo mensaje empieza uno." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
