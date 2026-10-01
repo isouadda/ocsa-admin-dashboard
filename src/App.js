@@ -65,12 +65,18 @@ async function apiMultipart(path, token, formData) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
+// A 409 schedule.clearanceMissing (Step 211) is announced as well as thrown, whichever screen sent the
+// call, and the shell draws it with the person's name and a way to their clearances.
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
+    if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
+    throw err;
+  }
   return r.json();
 }
 // An answer the API writes as it goes. The request is apiFetch's, through apiRequest, so the address,
@@ -551,6 +557,9 @@ export default function AdminDashboard() {
   const [canReadFiledForms, setCanReadFiledForms] = useState(false);
   // Whether GET /api/clearances answers this person (Step 211). Read once a session.
   const [clearancesOn, setClearancesOn] = useState(false);
+  // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
+  const [clearanceRefused, setClearanceRefused] = useState(null);
+  useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
@@ -1022,6 +1031,7 @@ export default function AdminDashboard() {
       </div>
     </div>
 
+    {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
@@ -15775,6 +15785,51 @@ function ClearancesPage({ af, token, t, sites = [] }) {
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId)} empty={tr("No one matches.")} />}
   </div>);
+}
+
+// The school site guard (Step 211). Every path that puts a person on work at a school site, a shift
+// made or edited, a standing pattern, an assignment to the site, a pickup approved or a dropped
+// shift given to someone else, is refused 409 schedule.clearanceMissing while their clearances are
+// not in order, with what is missing in missing and the person's name in keys. apiFetch announces
+// the refusal, whichever screen made the call, and the shell draws this window over it: whose
+// clearances, which ones, and a way to their Clearances. There is no way to assign anyway; a date
+// entered wrongly is corrected on the person's record, and the work is tried again.
+const clearanceMissingWord = (k) => (k === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(k));
+// The people a refusal names, matched to the people the shell holds by name, an id the request named
+// first, and the one id a request named when the refusal names nobody.
+const clearanceRefusedPeople = (refusal, people) => {
+  const body = (refusal && refusal.body) || {};
+  const ids = [body.user_id, body.userId].concat(Array.isArray(body.user_ids) ? body.user_ids : [], Array.isArray(body.userIds) ? body.userIds : []).filter(x => x != null).map(String);
+  const list = Array.isArray(people) ? people : [];
+  const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+  const names = Array.isArray(refusal && refusal.keys) ? refusal.keys.map(String).filter(Boolean) : [];
+  if (names.length === 0) return ids.length === 1 ? [{ id: ids[0], name: nameOf(list.find(p => String(p.id) === ids[0]) || {}) }] : [];
+  return names.map(n => {
+    const same = list.filter(p => nameOf(p).toLowerCase() === n.toLowerCase());
+    const hit = same.find(p => ids.indexOf(String(p.id)) >= 0) || (same.length === 1 ? same[0] : null) || (ids.length === 1 && same.length === 0 ? { id: ids[0] } : null);
+    return { id: hit ? String(hit.id) : null, name: n };
+  });
+};
+function ClearanceMissingWindow({ t, refusal, people, onClose }) {
+  const who = clearanceRefusedPeople(refusal, people);
+  const missing = Array.isArray(refusal && refusal.missing) ? refusal.missing.map(String) : [];
+  const names = who.map(p => p.name).filter(Boolean);
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-clearance-missing="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><AlI sz={18} c={RD} /><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Clearances missing")}</div></div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 10 }}>{names.length ? tr("{0} cannot be placed at this school site.", names.join(", ")) : tr("This person cannot be placed at this school site.")}</div>
+    {missing.length > 0 && <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 4 }}>{tr("Missing or out of date:")}</div>
+      {missing.map(k => <div key={k} data-missing={k} style={{ fontSize: 13, color: t.text, padding: "2px 0" }}>{clearanceMissingWord(k)}</div>)}
+    </div>}
+    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 14 }}>{tr("Nobody works at a school site without current clearances. If a date was entered wrongly, correct it on their Clearances, then try again.")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
+      {who.filter(p => p.id).map(p => <Btn key={p.id} t={t} onClick={() => { onClose(); openClearancesOf(p.id); }} style={{ minHeight: 44 }}>{p.name ? tr("Open the clearances of {0}", p.name) : tr("Open their clearances")}</Btn>)}
+    </div>
+  </div></Mdl>);
 }
 
 function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {

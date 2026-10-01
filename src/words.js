@@ -3057,6 +3057,13 @@ export const WORDS = {
   "Act 151": { es: "Act 151" },
   "FBI": { es: "FBI" },
   "Act 168": { es: "Act 168" },
+  "Clearances missing": { es: "Faltan autorizaciones escolares" },
+  "{0} cannot be placed at this school site.": { es: "No se puede asignar a {0} a este sitio escolar." },
+  "This person cannot be placed at this school site.": { es: "No se puede asignar a esta persona a este sitio escolar." },
+  "Missing or out of date:": { es: "Faltan o est\u00e1n vencidas:" },
+  "Nobody works at a school site without current clearances. If a date was entered wrongly, correct it on their Clearances, then try again.": { es: "Nadie trabaja en un sitio escolar sin autorizaciones vigentes. Si una fecha se anot\u00f3 por error, corr\u00edjala en sus autorizaciones escolares y vuelva a intentarlo." },
+  "Open the clearances of {0}": { es: "Abrir las autorizaciones de {0}" },
+  "Open their clearances": { es: "Abrir sus autorizaciones" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
