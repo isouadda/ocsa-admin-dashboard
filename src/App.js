@@ -65,12 +65,19 @@ async function apiMultipart(path, token, formData) {
   if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
   return r.json();
 }
+// A 409 schedule.clearanceMissing (Step 211) is announced as well as thrown, whichever screen sent the
+// call, and the shell draws it with the person's name and a way to their clearances by the userId the
+// refusal carries.
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
   const r = await apiRequest(API + path, { ...opts, headers: h, body: opts.body ? JSON.stringify(opts.body) : undefined });
   if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
-  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e; throw err; }
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
+    if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
+    throw err;
+  }
   return r.json();
 }
 // An answer the API writes as it goes. The request is apiFetch's, through apiRequest, so the address,
@@ -122,7 +129,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -549,6 +556,11 @@ export default function AdminDashboard() {
   // call when the session starts asks for the list: a 200 opens the page, and any other answer
   // leaves this person with what their role gives, which is the line Forms has shown all along.
   const [canReadFiledForms, setCanReadFiledForms] = useState(false);
+  // Whether GET /api/clearances answers this person (Step 211). Read once a session.
+  const [clearancesOn, setClearancesOn] = useState(false);
+  // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
+  const [clearanceRefused, setClearanceRefused] = useState(null);
+  useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
@@ -565,8 +577,11 @@ export default function AdminDashboard() {
     // Quotes opens the same way (Step 208): build_quotes is an admin's on the API's own defaults
     // table, since an estimate shows wages and margin, and the page waits for the API to name it.
     if (id === "quotes") return hasCap("build_quotes");
+    // Clearances (Step 211) answers the people HR Records answers, admins and supervisors, and opens
+    // once GET /api/clearances answers with them.
+    if (id === "clearances") return clearancesOn;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -595,6 +610,12 @@ export default function AdminDashboard() {
       .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => { done(null); console.warn("Own capabilities:", e.message); }); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
+  useEffect(() => {
+    if (!token) { setClearancesOn(false); return undefined; }
+    let alive = true;
+    af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
+    return () => { alive = false; };
+  }, [token, af]);
   useEffect(() => {
     if (!token || isAdmin) { setCanReadFiledForms(false); return; }
     let alive = true;
@@ -722,6 +743,7 @@ export default function AdminDashboard() {
   const FmI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" {...p} />;
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
   const BldI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 18v-6 M9 15h6" {...p} />;
+  const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }] },
@@ -732,6 +754,7 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
+      ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
     { label: tr("Quality"), items: [
@@ -752,7 +775,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -985,7 +1008,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -1003,11 +1026,13 @@ export default function AdminDashboard() {
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
+    {clearanceRefused && <ClearanceMissingWindow t={t} refusal={clearanceRefused} people={allStaff} onClose={() => setClearanceRefused(null)} />}
     {toast && <Tst t={toast} />}
     <style>{`*{box-sizing:border-box}button{min-height:44px;min-width:44px}select,textarea,input:not([type=checkbox]):not([type=radio]):not([type=file]):not([type=hidden]){min-height:44px}input::placeholder,textarea::placeholder{color:${t.textMut}}select{color-scheme:${themeMode}}::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:${t.scrollThumb};border-radius:2px}:focus-visible{outline:2px solid ${themeMode === "light" ? PANEL_LIGHT : GO};outline-offset:2px}${pageNarrow ? NARROW_GRID_CSS : ""}${phone ? PHONE_CSS : ""}@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
   </div></ThemeCtx.Provider>);
@@ -5808,8 +5833,16 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
   const [notReady, setNotReady] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  // Step 211: the day the summary was posted, and the file for OSHA, once the summary carries postedOn.
+  const [postedOn, setPostedOn] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [postRefusal, setPostRefusal] = useState("");
+  const [postSaved, setPostSaved] = useState(false);
+  const [itaBusy, setItaBusy] = useState(false);
+  const [itaError, setItaError] = useState("");
   const shown = (d) => {
     setData(d);
+    setPostedOn(d && d.postedOn ? String(d.postedOn).slice(0, 10) : "");
     setFigures({ averageEmployees: d.averageEmployees == null ? "" : String(d.averageEmployees), totalHours: d.totalHours == null ? "" : String(d.totalHours) });
   };
   // One read per year picked. An answer for a year no longer picked is dropped.
@@ -5867,6 +5900,32 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     setExporting(false);
   };
 
+  // The posting date goes through the route the summary saves through, PUT /api/injury-summary/:year,
+  // which takes postedOn alone and answers the summary. An answer without the date says it did not save.
+  const savePosted = async () => {
+    if (posting) return;
+    setPosting(true); setPostRefusal(""); setPostSaved(false);
+    const mine = seq.current;
+    try {
+      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { postedOn: postedOn || null } });
+      if (seq.current === mine && d && d.totals) {
+        shown(d);
+        if ((d.postedOn ? String(d.postedOn).slice(0, 10) : "") === (postedOn || "")) setPostSaved(true);
+        else setPostRefusal(tr("The posting date did not save. Try again."));
+      }
+    } catch (e) { if (seq.current === mine) setPostRefusal(e.message || tr("Request failed")); }
+    setPosting(false);
+  };
+  // The year's 300A in the layout OSHA's Injury Tracking Application takes, from
+  // GET /api/injury-summary/:year/ita.csv.
+  const downloadIta = async () => {
+    if (itaBusy) return;
+    setItaBusy(true); setItaError("");
+    try { await saveDownload("/api/injury-summary/" + year + "/ita.csv", token, "OSHA-300A-" + year + ".csv"); }
+    catch (e) { setItaError(e.message || tr("Request failed")); }
+    setItaBusy(false);
+  };
+  const posts = !!data && Object.prototype.hasOwnProperty.call(data, "postedOn");
   const refusedFor = (key) => (saveRefusal.keys.indexOf(key) >= 0 ? saveRefusal.text : "");
   const refusalElsewhere = saveRefusal.text && !saveRefusal.keys.some(k => k === "averageEmployees" || k === "totalHours") ? saveRefusal.text : "";
   const changed = !!data && (figures.averageEmployees !== (data.averageEmployees == null ? "" : String(data.averageEmployees)) || figures.totalHours !== (data.totalHours == null ? "" : String(data.totalHours)));
@@ -5886,9 +5945,13 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     {notReady && <div data-summary-refusal="notReady" style={{ fontSize: 13, color: RD, fontWeight: 600, marginBottom: 12 }}>{notReady}</div>}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <InjuryYearPicker t={t} year={year} onChange={setYear} />
-      {data && <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn></div>}
+      {data && <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {posts && <Btn t={t} v="ghost" onClick={downloadIta} disabled={itaBusy} style={{ minHeight: 44 }}>{itaBusy ? tr("Downloading...") : tr("Download for OSHA")}</Btn>}
+        <Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn>
+      </div>}
     </div>
     {exportError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {itaError && <div data-summary-refusal="ita" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{itaError}</div>}
     {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
       data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       (<>
@@ -5935,6 +5998,19 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
               signWord={tr("Certify")} busyWord={tr("Certifying...")} blocked={!signer.name.trim() || !signer.title.trim()} />
           </div>)}
         </Crd>
+        {posts && <Crd t={t} style={{ marginTop: 16 }}>
+          <div data-summary-posting="">
+            <div style={smallHead}>{tr("Posting")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, maxWidth: 560 }}>{tr("The day the summary went up where employees can read it. It stays up from February 1 to April 30.")}</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ maxWidth: 240 }}><Lbl>{tr("Posted on")}</Lbl><Inp t={t} type="date" aria-label={tr("Posted on")} value={postedOn} onChange={e => { setPostedOn(e.target.value); setPostSaved(false); }} style={postRefusal ? { borderColor: RD } : {}} /></div>
+              <Btn t={t} onClick={savePosted} disabled={posting || (postedOn || "") === (data.postedOn ? String(data.postedOn).slice(0, 10) : "")} style={{ minHeight: 44, minWidth: 96 }}>{posting ? tr("Saving...") : tr("Save")}</Btn>
+              {postSaved && <span style={{ fontSize: 12, color: GR }}>{tr("Saved")}</span>}
+            </div>
+            {postRefusal && <div data-summary-refusal="postedOn" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{postRefusal}</div>}
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 10, lineHeight: 1.4 }}>{tr("Download for OSHA saves the summary as the file OSHA's Injury Tracking Application takes.")}</div>
+          </div>
+        </Crd>}
       </>)}
   </div>);
 }
@@ -10318,6 +10394,17 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
   </div>);
 }
 
+// The company fields the OSHA 300A needs (Step 211, STEP210_CONTRACT.md sections 1 and 5), each drawn
+// once GET /api/settings answers with its column, so nothing shows before the API holds it, and sent
+// with the rest of the company's details. A blank one stays a line to fill in by hand on the 300A,
+// which prints the company's display or legal name and its address for the establishment.
+const OSHA_COMPANY_FIELDS = [
+  { key: "industry_description", label: "Industry description" },
+  { key: "naics_code", label: "NAICS code", hint: "Six digits", digits: 6 },
+  { key: "executive_name", label: "Executive name" },
+  { key: "executive_title", label: "Executive title" },
+  { key: "executive_phone", label: "Executive phone" },
+];
 function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true); const [failed, setFailed] = useState(false);
@@ -10334,10 +10421,12 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   useEffect(() => { load(); }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // A refusal of one of the 300A's fields, drawn under it when its keys name it.
+  const [oshaRefusal, setOshaRefusal] = useState({ text: "", keys: [] });
 
   const save = async () => {
     if (!form) return;
-    setSaving(true);
+    setSaving(true); setOshaRefusal({ text: "", keys: [] });
     try {
       const body = {
         legal_name: form.legal_name || null,
@@ -10354,10 +10443,15 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         timezone: form.timezone || "America/New_York",
         pay_period_start_day: form.pay_period_start_day || "Saturday",
       };
+      OSHA_COMPANY_FIELDS.forEach(f => { if (Object.prototype.hasOwnProperty.call(form, f.key)) body[f.key] = form[f.key] == null ? null : (String(form[f.key]).trim() || null); });
       const updated = await af("/api/settings", { method: "PATCH", body });
       setForm(updated);
       showToast(tr("Company settings saved"));
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      if (keys.some(k => OSHA_COMPANY_FIELDS.some(f => f.key === k))) setOshaRefusal({ text: e.message || tr("Request failed"), keys });
+      showToast(e.message, "error");
+    }
     setSaving(false);
   };
 
@@ -10484,6 +10578,20 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           <span style={{ fontSize: 12, color: t.textSec }}>{tr("Show EIN on report exports by default")}</span>
         </div>
       </Crd>
+      {OSHA_COMPANY_FIELDS.some(f => Object.prototype.hasOwnProperty.call(form, f.key)) && <Crd t={t} style={{ flex: "1 1 100%", minWidth: 320, padding: 18 }}>
+        <div data-osha-company="">
+          <div style={sec}>{tr("OSHA 300A")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>{tr("The annual summary of injuries prints these. A blank one stays a line to fill in by hand.")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+            {OSHA_COMPANY_FIELDS.filter(f => Object.prototype.hasOwnProperty.call(form, f.key)).map(f => { const refused = oshaRefusal.keys.indexOf(f.key) >= 0; return (<div key={f.key} style={{ marginBottom: 2 }}>
+              <label style={lbl}>{tr(f.label)}</label>
+              <input aria-label={tr(f.label)} style={{ ...inp, ...(refused ? { borderColor: RD } : {}) }} value={form[f.key] || ""} onChange={e => set(f.key, f.digits ? e.target.value.replace(/[^0-9]/g, "").slice(0, f.digits) : e.target.value)} inputMode={f.digits ? "numeric" : undefined} />
+              {f.hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr(f.hint)}</div>}
+              {refused && <div data-osha-refusal={f.key} style={{ fontSize: 12, color: RD, marginTop: 3 }}>{oshaRefusal.text}</div>}
+            </div>); })}
+          </div>
+        </div>
+      </Crd>}
 
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tr("Reset")}</button>
@@ -15512,6 +15620,308 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 // inside HRRecordsPage when the "employees" tab is active.
 // =====================================================
 
+// ===== SCHOOL CLEARANCES (Step 211) =====
+// Pennsylvania's three school clearances and the Act 168 employment history review, which the API
+// keeps from Step 210 (STEP210_CONTRACT.md, section 2). A clearance is renewed 60 months from its own
+// date, and the API works out each one's expiry and state. The routes answer the people HR Records
+// already answers, the admins and supervisors routes/hr.js lets in; the section and the page show
+// once GET /api/clearances answers, and a 404 or a refusal leaves them off.
+const CLEARANCE_KINDS = [
+  { key: "act34", label: "Act 34 PA State Police check", short: "Act 34" },
+  { key: "act151", label: "Act 151 child abuse clearance", short: "Act 151" },
+  { key: "fbi", label: "FBI fingerprint check", short: "FBI" },
+];
+const ACT168_LABEL = "Act 168 employment history review";
+const ACT168_SHORT = "Act 168";
+const clearanceKindWord = (k) => { const c = CLEARANCE_KINDS.find(x => x.key === k); return c ? tr(c.label) : String(k || ""); };
+// A clearance's state as the API answers it. Expiring is within 90 days.
+const CLEARANCE_STATES = {
+  current: { l: "Current|clearance", c: GR },
+  expiring: { l: "Expiring|clearance", c: OR },
+  expired: { l: "Expired|clearance", c: RD },
+  missing: { l: "Missing|clearance", c: "#8899AA" },
+  done: { l: "Done|review", c: GR },
+};
+const clearanceStateWord = (s) => (CLEARANCE_STATES[s] ? tr(CLEARANCE_STATES[s].l) : String(s || ""));
+const ClearanceChip = ({ state }) => <Bdg l={clearanceStateWord(state)} c={(CLEARANCE_STATES[state] || CLEARANCE_STATES.missing).c} />;
+// The people GET /api/clearances answers, or null when it does not answer with them.
+const clearancePeopleOf = (d) => (d && Array.isArray(d.people) ? d.people : null);
+// A person's record in HR Records, from anywhere: #hr/<id>, and #hr/<id>/clearances to bring the
+// Clearances section into view.
+const openClearancesOf = (userId) => { if (userId != null) window.location.hash = "hr/" + encodeURIComponent(String(userId)) + "/clearances"; };
+
+// Add or renew a clearance, record the Act 168 review, or correct a date entered wrongly. A refusal
+// is drawn under the box its code or keys name, and anything else at the top.
+function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSaved }) {
+  const today = toISO(new Date());
+  const [f, setF] = useState(() => ({ date: mode === "correct" && row && row.issuedDate ? String(row.issuedDate).slice(0, 10) : "", documentId: "", notes: "", reason: "", disclosure: "no" }));
+  const [docs, setDocs] = useState(null);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (mode === "correct") return undefined;
+    let alive = true;
+    af("/api/hr/documents?user_id=" + encodeURIComponent(userId)).then(d => { if (alive) setDocs(Array.isArray(d) ? d : []); }).catch(e => { if (alive) setDocs([]); console.warn("Documents:", e.message); });
+    return () => { alive = false; };
+  }, [af, userId, mode]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const fieldOf = (e) => {
+    const code = String((e && e.code) || "");
+    const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+    if (code === "clearances.badReason" || keys.indexOf("reason") >= 0) return "reason";
+    if (code === "clearances.badDate" || keys.some(k => k === "issuedDate" || k === "completedOn")) return "date";
+    if (keys.indexOf("documentId") >= 0) return "documentId";
+    if (keys.indexOf("notes") >= 0) return "notes";
+    return "";
+  };
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    const base = "/api/users/" + encodeURIComponent(userId);
+    try {
+      if (mode === "act168") await af(base + "/act168", { method: "POST", body: { completedOn: f.date, disclosure: f.disclosure === "yes", notes: f.notes.trim() || null, documentId: f.documentId || null } });
+      else if (mode === "correct") await af(base + "/clearances/" + encodeURIComponent(row.certificationId), { method: "PATCH", body: { issuedDate: f.date, reason: f.reason.trim() } });
+      else await af(base + "/clearances/" + encodeURIComponent(kind), { method: "PUT", body: { issuedDate: f.date, documentId: f.documentId || null, notes: f.notes.trim() || null } });
+      onSaved();
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    savingRef.current = false; setSaving(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-clearance-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const title = mode === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(kind);
+  const docOpts = [{ v: "", l: tr("No document") }].concat((docs || []).map(d => ({ v: String(d.id), l: d.file_name || d.title || tr("Document") })));
+  const ready = !!f.date && (mode !== "correct" || f.reason.trim().length > 0);
+  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-clearance-window={mode}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{mode === "correct" ? tr("Correct a date") : mode === "act168" ? tr("Record the review") : tr("Add or renew")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{title}{name ? " \u00b7 " + name : ""}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{mode === "correct"
+      ? tr("For a date entered wrongly. The clearance keeps its place, its expiry is worked out again from the right date, and the correction is recorded with your reason.")
+      : mode === "act168" ? tr("The employment history review the school can ask to see.")
+      : tr("A clearance is renewed every 60 months from the date on it. The one there now stays in the history.")}</div>
+    {refusal.text && !refusal.field && <div data-clearance-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {mode === "correct" && row && row.issuedDate && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr("Entered as {0}.", fdLong(row.issuedDate))}</div>}
+    <div style={{ marginBottom: 12 }}>
+      <Lbl>{mode === "correct" ? tr("The right date") : mode === "act168" ? tr("Completed on") : tr("Issued on")}</Lbl>
+      <Inp t={t} type="date" max={today} aria-label={mode === "correct" ? tr("The right date") : mode === "act168" ? tr("Completed on") : tr("Issued on")} value={f.date} onChange={e => set("date", e.target.value)} style={refusal.field === "date" ? { borderColor: RD } : {}} />
+      {under("date")}
+    </div>
+    {mode === "act168" && <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Anything disclosed?")}</Lbl>
+      <Sel t={t} aria-label={tr("Anything disclosed?")} value={f.disclosure} onChange={e => set("disclosure", e.target.value)} options={[{ v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} />
+    </div>}
+    {mode === "correct" ? (<div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Reason")}</Lbl>
+      <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} style={refusal.field === "reason" ? { borderColor: RD } : {}} />
+      {under("reason")}
+    </div>) : (<>
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Document")}</Lbl>
+        <Sel t={t} aria-label={tr("Document")} value={f.documentId} onChange={e => set("documentId", e.target.value)} options={docs === null ? [{ v: "", l: tr("Loading...") }] : docOpts} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("From this person's HR documents. Optional.")}</div>
+        {under("documentId")}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Notes")}</Lbl>
+        <TArea t={t} rows={2} aria-label={tr("Notes")} value={f.notes} onChange={e => set("notes", e.target.value)} />
+        {under("notes")}
+      </div>
+    </>)}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={saving} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={saving || !ready} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// A person's clearances on their HR record: each of the three with its issued date, its expiry and its
+// state, the earlier ones of a kind under it as history, and the Act 168 review. All of it comes from
+// GET /api/clearances?userId=, the person's row with their history, each clearance they have held
+// with its corrections. state=all goes with it so a person who has left still has their record.
+function PersonClearances({ af, t, userId, name, focus = false }) {
+  const [person, setPerson] = useState(undefined);
+  const [win, setWin] = useState(null);
+  const [open, setOpen] = useState({});
+  const boxRef = useRef(null);
+  const load = useCallback(() => {
+    af("/api/clearances?userId=" + encodeURIComponent(userId) + "&state=all").then(d => {
+      const people = clearancePeopleOf(d);
+      if (!people) { setPerson(null); return; }
+      setPerson(people.find(p => String(p.userId) === String(userId)) || { userId });
+    }).catch(e => { setPerson(null); console.warn("Clearances:", e.message); });
+  }, [af, userId]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (focus && person && boxRef.current) { try { boxRef.current.scrollIntoView({ block: "start" }); } catch (e) {} } }, [focus, person]);
+  if (!person) return null;
+  const rows = Array.isArray(person.history) ? person.history.filter(h => h && h.kind) : [];
+  const sameRow = (h, current) => !!(current && current.certificationId != null && String(h.certificationId) === String(current.certificationId));
+  const historyOf = (k, current) => rows.filter(h => h.kind === k && !sameRow(h, current)).sort((a, b) => String(b.issuedDate || "").localeCompare(String(a.issuedDate || "")));
+  const corrections = (x) => (x && Array.isArray(x.corrections) ? x.corrections : []);
+  // The current clearance's corrections are on its own row in the history.
+  const currentCorrections = (k, c) => { const h = rows.find(r => r.kind === k && sameRow(r, c)); return corrections(c).length ? corrections(c) : corrections(h); };
+  const correctedLine = (c, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Corrected on {0} from {1} to {2}: {3}", c.at ? irDay(c.at) : "--", c.from ? fdLong(c.from) : "--", c.to ? fdLong(c.to) : "--", c.reason || "")}</div>;
+  const small = { minHeight: 44, padding: "8px 12px", fontSize: 12 };
+  const act = person.act168 || {};
+  return (<Crd t={t} style={{ marginBottom: 16, scrollMarginTop: 96 }}>
+    <div ref={boxRef} data-person-clearances="" style={{ scrollMarginTop: 96 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Clearances")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Needed to work at a school site. Each is renewed every 60 months from its own date.")}</div>
+      {CLEARANCE_KINDS.map(k => {
+        const c = person[k.key] || { state: "missing" };
+        const earlier = historyOf(k.key, c);
+        return (<div key={k.key} data-clearance={k.key} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(k.label)}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{c.issuedDate ? tr("Issued {0}, expires {1}", fdLong(c.issuedDate), c.expiresOn ? fdLong(c.expiresOn) : "--") : tr("None on file")}</div>
+              {currentCorrections(k.key, c).map(correctedLine)}
+            </div>
+            <ClearanceChip state={c.state || "missing"} />
+            <Btn t={t} onClick={() => setWin({ mode: "add", kind: k.key })} style={small}>{tr("Add or renew")}</Btn>
+            {c.certificationId && <Btn t={t} v="ghost" onClick={() => setWin({ mode: "correct", kind: k.key, row: c })} style={small}>{tr("Correct a date")}</Btn>}
+            {earlier.length > 0 && <Btn t={t} v="ghost" aria-expanded={!!open[k.key]} onClick={() => setOpen(o => ({ ...o, [k.key]: !o[k.key] }))} style={small}>{tr("History ({0})", earlier.length)}</Btn>}
+          </div>
+          {open[k.key] && earlier.length > 0 && <div data-clearance-history={k.key} style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
+            {earlier.map((h, i) => (<div key={h.certificationId != null ? String(h.certificationId) : "h" + i} style={{ fontSize: 12, color: t.textSec, padding: "4px 0" }}>
+              {tr("Issued {0}, expires {1}", h.issuedDate ? fdLong(h.issuedDate) : "--", h.expiresOn ? fdLong(h.expiresOn) : "--")}
+              {corrections(h).map(correctedLine)}
+            </div>))}
+          </div>}
+        </div>);
+      })}
+      <div data-clearance="act168" style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(ACT168_LABEL)}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{act.completedOn ? tr("Completed on {0}. Disclosure: {1}.", fdLong(act.completedOn), act.disclosure ? tr("Yes") : tr("No")) : tr("None on file")}</div>
+          </div>
+          <ClearanceChip state={act.state === "done" ? "done" : "missing"} />
+          <Btn t={t} onClick={() => setWin({ mode: "act168" })} style={small}>{tr("Record the review")}</Btn>
+        </div>
+      </div>
+    </div>
+    {win && <ClearanceWindow af={af} t={t} userId={userId} name={name} mode={win.mode} kind={win.kind} row={win.row} onClose={() => setWin(null)} onSaved={() => { setWin(null); load(); }} />}
+  </Crd>);
+}
+
+// The Clearances page (Step 211): everyone from GET /api/clearances, the soonest expiry first, with a
+// filter by state and by site. A missing clearance has no expiry and sorts first, then the expired,
+// then the rest by the day the first of them runs out. A row opens the person's record at their
+// Clearances. Export for a school saves GET /api/clearances/export.csv for the site picked.
+const CLEARANCE_FILTERS = [
+  { v: "", l: "Every active person" },
+  { v: "current", l: "Current|clearance" },
+  { v: "expiring", l: "Expiring|clearance" },
+  { v: "expired", l: "Expired|clearance" },
+  { v: "missing", l: "Missing|clearance" },
+  { v: "all", l: "Everyone, inactive and terminated included" },
+];
+const clearanceSoonest = (p) => CLEARANCE_KINDS.map(k => (p && p[k.key] && p[k.key].expiresOn ? String(p[k.key].expiresOn).slice(0, 10) : "0000-00-00")).sort()[0];
+function ClearancesPage({ af, token, t, sites = [] }) {
+  const [state, setState] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const load = useCallback(() => {
+    const q = [].concat(state ? ["state=" + encodeURIComponent(state)] : [], siteId ? ["siteId=" + encodeURIComponent(siteId)] : []);
+    setFailed("");
+    af("/api/clearances" + (q.length ? "?" + q.join("&") : ""))
+      .then(d => { const people = clearancePeopleOf(d) || []; setRows(people.slice().sort((a, b) => clearanceSoonest(a).localeCompare(clearanceSoonest(b)) || String(a.name || "").localeCompare(String(b.name || "")))); })
+      .catch(e => { setRows([]); setFailed(e.message || tr("This did not load.")); console.warn("Clearances:", e.message); });
+  }, [af, state, siteId]);
+  useEffect(() => { load(); }, [load]);
+  const exportCsv = async () => {
+    if (exporting || !siteId) return;
+    setExporting(true); setExportError("");
+    try { await saveDownload("/api/clearances/export.csv?siteId=" + encodeURIComponent(siteId), token, "clearances.csv"); }
+    catch (e) { setExportError(e.message || tr("Request failed")); }
+    setExporting(false);
+  };
+  const cell = (c) => (<div style={{ whiteSpace: "nowrap" }}><ClearanceChip state={(c && c.state) || "missing"} />{c && c.expiresOn ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{fdLong(c.expiresOn)}</div> : null}</div>);
+  const cols = [
+    { header: tr("Name"), tdStyle: { minWidth: 150 }, render: p => (<span><span style={{ fontWeight: 600, color: t.text }}>{p.name}</span>{p.status && p.status !== "active" ? <div style={{ fontSize: 11, color: t.textMut }}>{personStatusWord(p.status)}</div> : null}</span>) },
+    { header: tr("School site"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => (p.atSchoolSite ? tr("Yes") : "--") },
+  ].concat(CLEARANCE_KINDS.map(k => ({ header: <span title={tr(k.label)}>{tr(k.short)}</span>, render: p => cell(p[k.key]) })), [
+    { header: <span title={tr(ACT168_LABEL)}>{tr(ACT168_SHORT)}</span>, render: p => { const a = p.act168 || {}; return (<div style={{ whiteSpace: "nowrap" }}><ClearanceChip state={a.state === "done" ? "done" : "missing"} />{a.completedOn ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{fdLong(a.completedOn)}</div> : null}</div>); } },
+  ]);
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  return (<div data-clearances-page="">
+    <SecT t={t}>{tr("Clearances")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Everyone's school clearances, the soonest expiry first. A row opens the person's record.")}</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("State")} value={state} onChange={e => setState(e.target.value)} style={selSt}>{CLEARANCE_FILTERS.map(f => <option key={f.v} value={f.v}>{tr(f.l)}</option>)}</select>
+      <select aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} style={selSt}>
+        <option value="">{tr("All sites")}</option>
+        {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {!siteId && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Pick a site to export it for the school.")}</span>}
+        <Btn t={t} v="ghost" onClick={exportCsv} disabled={!siteId || exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export for a school")}</Btn>
+      </div>
+    </div>
+    {exportError && <div data-clearances-export-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId)} empty={tr("No one matches.")} />}
+  </div>);
+}
+
+// The school site guard (Step 211). Every path that puts a person on work at a school site, a shift
+// made or edited, a standing pattern, an assignment to the site, a pickup approved or a dropped
+// shift given to someone else, is refused 409 schedule.clearanceMissing while their clearances are
+// not in order, with what is missing in missing, the person's name in keys and their id in userId.
+// apiFetch announces the refusal, whichever screen made the call, and the shell draws this window
+// over it: whose clearances, which ones, and a way to their Clearances. There is no way to assign
+// anyway; a date entered wrongly is corrected on the person's record, and the work is tried again.
+const clearanceMissingWord = (k) => (k === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(k));
+// The person a refusal names: by the userId it carries, with the name from keys or the people the
+// shell holds. A refusal without one is matched by name, an id the request named first, and the one
+// id a request named when the refusal names nobody.
+const clearanceRefusedPeople = (refusal, people) => {
+  const body = (refusal && refusal.body) || {};
+  const ids = [body.user_id, body.userId].concat(Array.isArray(body.user_ids) ? body.user_ids : [], Array.isArray(body.userIds) ? body.userIds : []).filter(x => x != null).map(String);
+  const list = Array.isArray(people) ? people : [];
+  const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
+  const names = Array.isArray(refusal && refusal.keys) ? refusal.keys.map(String).filter(Boolean) : [];
+  if (refusal && refusal.userId != null && String(refusal.userId) !== "") {
+    const id = String(refusal.userId);
+    return [{ id, name: names[0] || nameOf(list.find(p => String(p.id) === id) || {}) }];
+  }
+  if (names.length === 0) return ids.length === 1 ? [{ id: ids[0], name: nameOf(list.find(p => String(p.id) === ids[0]) || {}) }] : [];
+  return names.map(n => {
+    const same = list.filter(p => nameOf(p).toLowerCase() === n.toLowerCase());
+    const hit = same.find(p => ids.indexOf(String(p.id)) >= 0) || (same.length === 1 ? same[0] : null) || (ids.length === 1 && same.length === 0 ? { id: ids[0] } : null);
+    return { id: hit ? String(hit.id) : null, name: n };
+  });
+};
+function ClearanceMissingWindow({ t, refusal, people, onClose }) {
+  const who = clearanceRefusedPeople(refusal, people);
+  const missing = Array.isArray(refusal && refusal.missing) ? refusal.missing.map(String) : [];
+  const names = who.map(p => p.name).filter(Boolean);
+  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }} data-clearance-missing="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}><AlI sz={18} c={RD} /><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Clearances missing")}</div></div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 10 }}>{names.length ? tr("{0} cannot be placed at this school site.", names.join(", ")) : tr("This person cannot be placed at this school site.")}</div>
+    {missing.length > 0 && <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 4 }}>{tr("Missing or out of date:")}</div>
+      {missing.map(k => <div key={k} data-missing={k} style={{ fontSize: 13, color: t.text, padding: "2px 0" }}>{clearanceMissingWord(k)}</div>)}
+    </div>}
+    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 14 }}>{tr("Nobody works at a school site without current clearances. If a date was entered wrongly, correct it on their Clearances, then try again.")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
+      {who.filter(p => p.id).map(p => <Btn key={p.id} t={t} onClick={() => { onClose(); openClearancesOf(p.id); }} style={{ minHeight: 44 }}>{p.name ? tr("Open the clearances of {0}", p.name) : tr("Open their clearances")}</Btn>)}
+    </div>
+  </div></Mdl>);
+}
+
 function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   // A role as a word, the way Staff Management draws it: the staff_roles list's shown label, or the
   // table's word for a role the list does not hold. The code is what is filtered on and sent.
@@ -15708,7 +16118,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   );
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -15875,6 +16285,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
           {onAddTraining && <Btn t={t} onClick={() => onAddTraining(userId, e)}>{tr("+ Add Training")}</Btn>}
         </div>}
       />
+
+      <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -16159,11 +16571,19 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [] }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute }) {
   const [tab, setTab] = useState("employees");
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
-  const [folderUserId, setFolderUserId] = useState(null);
+  const [folderUserId, setFolderUserId] = useState(() => (route[0] ? String(route[0]) : null));
+  // #hr/<id> opens that person's record, and #hr/<id>/clearances brings their Clearances into view
+  // (Step 211), so a refusal or the Clearances page can send someone straight there.
+  const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
+  useEffect(() => {
+    if (!route[0]) return;
+    setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
+  }, [route]);
+  const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
   const [selUser, setSelUser] = useState("");
@@ -16387,7 +16807,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           t={t}
           lkMap={lkMap}
           onSelectEmployee={(emp) => {
-            setFolderUserId(emp.id);
+            openFolder(emp.id);
             setSelUser(emp.id); // keep the legacy dropdown synced for when user switches to old tabs
           }}
         />
@@ -16403,7 +16823,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           allStaff={allStaff}
           getOpts={getOpts}
           lkMap={lkMap}
-          onBack={() => setFolderUserId(null)}
+          onBack={() => openFolder(null)}
+          focusClearances={focusClearances}
           onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
           onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
