@@ -1021,7 +1021,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} />}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -1213,10 +1213,10 @@ function EmploymentCard({ t, data, onRecord, staffHref }) {
 // anything. A refusal is drawn word for word under the field its keys name, and anything else at
 // the top. Each window says what will happen before it is sent.
 const EMPLOYMENT_SEND = { end: "End employment", leave: "Put on leave", "return": "Return from leave", rehire: "Rehire" };
-function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast }) {
+function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast, initialReason = "" }) {
   const today = toISO(new Date());
   const [reasons, setReasons] = useState(null);
-  const [f, setF] = useState({ reason: "", lastDay: "", rehireEligible: "", expectedReturn: "", hireDate: "", note: "" });
+  const [f, setF] = useState({ reason: initialReason || "", lastDay: "", rehireEligible: "", expectedReturn: "", hireDate: "", note: "" });
   const [refusal, setRefusal] = useState({ text: "", field: "" });
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
@@ -16914,7 +16914,295 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   );
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false }) {
+// ===== WARNINGS (Step 232, Part B) =====
+// Written warnings that follow the handbook (STEP228_CONTRACT_v2.md, OCSA-HR-002 3.4, 5.5 and 5.6):
+// verbal, written, final written and termination, normally in that order, though OCSA may begin at any
+// step. A warning is drafted, issued with the signatures its step takes, previewed as a branded PDF
+// and sent, and counted. Nothing shows until the discipline routes answer.
+const WARNING_STEPS = ["verbal_warning", "written_warning", "final_warning", "termination"];
+const WARNING_ADMIN_STEPS = ["final_warning", "termination"];
+const WARNING_STEP_WORDS = { verbal_warning: "Verbal warning", written_warning: "Written warning", final_warning: "Final written warning", termination: "Termination" };
+const WARNING_STATUS_WORDS = { draft: "Draft|warning", open: "Issued|warning", closed: "Closed|warning", rescinded: "Rescinded" };
+const WARNING_DELIVERY_WORDS = { email: "Email", in_person: "Handed over in person", printed: "Printed", mail: "Mailed" };
+// The steps and the categories, GET /api/discipline/steps, in the screen's language, read once a
+// language. A label the answer does not give is the step's own word here.
+const disciplineStepsCache = {};
+const loadDisciplineSteps = (af) => {
+  const lang = getLang();
+  if (!disciplineStepsCache[lang]) {
+    const listOf = (v) => (Array.isArray(v) ? v.map(x => ({ code: String(x.code || x.type || x.key || ""), label: String(x.label || "") })).filter(x => x.code) : []);
+    disciplineStepsCache[lang] = af("/api/discipline/steps")
+      .then(d => ({ steps: listOf(d && (d.steps || d.types)), categories: listOf(d && d.categories) }))
+      .catch(e => { delete disciplineStepsCache[lang]; throw e; });
+  }
+  return disciplineStepsCache[lang];
+};
+const warningStepWord = (code, steps) => { const s = (steps || []).find(x => x.code === code); return s && s.label ? s.label : (WARNING_STEP_WORDS[code] ? tr(WARNING_STEP_WORDS[code]) : String(code || "")); };
+const warningCategoryWord = (code, cats) => { const c = (cats || []).find(x => x.code === code); return c && c.label ? c.label : String(code || ""); };
+const warningStatusWord = (s) => (WARNING_STATUS_WORDS[s] ? tr(WARNING_STATUS_WORDS[s]) : String(s || ""));
+const warningOf = (d) => (d && d.warning && typeof d.warning === "object" ? d.warning : d);
+// A warning's fields as the API may name them, read the same way wherever a row comes from.
+const warningIssued = (w) => !!(w && (w.issuedAt || w.issued_at || (w.status && w.status !== "draft")));
+const warningRescinded = (w) => !!(w && (w.status === "rescinded" || w.rescindedAt || w.rescinded_at));
+
+// The window for one warning: a new one, a draft carried on, or one issued. A draft is the handbook's
+// fields in order; once saved it can be issued, with the issuer's signature and, for a written or
+// final warning, the person's or a note that they declined. Once issued it previews as a PDF, is sent
+// by email or recorded as handed over, printed or mailed, and an admin may rescind it. A termination
+// ends at End employment, opened with Let go by OCSA. A refusal is drawn word for word under the field
+// its keys name.
+function WarningWindow({ af, t, token, isAdmin = false, userId, personName, person = null, row = null, initial = {}, onClose, onChanged, showToast }) {
+  const [steps, setSteps] = useState({ steps: [], categories: [] });
+  const [w, setW] = useState(row || null);
+  const draftOf = (r) => ({
+    type: (r && (r.type || r.action_type)) || initial.type || "verbal_warning",
+    category: (r && r.category) || "",
+    incidentDate: (r && (r.incidentDate || r.incident_date)) ? String(r.incidentDate || r.incident_date).slice(0, 10) : "",
+    description: (r && (r.description || r.summary)) || "",
+    policyRef: (r && (r.policyRef || r.policy_ref)) || "",
+    expectations: (r && r.expectations) || "",
+    expectedBy: (r && (r.expectedBy || r.expected_by)) ? String(r.expectedBy || r.expected_by).slice(0, 10) : "",
+    suspensionStart: (r && (r.suspensionStart || r.suspension_start)) ? String(r.suspensionStart || r.suspension_start).slice(0, 10) : "",
+    suspensionEnd: (r && (r.suspensionEnd || r.suspension_end)) ? String(r.suspensionEnd || r.suspension_end).slice(0, 10) : "",
+    follows: r && (r.followsProtectedActivity || r.follows_protected_activity) ? "yes" : (r ? "no" : ""),
+    controllerDiscussedOn: (r && (r.controllerDiscussedOn || r.controller_discussed_on)) ? String(r.controllerDiscussedOn || r.controller_discussed_on).slice(0, 10) : "",
+    language: (r && r.language) || (person && (person.language || person.preferredLanguage)) || "en",
+  });
+  const [f, setF] = useState(() => draftOf(row));
+  const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [busy, setBusy] = useState("");
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [deliver, setDeliver] = useState({ method: "", extra: [], draft: "" });
+  const [sentLine, setSentLine] = useState("");
+  const [rescinding, setRescinding] = useState(false);
+  const [rescindReason, setRescindReason] = useState("");
+  const [endOpen, setEndOpen] = useState(false);
+  const busyRef = useRef(false);
+  useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const id = w && w.id != null ? String(w.id) : "";
+  const issued = warningIssued(w);
+  const rescinded = warningRescinded(w);
+  const isDraft = !issued && !rescinded;
+  const type = issued ? (w.type || w.action_type) : f.type;
+  const verbal = type === "verbal_warning";
+  const personSigns = type === "written_warning" || type === "final_warning";
+  const FIELDS = ["type", "category", "incidentDate", "description", "policyRef", "expectations", "expectedBy", "suspensionStart", "suspensionEnd", "followsProtectedActivity", "controllerDiscussedOn", "language", "employeeSignature", "issuerSignature", "witnessName", "employeeAccount", "reason", "to", "method"];
+  const refuse = (e, fallback) => {
+    const code = String((e && e.code) || "");
+    const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+    const field = code === "discipline.controllerRequired" ? "controllerDiscussedOn" : code === "discipline.adminOnly" ? "type" : code === "discipline.noEmail" || code === "discipline.sendFailed" ? "send" : (keys.find(k => FIELDS.indexOf(k) >= 0) || fallback || "");
+    setRefusal({ text: (e && e.message) || tr("Request failed"), field });
+  };
+  const run = async (what, fn) => { if (busyRef.current) return; busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" }); try { await fn(); } catch (e) { refuse(e, ""); } busyRef.current = false; setBusy(""); };
+  const body = () => ({
+    userId, type: f.type, category: f.category || null, incidentDate: f.incidentDate || null, description: f.description.trim() || null,
+    policyRef: f.policyRef.trim() || null, expectations: f.expectations.trim() || null, expectedBy: f.expectedBy || null,
+    suspensionStart: f.type === "final_warning" ? (f.suspensionStart || null) : null, suspensionEnd: f.type === "final_warning" ? (f.suspensionEnd || null) : null,
+    followsProtectedActivity: f.follows === "yes", controllerDiscussedOn: f.follows === "yes" ? (f.controllerDiscussedOn || null) : null,
+    caseId: initial.caseId || (w && (w.caseId || w.case_id)) || null, language: f.language || "en",
+  });
+  const saveDraft = () => run("draft", async () => {
+    const d = id ? await af("/api/discipline/" + encodeURIComponent(id), { method: "PUT", body: body() }) : await af("/api/discipline", { method: "POST", body: body() });
+    const got = warningOf(d);
+    setW(got && got.id != null ? got : Object.assign({}, w || {}, body(), { id: (got && got.id) || id, status: "draft" }));
+    if (showToast) showToast(tr("Draft saved."));
+    if (onChanged) onChanged();
+  });
+  const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
+  const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || !!issue.employeeSignature || issue.declined)));
+  const doIssue = () => run("issue", async () => {
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: {
+      issuerSignature: verbal ? null : (issue.issuerSignature || null),
+      employeeSignature: personSigns && !issue.declined ? (issue.employeeSignature || null) : null,
+      declinedToSign: personSigns && issue.declined, witnessName: personSigns && issue.declined ? (issue.witnessName.trim() || null) : null,
+      employeeAccount: issue.employeeAccount.trim() || null,
+    } });
+    const got = warningOf(d);
+    setW(Object.assign({}, w || {}, got && typeof got === "object" ? got : {}, { status: (got && got.status) || "open", issuedAt: (got && (got.issuedAt || got.issued_at)) || new Date().toISOString() }));
+    if (showToast) showToast(tr("Warning issued."));
+    if (onChanged) onChanged();
+    if (type === "termination" || (d && d.employmentEndUrl)) setEndOpen(true);
+  });
+  const send = () => run("send", async () => {
+    const to = deliver.method === "email" ? deliver.extra : [];
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/deliver", { method: "POST", body: { method: deliver.method, to } });
+    const got = warningOf(d);
+    if (got && got.id != null) setW(Object.assign({}, w, got));
+    setSentLine(deliver.method === "email" ? tr("Sent by email.") : tr("Recorded as {0}.", tr(WARNING_DELIVERY_WORDS[deliver.method]).toLowerCase()));
+    if (onChanged) onChanged();
+  });
+  const rescind = () => run("rescind", async () => {
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/rescind", { method: "POST", body: { reason: rescindReason.trim() } });
+    const got = warningOf(d);
+    setW(Object.assign({}, w, got && got.id != null ? got : {}, { status: "rescinded", rescindReason: rescindReason.trim() }));
+    setRescinding(false);
+    if (showToast) showToast(tr("Warning rescinded."));
+    if (onChanged) onChanged();
+  });
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-warning-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
+  const stepOpts = WARNING_STEPS.map(s => ({ v: s, l: warningStepWord(s, steps.steps) + (WARNING_ADMIN_STEPS.indexOf(s) >= 0 && !isAdmin ? " (" + tr("admins only") + ")" : ""), disabled: WARNING_ADMIN_STEPS.indexOf(s) >= 0 && !isAdmin }));
+  const catOpts = [{ v: "", l: tr("Choose") }].concat(steps.categories.map(c => ({ v: c.code, l: c.label || c.code })));
+  const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 };
+  const sec = { fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, margin: "16px 0 8px" };
+  const small = { minHeight: 44 };
+  const signed = (k) => (issue[k] ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setIssue(p => ({ ...p, [k]: "" }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div> : null);
+  const emailOnFile = person && person.email ? String(person.email) : "";
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{personName || ""}{w && w.status ? ", " + warningStatusWord(w.status) : ""}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-warning-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {isDraft && <div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("OCSA may begin at any step.")}</div>
+      <div style={grid}>
+        <div><Lbl>{tr("Step")}</Lbl><select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={{ width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: R.sm, border: "1px solid " + (refusal.field === "type" ? RD : t.inputBorder), background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }}>{stepOpts.map(o => <option key={o.v} value={o.v} disabled={o.disabled}>{o.l}</option>)}</select>{under("type")}</div>
+        <div><Lbl>{tr("Category")}</Lbl><Sel t={t} aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} options={catOpts} style={box("category")} />{under("category")}</div>
+        <div><Lbl>{tr("Date of the incident")}</Lbl><Inp t={t} type="date" aria-label={tr("Date of the incident")} value={f.incidentDate} onChange={e => set("incidentDate", e.target.value)} style={box("incidentDate")} />{under("incidentDate")}</div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.description} onChange={e => set("description", e.target.value)} style={box("description")} />{under("description")}</div>
+      <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 12 }}>{tr("Leave out any medical detail.")}</div>
+      <div style={grid}>
+        <div><Lbl>{tr("Policy")}</Lbl><Inp t={t} aria-label={tr("Policy")} value={f.policyRef} onChange={e => set("policyRef", e.target.value)} placeholder={tr("Optional, for example a handbook section")} style={box("policyRef")} />{under("policyRef")}</div>
+        <div><Lbl>{tr("By when")}</Lbl><Inp t={t} type="date" aria-label={tr("By when")} value={f.expectedBy} onChange={e => set("expectedBy", e.target.value)} style={box("expectedBy")} />{under("expectedBy")}</div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("What must change")}</Lbl><TArea t={t} rows={3} aria-label={tr("What must change")} value={f.expectations} onChange={e => set("expectations", e.target.value)} style={box("expectations")} />{under("expectations")}</div>
+      {f.type === "final_warning" && <div style={grid}>
+        <div><Lbl>{tr("Suspension from")}</Lbl><Inp t={t} type="date" aria-label={tr("Suspension from")} value={f.suspensionStart} onChange={e => set("suspensionStart", e.target.value)} style={box("suspensionStart")} />{under("suspensionStart")}</div>
+        <div><Lbl>{tr("Suspension to")}</Lbl><Inp t={t} type="date" aria-label={tr("Suspension to")} value={f.suspensionEnd} onChange={e => set("suspensionEnd", e.target.value)} style={box("suspensionEnd")} />{under("suspensionEnd")}</div>
+      </div>}
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Does this follow a complaint or other protected activity by this person?")}</Lbl>
+        <Sel t={t} aria-label={tr("Does this follow a complaint or other protected activity by this person?")} value={f.follows} onChange={e => set("follows", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} style={box("followsProtectedActivity")} />
+        {under("followsProtectedActivity")}
+        {f.follows === "yes" && <div style={{ marginTop: 10, maxWidth: 260 }}><Lbl>{tr("Discussed with the Controller on")}</Lbl><Inp t={t} type="date" aria-label={tr("Discussed with the Controller on")} value={f.controllerDiscussedOn} onChange={e => set("controllerDiscussedOn", e.target.value)} style={box("controllerDiscussedOn")} />{under("controllerDiscussedOn")}</div>}
+      </div>
+      <div style={{ marginBottom: 12, maxWidth: 260 }}><Lbl>{tr("Language of the warning")}</Lbl><Sel t={t} aria-label={tr("Language of the warning")} value={f.language} onChange={e => set("language", e.target.value)} options={LANGUAGES.map(x => ({ v: x.id, l: x.label }))} style={box("language")} />{under("language")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("If this person is covered by a union agreement, follow that agreement's procedure.")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={onClose} disabled={!!busy} style={small}>{tr("Cancel")}</Btn>
+        <Btn t={t} v="ghost" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
+      </div>
+      {id && <div data-warning-issue="">
+        <div style={sec}>{tr("Issue")}</div>
+        {verbal ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("A verbal warning is a note of the conversation, placed on the record. It takes no signatures.")}</div> : <div>
+          <SignatureBox t={t} label={tr("The issuer signs")} busy={busy === "issue"} refusal={refusal.field === "issuerSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, issuerSignature: png }))} signWord={tr("Sign")} />
+          {signed("issuerSignature")}
+          {personSigns && <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: t.textSec, marginBottom: 6, lineHeight: 1.5 }}>{tr("Signing confirms they received this warning. It does not mean they agree.")}</div>
+            {!issue.declined && <SignatureBox t={t} label={tr("{0} signs", personName || tr("The person"))} busy={busy === "issue"} refusal={refusal.field === "employeeSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, employeeSignature: png }))} signWord={tr("Sign")} />}
+            {!issue.declined && signed("employeeSignature")}
+            <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, marginTop: 6 }}><span style={chkWrap}><input type="checkbox" checked={issue.declined} onChange={e => setIssue(p => ({ ...p, declined: e.target.checked, employeeSignature: "" }))} style={{ width: 22, height: 22 }} /></span>{tr("Declined to sign")}</label>
+            {issue.declined && <div style={{ maxWidth: 320 }}><Lbl>{tr("Witness")}</Lbl><Inp t={t} aria-label={tr("Witness")} value={issue.witnessName} onChange={e => setIssue(p => ({ ...p, witnessName: e.target.value }))} placeholder={tr("Optional.")} style={box("witnessName")} />{under("witnessName")}</div>}
+          </div>}
+        </div>}
+        <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : tr("Issue")}</Btn></div>
+      </div>}
+    </div>}
+    {!isDraft && <div>
+      <div data-warning-summary="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
+        {(w.category ? warningCategoryWord(w.category, steps.categories) : "")}{(w.incidentDate || w.incident_date) ? (w.category ? ", " : "") + fdLong(w.incidentDate || w.incident_date) : ""}
+        {(w.description || w.summary) ? <div style={{ color: t.text, whiteSpace: "pre-wrap", marginTop: 4 }}>{w.description || w.summary}</div> : null}
+        {rescinded ? <div style={{ color: RD, fontWeight: 600, marginTop: 6 }}>{tr("Rescinded: {0}", w.rescindReason || w.rescind_reason || "--")}</div> : null}
+      </div>
+      {!rescinded && id && <div>
+        <div style={sec}>{tr("Send")}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setPdfOpen(true)} style={small}>{tr("Preview PDF")}</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          {Object.keys(WARNING_DELIVERY_WORDS).map(m => { const on = deliver.method === m; return <button key={m} onClick={() => { setDeliver(p => ({ ...p, method: m })); setSentLine(""); }} aria-pressed={on} style={{ minHeight: 44, padding: "6px 12px", borderRadius: R.pill, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tr(WARNING_DELIVERY_WORDS[m])}</button>; })}
+        </div>
+        {deliver.method === "email" && <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 6 }}>{emailOnFile ? tr("To their email on file, {0}, and any office address added.", emailOnFile) : tr("To their email on file, and any office address added.")}</div>
+          {deliver.extra.map((a, i) => <div key={a + i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: t.text, marginBottom: 4 }}><span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{a}</span><Btn t={t} v="ghost" onClick={() => setDeliver(p => ({ ...p, extra: p.extra.filter((x, j) => j !== i) }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Remove")}</Btn></div>)}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={deliver.draft} onChange={e => setDeliver(p => ({ ...p, draft: e.target.value }))} /></div>
+            <Btn t={t} v="ghost" onClick={() => setDeliver(p => (p.draft.trim() ? { ...p, extra: p.extra.concat([p.draft.trim()]), draft: "" } : p))} disabled={!deliver.draft.trim()} style={small}>{tr("Add an address")}</Btn>
+          </div>
+        </div>}
+        {under("send")}
+        {sentLine && <div data-warning-sent="" style={{ fontSize: 12, color: GR, marginBottom: 8 }}>{sentLine}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+          {type === "termination" && <Btn t={t} v="danger" onClick={() => setEndOpen(true)} style={small}>{tr("End employment")}</Btn>}
+          <Btn t={t} onClick={send} disabled={!!busy || !deliver.method} style={{ minHeight: 44, minWidth: 96 }}>{busy === "send" ? tr("Sending...") : tr("Send")}</Btn>
+        </div>
+        {isAdmin && <div style={{ marginTop: 16 }}>
+          {!rescinding ? <Btn t={t} v="ghost" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
+            <Lbl>{tr("Why it is rescinded")}</Lbl>
+            <TArea t={t} rows={2} aria-label={tr("Why it is rescinded")} value={rescindReason} onChange={e => setRescindReason(e.target.value)} style={box("reason")} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The warning stays on the record, marked rescinded.")}</div>
+            {under("reason")}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}><Btn t={t} v="ghost" onClick={() => { setRescinding(false); setRescindReason(""); }} style={small}>{tr("Cancel")}</Btn><Btn t={t} v="danger" onClick={rescind} disabled={!!busy || !rescindReason.trim()} style={small}>{busy === "rescind" ? tr("Saving...") : tr("Rescind")}</Btn></div>
+          </div>}
+        </div>}
+      </div>}
+    </div>}
+    {pdfOpen && id && <PdfWindow token={token} t={t} onClose={() => setPdfOpen(false)} boxProps={{ "data-warning-pdf": "" }}
+      title={warningStepWord(type, steps.steps)} sub={personName || ""}
+      help={tr("The warning as the person receives it, on the company's letterhead.")}
+      pathFor={(lang) => "/api/discipline/" + encodeURIComponent(id) + "/pdf?locale=" + lang} fallbackName="warning.pdf" />}
+    {endOpen && <EmploymentWindow af={af} t={t} userId={userId} name={personName} mode="end" initialReason="dismissed" data={null} showToast={showToast} onClose={() => setEndOpen(false)} onSaved={() => { setEndOpen(false); if (onChanged) onChanged(); }} />}
+  </div></Mdl>);
+}
+
+// A person's Disciplinary card in their HR Records folder: the counts in the last 12 months by step,
+// every warning newest first (step, category, date, status, how it was delivered, signed or declined,
+// a rescinded one struck through with its reason), and Issue a warning with the suggested next step
+// picked. A row opens the warning. Nothing shows until GET /api/discipline/person/:userId answers.
+function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToast, refreshKey = 0, onIssueDone }) {
+  const [data, setData] = useState(null);
+  const [steps, setSteps] = useState({ steps: [], categories: [] });
+  const [win, setWin] = useState(null);
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    af("/api/discipline/person/" + encodeURIComponent(userId)).then(d => { if (alive) setData(d && Array.isArray(d.history) ? d : null); }).catch(e => { if (alive) setData(null); console.warn("Discipline:", e.message); });
+    return () => { alive = false; };
+  }, [af, userId, again, refreshKey]);
+  useEffect(() => { if (!data) return undefined; let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af, data]);
+  if (!data) return null;
+  const by = (data.last12Months && data.last12Months.byType) || {};
+  const history = data.history.slice();
+  const suggested = data.suggestedNext && WARNING_STEPS.indexOf(data.suggestedNext) >= 0 ? data.suggestedNext : "verbal_warning";
+  const start = isAdmin || WARNING_ADMIN_STEPS.indexOf(suggested) < 0 ? suggested : "written_warning";
+  const line = (w) => [warningCategoryWord(w.category, steps.categories), (w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) ? fdLong(w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) : ""].filter(Boolean).join(", ");
+  const delivered = (w) => { const d = w.delivered || {}; const m = d.method || w.deliveryMethod || w.delivery_method; return m && WARNING_DELIVERY_WORDS[m] ? tr(WARNING_DELIVERY_WORDS[m]) + (d.at ? " " + irDay(d.at) : "") : ""; };
+  return (<Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
+    <div data-person-discipline="">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Disciplinary")}</div>
+        <Btn t={t} onClick={() => setWin({ row: null, initial: { type: start } })} style={{ minHeight: 44 }}>{tr("Issue a warning")}</Btn>
+      </div>
+      <div data-discipline-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {WARNING_STEPS.map(s => <div key={s} style={{ padding: "6px 10px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("Counted over the last 12 months. The handbook sets no lookback.")}</div>
+      {history.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No warnings on record.")}</div> : history.map((w, i) => {
+        const gone = warningRescinded(w);
+        return (<button key={w.id || i} data-warning-row={w.id || i} onClick={() => setWin({ row: w, initial: {} })} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderTop: i ? "1px solid " + t.border : "none", padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: gone ? t.textMut : t.text, textDecoration: gone ? "line-through" : "none" }}>{warningStepWord(w.type || w.action_type, steps.steps)}</span>
+            <Bdg l={warningStatusWord(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
+          </div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, textDecoration: gone ? "line-through" : "none" }}>{line(w)}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
+          {gone && (w.rescindReason || w.rescind_reason) ? <div style={{ fontSize: 11, color: RD, marginTop: 2 }}>{tr("Rescinded: {0}", w.rescindReason || w.rescind_reason)}</div> : null}
+        </button>);
+      })}
+    </div>
+    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={userId} personName={name} person={data.person || null} row={win.row} initial={win.initial} showToast={showToast} onClose={() => setWin(null)} onChanged={() => { setAgain(n => n + 1); if (onIssueDone) onIssueDone(); }} />}
+  </Crd>);
+}
+
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false, isAdmin = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -17084,6 +17372,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
       <PersonEmployment af={af} t={t} userId={userId} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
+      <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -17368,7 +17657,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false }) {
   const [tab, setTab] = useState("employees");
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
@@ -17622,6 +17911,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           lkMap={lkMap}
           onBack={() => openFolder(null)}
           focusClearances={focusClearances}
+          isAdmin={isAdmin}
           onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
           onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
