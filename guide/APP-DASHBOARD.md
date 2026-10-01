@@ -316,13 +316,13 @@ Last checked: 2026-09-16
 ## Message a staff member (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**). A number beside it counts the messages you have not read, direct messages included.
-2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**) and each **Site channel** (**Canal del sitio**). Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, and **Private conversations** (**Conversaciones privadas**) lists one per staff member.
+2. At the top, **Channels** (**Canales**) lists the **General chat** (**Chat general**), each **Site channel** (**Canal del sitio**), and each **Project chat** (**Chat del proyecto**) for the projects you are in. Below them, **Direct messages** (**Mensajes directos**) lists your chats with other office people, and **Private conversations** (**Conversaciones privadas**) lists one per staff member.
 3. Use **Search chats and people** (**Buscar chats y personas**) to find someone by name or badge number. It finds any active person. Someone you have no chat with yet shows under **People** (**Personas**) as **Message {0}** (**Escribir a {0}**) with their name; click it and the chat opens. **New message** (**Nuevo mensaje**) at the top right does the same from a list of everyone.
 4. Type in **Type a message** (**Escriba un mensaje**) and press Enter. Everyone who can read that chat gets an alert. A staff member reads what the office writes in their own private chat in the staff app.
 5. On a phone, the list and the conversation take the whole screen one at a time; **Back** (**Volver**) returns to the list.
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words. The message is sent once, even when the first try reached the chat. Once it shows in the chat, the box empties.
-Words people use for this: message someone, chat, site chat, general chat, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
-Last checked: 2026-09-30
+Words people use for this: message someone, chat, site chat, general chat, project chat, unread messages, find a person to message, message someone new, find by badge, write to a staff member, mensajes.
+Last checked: 2026-10-01
 
 ## Ask Help a question from the dashboard (admin dashboard)
 Who can do this: admins and supervisors
@@ -746,12 +746,12 @@ Last checked: 2026-09-28
 
 ## Tag someone in a chat (admin dashboard)
 Who can do this: anyone who can read the chat
-1. In **Messages** (**Mensajes**), open the general chat or a site's chat.
+1. In **Messages** (**Mensajes**), open the general chat, a site's chat or a project's chat. In a project's chat the list holds the project's members.
 2. Type @ at the start of a word, or click the @ button beside the message box. **Tag someone** (**Etiquetar a alguien**) lists the people who can read that chat; type part of a name to narrow it and click the person.
 3. Their name goes into the message. Send it; they get an alert that the message is for them, and their name shows highlighted.
 To untag someone, delete their name from the message before sending. A private conversation or a direct message has no tag button, since everyone who reads it already gets an alert for every message.
 Words people use for this: tag someone, mention someone, @ someone, etiquetar.
-Last checked: 2026-09-30
+Last checked: 2026-10-01
 
 ## See what people ask Help (admin dashboard)
 Who can do this: admins, and anyone an admin gives See Help insights
@@ -1317,4 +1317,104 @@ Who can do this: admins and supervisors; the super admin also for another admin 
 4. The super admin can do the same for another admin or supervisor: **Staff Management** (**Gestión de personal**), open their profile, and click **Forget this person's devices** (**Olvidar los dispositivos de esta persona**).
 If it does not work: the tab shows once the server keeps trusted devices.
 Words people use for this: trusted devices, remembered devices, lost my phone, forget this computer, stop remembering a device, code, two step, new phone.
+Last checked: 2026-10-01
+
+## Start a project and choose its members (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Workspace** (**Espacio de trabajo**) in the menu on the left.
+2. Click **New project** (**Nuevo proyecto**).
+3. Fill in the **Name** (**Nombre**), a **Description** (**Descripción**) if you like, and pick a **Color** (**Color**).
+4. Under **Members** (**Miembros**), tick the office people who work on it. You are its owner.
+5. Click **Start the project** (**Iniciar el proyecto**). The project's page opens with its four tools: **Message Board** (**Tablero de mensajes**), **To-dos** (**Pendientes**), **Chat** (**Chat**) and **Docs and Files** (**Documentos y archivos**), and **Activity** (**Actividad**) under them.
+6. Later, an owner or an admin clicks **Members** (**Miembros**) on the project's page to add or take out people, and ticks **Owner** (**Propietario**) for anyone else who runs it. A project needs at least one owner.
+7. **Edit** (**Editar**) changes the project's name, description and color.
+If it does not work: Workspace shows once the server keeps projects. A supervisor sees the projects they are a member of; an admin sees every project.
+Words people use for this: project, start a project, new project, basecamp, add people to a project, project members, team project, proyecto.
+Last checked: 2026-10-01
+
+## Post on a project's message board (admin dashboard)
+Who can do this: the project's members
+1. Open the project from **Workspace** (**Espacio de trabajo**) and click the **Message Board** (**Tablero de mensajes**) card.
+2. Click **New post** (**Nueva publicación**).
+3. Fill in the **Title** (**Título**) and the **Message** (**Mensaje**). It is plain text: line breaks are kept, and web addresses become links.
+4. Tick **Pin to the top** (**Fijar arriba**) to keep it first on the board.
+5. Click **Post** (**Publicar**). Every other member gets a notice, and those with **Email me copies** (**Enviarme copias por correo**) on get it by email too.
+6. On a post you wrote, **Edit** (**Editar**) changes it. **Archive** (**Archivar**) takes it off the board; the person who wrote it, a project owner or an admin can archive it.
+Words people use for this: message board, post, project update, announcement to the team, pin a post, basecamp message, publicación.
+Last checked: 2026-10-01
+
+## Comment on a post or a to-do, and tag someone (admin dashboard)
+Who can do this: the project's members
+1. Open the post or the to-do.
+2. Type under **Add a comment** (**Agregar un comentario**).
+3. To tag someone, click **Tag someone** (**Etiquetar a alguien**) and pick a member. Their name goes into the comment, and they get a notice.
+4. Click **Add comment** (**Agregar comentario**).
+5. On your own comment, **Edit** (**Editar**) changes it. **Remove** (**Quitar**) takes it out; the person who wrote it or an admin can remove it.
+Words people use for this: comment, reply on a post, comment on a to-do, tag someone in a project, mention, comentario.
+Last checked: 2026-10-01
+
+## Keep a project's to-dos (admin dashboard)
+Who can do this: the project's members
+1. Open the project from **Workspace** (**Espacio de trabajo**) and click the **To-dos** (**Pendientes**) card.
+2. Click **New list** (**Nueva lista**), give the list a **Name** (**Nombre**), and click **Add the list** (**Agregar la lista**).
+3. On a list, click **Add a to-do** (**Agregar un pendiente**). Fill in the **To-do** (**Pendiente**), any **Notes** (**Notas**), who it is **Assigned to** (**Asignado a**) and when it is **Due** (**Vence**), then click **Add the to-do** (**Agregar el pendiente**).
+4. Tick the box beside a to-do when it is done. It shows who did it and when, and moves to the done ones under the list, which **{0} done** (**{0} completados**) opens. Untick it to open it again.
+5. Click a to-do to read it, **Edit** (**Editar**) it, or comment on it.
+6. A to-do past its due day reads in red.
+If it does not work: a to-do can only be assigned to the project's members.
+Words people use for this: to-do list, task list, checklist, assign a task, due date, mark done, basecamp to-dos, pendientes.
+Last checked: 2026-10-01
+
+## See what is assigned to you across projects (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Workspace** (**Espacio de trabajo**). **My assignments** (**Mis asignaciones**) at the top lists your open to-dos from every project, the soonest due first.
+2. A late to-do reads in red with **Overdue since {0}** (**Vencido desde el {0}**).
+3. Click one to open it in its project, and tick its box when it is done.
+Words people use for this: assignments, my assignments, my to-dos, my tasks, what do I have to do, mis asignaciones.
+Last checked: 2026-10-01
+
+## Talk in a project's chat (admin dashboard)
+Who can do this: the project's members
+1. Open the project from **Workspace** (**Espacio de trabajo**) and click the **Chat** (**Chat**) card.
+2. The project's chat opens in **Messages** (**Mensajes**), listed there as **Project chat** (**Chat del proyecto**). Its members are the project's members.
+3. Type in **Type a message** (**Escriba un mensaje**) and press Enter. To tag someone, click @ and pick a member.
+Words people use for this: project chat, team chat, chat with the project, basecamp campfire, chat del proyecto.
+Last checked: 2026-10-01
+
+## Add, open or remove a project's files (admin dashboard)
+Who can do this: the project's members
+1. Open the project from **Workspace** (**Espacio de trabajo**) and click the **Docs and Files** (**Documentos y archivos**) card.
+2. Click **Upload** (**Subir**) and choose one file: a document, an image or a PDF, up to 25 MB.
+3. Each file shows who added it, when, and its size. **Open** (**Abrir**) opens it, and **Download** (**Descargar**) saves it.
+4. **Remove** (**Quitar**) takes a file out of the project; the person who added it, a project owner or an admin can remove it.
+If it does not work: a file over 25 MB is stopped before it is sent. A kind of file the server does not take is refused in the server's own words.
+Words people use for this: files, documents, upload a file, share a file, project files, attach a file, archivos.
+Last checked: 2026-10-01
+
+## Get email copies of a project's posts (admin dashboard)
+Who can do this: the project's members
+1. Open the project from **Workspace** (**Espacio de trabajo**).
+2. Tick **Email me copies** (**Enviarme copias por correo**) under the project's name to get each new post, and every comment on a post, by email. Untick it to stop.
+3. The email says to reply in the app. A reply to the email is not read.
+Words people use for this: email copies, email me posts, project emails, stop project emails, copias por correo.
+Last checked: 2026-10-01
+
+## Archive a project, or bring it back (admin dashboard)
+Who can do this: a project's owners, and admins
+1. Open the project from **Workspace** (**Espacio de trabajo**) and click **Archive** (**Archivar**).
+2. Say yes. The project moves to **Archived** (**Archivados**), and nothing in it is deleted. It can still be read, and nothing new can be added.
+3. To bring it back, click **Archived** (**Archivados**) on the Workspace page, open the project, and click **Bring back** (**Restaurar**).
+Words people use for this: archive a project, close a project, finished project, old projects, restore a project, archivar.
+Last checked: 2026-10-01
+
+## Search the chat records (admin dashboard)
+Who can do this: the super admin, and anyone given the chat records permission. Nobody else sees this screen.
+1. Click **Chat records** (**Registros del chat**) under **Settings** (**Configuración**) in the menu on the left.
+2. **Every search here is recorded.** (**Cada búsqueda aquí queda registrada.**) Each search and each PDF is logged with who ran it, the filters and how many messages it found.
+3. Under **People** (**Personas**), search for and pick one or more people. Choose a **Channel** (**Canal**) if you need one, set **From** (**Desde**) and **To** (**Hasta**), and type any **Words** (**Palabras**).
+4. Click **Search** (**Buscar**). The messages show oldest first, with **When** (**Cuándo**), **Sender** (**Remitente**), **Channel** (**Canal**) and the **Message** (**Mensaje**).
+5. **Download PDF** (**Descargar el PDF**) saves the same search as a PDF.
+6. **Searches recorded** (**Búsquedas registradas**) under the results lists every search and PDF.
+If it does not work: a date range that runs backward is refused. A search shows at most 2,000 messages; narrow it to see the rest.
+Words people use for this: chat records, search messages, chat history, find a message, chat export, registros del chat.
 Last checked: 2026-10-01
