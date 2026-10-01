@@ -66,7 +66,8 @@ async function apiMultipart(path, token, formData) {
   return r.json();
 }
 // A 409 schedule.clearanceMissing (Step 211) is announced as well as thrown, whichever screen sent the
-// call, and the shell draws it with the person's name and a way to their clearances.
+// call, and the shell draws it with the person's name and a way to their clearances by the userId the
+// refusal carries.
 async function apiFetch(path, opts = {}) {
   const h = { "Content-Type": "application/json", ...opts.headers };
   if (opts.token) h["Authorization"] = "Bearer " + opts.token;
@@ -74,7 +75,7 @@ async function apiFetch(path, opts = {}) {
   if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); const err = new Error(tr("Session expired")); err.status = 401; throw err; }
   if (!r.ok) {
     const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; err.body = e;
-    if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
+    if (e && e.code === "schedule.clearanceMissing") { try { window.dispatchEvent(new CustomEvent("ocsa-clearance-missing", { detail: { missing: e.missing, keys: e.keys, userId: e.userId == null ? null : e.userId, body: opts.body || null } })); } catch (x) { /* a browser with no CustomEvent shows the toast alone */ } }
     throw err;
   }
   return r.json();
@@ -5899,18 +5900,14 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     setExporting(false);
   };
 
-  // The posting date goes where STEP210_CONTRACT.md puts it, PATCH /api/injury-summaries/:year, and
-  // on a 404 to the route the summary already saves through, PUT /api/injury-summary/:year. The
-  // summary is read again after, and a date it does not hold says it did not save.
+  // The posting date goes through the route the summary saves through, PUT /api/injury-summary/:year,
+  // which takes postedOn alone and answers the summary. An answer without the date says it did not save.
   const savePosted = async () => {
     if (posting) return;
     setPosting(true); setPostRefusal(""); setPostSaved(false);
     const mine = seq.current;
-    const body = { postedOn: postedOn || null };
     try {
-      try { await af("/api/injury-summaries/" + year, { method: "PATCH", body }); }
-      catch (e) { if (e && (e.status === 404 || e.status === 405)) await af("/api/injury-summary/" + year, { method: "PUT", body }); else throw e; }
-      const d = await af("/api/injury-summary?year=" + year);
+      const d = await af("/api/injury-summary/" + year, { method: "PUT", body: { postedOn: postedOn || null } });
       if (seq.current === mine && d && d.totals) {
         shown(d);
         if ((d.postedOn ? String(d.postedOn).slice(0, 10) : "") === (postedOn || "")) setPostSaved(true);
@@ -5919,15 +5916,13 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     } catch (e) { if (seq.current === mine) setPostRefusal(e.message || tr("Request failed")); }
     setPosting(false);
   };
-  // The year's 300A in the layout OSHA's Injury Tracking Application takes, from the contract's route
-  // and, on a 404, the summary's own.
+  // The year's 300A in the layout OSHA's Injury Tracking Application takes, from
+  // GET /api/injury-summary/:year/ita.csv.
   const downloadIta = async () => {
     if (itaBusy) return;
     setItaBusy(true); setItaError("");
-    try {
-      try { await saveDownload("/api/injury-summaries/" + year + "/ita.csv", token, "OSHA-300A-" + year + ".csv"); }
-      catch (e) { if (e && e.status === 404) await saveDownload("/api/injury-summary/" + year + "/ita.csv", token, "OSHA-300A-" + year + ".csv"); else throw e; }
-    } catch (e) { setItaError(e.message || tr("Request failed")); }
+    try { await saveDownload("/api/injury-summary/" + year + "/ita.csv", token, "OSHA-300A-" + year + ".csv"); }
+    catch (e) { setItaError(e.message || tr("Request failed")); }
     setItaBusy(false);
   };
   const posts = !!data && Object.prototype.hasOwnProperty.call(data, "postedOn");
@@ -10401,15 +10396,14 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
 
 // The company fields the OSHA 300A needs (Step 211, STEP210_CONTRACT.md sections 1 and 5), each drawn
 // once GET /api/settings answers with its column, so nothing shows before the API holds it, and sent
-// with the rest of the company's details. A blank one stays a line to fill in by hand on the 300A.
+// with the rest of the company's details. A blank one stays a line to fill in by hand on the 300A,
+// which prints the company's display or legal name and its address for the establishment.
 const OSHA_COMPANY_FIELDS = [
   { key: "industry_description", label: "Industry description" },
   { key: "naics_code", label: "NAICS code", hint: "Six digits", digits: 6 },
   { key: "executive_name", label: "Executive name" },
   { key: "executive_title", label: "Executive title" },
   { key: "executive_phone", label: "Executive phone" },
-  { key: "establishment_name", label: "Establishment name" },
-  { key: "establishment_address", label: "Establishment address", multi: true },
 ];
 function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [form, setForm] = useState(null);
@@ -10591,9 +10585,7 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
             {OSHA_COMPANY_FIELDS.filter(f => Object.prototype.hasOwnProperty.call(form, f.key)).map(f => { const refused = oshaRefusal.keys.indexOf(f.key) >= 0; return (<div key={f.key} style={{ marginBottom: 2 }}>
               <label style={lbl}>{tr(f.label)}</label>
-              {f.multi
-                ? <textarea aria-label={tr(f.label)} style={{ ...inp, minHeight: 60, resize: "vertical", ...(refused ? { borderColor: RD } : {}) }} value={form[f.key] || ""} onChange={e => set(f.key, e.target.value)} />
-                : <input aria-label={tr(f.label)} style={{ ...inp, ...(refused ? { borderColor: RD } : {}) }} value={form[f.key] || ""} onChange={e => set(f.key, f.digits ? e.target.value.replace(/[^0-9]/g, "").slice(0, f.digits) : e.target.value)} inputMode={f.digits ? "numeric" : undefined} />}
+              <input aria-label={tr(f.label)} style={{ ...inp, ...(refused ? { borderColor: RD } : {}) }} value={form[f.key] || ""} onChange={e => set(f.key, f.digits ? e.target.value.replace(/[^0-9]/g, "").slice(0, f.digits) : e.target.value)} inputMode={f.digits ? "numeric" : undefined} />
               {f.hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr(f.hint)}</div>}
               {refused && <div data-osha-refusal={f.key} style={{ fontSize: 12, color: RD, marginTop: 3 }}>{oshaRefusal.text}</div>}
             </div>); })}
@@ -15747,29 +15739,30 @@ function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSave
 }
 
 // A person's clearances on their HR record: each of the three with its issued date, its expiry and its
-// state, the earlier ones of a kind under it as history, and the Act 168 review. The current ones come
-// from GET /api/clearances?state=all, which lists every person, and the history from the person's
-// certifications in GET /api/users/:id, which holds every row; a refusal of that read leaves the
-// history off. A correction shows in the history when the row carries one.
+// state, the earlier ones of a kind under it as history, and the Act 168 review. All of it comes from
+// GET /api/clearances?userId=, the person's row with their history, each clearance they have held
+// with its corrections. state=all goes with it so a person who has left still has their record.
 function PersonClearances({ af, t, userId, name, focus = false }) {
   const [person, setPerson] = useState(undefined);
-  const [rows, setRows] = useState([]);
   const [win, setWin] = useState(null);
   const [open, setOpen] = useState({});
   const boxRef = useRef(null);
   const load = useCallback(() => {
-    af("/api/clearances?state=all").then(d => {
+    af("/api/clearances?userId=" + encodeURIComponent(userId) + "&state=all").then(d => {
       const people = clearancePeopleOf(d);
       if (!people) { setPerson(null); return; }
       setPerson(people.find(p => String(p.userId) === String(userId)) || { userId });
     }).catch(e => { setPerson(null); console.warn("Clearances:", e.message); });
-    af("/api/users/" + encodeURIComponent(userId)).then(d => { setRows(d && Array.isArray(d.certifications) ? d.certifications.filter(c => c && c.clearance_kind) : []); }).catch(() => setRows([]));
   }, [af, userId]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (focus && person && boxRef.current) { try { boxRef.current.scrollIntoView({ block: "start" }); } catch (e) {} } }, [focus, person]);
   if (!person) return null;
-  const historyOf = (k, current) => rows.filter(c => c.clearance_kind === k && String(c.id) !== String(current && current.certificationId)).sort((a, b) => String(b.issued_date).localeCompare(String(a.issued_date)));
+  const rows = Array.isArray(person.history) ? person.history.filter(h => h && h.kind) : [];
+  const sameRow = (h, current) => !!(current && current.certificationId != null && String(h.certificationId) === String(current.certificationId));
+  const historyOf = (k, current) => rows.filter(h => h.kind === k && !sameRow(h, current)).sort((a, b) => String(b.issuedDate || "").localeCompare(String(a.issuedDate || "")));
   const corrections = (x) => (x && Array.isArray(x.corrections) ? x.corrections : []);
+  // The current clearance's corrections are on its own row in the history.
+  const currentCorrections = (k, c) => { const h = rows.find(r => r.kind === k && sameRow(r, c)); return corrections(c).length ? corrections(c) : corrections(h); };
   const correctedLine = (c, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Corrected on {0} from {1} to {2}: {3}", c.at ? irDay(c.at) : "--", c.from ? fdLong(c.from) : "--", c.to ? fdLong(c.to) : "--", c.reason || "")}</div>;
   const small = { minHeight: 44, padding: "8px 12px", fontSize: 12 };
   const act = person.act168 || {};
@@ -15785,7 +15778,7 @@ function PersonClearances({ af, t, userId, name, focus = false }) {
             <div style={{ flex: "1 1 220px", minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(k.label)}</div>
               <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{c.issuedDate ? tr("Issued {0}, expires {1}", fdLong(c.issuedDate), c.expiresOn ? fdLong(c.expiresOn) : "--") : tr("None on file")}</div>
-              {corrections(c).map(correctedLine)}
+              {currentCorrections(k.key, c).map(correctedLine)}
             </div>
             <ClearanceChip state={c.state || "missing"} />
             <Btn t={t} onClick={() => setWin({ mode: "add", kind: k.key })} style={small}>{tr("Add or renew")}</Btn>
@@ -15793,8 +15786,8 @@ function PersonClearances({ af, t, userId, name, focus = false }) {
             {earlier.length > 0 && <Btn t={t} v="ghost" aria-expanded={!!open[k.key]} onClick={() => setOpen(o => ({ ...o, [k.key]: !o[k.key] }))} style={small}>{tr("History ({0})", earlier.length)}</Btn>}
           </div>
           {open[k.key] && earlier.length > 0 && <div data-clearance-history={k.key} style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
-            {earlier.map(h => (<div key={h.id} style={{ fontSize: 12, color: t.textSec, padding: "4px 0" }}>
-              {tr("Issued {0}, expires {1}", h.issued_date ? fdLong(h.issued_date) : "--", h.expiry_date ? fdLong(h.expiry_date) : "--")}
+            {earlier.map((h, i) => (<div key={h.certificationId != null ? String(h.certificationId) : "h" + i} style={{ fontSize: 12, color: t.textSec, padding: "4px 0" }}>
+              {tr("Issued {0}, expires {1}", h.issuedDate ? fdLong(h.issuedDate) : "--", h.expiresOn ? fdLong(h.expiresOn) : "--")}
               {corrections(h).map(correctedLine)}
             </div>))}
           </div>}
@@ -15882,19 +15875,24 @@ function ClearancesPage({ af, token, t, sites = [] }) {
 // The school site guard (Step 211). Every path that puts a person on work at a school site, a shift
 // made or edited, a standing pattern, an assignment to the site, a pickup approved or a dropped
 // shift given to someone else, is refused 409 schedule.clearanceMissing while their clearances are
-// not in order, with what is missing in missing and the person's name in keys. apiFetch announces
-// the refusal, whichever screen made the call, and the shell draws this window over it: whose
-// clearances, which ones, and a way to their Clearances. There is no way to assign anyway; a date
-// entered wrongly is corrected on the person's record, and the work is tried again.
+// not in order, with what is missing in missing, the person's name in keys and their id in userId.
+// apiFetch announces the refusal, whichever screen made the call, and the shell draws this window
+// over it: whose clearances, which ones, and a way to their Clearances. There is no way to assign
+// anyway; a date entered wrongly is corrected on the person's record, and the work is tried again.
 const clearanceMissingWord = (k) => (k === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(k));
-// The people a refusal names, matched to the people the shell holds by name, an id the request named
-// first, and the one id a request named when the refusal names nobody.
+// The person a refusal names: by the userId it carries, with the name from keys or the people the
+// shell holds. A refusal without one is matched by name, an id the request named first, and the one
+// id a request named when the refusal names nobody.
 const clearanceRefusedPeople = (refusal, people) => {
   const body = (refusal && refusal.body) || {};
   const ids = [body.user_id, body.userId].concat(Array.isArray(body.user_ids) ? body.user_ids : [], Array.isArray(body.userIds) ? body.userIds : []).filter(x => x != null).map(String);
   const list = Array.isArray(people) ? people : [];
   const nameOf = (p) => (((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "");
   const names = Array.isArray(refusal && refusal.keys) ? refusal.keys.map(String).filter(Boolean) : [];
+  if (refusal && refusal.userId != null && String(refusal.userId) !== "") {
+    const id = String(refusal.userId);
+    return [{ id, name: names[0] || nameOf(list.find(p => String(p.id) === id) || {}) }];
+  }
   if (names.length === 0) return ids.length === 1 ? [{ id: ids[0], name: nameOf(list.find(p => String(p.id) === ids[0]) || {}) }] : [];
   return names.map(n => {
     const same = list.filter(p => nameOf(p).toLowerCase() === n.toLowerCase());
