@@ -3760,7 +3760,7 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose }) {
 // dashboard's routes: #workspace, #workspace/archived, #workspace/<projectId>, and
 // #workspace/<projectId>/<tool> for posts, todos and files, with a post or a to-do after it.
 const WS_COLORS = [
-  { v: "#2D6CDF", l: "Blue" }, { v: "#2E8B57", l: "Green" }, { v: "#C9731C", l: "Orange" }, { v: "#C0392B", l: "Red" },
+  { v: "#2D6CDF", l: "Blue" }, { v: "#2E8B57", l: "Green|color" }, { v: "#C9731C", l: "Orange" }, { v: "#C0392B", l: "Red" },
   { v: "#7D5BBE", l: "Purple" }, { v: "#1F8A99", l: "Teal" }, { v: "#B8912A", l: "Gold" }, { v: "#6B7280", l: "Gray" },
 ];
 const wsColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(String(c || "")) ? String(c) : WS_COLORS[0].v);
@@ -3987,7 +3987,7 @@ function WorkspaceHome({ af, t, meId, people, archived, showToast }) {
       : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
       : list.length === 0 ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{archived ? tr("No archived projects.") : tr("No projects yet. Start one with New project.")}</div></Crd>
       : <div style={grid}>{list.map(p => <ProjectCard key={p.id} t={t} p={p} onOpen={() => wsGo([p.id])} />)}</div>}
-    {!archived && <div style={{ marginTop: 14 }}><Btn t={t} v="ghost" onClick={() => wsGo(["archived"])} style={{ minHeight: 44 }} data-ws-archived="">{tr("Archived")}</Btn></div>}
+    {!archived && <div style={{ marginTop: 14 }}><Btn t={t} v="ghost" onClick={() => wsGo(["archived"])} style={{ minHeight: 44 }} data-ws-archived="">{tr("Archived|projects")}</Btn></div>}
     {creating && <ProjectWindow af={af} t={t} people={people} onClose={() => setCreating(false)} onSaved={p => { setCreating(false); if (showToast) showToast(tr("Project started.")); if (p) wsGo([p.id]); else load(); }} />}
   </div>);
 }
@@ -4195,7 +4195,7 @@ function PostView({ af, t, p, postId, meId, isAdmin, canManage, writable, showTo
     <Crd t={t}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0, flex: "1 1 240px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{x.title}</div>{x.pinned ? <Bdg l={tr("Pinned")} c={BL} /> : null}{gone ? <Bdg l={tr("Archived")} c={OR} /> : null}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{x.title}</div>{x.pinned ? <Bdg l={tr("Pinned")} c={BL} /> : null}{gone ? <Bdg l={tr("Archived|post")} c={OR} /> : null}</div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{[a && a.name, wsWhen(wsAt(x, "createdAt", "created_at"))].filter(Boolean).join(", ")}{wsAt(x, "editedAt", "edited_at") ? " (" + tr("edited") + ")" : ""}</div>
         </div>
         {writable && !gone && (mine || canManage) && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -4357,7 +4357,7 @@ function TodosView({ af, t, p, meId, writable, showToast }) {
           </div>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
             {writable && <Btn t={t} v="ghost" onClick={() => setWin({ kind: "todo", listId: l.id })} style={{ minHeight: 44, fontSize: 12 }} data-ws-add-todo={l.id}>{tr("Add a to-do")}</Btn>}
-            {done.length > 0 && <Btn t={t} v="ghost" onClick={() => setOpen(o => ({ ...o, [l.id]: !o[l.id] }))} aria-expanded={!!open[l.id]} style={{ minHeight: 44, fontSize: 12 }} data-ws-done-toggle={l.id}>{open[l.id] ? tr("Hide the done ones") : trn("{0} done|count", done.length)}</Btn>}
+            {done.length > 0 && <Btn t={t} v="ghost" onClick={() => setOpen(o => ({ ...o, [l.id]: !o[l.id] }))} aria-expanded={!!open[l.id]} style={{ minHeight: 44, fontSize: 12 }} data-ws-done-toggle={l.id}>{open[l.id] ? tr("Hide the done ones") : trn("{0} done|todos", done.length)}</Btn>}
           </div>
           {open[l.id] && done.length > 0 && <div data-ws-done-list={l.id} style={{ marginTop: 4 }}>{done.map((x, i) => <WsTodoRow key={x.id} t={t} todo={x} first={i === 0} writable={writable} busy={busy === x.id} onTick={v => tick(x, v)} onOpen={() => wsGo([p.id, "todos", x.id])} />)}</div>}
         </div></Crd>); })}
