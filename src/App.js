@@ -9038,6 +9038,38 @@ const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={ma
   {urls.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
 </div>);
 
+// A filed inspection's review line (Step 232, STEP217_CONTRACT_A v2 section 6): signed, with the
+// drawing and who signed it when; open to the caller, with the signature box and Sign; or waiting.
+// A refusal is drawn word for word under the box. The result's id comes from the answer, or from the
+// route its first signature names.
+const inspectionResultIdOf = (d) => {
+  if (d && d.result && d.result.id != null) return String(d.result.id);
+  const sg = (d && Array.isArray(d.signatures) ? d.signatures : []).find(x => x && /\/api\/inspections\/results\/[^/]+\/signatures\//.test(String(x.path || "")));
+  const m = sg ? /\/api\/inspections\/results\/([^/]+)\//.exec(String(sg.path)) : null;
+  return m ? decodeURIComponent(m[1]) : "";
+};
+function InspectionReviewLine({ af, t, token, resultId, line, signature, onSigned, fmtDT }) {
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const busyRef = useRef(false);
+  const label = builderText(line.label) || String(line.line || "");
+  const sign = async (png) => {
+    if (busyRef.current || !resultId) return;
+    busyRef.current = true; setBusy(true); setRefusal("");
+    try { await af("/api/inspections/results/" + encodeURIComponent(resultId) + "/signatures/" + encodeURIComponent(line.line), { method: "POST", body: { signature: png } }); onSigned(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    busyRef.current = false; setBusy(false);
+  };
+  return (<div data-inspection-line={line.line} data-line-state={line.signed ? "signed" : line.canSign ? "open" : "waiting"} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+    {line.signed || !line.canSign ? <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{label}</div> : null}
+    {line.signed ? (<div>
+      {signature && signature.path ? <SignatureImage t={t} token={token} path={signature.path} signKey={line.line} /> : null}
+      <div style={{ fontSize: 12, color: t.textSec }}>{tr("Signed by {0}, {1}", (signature && signature.signerName) || "--", signature && signature.signedAt ? fmtDT(signature.signedAt) : "--")}</div>
+    </div>) : line.canSign ? <SignatureBox t={t} label={label} busy={busy} refusal={refusal} onSign={sign} signWord={tr("Sign")} busyWord={tr("Signing...")} />
+      : <div style={{ fontSize: 13, color: line.required ? OR : t.textMut, fontWeight: line.required ? 600 : 400 }}>{line.required ? tr("Waiting for {0}", label) : tr("Not signed")}</div>}
+  </div>);
+}
+
 function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
@@ -9066,6 +9098,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [templates, setTemplates] = useState([]);
   const [scheduled, setScheduled] = useState([]);
   const [completed, setCompleted] = useState([]);
+  // Step 232: the completed inspections with a required review line unsigned, from
+  // ?awaiting=review. An API that does not know the filter answers every inspection, scheduled ones
+  // among them, so the list counts only when every row it holds is completed and the full list holds
+  // one that is not.
+  const [awaiting, setAwaiting] = useState(null);
   // Analytics state
   const [analyticsRange, setAnalyticsRange] = useState(() => PRESETS.last90());
   const [analyticsSite, setAnalyticsSite] = useState("");
@@ -9124,6 +9161,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
       const all = await af("/api/inspections/scheduled");
       setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
       setCompleted(all.filter(s => s.status === "completed"));
+      af("/api/inspections/scheduled?awaiting=review").then(aw => {
+        const filtered = Array.isArray(aw) && aw.every(r => r && r.status === "completed") && Array.isArray(all) && all.some(r => r && r.status !== "completed");
+        setAwaiting(filtered ? aw : null);
+      }).catch(() => setAwaiting(null));
     markInsp("scheduled", false); } catch (e) { markInsp("scheduled", true); showToast(e.message, "error"); }
   }, [af]);
 
@@ -9276,7 +9317,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(f.blob); });
           } catch (e) { console.warn("Inspection signature:", e.message); }
         }
-        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null });
+        const ln = sg && Array.isArray(d.lines) ? d.lines.find(x => x && x.line === sg.line) : null;
+        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null, label: ln ? builderText(ln.label) : "" });
       }
     }
     const photoImgs = (urls, size) => urls.map(u => '<img src="' + esc(u) + '" style="width:' + size[0] + 'px;height:' + size[1] + 'px;object-fit:cover;border-radius:4px;margin:2px" />').join("");
@@ -9350,7 +9392,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <tbody>${itemRows}</tbody>
         </table>
         ${overall.length ? `<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Photos of the whole inspection")}</div>${photoImgs(overall, [160, 120])}</div>` : ""}
-        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
+        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.label ? `<div style="font-size:11px;font-weight:700;color:#333;margin-bottom:4px">${esc(sg.label)}</div>` : ""}${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div>
       </body></html>`;
 
@@ -9526,12 +9568,17 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         </Crd>}
         {isComplete && d.capture && <Crd t={t} style={{ marginTop: 16 }}>
           <div data-inspection-signature="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Signature")}</div>
-          {(Array.isArray(d.signatures) ? d.signatures : []).length === 0
+          {(Array.isArray(d.signatures) ? d.signatures : []).filter(sg => !(Array.isArray(d.lines) && d.lines.some(ln => ln && ln.line === sg.line))).length === 0
             ? <div data-inspection-unsigned="" style={{ fontSize: 13, color: t.textMut }}>{tr("Not signed")}</div>
-            : d.signatures.map((sg, i) => (<div key={sg.line || i} data-inspection-signed={sg.line || ""} style={{ marginBottom: 8 }}>
+            : d.signatures.filter(sg => !(Array.isArray(d.lines) && d.lines.some(ln => ln && ln.line === sg.line))).map((sg, i) => (<div key={sg.line || i} data-inspection-signed={sg.line || ""} style={{ marginBottom: 8 }}>
               {sg.path ? <SignatureImage t={t} token={token} path={sg.path} signKey={sg.line} /> : null}
               <div style={{ fontSize: 12, color: t.textSec }}>{tr("Signed by {0}, {1}", sg.signerName || "--", sg.signedAt ? fmtDT(sg.signedAt) : "--")}</div>
             </div>))}
+        </Crd>}
+        {/* Step 232: the review lines, once the answer carries lines. */}
+        {isComplete && Array.isArray(d.lines) && d.lines.length > 0 && <Crd t={t} style={{ marginTop: 16 }}>
+          <div data-inspection-lines="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Review|inspection")}</div>
+          {d.lines.map(ln => <InspectionReviewLine key={ln.line} af={af} t={t} token={token} resultId={inspectionResultIdOf(d)} line={ln} signature={(Array.isArray(d.signatures) ? d.signatures : []).find(sg => sg && sg.line === ln.line) || null} fmtDT={fmtDT} onSigned={() => { openDetail(d.id); loadScheduled(); }} />)}
         </Crd>}
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
@@ -9553,8 +9600,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     <div>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
-        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")], ["reports", tr("Reports")]].map(([tb, lbl]) => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
+        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")]].concat(awaiting ? [["awaiting", tr("Awaiting review")]] : [], [["reports", tr("Reports")]]).map(([tb, lbl]) => (
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}{tb === "awaiting" && awaiting && awaiting.length > 0 ? " (" + awaiting.length + ")" : ""}</button>
         ))}
       </div>
 
@@ -9704,6 +9751,19 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
+        </div>
+      )}
+
+      {/* AWAITING REVIEW TAB (Step 232) */}
+      {tab === "awaiting" && awaiting && (
+        <div data-inspections-awaiting="">
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Completed inspections with a review line still to sign. A row opens the inspection.")}</div>
+          <DataTable t={t} rows={awaiting} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={tr("Nothing is waiting for review.")} columns={[
+            { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+            { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
+            { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
+            { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: si => (si.total_score != null && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) + "%" : "--") },
+          ]} />
         </div>
       )}
 
