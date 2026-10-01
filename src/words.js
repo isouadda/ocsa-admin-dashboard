@@ -3124,6 +3124,8 @@ export const WORDS = {
   "Plan": { es: "Plan" },
   "No plan yet": { es: "Todav\u00eda sin plan" },
   "Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.": { es: "Qu\u00e9 sitios activos tienen un plan de carga de trabajo, con sus horas y su personal. Una fila abre el plan del sitio." },
+  "Photos of the whole inspection": { es: "Fotos de toda la inspecci\u00f3n" },
+  "Signed by {0}, {1}": { es: "Firmado por {0}, {1}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

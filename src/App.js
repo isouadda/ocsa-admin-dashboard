@@ -1015,7 +1015,7 @@ export default function AdminDashboard() {
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
-        {page === "inspections" && <InspectionsPage af={af} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -8702,7 +8702,19 @@ function ShiftMarketplacePage({ af, showToast, isAdmin, t, sites, allStaff, getO
 const INSPECTION_KINDS = ["supervisor", "audit"];
 const inspectionKindWord = (k) => (k === "audit" ? tr("Audit inspection") : k === "supervisor" ? tr("Supervisor inspection") : String(k || ""));
 const inspectionKindOpts = () => INSPECTION_KINDS.map(k => ({ v: k, l: inspectionKindWord(k) }));
-function InspectionsPage({ af, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
+// A filed inspection's photos on a card (Step 218): photo_urls, or the one photo_url an older answer holds.
+const inspectionPhotosOf = (sr) => {
+  const urls = (sr && Array.isArray(sr.photo_urls) ? sr.photo_urls : []).filter(u => typeof u === "string" && u);
+  return urls.length ? urls : (sr && sr.photo_url ? [sr.photo_url] : []);
+};
+// The photos of the inspection as a whole, from the result.
+const inspectionOverallPhotosOf = (d) => (d && d.result && Array.isArray(d.result.photo_urls) ? d.result.photo_urls.filter(u => typeof u === "string" && u) : []);
+// Photos as thumbnails, each opening full size in a new tab.
+const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={mark} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+  {urls.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
+</div>);
+
+function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
   const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
@@ -8909,17 +8921,42 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
 
   const exportCSV = (d) => {
     const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
-    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", "Photo URL"];
+    // Step 218: with capture in the answer, the photo column holds every photo on the card.
+    const many = !!d.capture;
+    const hdr = ["Item", "Zone", "Service Category", "Score", "Max Score", "Percent", "Notes", many ? "Photo URLs" : "Photo URL"];
     const rows = (d.items || []).map(item => {
       const sr = (d.scores || []).find(s => s.template_item_id === item.id);
       const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) + "%" : "--";
-      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", sr?.photo_url || ""];
+      return [item.label, item.zone, cimsLabels[item.cims_category] || CIMS_LABELS[item.cims_category] || item.cims_category, sr ? sr.score : "--", item.max_score, iPct, sr?.notes || "", many ? inspectionPhotosOf(sr).join(" ") : (sr?.photo_url || "")];
     });
     rows.push([], ["TOTAL", "", "", d.result.total_score, d.result.max_possible_score, pct + "%", d.result.overall_notes || "", ""]);
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
   };
 
-  const exportPrint = (d) => {
+  // The printed report. With capture in the answer (Step 218) it carries every photo on each card,
+  // the photos of the whole inspection, and the signature, read with the token and embedded as a data
+  // URL. The window opens in the click, so a popup blocker lets it through, and is written once the
+  // signature is read.
+  const exportPrint = async (d) => {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const many = !!d.capture;
+    const sigs = [];
+    if (many) {
+      for (const sg of (Array.isArray(d.signatures) ? d.signatures : [])) {
+        let url = "";
+        if (sg && sg.path) {
+          try {
+            const f = await apiDownload(sg.path, token);
+            url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(f.blob); });
+          } catch (e) { console.warn("Inspection signature:", e.message); }
+        }
+        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null });
+      }
+    }
+    const photoImgs = (urls, size) => urls.map(u => '<img src="' + esc(u) + '" style="width:' + size[0] + 'px;height:' + size[1] + 'px;object-fit:cover;border-radius:4px;margin:2px" />').join("");
+    const overall = many ? inspectionOverallPhotosOf(d) : [];
     const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
     const scoreColor = pct >= 80 ? "#2ECC71" : pct >= 60 ? "#F39C12" : "#E74C3C";
     const itemRows = (d.items || []).map(item => {
@@ -8943,7 +8980,7 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
             </div>
           </td>
           <td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">${sr?.notes || ""}</td>
-          <td style="padding:10px 8px;text-align:center">${sr?.photo_url ? `<img src="${sr.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />` : ""}</td>
+          <td style="padding:10px 8px;text-align:center">${many ? photoImgs(inspectionPhotosOf(sr), [80, 60]) : (sr?.photo_url ? `<img src="${sr.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />` : "")}</td>
         </tr>`;
     }).join("");
 
@@ -8988,10 +9025,11 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
           <thead><tr><th>${tr("Item")}</th><th>${tr("Zone")}</th><th>${tr("Category")}</th><th>${tr("Score")}</th><th>${tr("Notes")}</th><th>${tr("Photo")}</th></tr></thead>
           <tbody>${itemRows}</tbody>
         </table>
+        ${overall.length ? `<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Photos of the whole inspection")}</div>${photoImgs(overall, [160, 120])}</div>` : ""}
+        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div>
       </body></html>`;
 
-    const w = window.open("", "_blank");
     w.document.write(html);
     w.document.close();
     setTimeout(() => w.print(), 600);
@@ -9127,7 +9165,15 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
                             <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5, padding: "8px 12px", background: t.cardAlt, borderRadius: 8 }}>{sr.notes}</div>
                           </div>
                         )}
-                        {sr.photo_url ? (
+                        {d.capture ? (inspectionPhotosOf(sr).length > 0 ? (
+                          <div>
+                            <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos ({0})", inspectionPhotosOf(sr).length)}</div>
+                            <InspectionThumbs t={t} urls={inspectionPhotosOf(sr)} mark={item.id} />
+                            <div style={{ fontSize: 10, color: t.textMut, marginTop: 4 }}>{tr("Click photo to open full size")}</div>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 11, color: t.textMut, fontStyle: "italic" }}>{tr("No photo attached for this item.")}</div>
+                        )) : sr.photo_url ? (
                           <div>
                             <div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Attached Photo")}</div>
                             <a href={sr.photo_url} target="_blank" rel="noreferrer">
@@ -9148,6 +9194,21 @@ function InspectionsPage({ af, showToast, canManageInspections = false, t, sites
             );
           })}
         </div>
+
+        {/* Step 218: the photos of the whole inspection and the signature, once the answer carries capture. */}
+        {isComplete && d.capture && inspectionOverallPhotosOf(d).length > 0 && <Crd t={t} style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Photos of the whole inspection")}</div>
+          <InspectionThumbs t={t} urls={inspectionOverallPhotosOf(d)} mark="overall" />
+        </Crd>}
+        {isComplete && d.capture && <Crd t={t} style={{ marginTop: 16 }}>
+          <div data-inspection-signature="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Signature")}</div>
+          {(Array.isArray(d.signatures) ? d.signatures : []).length === 0
+            ? <div data-inspection-unsigned="" style={{ fontSize: 13, color: t.textMut }}>{tr("Not signed")}</div>
+            : d.signatures.map((sg, i) => (<div key={sg.line || i} data-inspection-signed={sg.line || ""} style={{ marginBottom: 8 }}>
+              {sg.path ? <SignatureImage t={t} token={token} path={sg.path} signKey={sg.line} /> : null}
+              <div style={{ fontSize: 12, color: t.textSec }}>{tr("Signed by {0}, {1}", sg.signerName || "--", sg.signedAt ? fmtDT(sg.signedAt) : "--")}</div>
+            </div>))}
+        </Crd>}
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
@@ -11953,17 +12014,19 @@ function SignatureBox({ t, label, busy, refusal, onSign, onCancel, signWord, bus
   </div>);
 }
 // The signature a stamp carries, streamed by the API and drawn about 48 pixels high above the line
-// that says who signed. A stamp with no signature draws nothing here.
-function SignatureImage({ t, token, responseId, signKey }) {
+// that says who signed. A stamp with no signature draws nothing here. path, when given, is the route
+// the API names for the image, as a filed inspection's signatures carry it (Step 218).
+function SignatureImage({ t, token, responseId, signKey, path }) {
   const [url, setUrl] = useState("");
+  const src = path || ("/api/forms/responses/" + encodeURIComponent(responseId) + "/signatures/" + encodeURIComponent(signKey));
   useEffect(() => {
     let alive = true;
     let made = "";
-    apiDownload("/api/forms/responses/" + encodeURIComponent(responseId) + "/signatures/" + encodeURIComponent(signKey), token)
+    apiDownload(src, token)
       .then(f => { made = URL.createObjectURL(f.blob); if (alive) setUrl(made); else URL.revokeObjectURL(made); })
       .catch(() => { if (alive) setUrl(""); });
     return () => { alive = false; if (made) URL.revokeObjectURL(made); };
-  }, [responseId, signKey, token]);
+  }, [src, token]);
   if (!url) return null;
   return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
 }
