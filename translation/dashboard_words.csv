@@ -1031,7 +1031,7 @@ Not saved yet. Check your connection and try again.,Todavía no se guardó. Revi
 Not sent yet. Check your connection and try again.,Todavía no se envió. Revise su conexión e intente de nuevo.,"Forms, the form window, a Send that never reached the API"
 Not sent.,No se envió.,"Help, a message that did not go"
 Not set,Sin indicar,"Staff Management, a person's profile, a date nobody entered; Staff Management, the Profile tab"
-Not signed,Sin firmar,"Forms, a filed report, a sign-off with no stamp"
+Not signed,Sin firmar,"Forms, a filed report, a sign-off with no stamp; Inspections, a completed inspection with no signature, and its printed report"
 Not signed yet. Check your connection and try again.,Todavía no se firmó. Revise su conexión e intente de nuevo.,"Forms, the form window, a sign-off that never reached the API"
 Not yet,Todavía no,"Forms, a filed report, keeping it from being sent again"
 Not yet loaded,Todavía no cargado,"Forms, Sync Diagnostic"
@@ -1469,7 +1469,7 @@ Shown as: {0},Se muestra como: {0},"Settings, Dropdown Options, a value's words 
 Sign,Firmar,"Forms, a filed report, a sign-off"
 Sign In,Iniciar sesión,The sign-in card
 Sign Out,Cerrar sesión,The shell
-Signature,Firma,"HR Records, the printed attendance sheet, the column each person signs in"
+Signature,Firma,"HR Records, the printed attendance sheet, the column each person signs in; Inspections, a completed inspection and its printed report"
 Signed by {0} on {1} at {2},Firmado por {0} el {1} a las {2},"Forms, a filed report, a sign-off's stamp"
 Signing in...,Iniciando sesión...,The sign-in card
 Signing...,Firmando...,"Forms, a filed report, while a sign-off is stamped"
