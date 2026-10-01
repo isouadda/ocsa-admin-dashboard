@@ -3064,6 +3064,22 @@ export const WORDS = {
   "Nobody works at a school site without current clearances. If a date was entered wrongly, correct it on their Clearances, then try again.": { es: "Nadie trabaja en un sitio escolar sin autorizaciones vigentes. Si una fecha se anot\u00f3 por error, corr\u00edjala en sus autorizaciones escolares y vuelva a intentarlo." },
   "Open the clearances of {0}": { es: "Abrir las autorizaciones de {0}" },
   "Open their clearances": { es: "Abrir sus autorizaciones" },
+  "Industry description": { es: "Descripci\u00f3n de la industria" },
+  "NAICS code": { es: "C\u00f3digo NAICS" },
+  "Six digits": { es: "Seis d\u00edgitos" },
+  "Executive name": { es: "Nombre del ejecutivo" },
+  "Executive title": { es: "Cargo del ejecutivo" },
+  "Executive phone": { es: "Tel\u00e9fono del ejecutivo" },
+  "Establishment name": { es: "Nombre del establecimiento" },
+  "Establishment address": { es: "Direcci\u00f3n del establecimiento" },
+  "OSHA 300A": { es: "OSHA 300A" },
+  "The annual summary of injuries prints these. A blank one stays a line to fill in by hand.": { es: "El resumen anual de lesiones imprime estos datos. Uno en blanco queda como una l\u00ednea para llenar a mano." },
+  "Download for OSHA": { es: "Descargar para OSHA" },
+  "Posting": { es: "Publicaci\u00f3n" },
+  "The day the summary went up where employees can read it. It stays up from February 1 to April 30.": { es: "El d\u00eda en que el resumen se coloc\u00f3 donde el personal puede leerlo. Se queda colocado del 1 de febrero al 30 de abril." },
+  "Posted on": { es: "Publicado el" },
+  "The posting date did not save. Try again.": { es: "La fecha de publicaci\u00f3n no se guard\u00f3. Intente de nuevo." },
+  "Download for OSHA saves the summary as the file OSHA's Injury Tracking Application takes.": { es: "Descargar para OSHA guarda el resumen como el archivo que acepta la aplicaci\u00f3n de seguimiento de lesiones de OSHA." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

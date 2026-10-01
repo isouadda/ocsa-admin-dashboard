@@ -5832,8 +5832,16 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
   const [notReady, setNotReady] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+  // Step 211: the day the summary was posted, and the file for OSHA, once the summary carries postedOn.
+  const [postedOn, setPostedOn] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [postRefusal, setPostRefusal] = useState("");
+  const [postSaved, setPostSaved] = useState(false);
+  const [itaBusy, setItaBusy] = useState(false);
+  const [itaError, setItaError] = useState("");
   const shown = (d) => {
     setData(d);
+    setPostedOn(d && d.postedOn ? String(d.postedOn).slice(0, 10) : "");
     setFigures({ averageEmployees: d.averageEmployees == null ? "" : String(d.averageEmployees), totalHours: d.totalHours == null ? "" : String(d.totalHours) });
   };
   // One read per year picked. An answer for a year no longer picked is dropped.
@@ -5891,6 +5899,38 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     setExporting(false);
   };
 
+  // The posting date goes where STEP210_CONTRACT.md puts it, PATCH /api/injury-summaries/:year, and
+  // on a 404 to the route the summary already saves through, PUT /api/injury-summary/:year. The
+  // summary is read again after, and a date it does not hold says it did not save.
+  const savePosted = async () => {
+    if (posting) return;
+    setPosting(true); setPostRefusal(""); setPostSaved(false);
+    const mine = seq.current;
+    const body = { postedOn: postedOn || null };
+    try {
+      try { await af("/api/injury-summaries/" + year, { method: "PATCH", body }); }
+      catch (e) { if (e && (e.status === 404 || e.status === 405)) await af("/api/injury-summary/" + year, { method: "PUT", body }); else throw e; }
+      const d = await af("/api/injury-summary?year=" + year);
+      if (seq.current === mine && d && d.totals) {
+        shown(d);
+        if ((d.postedOn ? String(d.postedOn).slice(0, 10) : "") === (postedOn || "")) setPostSaved(true);
+        else setPostRefusal(tr("The posting date did not save. Try again."));
+      }
+    } catch (e) { if (seq.current === mine) setPostRefusal(e.message || tr("Request failed")); }
+    setPosting(false);
+  };
+  // The year's 300A in the layout OSHA's Injury Tracking Application takes, from the contract's route
+  // and, on a 404, the summary's own.
+  const downloadIta = async () => {
+    if (itaBusy) return;
+    setItaBusy(true); setItaError("");
+    try {
+      try { await saveDownload("/api/injury-summaries/" + year + "/ita.csv", token, "OSHA-300A-" + year + ".csv"); }
+      catch (e) { if (e && e.status === 404) await saveDownload("/api/injury-summary/" + year + "/ita.csv", token, "OSHA-300A-" + year + ".csv"); else throw e; }
+    } catch (e) { setItaError(e.message || tr("Request failed")); }
+    setItaBusy(false);
+  };
+  const posts = !!data && Object.prototype.hasOwnProperty.call(data, "postedOn");
   const refusedFor = (key) => (saveRefusal.keys.indexOf(key) >= 0 ? saveRefusal.text : "");
   const refusalElsewhere = saveRefusal.text && !saveRefusal.keys.some(k => k === "averageEmployees" || k === "totalHours") ? saveRefusal.text : "";
   const changed = !!data && (figures.averageEmployees !== (data.averageEmployees == null ? "" : String(data.averageEmployees)) || figures.totalHours !== (data.totalHours == null ? "" : String(data.totalHours)));
@@ -5910,9 +5950,13 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
     {notReady && <div data-summary-refusal="notReady" style={{ fontSize: 13, color: RD, fontWeight: 600, marginBottom: 12 }}>{notReady}</div>}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
       <InjuryYearPicker t={t} year={year} onChange={setYear} />
-      {data && <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn></div>}
+      {data && <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {posts && <Btn t={t} v="ghost" onClick={downloadIta} disabled={itaBusy} style={{ minHeight: 44 }}>{itaBusy ? tr("Downloading...") : tr("Download for OSHA")}</Btn>}
+        <Btn t={t} v="ghost" onClick={exportPdf} disabled={exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export PDF")}</Btn>
+      </div>}
     </div>
     {exportError && <div style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {itaError && <div data-summary-refusal="ita" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{itaError}</div>}
     {failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> :
       data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       (<>
@@ -5959,6 +6003,19 @@ function InjurySummaryView({ af, token, t, isAdmin, pending = null, onChanged })
               signWord={tr("Certify")} busyWord={tr("Certifying...")} blocked={!signer.name.trim() || !signer.title.trim()} />
           </div>)}
         </Crd>
+        {posts && <Crd t={t} style={{ marginTop: 16 }}>
+          <div data-summary-posting="">
+            <div style={smallHead}>{tr("Posting")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 10, maxWidth: 560 }}>{tr("The day the summary went up where employees can read it. It stays up from February 1 to April 30.")}</div>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ maxWidth: 240 }}><Lbl>{tr("Posted on")}</Lbl><Inp t={t} type="date" aria-label={tr("Posted on")} value={postedOn} onChange={e => { setPostedOn(e.target.value); setPostSaved(false); }} style={postRefusal ? { borderColor: RD } : {}} /></div>
+              <Btn t={t} onClick={savePosted} disabled={posting || (postedOn || "") === (data.postedOn ? String(data.postedOn).slice(0, 10) : "")} style={{ minHeight: 44, minWidth: 96 }}>{posting ? tr("Saving...") : tr("Save")}</Btn>
+              {postSaved && <span style={{ fontSize: 12, color: GR }}>{tr("Saved")}</span>}
+            </div>
+            {postRefusal && <div data-summary-refusal="postedOn" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{postRefusal}</div>}
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 10, lineHeight: 1.4 }}>{tr("Download for OSHA saves the summary as the file OSHA's Injury Tracking Application takes.")}</div>
+          </div>
+        </Crd>}
       </>)}
   </div>);
 }
@@ -10342,6 +10399,18 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
   </div>);
 }
 
+// The company fields the OSHA 300A needs (Step 211, STEP210_CONTRACT.md sections 1 and 5), each drawn
+// once GET /api/settings answers with its column, so nothing shows before the API holds it, and sent
+// with the rest of the company's details. A blank one stays a line to fill in by hand on the 300A.
+const OSHA_COMPANY_FIELDS = [
+  { key: "industry_description", label: "Industry description" },
+  { key: "naics_code", label: "NAICS code", hint: "Six digits", digits: 6 },
+  { key: "executive_name", label: "Executive name" },
+  { key: "executive_title", label: "Executive title" },
+  { key: "executive_phone", label: "Executive phone" },
+  { key: "establishment_name", label: "Establishment name" },
+  { key: "establishment_address", label: "Establishment address", multi: true },
+];
 function CompanySettingsPanel({ af, uf, showToast, t }) {
   const [form, setForm] = useState(null);
   const [loading, setLoading] = useState(true); const [failed, setFailed] = useState(false);
@@ -10358,10 +10427,12 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
   useEffect(() => { load(); }, []);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  // A refusal of one of the 300A's fields, drawn under it when its keys name it.
+  const [oshaRefusal, setOshaRefusal] = useState({ text: "", keys: [] });
 
   const save = async () => {
     if (!form) return;
-    setSaving(true);
+    setSaving(true); setOshaRefusal({ text: "", keys: [] });
     try {
       const body = {
         legal_name: form.legal_name || null,
@@ -10378,10 +10449,15 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
         timezone: form.timezone || "America/New_York",
         pay_period_start_day: form.pay_period_start_day || "Saturday",
       };
+      OSHA_COMPANY_FIELDS.forEach(f => { if (Object.prototype.hasOwnProperty.call(form, f.key)) body[f.key] = form[f.key] == null ? null : (String(form[f.key]).trim() || null); });
       const updated = await af("/api/settings", { method: "PATCH", body });
       setForm(updated);
       showToast(tr("Company settings saved"));
-    } catch (e) { showToast(e.message, "error"); }
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      if (keys.some(k => OSHA_COMPANY_FIELDS.some(f => f.key === k))) setOshaRefusal({ text: e.message || tr("Request failed"), keys });
+      showToast(e.message, "error");
+    }
     setSaving(false);
   };
 
@@ -10508,6 +10584,22 @@ function CompanySettingsPanel({ af, uf, showToast, t }) {
           <span style={{ fontSize: 12, color: t.textSec }}>{tr("Show EIN on report exports by default")}</span>
         </div>
       </Crd>
+      {OSHA_COMPANY_FIELDS.some(f => Object.prototype.hasOwnProperty.call(form, f.key)) && <Crd t={t} style={{ flex: "1 1 100%", minWidth: 320, padding: 18 }}>
+        <div data-osha-company="">
+          <div style={sec}>{tr("OSHA 300A")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: -8, marginBottom: 14, lineHeight: 1.5 }}>{tr("The annual summary of injuries prints these. A blank one stays a line to fill in by hand.")}</div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+            {OSHA_COMPANY_FIELDS.filter(f => Object.prototype.hasOwnProperty.call(form, f.key)).map(f => { const refused = oshaRefusal.keys.indexOf(f.key) >= 0; return (<div key={f.key} style={{ marginBottom: 2 }}>
+              <label style={lbl}>{tr(f.label)}</label>
+              {f.multi
+                ? <textarea aria-label={tr(f.label)} style={{ ...inp, minHeight: 60, resize: "vertical", ...(refused ? { borderColor: RD } : {}) }} value={form[f.key] || ""} onChange={e => set(f.key, e.target.value)} />
+                : <input aria-label={tr(f.label)} style={{ ...inp, ...(refused ? { borderColor: RD } : {}) }} value={form[f.key] || ""} onChange={e => set(f.key, f.digits ? e.target.value.replace(/[^0-9]/g, "").slice(0, f.digits) : e.target.value)} inputMode={f.digits ? "numeric" : undefined} />}
+              {f.hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr(f.hint)}</div>}
+              {refused && <div data-osha-refusal={f.key} style={{ fontSize: 12, color: RD, marginTop: 3 }}>{oshaRefusal.text}</div>}
+            </div>); })}
+          </div>
+        </div>
+      </Crd>}
 
       <div style={{ width: "100%", display: "flex", justifyContent: "flex-end", gap: 8 }}>
         <button onClick={load} disabled={saving} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid " + t.border, background: "transparent", color: t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tr("Reset")}</button>
