@@ -9645,7 +9645,8 @@ const quoteDetailsIn = (q) => ({
 });
 
 // The list, newest first, from GET /api/quotes?status=&q=. A row opens its quote at #quotes/<id>, and
-// New quote opens #quotes/new, so a refresh keeps the quote open.
+// New quote opens #quotes/new, so a refresh keeps the quote open. #quotes/new/<siteId>, from a site's
+// Workload plan tab, opens a new quote with that site picked.
 function QuotesPage({ af, token, t, sites = [], phone = false, route = [], onRoute, showToast }) {
   const [rows, setRows] = useState(null);
   const [failed, setFailed] = useState("");
@@ -9678,7 +9679,7 @@ function QuotesPage({ af, token, t, sites = [], phone = false, route = [], onRou
   const close = () => { if (onRoute) onRoute([]); };
   const created = (id) => { quiet.current = String(id); if (onRoute) onRoute([String(id)]); };
 
-  if (openId) return <QuoteEditor key={editorKey} af={af} token={token} t={t} sites={sites} phone={phone} id={openId} onBack={close} onCreated={created} showToast={showToast} />;
+  if (openId) return <QuoteEditor key={editorKey} af={af} token={token} t={t} sites={sites} phone={phone} id={openId} startSiteId={openId === "new" && route[1] ? String(route[1]) : ""} onBack={close} onCreated={created} showToast={showToast} />;
   const cols = [
     { header: tr("Number"), tdStyle: { whiteSpace: "nowrap" }, render: r => (<span><span style={{ fontWeight: 600, color: t.text }}>{r.number}</span>{Number(r.revision) > 1 ? <div style={{ fontSize: 10, color: t.textMut }}>{tr("Revision {0}", r.revision)}</div> : null}</span>) },
     { header: tr("Client"), tdStyle: { minWidth: 120, color: t.text }, render: r => r.clientName || "--" },
@@ -9957,7 +9958,10 @@ function QuoteStepButtons({ t, model, groups, step, onStep, refusal, checks, box
 // groups, with Back and Next between them, and the figures beside them, under them at 390. The
 // figures are worked out by the API 400 ms after typing stops. Save posts a new quote or puts one,
 // and a refusal is drawn under the box its keys name. A closed quote reads only.
-function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCreated, showToast }) {
+// Step 218: a saved quote with a site can be used as that site's workload plan, once the quote's
+// answer carries plans (STEP217_CONTRACT_B_SITE_WORKLOAD_PLANS.md, section 5), and the plans taken
+// from it are listed. Saving a quote never changes a plan; it makes a current one stale.
+function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId = "", onBack, onCreated, showToast }) {
   // The windows the quote opens: the client's PDF or the worksheet, and the send.
   const [pdfKind, setPdfKind] = useState(null);
   const [sendOpen, setSendOpen] = useState(false);
@@ -9988,6 +9992,25 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   const estRef = useRef(null);
   estRef.current = est;
   const calcSeq = useRef(0);
+  // The plans taken from this quote, from GET /api/quotes/:id, or null while the answer carries none.
+  const [plans, setPlans] = useState(null);
+  const [planNote, setPlanNote] = useState("");
+  const [planBusy, setPlanBusy] = useState(false);
+  const [planRefusal, setPlanRefusal] = useState({ text: "", at: "" });
+  const [planSame, setPlanSame] = useState(false);
+  const planBusyRef = useRef(false);
+  const readPlans = useCallback((quoteId) => {
+    af("/api/quotes/" + encodeURIComponent(quoteId)).then(d => { if (d && d.quote && Array.isArray(d.quote.plans)) setPlans(d.quote.plans); }).catch(e => console.warn("Quote plans:", e.message));
+  }, [af]);
+  // A new quote opened from a site's Workload plan tab starts with that site picked; the client, the
+  // site name and the address fill from it on save, as they do for any site picked.
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current || qid || !startSiteId) return;
+    if (!(sites || []).some(x => String(x.id) === String(startSiteId))) return;
+    startedRef.current = true;
+    setDetails(d => (d.siteId ? d : Object.assign({}, d, { siteId: String(startSiteId) })));
+  }, [qid, startSiteId, sites]);
 
   const load = useCallback(async () => {
     setFailed("");
@@ -10005,6 +10028,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
         const q = d && d.quote;
         if (!q) throw new Error(tr("This did not load."));
         setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs));
+        setPlans(Array.isArray(q.plans) ? q.plans : null);
         setCalc({ inputs: q.inputs, results: q.results || {}, taskHours: q.taskHours || {}, checks: q.checks || [], taskDetail: null });
         // The saved quote carries no task detail, so the figures are worked once for the quantities
         // and the counts the Workload step shows.
@@ -10065,6 +10089,8 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       setCalcRefusal(null); setDirty(false);
       if (showToast) showToast(tr("Quote saved."));
       if (isNew) { setQid(q.id); if (onCreated) onCreated(q.id); }
+      // A save makes a current plan taken from the quote stale, and the plans are read again.
+      if (Array.isArray(q.plans)) setPlans(q.plans); else readPlans(q.id);
     } catch (e) {
       const keys = quoteKeysOf(e);
       setRefusal({ text: e.message || tr("Request failed"), keys, code: e.code });
@@ -10078,6 +10104,24 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
   };
 
   const back = () => { if (dirty && !readOnly) setLeaving(true); else onBack(); };
+  // Use as this site's workload plan: the quote as saved, with an optional note. A refusal is drawn
+  // under the button, or under the note for workloadPlans.badNote.
+  const usePlan = async () => {
+    if (planBusyRef.current || !quote || !quote.siteId || dirty) return;
+    planBusyRef.current = true; setPlanBusy(true); setPlanRefusal({ text: "", at: "" }); setPlanSame(false);
+    try {
+      const d = await af("/api/sites/" + encodeURIComponent(String(quote.siteId)) + "/workload-plan", { method: "POST", body: { quoteId: quote.id, note: planNote.trim() || null } });
+      if (d && d.changed === false) setPlanSame(true);
+      else if (showToast) showToast(tr("Workload plan saved."));
+      setPlanNote("");
+      readPlans(quote.id);
+    } catch (e) { setPlanRefusal({ text: e.message || tr("Request failed"), at: e && e.code === "workloadPlans.badNote" ? "note" : "use" }); }
+    planBusyRef.current = false; setPlanBusy(false);
+  };
+  const planList = Array.isArray(plans) ? plans.slice().sort((a, b) => (a.current === b.current ? String(b.adoptedAt || "").localeCompare(String(a.adoptedAt || "")) : a.current ? -1 : 1)) : [];
+  const isPlan = planList.some(x => x && x.current);
+  const planShown = !!(quote && !isNew && quote.siteId && Array.isArray(plans));
+  const planTakes = planShown && quote.status !== "declined" && quote.status !== "void";
   // A quote taken from an answer the API gave after a send or a status: its details and figures as
   // saved. Nothing typed is lost, since both wait on a quote with no change unsaved.
   const takeQuote = (q) => { if (!q) return; setQuote(q); setDetails(quoteDetailsIn(q)); setEst(quoteEstimateIn(q.inputs)); };
@@ -10112,6 +10156,7 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       {quote && Number(quote.revision) > 1 && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Revision {0}", quote.revision)}</span>}
       <div style={{ flex: 1 }} />
       {dirty && !readOnly && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Changes not saved yet")}</span>}
+      {isPlan && !readOnly && <span data-quote-plan-save-line="" style={{ fontSize: 12, color: t.textSec, maxWidth: 360, lineHeight: 1.4 }}>{tr("Saving does not change the site's plan. Use the quote again to update it.")}</span>}
       {model && est && !readOnly && <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>}
     </div>
     {quote && !isNew && <div data-quote-actions="" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
@@ -10126,6 +10171,29 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, onBack, onCr
       <span style={{ color: OR }}>{tr("Saving a change makes this quote a draft again, as revision {0}.", Number(quote.revision || 1) + 1)}</span>
     </div>}
     {closed && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("This quote is {0}, so it reads only.", quoteStatusWord(quote.status).toLowerCase())}</div>}
+    {planShown && (planTakes || planList.length > 0) && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
+      <div data-quote-plans="">
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Workload plan")}</div>
+        {planList.map((x, i) => (<div key={x.planId || i} data-quote-plan={x.current ? (x.stale ? "stale" : "current") : "earlier"} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: x.current ? t.text : t.textSec, padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <span style={{ fontWeight: x.current ? 600 : 400 }}>{x.current ? tr("Workload plan for {0}", x.siteName || "--") : tr("Was the workload plan for {0}", x.siteName || "--")}</span>
+          <span style={{ color: t.textMut }}>{tr("Revision {0}", x.quoteRevision != null ? x.quoteRevision : "--")}</span>
+          {x.adoptedAt ? <span style={{ color: t.textMut }}>{tr("Taken on {0}", irDay(x.adoptedAt))}</span> : null}
+          {x.current && x.stale && <Bdg l={tr("Changed since")} c={OR} />}
+        </div>))}
+        {planTakes && <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Makes this quote the site's workload plan: its hours, staffing and tasks, with no price. A save after that does not change the plan.")}</div>
+          <div style={{ maxWidth: 520 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={planNote} onChange={e => setPlanNote(e.target.value)} style={quoteBoxStyle(planRefusal.at === "note")} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional. It shows with the plan.")}</div>
+            {planRefusal.at === "note" && <QuoteRefusal text={planRefusal.text} />}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+            <Btn t={t} onClick={usePlan} disabled={planBusy || dirty} style={{ minHeight: 44 }}>{planBusy ? tr("Saving...") : tr("Use as this site's workload plan")}</Btn>
+            {dirty && <span style={{ fontSize: 12, color: t.textMut }}>{tr("Save first")}</span>}
+          </div>
+          {planRefusal.at === "use" && <QuoteRefusal text={planRefusal.text} />}
+          {planSame && <div data-quote-plan-same="" style={{ fontSize: 12, color: t.textSec, marginTop: 8 }}>{tr("The plan already has this quote as it was saved. Nothing changed.")}</div>}
+        </div>}
+      </div>
+    </Crd>}
     {closing && <Crd t={t} style={{ marginBottom: 12, padding: 14 }}>
       <div style={{ fontSize: 13, color: t.text, marginBottom: 10 }}>{tr(CLOSE_ASK[closing])}</div>
       {statusRefusal && <div data-quote-refusal="status" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{statusRefusal}</div>}

@@ -3113,6 +3113,13 @@ export const WORDS = {
   "Workload plan saved.": { es: "Plan de carga de trabajo guardado." },
   "Workload plan ended.": { es: "Plan de carga de trabajo terminado." },
   "The plan as the site reads it: the hours, the staffing and the task table. It shows no price.": { es: "El plan como lo lee el sitio: las horas, el personal y la tabla de tareas. No muestra ning\u00fan precio." },
+  "Use as this site's workload plan": { es: "Usar como plan de carga de trabajo de este sitio" },
+  "Save first": { es: "Guarde primero" },
+  "Workload plan for {0}": { es: "Plan de carga de trabajo de {0}" },
+  "Was the workload plan for {0}": { es: "Fue el plan de carga de trabajo de {0}" },
+  "Changed since": { es: "Cambi\u00f3 desde entonces" },
+  "Saving does not change the site's plan. Use the quote again to update it.": { es: "Guardar no cambia el plan del sitio. Vuelva a usar la cotizaci\u00f3n para actualizarlo." },
+  "Makes this quote the site's workload plan: its hours, staffing and tasks, with no price. A save after that does not change the plan.": { es: "Hace de esta cotizaci\u00f3n el plan de carga de trabajo del sitio: sus horas, su personal y sus tareas, sin precio. Un cambio guardado despu\u00e9s no cambia el plan." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
