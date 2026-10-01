@@ -3971,6 +3971,8 @@ function WorkspaceHome({ af, t, meId, people, archived, showToast }) {
     {archived && <button onClick={() => wsGo([])} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", minHeight: 44, borderRadius: 8, border: "none", background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 4 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={t.goldText} /> {tr("Back to Workspace")}</button>}
     <SecT t={t} action={archived ? null : tr("New project")} onAction={() => setCreating(true)}>{archived ? tr("Archived projects") : tr("Workspace")}</SecT>
     {!archived && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 14 }}>{tr("Each project keeps its posts, to-dos, chat and files in one place.")}</div>}
+    {!archived && <MyAssignments af={af} t={t} />}
+    {!archived && <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 }}>{tr("Projects")}</div>}
     {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
       : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
       : list.length === 0 ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{archived ? tr("No archived projects.") : tr("No projects yet. Start one with New project.")}</div></Crd>
@@ -4198,6 +4200,248 @@ function PostView({ af, t, p, postId, meId, isAdmin, canManage, writable, showTo
   </div>);
 }
 
+// A to-do read the same way wherever it comes from: its assignees as people, its due day, and who did it
+// and when.
+const wsTodoOf = (x, members = []) => {
+  const ids = wsAt(x, "assignees", "assigneeIds", "assignee_ids");
+  return {
+    id: String(x.id), listId: wsIdOf(wsAt(x, "listId", "list_id")), title: String(x.title || ""), notes: String(x.notes || ""),
+    assignees: (Array.isArray(ids) ? ids : []).map(a => wsPerson(a, members)).filter(a => a && a.id),
+    dueOn: wsAt(x, "dueOn", "due_on") ? String(wsAt(x, "dueOn", "due_on")).slice(0, 10) : "",
+    doneAt: wsAt(x, "completedAt", "completed_at"), doneBy: wsPerson(wsAt(x, "completedBy", "completed_by"), members),
+    createdBy: wsPerson(wsAt(x, "createdBy", "created_by"), members), commentCount: wsAt(x, "commentCount", "comment_count"),
+    comments: Array.isArray(x.comments) ? x.comments : null,
+  };
+};
+const wsLate = (todo) => !todo.doneAt && !!todo.dueOn && todo.dueOn < toISO(new Date());
+const wsDueLine = (todo) => (todo.dueOn ? (wsLate(todo) ? tr("Overdue since {0}", fdLong(todo.dueOn)) : tr("Due {0}", fdLong(todo.dueOn))) : "");
+
+// New list: a name and a description. POST /api/workspace/projects/:id/todo-lists.
+function TodoListWindow({ af, t, projectId, onClose, onSaved }) {
+  const [f, setF] = useState({ name: "", description: "" });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const save = async () => {
+    if (busy || !f.name.trim()) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try { await af("/api/workspace/projects/" + encodeURIComponent(projectId) + "/todo-lists", { method: "POST", body: { name: f.name.trim(), description: f.description.trim() || null } }); onSaved(); }
+    catch (e) { setRefusal(wsRefusal(e, ["name", "description"])); }
+    setBusy(false);
+  };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-list-window="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("New list")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-ws-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} aria-label={tr("Name")} value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} style={refusal.field === "name" ? { borderColor: RD } : {}} />{refusal.field === "name" ? <div data-ws-refusal="name" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={2} aria-label={tr("Description")} value={f.description} onChange={e => setF(p => ({ ...p, description: e.target.value }))} /></div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !f.name.trim()} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Add the list")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Add a to-do, or Edit one: its title, notes, who it is assigned to (from the project's members) and
+// when it is due. POST /api/workspace/todo-lists/:listId/todos or PATCH /api/workspace/todos/:id.
+function TodoWindow({ af, t, p, listId, todo = null, onClose, onSaved }) {
+  const [f, setF] = useState({ title: todo ? todo.title : "", notes: todo ? todo.notes : "", assigneeIds: todo ? todo.assignees.map(a => a.id) : [], dueOn: todo ? todo.dueOn : "" });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const set = (k, v) => setF(x => ({ ...x, [k]: v }));
+  const save = async () => {
+    if (busy || !f.title.trim()) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    const body = { title: f.title.trim(), notes: f.notes.trim() || null, assigneeIds: f.assigneeIds, dueOn: f.dueOn || null };
+    try {
+      if (todo) await af("/api/workspace/todos/" + encodeURIComponent(todo.id), { method: "PATCH", body });
+      else await af("/api/workspace/todo-lists/" + encodeURIComponent(listId) + "/todos", { method: "POST", body });
+      onSaved();
+    } catch (e) { setRefusal(wsRefusal(e, ["title", "notes", "assigneeIds", "dueOn"])); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-todo-window={todo ? "edit" : "new"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{todo ? tr("Edit to-do") : tr("Add a to-do")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-ws-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("To-do")}</Lbl><Inp t={t} aria-label={tr("To-do")} value={f.title} onChange={e => set("title", e.target.value)} style={refusal.field === "title" ? { borderColor: RD } : {}} />{under("title")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} rows={3} aria-label={tr("Notes")} value={f.notes} onChange={e => set("notes", e.target.value)} />{under("notes")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Assigned to")}</Lbl>
+      <WsPeoplePicker t={t} people={p.members} chosen={f.assigneeIds} onToggle={id => set("assigneeIds", f.assigneeIds.indexOf(id) >= 0 ? f.assigneeIds.filter(x => x !== id) : f.assigneeIds.concat([id]))} />{under("assigneeIds")}</div>
+    <div style={{ marginBottom: 14, maxWidth: 240 }}><Lbl>{tr("Due")}</Lbl><Inp t={t} type="date" aria-label={tr("Due")} value={f.dueOn} onChange={e => set("dueOn", e.target.value)} style={refusal.field === "dueOn" ? { borderColor: RD } : {}} />{under("dueOn")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !f.title.trim()} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : todo ? tr("Save") : tr("Add the to-do")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// One to-do's row: the box that marks it done at once, its title opening its page, who has it, when it
+// is due (red once it is late), and for a done one who did it and when.
+function WsTodoRow({ t, todo, writable, busy, onTick, onOpen, first }) {
+  const done = !!todo.doneAt;
+  return (<div data-ws-todo={todo.id} style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-start", gap: 4, borderTop: first ? "none" : "1px solid " + t.border }}>
+    <span style={chkWrap}><input type="checkbox" aria-label={todo.title} checked={done} disabled={!writable || busy} onChange={e => onTick(e.target.checked)} style={{ width: 20, height: 20 }} /></span>
+    <button onClick={onOpen} style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: "11px 0", cursor: "pointer", minHeight: 44, fontFamily: FONT_BODY }}>
+      <span style={{ display: "block", fontSize: 14, color: done ? t.textMut : t.text, textDecoration: done ? "line-through" : "none" }}>{todo.title}</span>
+      <span style={{ display: "flex", flexWrap: "wrap", gap: "2px 10px", fontSize: 11, color: t.textMut, marginTop: 2 }}>
+        {todo.assignees.length ? <span>{todo.assignees.map(a => a.name).join(", ")}</span> : null}
+        {!done && todo.dueOn ? <span style={{ color: wsLate(todo) ? RD : t.textMut, fontWeight: wsLate(todo) ? 600 : 400 }}>{wsDueLine(todo)}</span> : null}
+        {done ? <span data-ws-done-by="">{todo.doneBy && todo.doneBy.name ? tr("Done by {0}, {1}", todo.doneBy.name, wsWhen(todo.doneAt)) : tr("Done {0}", wsWhen(todo.doneAt))}</span> : null}
+        {todo.commentCount ? <span>{trn("{0} comments|count", Number(todo.commentCount))}</span> : null}
+      </span>
+    </button>
+  </div>);
+}
+
+// Ticking a box: PATCH /api/workspace/todos/:id { done }, shown at once with the caller as who did it,
+// then as the answer has it; a refusal puts the box back and says so.
+const wsTick = async (af, todo, done, me, apply, showToast, members = []) => {
+  const before = todo;
+  apply({ ...todo, doneAt: done ? new Date().toISOString() : null, doneBy: done ? me : null });
+  try {
+    const d = await af("/api/workspace/todos/" + encodeURIComponent(todo.id), { method: "PATCH", body: { done } });
+    const got = wsOne(d, "todo");
+    if (got) {
+      const g = wsTodoOf(got, members);
+      apply({ ...before, doneAt: g.doneAt || (done ? new Date().toISOString() : null), doneBy: g.doneBy && g.doneBy.name ? g.doneBy : (done ? me : null) });
+    }
+  } catch (e) { apply(before); if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+};
+
+// To-dos, #workspace/<projectId>/todos: each list in order with its open to-dos, the done ones folded
+// under it, Add a to-do on each list and New list. GET /api/workspace/projects/:id/todos.
+function TodosView({ af, t, p, meId, writable, showToast }) {
+  const [lists, setLists] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [open, setOpen] = useState({});
+  const [win, setWin] = useState(null);
+  const [busy, setBusy] = useState("");
+  const me = p.members.find(m => m.id === meId) || { id: meId, name: "" };
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/projects/" + encodeURIComponent(p.id) + "/todos")
+      .then(d => setLists((wsList(d, "lists") || []).filter(l => !wsAt(l, "archivedAt", "archived_at")).map(l => ({ id: String(l.id), name: String(l.name || ""), description: String(l.description || ""), todos: (Array.isArray(l.todos) ? l.todos : []).map(x => wsTodoOf(x, p.members)) }))))
+      .catch(e => { setLists([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, p.id, p.members]);
+  useEffect(() => { load(); }, [load]);
+  const apply = (next) => setLists(ls => ls.map(l => ({ ...l, todos: l.todos.map(x => (x.id === next.id ? next : x)) })));
+  const tick = async (todo, done) => { setBusy(todo.id); await wsTick(af, todo, done, me, apply, showToast, p.members); setBusy(""); };
+  return (<div data-ws-todos="">
+    <SecT t={t} action={writable ? tr("New list") : null} onAction={() => setWin({ kind: "list" })}>{tr("To-dos")}</SecT>
+    {lists === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
+      : lists.length === 0 ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No lists yet. Start one with New list.")}</div></Crd>
+      : lists.map(l => { const live = l.todos.filter(x => !x.doneAt); const done = l.todos.filter(x => !!x.doneAt); return (
+        <Crd key={l.id} t={t} style={{ marginBottom: 14, padding: "14px 16px" }}><div data-ws-list={l.id}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{l.name}</div>{l.description ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{l.description}</div> : null}</div>
+            <span style={{ fontSize: 11, color: t.textMut }}>{trn("{0} open|count", live.length)}</span>
+          </div>
+          <div style={{ marginTop: 6 }}>
+            {live.length === 0 ? <div style={{ fontSize: 12, color: t.textMut, padding: "8px 0" }}>{tr("Nothing open on this list.")}</div> : live.map((x, i) => <WsTodoRow key={x.id} t={t} todo={x} first={i === 0} writable={writable} busy={busy === x.id} onTick={v => tick(x, v)} onOpen={() => wsGo([p.id, "todos", x.id])} />)}
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+            {writable && <Btn t={t} v="ghost" onClick={() => setWin({ kind: "todo", listId: l.id })} style={{ minHeight: 44, fontSize: 12 }} data-ws-add-todo={l.id}>{tr("Add a to-do")}</Btn>}
+            {done.length > 0 && <Btn t={t} v="ghost" onClick={() => setOpen(o => ({ ...o, [l.id]: !o[l.id] }))} aria-expanded={!!open[l.id]} style={{ minHeight: 44, fontSize: 12 }} data-ws-done-toggle={l.id}>{open[l.id] ? tr("Hide the done ones") : trn("{0} done|count", done.length)}</Btn>}
+          </div>
+          {open[l.id] && done.length > 0 && <div data-ws-done-list={l.id} style={{ marginTop: 4 }}>{done.map((x, i) => <WsTodoRow key={x.id} t={t} todo={x} first={i === 0} writable={writable} busy={busy === x.id} onTick={v => tick(x, v)} onOpen={() => wsGo([p.id, "todos", x.id])} />)}</div>}
+        </div></Crd>); })}
+    {win && win.kind === "list" && <TodoListWindow af={af} t={t} projectId={p.id} onClose={() => setWin(null)} onSaved={() => { setWin(null); if (showToast) showToast(tr("List added.")); load(); }} />}
+    {win && win.kind === "todo" && <TodoWindow af={af} t={t} p={p} listId={win.listId} onClose={() => setWin(null)} onSaved={() => { setWin(null); if (showToast) showToast(tr("To-do added.")); load(); }} />}
+  </div>);
+}
+
+// A to-do's page, #workspace/<projectId>/todos/<todoId>: its box, notes, who has it, when it is due,
+// who did it, Edit, and its comments. GET /api/workspace/todos/:todoId gives the to-do and its comments;
+// the contract names no such route, so when it does not answer the to-do is read from its list, with the
+// comments the list carries.
+function TodoView({ af, t, p, todoId, meId, isAdmin, writable, showToast }) {
+  const [todo, setTodo] = useState(null);
+  const [comments, setComments] = useState([]);
+  // Whether the to-do's own route answered, which is what lists its comments.
+  const [listed, setListed] = useState(true);
+  const [failed, setFailed] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const me = p.members.find(m => m.id === meId) || { id: meId, name: "" };
+  const load = useCallback(async () => {
+    setFailed("");
+    try {
+      const d = await af("/api/workspace/todos/" + encodeURIComponent(todoId));
+      const got = wsOne(d, "todo");
+      if (got) { setTodo(wsTodoOf(got, p.members)); setComments(Array.isArray(d.comments) ? d.comments : Array.isArray(got.comments) ? got.comments : []); setListed(true); return; }
+    } catch (e) { console.warn("To-do:", e.message); }
+    try {
+      const d = await af("/api/workspace/projects/" + encodeURIComponent(p.id) + "/todos");
+      let hit = null;
+      (wsList(d, "lists") || []).forEach(l => (Array.isArray(l.todos) ? l.todos : []).forEach(x => { if (String(x.id) === String(todoId)) hit = x; }));
+      if (hit) { const got = wsTodoOf(hit, p.members); setTodo(got); setComments(got.comments || []); setListed(!!got.comments); } else setFailed(tr("This to-do is not in the project."));
+    } catch (e) { setFailed(e.message || tr("This did not load.")); }
+  }, [af, todoId, p.id, p.members]);
+  useEffect(() => { setTodo(null); load(); }, [load]);
+  if (!todo) return <Crd t={t}>{failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}</Crd>;
+  const tick = async (done) => { setBusy(true); await wsTick(af, todo, done, me, setTodo, showToast, p.members); setBusy(false); };
+  const line = (label, value) => (value ? <div style={{ display: "flex", gap: 8, fontSize: 13, padding: "4px 0", flexWrap: "wrap" }}><span style={{ color: t.textMut, minWidth: 110 }}>{label}</span><span style={{ color: t.text, minWidth: 0 }}>{value}</span></div> : null);
+  return (<div data-ws-todo-page={todo.id}>
+    <Crd t={t}>
+      <div style={{ display: "flex", flexWrap: "nowrap", alignItems: "flex-start", gap: 6 }}>
+        <span style={chkWrap}><input type="checkbox" aria-label={todo.title} checked={!!todo.doneAt} disabled={!writable || busy} onChange={e => tick(e.target.checked)} style={{ width: 20, height: 20 }} /></span>
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 8 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: todo.doneAt ? t.textMut : t.text, textDecoration: todo.doneAt ? "line-through" : "none" }}>{todo.title}</div>
+          {todo.doneAt ? <div data-ws-done-by="" style={{ fontSize: 12, color: GR, fontWeight: 600, marginTop: 4 }}>{todo.doneBy && todo.doneBy.name ? tr("Done by {0}, {1}", todo.doneBy.name, wsWhen(todo.doneAt)) : tr("Done {0}", wsWhen(todo.doneAt))}</div> : null}
+        </div>
+        {writable && <Btn t={t} v="ghost" onClick={() => setEditing(true)} style={{ minHeight: 44, fontSize: 12 }} data-ws-todo-edit="">{tr("Edit")}</Btn>}
+      </div>
+      <div style={{ marginTop: 10 }}>
+        {line(tr("Assigned to"), todo.assignees.map(a => a.name).join(", ") || tr("No one yet"))}
+        {line(tr("Due"), todo.dueOn ? <span style={{ color: wsLate(todo) ? RD : t.text, fontWeight: wsLate(todo) ? 600 : 400 }}>{wsDueLine(todo)}</span> : tr("No due date"))}
+        {line(tr("Added by"), todo.createdBy && todo.createdBy.name)}
+      </div>
+      {todo.notes ? <WsText t={t} text={todo.notes} style={{ marginTop: 10 }} /> : null}
+      {!listed && <div data-ws-unlisted="" style={{ fontSize: 12, color: t.textMut, marginTop: 14 }}>{tr("The server does not list a to-do's comments yet. A comment added here is saved, and shows once it does.")}</div>}
+      <WsComments af={af} t={t} subjectType="todo" subjectId={todo.id} comments={comments.filter(c => !wsAt(c, "removedAt", "removed_at"))} members={p.members} meId={meId} isAdmin={isAdmin} writable={writable} onChanged={load} showToast={showToast} />
+    </Crd>
+    {editing && <TodoWindow af={af} t={t} p={p} todo={todo} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); if (showToast) showToast(tr("To-do saved.")); load(); }} />}
+  </div>);
+}
+
+// My assignments, at the top of Workspace: the caller's open to-dos across every project from GET
+// /api/workspace/me, soonest due first, a late one in red, each opening its to-do in its project.
+function MyAssignments({ af, t }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/workspace/me").then(d => {
+      if (!alive) return;
+      const list = wsList(d, "todos");
+      setRows(list ? list.map(x => { const pr = wsAt(x, "project") || {}; return { todo: wsTodoOf(x), projectId: wsIdOf(pr) || wsIdOf(wsAt(x, "projectId", "project_id")), projectName: String(pr.name || wsAt(x, "projectName", "project_name") || ""), color: wsColor(pr.color) }; })
+        .filter(r => !r.todo.doneAt && r.projectId)
+        .map((r, i) => ({ ...r, i })).sort((a, b) => ((a.todo.dueOn || "9999") < (b.todo.dueOn || "9999") ? -1 : (a.todo.dueOn || "9999") > (b.todo.dueOn || "9999") ? 1 : a.i - b.i)) : null);
+    }).catch(e => { if (alive) setRows(null); console.warn("My assignments:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  if (rows === null) return null;
+  return (<div data-my-assignments="" style={{ marginBottom: 20 }}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 }}>{tr("My assignments")}</div>
+    <Crd t={t} style={{ padding: rows.length ? "4px 16px" : 16 }}>
+      {rows.length === 0 ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Nothing is assigned to you.")}</div>
+        : rows.map((r, i) => (<button key={r.todo.id} data-my-todo={r.todo.id} onClick={() => wsGo([r.projectId, "todos", r.todo.id])} style={{ display: "flex", alignItems: "flex-start", gap: 10, width: "100%", textAlign: "left", background: "none", border: "none", borderTop: i ? "1px solid " + t.border : "none", padding: "10px 0", cursor: "pointer", minHeight: 44, fontFamily: FONT_BODY }}>
+          <span style={{ width: 10, height: 10, borderRadius: "50%", background: r.color, marginTop: 5, flexShrink: 0 }} />
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ display: "block", fontSize: 14, color: t.text }}>{r.todo.title}</span>
+            <span style={{ display: "block", fontSize: 11, color: t.textMut, marginTop: 2 }}>{r.projectName}</span>
+          </span>
+          {r.todo.dueOn ? <span style={{ fontSize: 12, color: wsLate(r.todo) ? RD : t.textSec, fontWeight: wsLate(r.todo) ? 600 : 400, flexShrink: 0, textAlign: "right" }}>{wsDueLine(r.todo)}</span> : null}
+        </button>))}
+    </Crd>
+  </div>);
+}
+
 // A project's page, #workspace/<projectId>: its name, description and members, Email me copies for a
 // member, Edit, Members and Archive for an owner or an admin, then the four tools as cards and the
 // project's Activity under them. #workspace/<projectId>/<tool> opens a tool in place of the cards.
@@ -4260,6 +4504,7 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
   };
   const toolTitle = { posts: tr("Message Board"), todos: tr("To-dos"), files: tr("Docs and Files") }[tool] || "";
   const toolView = tool === "posts" ? (sub ? <PostView af={af} t={t} p={p} postId={sub} meId={meId} isAdmin={isAdmin} canManage={canManage} writable={writable} showToast={showToast} /> : <PostsView af={af} t={t} p={p} writable={writable} showToast={showToast} />)
+    : tool === "todos" ? (sub ? <TodoView af={af} t={t} p={p} todoId={sub} meId={meId} isAdmin={isAdmin} writable={writable} showToast={showToast} /> : <TodosView af={af} t={t} p={p} meId={meId} writable={writable} showToast={showToast} />)
     : null;
   const counts = p.counts;
   const num = (...vs) => { for (const v of vs) { if (v != null && isFinite(Number(v))) return Number(v); } return null; };
