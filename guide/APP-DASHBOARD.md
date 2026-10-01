@@ -4,9 +4,10 @@
 Who can do this: admins and supervisors
 1. Open the admin dashboard.
 2. Type your phone number or email, and your 4 digit PIN.
-3. Click **Sign In**.
+3. Click **Sign In** (**Iniciar sesión**).
+4. When the dashboard asks for a code, see the entry on signing in with a code on a new device.
 If it does not work: the dashboard is only for admins and supervisors. Staff use the staff portal.
-Last checked: 2026-09-16
+Last checked: 2026-10-01
 
 ## Sign out of the dashboard (admin dashboard)
 Who can do this: anyone signed in
@@ -105,11 +106,12 @@ Last checked: 2026-09-28
 
 ## Deactivate or reactivate a staff member (admin dashboard)
 Who can do this: admins
-1. Click **Staff Management** and open the person's profile.
-2. Click **Deactivate** or **Reactivate**.
-3. Their records stay in the system either way.
-Words people use for this: someone quit, terminate, turn off an account, bring someone back.
-Last checked: 2026-09-17
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile.
+2. When the profile shows the **Employment** (**Empleo**) card, its buttons record why: **End employment** (**Terminar el empleo**), **Put on leave** (**Poner en licencia**), **Return from leave** (**Regresar de la licencia**) or **Rehire** (**Recontratar**). Each has its own entry.
+3. A profile without that card has **Deactivate** (**Desactivar**) or **Reactivate** (**Reactivar**).
+4. Their records stay in the system either way.
+Words people use for this: someone quit, terminate, fire, let go, turn off an account, bring someone back, deactivate, rehire, leave of absence.
+Last checked: 2026-10-01
 
 ## Assign a staff member to a site (admin dashboard)
 Who can do this: admins
@@ -135,19 +137,20 @@ Who can do this: admins, except anyone the case is about
 3. Click **Take this case** to hold it yourself, or choose someone under **Hand to** and click **Hand over**.
 4. Change the status, add resolution notes, and click **Save changes**. The first save counts as the team's response.
 5. To give it back to the team, click **Release**.
+6. On an open case about someone, **Issue a warning** (**Emitir una advertencia**) opens a warning for that person with the case linked.
 If it does not work: the team promises a response within 72 hours of filing. The Response column shows how much time is left.
-Words people use for this: complaint, hr case, harassment report, someone reported a coworker.
-Last checked: 2026-09-17
+Words people use for this: complaint, hr case, harassment report, someone reported a coworker, write up.
+Last checked: 2026-10-01
 
 ## Add an HR document for an employee (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** (**Expedientes de personal**).
 2. From the person's folder: on the **Employees** (**Personal**) tab, click the person, then **+ Add Document** (**+ Agregar documento**). The person is filled in as the **Employee** (**Persona**) and stays there.
 3. Or click the **Documents** (**Documentos**) tab, then **+ Add Document** (**+ Agregar documento**), and choose the **Employee** (**Persona**). The list shows active people first, then inactive and terminated people, each with its status after the name.
-4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one.
+4. Choose the **Category** (**Categoría**), choose the file under **Upload File** (**Subir un archivo**), and fill in **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) if it has one. Warnings and termination letters go under **Disciplinary** (**Disciplinario**).
 5. Click **Add** (**Agregar**).
-Words people use for this: upload a document, add a file to someone's folder, document for someone who left, subir un documento.
-Last checked: 2026-09-30
+Words people use for this: upload a document, add a file to someone's folder, document for someone who left, termination letter, subir un documento.
+Last checked: 2026-10-01
 
 ## Add a training record (admin dashboard)
 Who can do this: admins and supervisors
@@ -378,8 +381,9 @@ Who can do this: anyone signed in
 1. Click **Light Mode** or **Dark Mode** at the bottom of the menu on the left.
 2. Until you choose, the dashboard follows your computer's own setting. Once you choose, your choice wins.
 3. On a phone, or any window narrower than 700 pixels, tap **More** (**Más**), the three dots at the top right; **Light mode** (**Modo claro**) or **Dark mode** (**Modo oscuro**) is in that menu.
-Words people use for this: dark mode, light mode, turn on dark mode, turn off dark mode, the screen is too bright, change the colors.
-Last checked: 2026-09-27
+4. In light mode, the colors that mark a status, such as green, orange and red, are darker so they read on white.
+Words people use for this: dark mode, light mode, turn on dark mode, turn off dark mode, the screen is too bright, change the colors, hard to read colors.
+Last checked: 2026-10-01
 
 ## Move around the dashboard with the keyboard (admin dashboard)
 Who can do this: anyone signed in
@@ -1096,7 +1100,221 @@ Who can do this: anyone who can open Inspections
 2. The top shows the score, who completed it and when. Click an item to open it: its score, its notes, and its **Photos ({0})** (**Fotos ({0})**) as small pictures. **Click photo to open full size** (**Haga clic en la foto para verla en tamaño completo**).
 3. **Photos of the whole inspection** (**Fotos de toda la inspección**) holds the photos taken of the inspection as a whole.
 4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
-5. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signature. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
+5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
+6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
+Last checked: 2026-10-01
+
+## Check who is still working with the roster check (admin dashboard)
+Who can do this: admins who manage staff
+1. Click **Staff Management** (**Gestión de personal**), then **Roster check** (**Revisión del personal**) beside the search box.
+2. The top line counts who was confirmed in the last 30 days. Each row shows the person's **Role** (**Rol**), **Status** (**Estado**), **Sites** (**Sitios**), **Last shift** (**Último turno**), **Last signed in** (**Último inicio de sesión**) and **Last confirmed** (**Última confirmación**).
+3. For someone still working where the row says, click **Still working** (**Sigue trabajando**). The row shows today's date and your name at once.
+4. To fix someone's sites, click **Sites** (**Sitios**) on their row. Their profile opens on its assignments.
+5. A row with **No site** (**Sin sitio**) in orange has no site. A red line such as **{0} clearances missing** (**Faltan {0} autorizaciones escolares**) opens the person's clearances.
+6. For someone no longer working, click **Put on leave** (**Poner en licencia**) or **End employment** (**Terminar el empleo**) on their row.
+7. Narrow the table with **Not confirmed yet** (**Sin confirmar todavía**), **No site** (**Sin sitio**), **On leave** (**En licencia**), **Clearances missing** (**Faltan autorizaciones escolares**) or a site. Tick **Show ended** (**Mostrar empleos terminados**) to add the people whose employment ended.
+8. **Export** (**Exportar**) saves the rows shown as a spreadsheet file, in the screen's language.
+9. **Back to Staff** (**Volver al personal**) returns to the staff list.
+Words people use for this: roster, roster check, who still works here, clean up the staff list, confirm staff, headcount, staff audit, revisión del personal.
+Last checked: 2026-10-01
+
+## Put someone on leave (admin dashboard)
+Who can do this: admins who manage staff, for anyone but themselves
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile, or find their row in **Roster check** (**Revisión del personal**).
+2. Click **Put on leave** (**Poner en licencia**).
+3. Choose the **Reason** (**Motivo**), such as medical or family leave. A reason of Other needs a **Note** (**Nota**).
+4. Fill in **Expected return** (**Regreso previsto**) if you know it.
+5. Click **Put on leave** (**Poner en licencia**). They cannot sign in while on leave, and they keep their sites.
+6. The **Employment** (**Empleo**) card reads **On leave** (**En licencia**) with the reason and the expected return, and the staff list shows **On leave** (**En licencia**).
+Words people use for this: leave of absence, medical leave, family leave, time away, deactivate, licencia.
+Last checked: 2026-10-01
+
+## End someone's employment (admin dashboard)
+Who can do this: admins who manage staff, for anyone but themselves
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile, or find their row in **Roster check** (**Revisión del personal**).
+2. Click **End employment** (**Terminar el empleo**).
+3. Choose the **Reason** (**Motivo**): they quit, they were let go, they stopped coming, they were laid off, they retired, or other.
+4. Fill in the **Last day** (**Último día**) and answer **Eligible for rehire?** (**¿Elegible para recontratación?**). Add a **Note** (**Nota**) if needed.
+5. Click **End employment** (**Terminar el empleo**). They can no longer sign in, and every site they are assigned to ends with it.
+6. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
+Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, despedir.
+Last checked: 2026-10-01
+
+## Bring someone back from leave (admin dashboard)
+Who can do this: admins who manage staff, for anyone but themselves
+1. Click **Staff Management** (**Gestión de personal**) and open the person's profile. The **Employment** (**Empleo**) card reads **On leave** (**En licencia**).
+2. Click **Return from leave** (**Regresar de la licencia**).
+3. Add a **Note** (**Nota**) if needed.
+4. Click **Return from leave** (**Regresar de la licencia**). They can sign in again, with the sites they had.
+5. The card's **History ({0})** (**Historial ({0})**) lists the leave and the return.
+Words people use for this: back from leave, return to work, end the leave, reactivate, leave of absence.
+Last checked: 2026-10-01
+
+## Rehire someone (admin dashboard)
+Who can do this: admins who manage staff, for anyone but themselves
+1. Click **Staff Management** (**Gestión de personal**) and open the profile of the person whose employment ended.
+2. Click **Rehire** (**Recontratar**).
+3. Fill in the **New hire date** (**Nueva fecha de contratación**) and a **Note** (**Nota**) if needed. When they were marked not eligible, the window reads **Marked not eligible for rehire when they left.** (**Se marcó como no elegible para recontratación al salir.**)
+4. Click **Rehire** (**Recontratar**). They can sign in again, and their history stays.
+5. Assign their sites again on the **Assignments** (**Asignaciones**) tab.
+Words people use for this: rehire, hire back, bring someone back, came back to work, recontratar.
+Last checked: 2026-10-01
+
+## Record why someone is inactive or left (admin dashboard)
+Who can do this: admins who manage staff, for anyone but themselves
+1. Click **Staff Management** (**Gestión de personal**) and open the profile of a person who is inactive or whose employment ended. The **Employment** (**Empleo**) card reads **No reason recorded** (**No hay motivo registrado**).
+2. Click **Record the reason** (**Registrar el motivo**).
+3. Choose the **Reason** (**Motivo**). For someone who left, fill in the **Last day** (**Último día**) and answer **Eligible for rehire?** (**¿Elegible para recontratación?**). For someone on leave, fill in **Expected return** (**Regreso previsto**) if you know it.
+4. Click **Record the reason** (**Registrar el motivo**). Their status and sites stay as they are.
+If it does not work: an inactive person gets a leave reason here. For someone inactive who in fact left, use **End employment** (**Terminar el empleo**), which ends their sites.
+Words people use for this: why did they leave, reason for leaving, record a reason, deactivated with no reason, inactive, terminate, quit.
+Last checked: 2026-10-01
+
+## Sign an inspection's review line (admin dashboard)
+Who can do this: admins and supervisors other than the person who did the inspection; the executive line, when the score is below 80, is an admin's
+1. Click **Inspections** (**Inspecciones**), then **Awaiting review** (**Pendiente de revisión**) or **Completed** (**Completadas**), and click the inspection.
+2. Under **Review** (**Revisión**), each line shows who signed it, or **Waiting for {0}** (**Pendiente: {0}**) with the line's name, such as Reviewed or Findings received.
+3. On a line you can sign, draw your signature in the box. **Clear** (**Borrar**) starts the drawing again.
+4. Click **Sign** (**Firmar**). The line shows **Signed by {0}, {1}** (**Firmado por {0}, {1}**), your name and the time. Each line is signed once.
+If it does not work: the person who did the inspection cannot sign its review lines. Another supervisor or admin signs them.
+Words people use for this: review an inspection, sign off an inspection, field lead reviewed, findings received, executive review, frm-001, frm-002, firmar la revisión.
+Last checked: 2026-10-01
+
+## See the inspections awaiting review (admin dashboard)
+Who can do this: anyone who can open Inspections
+1. Click **Inspections** (**Inspecciones**), then the **Awaiting review** (**Pendiente de revisión**) tab.
+2. It lists the completed inspections with a review line still to sign.
+3. Click a row to open the inspection and sign its line.
+4. **Nothing is waiting for review.** (**No hay nada pendiente de revisión.**) means every line that must be signed is signed.
+If it does not work: the tab shows once the server keeps review lines.
+Words people use for this: inspections to review, unsigned inspections, pending review, awaiting signature, pendiente de revisión.
+Last checked: 2026-10-01
+
+## Issue a verbal warning (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **HR Records** (**Expedientes de personal**), then the person on the **Employees** (**Personal**) tab.
+2. On the **Disciplinary** (**Disciplinario**) card, click **Issue a warning** (**Emitir una advertencia**). From a case about the person, open it on **Cases** (**Casos**) and click **Issue a warning** (**Emitir una advertencia**) there.
+3. Choose **Verbal warning** (**Advertencia verbal**) under **Step** (**Paso**). The step shown first follows the person's record, and any step can be chosen.
+4. Choose the **Category** (**Categoría**), and fill in the **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**). **Leave out any medical detail.** (**No incluya ningún detalle médico.**)
+5. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**) A Yes needs the date in **Discussed with the Controller on** (**Consultado con el Contralor el**).
+6. Choose the **Language of the warning** (**Idioma de la advertencia**), the language the person reads.
+7. Click **Save as draft** (**Guardar como borrador**).
+8. Under **Issue** (**Emitir**), click **Issue** (**Emitir**). **A verbal warning is a note of the conversation, placed on the record. It takes no signatures.** (**Una advertencia verbal es una nota de la conversación que queda en el registro. No lleva firmas.**)
+9. Under **Send** (**Enviar**), record how it was given; see the entry on sending a warning.
+Words people use for this: verbal warning, write up, write-up, discipline, coaching, warn an employee, advertencia verbal.
+Last checked: 2026-10-01
+
+## Issue a written or final written warning (admin dashboard)
+Who can do this: admins and supervisors for a written warning; admins for a final written warning
+1. Click **HR Records** (**Expedientes de personal**), open the person, and click **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
+2. Choose **Written warning** (**Advertencia por escrito**) or **Final written warning** (**Advertencia final por escrito**) under **Step** (**Paso**).
+3. Choose the **Category** (**Categoría**), and fill in the **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**). **Leave out any medical detail.** (**No incluya ningún detalle médico.**)
+4. Fill in **Policy** (**Política**) if a handbook section applies, **What must change** (**Qué debe cambiar**) and **By when** (**Para cuándo**).
+5. For a final written warning with a suspension, fill in **Suspension from** (**Suspensión desde**) and **Suspension to** (**Suspensión hasta**).
+6. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**) A Yes needs the date in **Discussed with the Controller on** (**Consultado con el Contralor el**).
+7. Choose the **Language of the warning** (**Idioma de la advertencia**) and click **Save as draft** (**Guardar como borrador**).
+8. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**) and click **Sign** (**Firmar**).
+9. Hand the screen to the person. **Signing confirms they received this warning. It does not mean they agree.** (**Al firmar confirma que recibió esta advertencia. No significa que esté de acuerdo.**) They draw their signature and click **Sign** (**Firmar**).
+10. Add **Their account** (**Su versión**) if they want their words on the warning, and click **Issue** (**Emitir**).
+Words people use for this: written warning, final warning, final written warning, write up, write-up, suspension, discipline, advertencia por escrito.
+Last checked: 2026-10-01
+
+## Issue a termination (admin dashboard)
+Who can do this: admins
+1. Click **HR Records** (**Expedientes de personal**), open the person, and click **Issue a warning** (**Emitir una advertencia**) on the **Disciplinary** (**Disciplinario**) card.
+2. Choose **Termination** (**Despido**) under **Step** (**Paso**), and fill in the **Category** (**Categoría**), **Date of the incident** (**Fecha del incidente**) and **What happened** (**Qué pasó**).
+3. Answer **Does this follow a complaint or other protected activity by this person?** (**¿Esto ocurre después de una queja u otra actividad protegida de esta persona?**), choose the **Language of the warning** (**Idioma de la advertencia**), and click **Save as draft** (**Guardar como borrador**).
+4. Under **Issue** (**Emitir**), draw your signature in **The issuer signs** (**Firma quien la emite**), click **Sign** (**Firmar**), then click **Issue** (**Emitir**).
+5. The **End employment** (**Terminar el empleo**) window opens with the reason let go. Fill in the **Last day** (**Último día**) and **Eligible for rehire?** (**¿Elegible para recontratación?**), and click **End employment** (**Terminar el empleo**).
+6. Send the letter to the person; see the entry on sending a warning.
+Words people use for this: fire, terminate, termination letter, let go, dismiss, final step, discipline, despido.
+Last checked: 2026-10-01
+
+## Send a warning to the person (admin dashboard)
+Who can do this: admins and supervisors
+1. Open the warning: click its row on the person's **Disciplinary** (**Disciplinario**) card, or on **Discipline** (**Disciplina**).
+2. Click **Preview PDF** (**Vista previa del PDF**) to see **The warning as the person receives it, on the company's letterhead.** (**La advertencia tal como la recibe la persona, con el membrete de la empresa.**)
+3. Under **Send** (**Enviar**), choose **Email** (**Correo**), **Handed over in person** (**Entregada en persona**), **Printed** (**Impresa**) or **Mailed** (**Enviada por correo postal**).
+4. For **Email** (**Correo**), it goes to their email on file. To copy an office address, type it and click **Add an address** (**Agregar una dirección**).
+5. Click **Send** (**Enviar**). The window reads **Sent by email.** (**Enviada por correo electrónico.**) or records how it was given.
+If it does not work: a person with no email on file gets the warning by hand or by mail. Choose another way and click Send.
+Words people use for this: send a warning, email a warning, print a warning, give the employee a copy, write-up, enviar la advertencia.
+Last checked: 2026-10-01
+
+## When a person declines to sign a warning (admin dashboard)
+Who can do this: admins and supervisors
+1. Issue the written or final written warning as far as the person's signature.
+2. Tick **Declined to sign** (**Se negó a firmar**).
+3. Type the name of the **Witness** (**Testigo**) who saw it, if one did.
+4. Add **Their account** (**Su versión**) if they want their words on the warning.
+5. Click **Issue** (**Emitir**). The warning shows **Declined to sign** (**Se negó a firmar**) on the person's card and on **Discipline** (**Disciplina**).
+Words people use for this: refused to sign, would not sign, declined to sign, witness, write-up, se negó a firmar.
+Last checked: 2026-10-01
+
+## Rescind a warning (admin dashboard)
+Who can do this: admins
+1. Open the warning from the person's **Disciplinary** (**Disciplinario**) card or from **Discipline** (**Disciplina**).
+2. Click **Rescind** (**Anular**).
+3. Fill in **Why it is rescinded** (**Por qué se anula**). **The warning stays on the record, marked rescinded.** (**La advertencia queda en el registro, marcada como anulada.**)
+4. Click **Rescind** (**Anular**). The warning is struck through, with the reason under it.
+Words people use for this: take back a warning, cancel a warning, remove a write-up, warning given by mistake, anular.
+Last checked: 2026-10-01
+
+## See every warning on the Discipline page (admin dashboard)
+Who can do this: admins see every warning; supervisors see the warnings they issued
+1. Click **Discipline** (**Disciplina**) in the menu on the left.
+2. The counts at the top add up each step for the warnings the filters show.
+3. Narrow the table with **Every step** (**Todos los pasos**), **Every category** (**Todas las categorías**), **All sites** (**Todos los sitios**), **Everyone** (**Todos**), **All statuses** (**Todos los estados**), **From** (**Desde**) and **To** (**Hasta**). Admins also have **Issued by anyone** (**Emitida por cualquiera**).
+4. Click a row to open the warning.
+5. **Export** (**Exportar**) saves the rows shown as a spreadsheet file.
+If it does not work: the page shows once the server keeps warnings.
+Words people use for this: discipline, warnings, write-ups, who has been written up, final warning, discipline report, disciplina.
+Last checked: 2026-10-01
+
+## Open a case (admin dashboard)
+Who can do this: anyone who can open Cases
+1. Click **Cases** (**Casos**), then **Open a case** (**Abrir un caso**).
+2. Fill in **What happened** (**Qué pasó**).
+3. Under **About whom** (**Sobre quién**), add each person it is about, or none.
+4. When a staff member reported it to you in person, choose them under **On behalf of** (**En nombre de**).
+5. Answer **Is this about someone in management?** (**¿Se trata de alguien de la gerencia?**)
+6. Choose who holds it under **Assigned to** (**Asignado a**), or leave it at **Nobody yet** (**Nadie todavía**).
+7. Click **Open a case** (**Abrir un caso**).
+8. To warn the person later, open the case and click **Issue a warning** (**Emitir una advertencia**).
+Words people use for this: open a case, complaint, someone reported a coworker, start a case, hr case, abrir un caso.
+Last checked: 2026-10-01
+
+## Add an old form's warning to the record (admin dashboard)
+Who can do this: admins
+1. Click **HR Records** (**Expedientes de personal**) and open the person.
+2. On the **Disciplinary** (**Disciplinario**) card, under **Filed on the old form, not on the record yet** (**Archivadas en el formulario anterior, aún sin registrar**), click **Original form** (**Formulario original**) to read it.
+3. Click **Add to the record** (**Agregar al registro**).
+4. Choose the **Step** (**Paso**). The **Date given** (**Fecha en que se dio**) starts as the form's date; change it if the warning was given on another day.
+5. Fill in a **Summary** (**Resumen**) and click **Add to the record** (**Agregar al registro**).
+6. The warning joins the history with its **Original form** (**Formulario original**), and leaves the list.
+Words people use for this: old warning form, jotform warning, past warning, add a past write-up, warnings already on file, agregar al registro.
+Last checked: 2026-10-01
+
+## Sign in with a code on a new device (admin dashboard)
+Who can do this: admins and supervisors
+1. Sign in with your phone number or email and your PIN. On a computer or phone where you have not entered a code in the last 30 days, the dashboard asks for one.
+2. The screen reads **Enter the code we emailed to {0}** (**Escriba el código que enviamos a {0}**) with the start of your work email. Open that email for the 6 digit code. It lasts 10 minutes.
+3. Type the 6 digits in **Code** (**Código**). The code goes by itself once all 6 are in, or click **Verify** (**Verificar**). On a phone, the keyboard may offer the code from the email.
+4. Leave **Remember this device for 30 days** (**Recordar este dispositivo por 30 días**) ticked on your own computer or phone. Untick it on a shared one.
+5. No email? Click **Send a new code** (**Enviar un código nuevo**) once it stops counting down. The newest code is the one that works.
+6. **Back** (**Volver**) returns to the PIN.
+If it does not work: a wrong code says how many tries are left. After 5 wrong tries, or once the code is 10 minutes old, the dashboard goes back to the PIN; sign in again for a new code.
+Words people use for this: code, verification, verification code, two step, two-step, new phone, new computer, sign-in code, email code, código.
+Last checked: 2026-10-01
+
+## See or forget the devices you are remembered on (admin dashboard)
+Who can do this: admins and supervisors; the super admin also for another admin or supervisor
+1. Click your name at the top right, then **Settings** (**Configuración**), then the **Trusted devices** (**Dispositivos de confianza**) tab. On a phone, tap **More** (**Más**) first.
+2. Each row is a browser where you entered a sign-in code in the last 30 days, with **First seen** (**Visto por primera vez**), **Last seen** (**Visto por última vez**) and **Remembered until** (**Recordado hasta**).
+3. After losing a phone, or signing in on a shared computer, click **Forget all my devices** (**Olvidar todos mis dispositivos**) and say yes. Each device, this one too, asks for a code at its next sign-in.
+4. The super admin can do the same for another admin or supervisor: **Staff Management** (**Gestión de personal**), open their profile, and click **Forget this person's devices** (**Olvidar los dispositivos de esta persona**).
+If it does not work: the tab shows once the server keeps trusted devices.
+Words people use for this: trusted devices, remembered devices, lost my phone, forget this computer, stop remembering a device, code, two step, new phone.
 Last checked: 2026-10-01

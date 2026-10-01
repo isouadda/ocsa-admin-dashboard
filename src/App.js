@@ -128,8 +128,23 @@ const AUTH_KEY = "ocsa_auth";
 const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!raw) return null; const d = JSON.parse(raw); return d && typeof d.token === "string" && d.token ? d : null; } catch { return null; } };
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
+// The device id every sign-in sends for the second sign-in step (Step 232, Part C; STEP225_CONTRACT.md):
+// made once with crypto.randomUUID() and kept as ocsa-device-id. A browser that refuses storage makes a
+// new one at each sign-in and is simply asked for a code each time. It names the browser and nothing
+// else, and the API keeps only its hash.
+const DEVICE_KEY = "ocsa-device-id";
+const newDeviceId = () => {
+  const c = window.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  const b = new Uint8Array(16); c.getRandomValues(b);
+  return Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+};
+const signInDeviceId = () => {
+  try { const had = localStorage.getItem(DEVICE_KEY); if (had) return had; const made = newDeviceId(); localStorage.setItem(DEVICE_KEY, made); return made; }
+  catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
+};
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -223,7 +238,10 @@ const NAVY = clientConfig.brand.navy;
 const GOLD = clientConfig.brand.gold;
 const NAVY_DARK = clientConfig.brand.navyDark;
 const PANEL_LIGHT = clientConfig.brand.panelLight;
-const GO = GOLD, GL = "#FCEA4A", GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#24A4F4", TL = "#1ABC9C";
+const GO = GOLD, GL = "#FCEA4A", TL = "#1ABC9C";
+// The colors that carry meaning: green, red, orange, blue and purple. They are set by the shell as it
+// draws, from the theme (setStatusInk below), so every screen reads the shade for the theme it is in.
+let GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#24A4F4", PU = "#9B59B6";
 // A service category is a plain word, never the framework's own name for it. Keyed by the codes the API stores.
 const CIMS_LABELS = { SD: "Cleaning", HSE: "Safety", GB: "Green cleaning", QS: "Quality checks", HR: "Staff and training", MC: "Management" };
 const LOGO_SM = process.env.PUBLIC_URL + "/ocsa-logo-sm.png";
@@ -255,6 +273,15 @@ const LIGHT = {
   goldSubtle: "rgba(231,176,23,0.06)", goldSubtleBorder: "rgba(231,176,23,0.2)",
 };
 
+// Step 232: status colors anyone can read. In light mode the colors that color text or an icon take
+// darker shades, each 4.5 to 1 or better on white, the page and its own wash (WCAG AA); dark mode
+// keeps the bright ones. Fills, washes and dots draw from the same names, and chart series keep the
+// palette they were given.
+const STATUS_INK = {
+  dark: { GR: "#2ECC71", RD: "#E74C3C", OR: "#F39C12", BL: "#24A4F4", PU: "#9B59B6" },
+  light: { GR: "#186534", RD: "#B3261E", OR: "#8A4706", BL: "#0A5C9E", PU: "#6E3B8F" },
+};
+const setStatusInk = (dark) => { const k = dark ? STATUS_INK.dark : STATUS_INK.light; GR = k.GR; RD = k.RD; OR = k.OR; BL = k.BL; PU = k.PU; };
 const goldToText = (t, c) => (c === GO ? t.goldText : c);
 const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
@@ -507,6 +534,7 @@ export default function AdminDashboard() {
   }, [drawerOpen, moreOpen]);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
+  setStatusInk(t.dark);
   useEffect(() => {
     try {
       document.body.style.backgroundColor = t.bg;
@@ -558,13 +586,21 @@ export default function AdminDashboard() {
   const [canReadFiledForms, setCanReadFiledForms] = useState(false);
   // Whether GET /api/clearances answers this person (Step 211). Read once a session.
   const [clearancesOn, setClearancesOn] = useState(false);
+  // Whether GET /api/discipline answers this person (Step 232): admins read every warning, and a
+  // supervisor the ones they issued. Read once a session.
+  const [disciplineOn, setDisciplineOn] = useState(false);
+  // Whether GET /api/users/me/trusted-devices answers this office account (Step 232, Part C): Settings
+  // gains Trusted devices, and a super admin gains Forget this person's devices on a profile. Read once
+  // a session.
+  const [devicesOn, setDevicesOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
-    if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups");
+    // Settings also opens for Trusted devices, which is every office account's own (Step 232).
+    if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups") || devicesOn;
     if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
     if (id === "staff") return hasCap("manage_staff");
     if (id === "announcements") return hasCap("send_announcements");
@@ -580,8 +616,9 @@ export default function AdminDashboard() {
     // Clearances (Step 211) answers the people HR Records answers, admins and supervisors, and opens
     // once GET /api/clearances answers with them.
     if (id === "clearances") return clearancesOn;
+    if (id === "discipline") return disciplineOn;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn, devicesOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -611,9 +648,11 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
+    af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
+    af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
   useEffect(() => {
@@ -715,9 +754,21 @@ export default function AdminDashboard() {
     })();
     return () => { alive = false; };
   }, []);
+  // The second sign-in step (Step 232, Part C; STEP225_CONTRACT.md). Every sign-in sends this browser's
+  // device id. When the answer carries secondStep in place of a token, the sign-in card asks for the
+  // code emailed to the account, and POST /api/auth/second-step answers what sign-in answers, which
+  // signs in the same way. Until the API sends secondStep, sign-in is what it was. The PIN and the code
+  // live only in the form's own fields and are never stored or logged.
+  const [second, setSecond] = useState(null);
+  const signedIn = (d) => { if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast(tr("Admin access required"), "error"); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); };
   const handleLogin = async (phone, pin) => {
     setLoading(true);
-    try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast(tr("Admin access required"), "error"); setLoading(false); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); } catch (e) { showToast(e.message, "error"); }
+    const deviceId = signInDeviceId();
+    try {
+      const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin, deviceId } });
+      if (d && d.secondStep && d.challengeId) setSecond({ challengeId: d.challengeId, emailHint: d.emailHint ? String(d.emailHint) : "", deviceId, sentAt: Date.now() });
+      else signedIn(d);
+    } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
   if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>);
@@ -725,7 +776,7 @@ export default function AdminDashboard() {
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>{tr("Admin Dashboard")}</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />{tr("Connected to Live API")}</div></div>
-        <LoginForm onLogin={handleLogin} loading={loading} t={t} />
+        <LoginForm onLogin={handleLogin} loading={loading} t={t} second={second} onSecondDone={d => { setSecond(null); signedIn(d); }} onSecondBack={() => setSecond(null)} />
       </div>
       <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
       <div style={{ marginTop: 14, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{languageChoice()}</div>
@@ -755,6 +806,7 @@ export default function AdminDashboard() {
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
+      ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
     { label: tr("Quality"), items: [
@@ -775,7 +827,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1006,9 +1058,9 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} />}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -1027,8 +1079,9 @@ export default function AdminDashboard() {
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -1038,12 +1091,81 @@ export default function AdminDashboard() {
   </div></ThemeCtx.Provider>);
 }
 
-function LoginForm({ onLogin, loading, t }) {
+function LoginForm({ onLogin, loading, t, second = null, onSecondDone, onSecondBack }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
-  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
+  // The words the code screen came back with (an expired code, too many tries), shown over the PIN.
+  const [notice, setNotice] = useState("");
+  // The PIN is let go once the code screen opens, so Back asks for it again.
+  useEffect(() => { if (second) setPn(""); }, [second]);
+  const go = () => { setNotice(""); onLogin(ph, pn); };
+  if (second) return <SecondStepForm t={t} second={second} onDone={onSecondDone} onBack={(words) => { setNotice(words || ""); onSecondBack(); }} />;
+  return (<>{notice ? <div data-signin-notice="" role="alert" style={{ fontSize: 13, color: RD, marginBottom: 16, lineHeight: 1.5 }}>{notice}</div> : null}<div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && go()} /></div>
+    <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && go()} /></div>
+    <button onClick={go} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
+
+// The code screen of the second sign-in step (STEP225_CONTRACT.md): the six digits emailed to the
+// account, sent by themselves once all six are typed, or with Verify. Send a new code waits 30 seconds
+// after each send, counting down. A wrong code shows the API's words and the tries left under the box,
+// as does a code that did not go or a new code asked for too soon; an expired code or too many tries
+// goes back to the PIN with the API's words. Remember this device is on unless the person turns it off.
+function SecondStepForm({ t, second, onDone, onBack }) {
+  const [code, setCode] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [say, setSay] = useState({ text: "", bad: false, left: null });
+  const [sentAt, setSentAt] = useState(() => second.sentAt || Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  // A wrong code empties the box and draws it again, so it takes the focus for the next try.
+  const [round, setRound] = useState(0);
+  const busyRef = useRef(false);
+  const wait = Math.max(0, Math.ceil((sentAt + 30000 - now) / 1000));
+  const counting = wait > 0;
+  useEffect(() => { if (!counting) return undefined; const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, [counting]);
+  const backToPin = (e) => !!e && (e.code === "auth.codeExpired" || e.code === "auth.codeTooMany");
+  const verify = async (c) => {
+    if (busyRef.current || !/^[0-9]{6}$/.test(c)) return;
+    busyRef.current = true; setBusy(true); setSay({ text: "", bad: false, left: null });
+    try {
+      const d = await apiFetch("/api/auth/second-step", { method: "POST", body: { challengeId: second.challengeId, code: c, deviceId: second.deviceId, rememberDevice: remember } });
+      busyRef.current = false; onDone(d); return;
+    } catch (e) {
+      busyRef.current = false;
+      if (backToPin(e)) { onBack(e.message); return; }
+      const left = e.code === "auth.codeWrong" && e.body && e.body.attemptsLeft != null && isFinite(Number(e.body.attemptsLeft)) ? Number(e.body.attemptsLeft) : null;
+      setSay({ text: e.message || tr("Request failed"), bad: true, left });
+      setCode(""); setRound(n => n + 1);
+    }
+    setBusy(false);
+  };
+  const resend = async () => {
+    if (sending || busy || wait > 0) return;
+    setSending(true); setSay({ text: "", bad: false, left: null });
+    try {
+      await apiFetch("/api/auth/second-step/resend", { method: "POST", body: { challengeId: second.challengeId } });
+      const at = Date.now(); setSentAt(at); setNow(at); setCode(""); setRound(n => n + 1);
+      setSay({ text: tr("We sent a new code."), bad: false, left: null });
+    } catch (e) {
+      if (backToPin(e)) { onBack(e.message); return; }
+      setSay({ text: e.message || tr("Request failed"), bad: true, left: null });
+    }
+    setSending(false);
+  };
+  const type = (v) => { const digits = String(v || "").replace(/[^0-9]/g, "").slice(0, 6); setCode(digits); if (digits.length === 6) verify(digits); };
+  const ready = code.length === 6 && !busy;
+  return (<div data-second-step="">
+    <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16, textAlign: "center" }}>{second.emailHint ? tr("Enter the code we emailed to {0}", second.emailHint) : tr("Enter the code we emailed to you.")}</div>
+    <div style={{ marginBottom: 8 }}><Lbl>{tr("Code")}</Lbl><Inp t={t} key={round} autoFocus value={code} onChange={e => type(e.target.value)} inputMode="numeric" autoComplete="one-time-code" aria-label={tr("Code")} aria-invalid={say.bad ? true : undefined} data-second-code="" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20, ...(say.bad ? { borderColor: RD } : {}) }} onKeyDown={e => e.key === "Enter" && verify(code)} /></div>
+    {say.text ? <div data-second-say="" role={say.bad ? "alert" : "status"} style={{ fontSize: 12, color: say.bad ? RD : t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{say.text}{say.left != null ? <div data-second-left="" style={{ fontWeight: 600, marginTop: 2 }}>{trn("{0} tries left|count", say.left)}</div> : null}</div> : null}
+    <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: t.textSec, cursor: "pointer", marginBottom: 16 }}><span style={chkWrap}><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 20, height: 20 }} /></span><span style={{ minWidth: 0 }}>{tr("Remember this device for 30 days")}</span></label>
+    <button onClick={() => verify(code)} disabled={!ready} data-second-verify="" style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: ready ? "pointer" : "default", opacity: ready ? 1 : 0.6, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{busy ? tr("Checking...") : tr("Verify")}</button>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <button onClick={() => onBack("")} disabled={busy} data-second-back="" style={{ background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44, minWidth: 44, padding: "0 6px", fontFamily: FONT_BODY }}>{tr("Back")}</button>
+      <button onClick={resend} disabled={sending || busy || wait > 0} data-second-resend="" style={{ background: "none", border: "1px solid " + t.border, borderRadius: 10, color: wait > 0 ? t.textMut : t.text, fontSize: 13, fontWeight: 600, cursor: wait > 0 ? "default" : "pointer", minHeight: 44, padding: "0 14px", fontFamily: FONT_BODY }}>{sending ? tr("Sending...") : wait > 0 ? trn("Send a new code in {0} seconds|count", wait) : tr("Send a new code")}</button>
+    </div>
+  </div>);
+}
 
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
@@ -1112,7 +1234,306 @@ function OverviewPage({ af, showToast, setPage, user, canManageStaff = false, t 
   </div>);
 }
 
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null }) {
+// ===== EMPLOYMENT (Step 232, Part A) =====
+// A person's employment with its reason recorded (STEP223_CONTRACT_v2.md): ended, on leave, back from
+// leave, rehired, every event kept as history. Staff Management's profile shows it with the windows
+// that change it, and HR Records' folder shows the same card read only. Nothing shows until
+// GET /api/users/:id/employment answers with status and events; until then the profile keeps
+// Deactivate and Reactivate as they were.
+const employmentAnswerOf = (d) => (d && typeof d === "object" && typeof d.status === "string" && Array.isArray(d.events) ? d : null);
+const EMPLOYMENT_KIND = { ended: "Employment ended", leave: "On leave", returned: "Returned from leave", rehired: "Rehired", status_changed: "Status changed", confirmed: "Confirmed still working" };
+const employmentKindWord = (k) => (EMPLOYMENT_KIND[k] ? tr(EMPLOYMENT_KIND[k]) : String(k || ""));
+// The event that explains the state a person is in: an ended event for someone terminated, a leave for
+// someone inactive. A person in either state without one reads No reason recorded.
+const employmentExplains = (status, ev) => !!(ev && ((status === "terminated" && ev.kind === "ended") || (status === "inactive" && ev.kind === "leave")));
+const employmentNeedsReason = (d) => !!(d && (d.status === "inactive" || d.status === "terminated") && !employmentExplains(d.status, d.current));
+// The status as the card and the lists say it: On leave for someone inactive whose latest event is a
+// leave, and the person's status word otherwise.
+const employmentStateWord = (status, current) => (status === "inactive" && current && current.kind === "leave" ? tr("On leave") : status === "terminated" ? tr("terminated|person") : personStateOf(status));
+const employmentStateColor = (status) => (status === "active" ? GR : status === "pending" || status === "inactive" ? OR : RD);
+const employmentWho = (p) => (p && typeof p === "object" && p.name ? String(p.name) : "");
+// The reasons, GET /api/users/employment-reasons, in the screen's language, read once a language.
+const employmentReasonsCache = {};
+const loadEmploymentReasons = (af) => {
+  const lang = getLang();
+  if (!employmentReasonsCache[lang]) {
+    employmentReasonsCache[lang] = af("/api/users/employment-reasons")
+      .then(d => ({ ended: d && Array.isArray(d.ended) ? d.ended : [], leave: d && Array.isArray(d.leave) ? d.leave : [] }))
+      .catch(e => { delete employmentReasonsCache[lang]; throw e; });
+  }
+  return employmentReasonsCache[lang];
+};
+// The latest ended event in a person's history, whose rehireEligible says whether they left eligible.
+const employmentLastEnded = (d) => ((d && Array.isArray(d.events) ? d.events : []).filter(e => e && e.kind === "ended").sort((a, b) => String(b.recordedAt || "").localeCompare(String(a.recordedAt || "")))[0] || null);
+
+// The Employment card: the status with its reason, the last day or the expected return, rehire
+// eligibility for an ended employment, the note, who recorded it and when, and every event newest
+// first. onRecord, when given, offers Record the reason for a person whose state has none; staffHref,
+// when given, is the read only card's link to Staff Management, where the buttons are.
+function EmploymentCard({ t, data, onRecord, staffHref }) {
+  const [open, setOpen] = useState(false);
+  const cur = data.current || null;
+  const explained = employmentExplains(data.status, cur);
+  const events = (data.events || []).slice().sort((a, b) => String(b.recordedAt || "").localeCompare(String(a.recordedAt || "")));
+  const line = { fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 };
+  const recorded = (ev) => { const who = employmentWho(ev.recordedBy); const when = ev.recordedAt ? irDay(ev.recordedAt) : "--"; return who ? tr("Recorded by {0} on {1}", who, when) : tr("Recorded on {0}", when); };
+  const detail = (ev) => [
+    ev.reasonLabel ? String(ev.reasonLabel) : "",
+    ev.kind === "ended" && ev.lastDay ? tr("Last day {0}", fdLong(ev.lastDay)) : "",
+    ev.kind === "ended" && ev.rehireEligible === true ? tr("Eligible for rehire") : "",
+    ev.kind === "ended" && ev.rehireEligible === false ? tr("Not eligible for rehire") : "",
+    ev.kind === "leave" && ev.expectedReturn ? tr("Expected back {0}", fdLong(ev.expectedReturn)) : "",
+  ].filter(Boolean).join(". ");
+  return (<Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
+    <div data-employment={data.status}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Employment")}</div>
+        {staffHref ? <a href={staffHref} style={{ fontSize: 12, color: t.goldText, fontWeight: 600, minHeight: 44, display: "inline-flex", alignItems: "center" }}>{tr("Open in Staff Management")}</a> : null}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        <Bdg l={employmentStateWord(data.status, cur)} c={employmentStateColor(data.status)} />
+        {explained && cur.reasonLabel ? <span data-employment-reason="" style={{ fontSize: 13, color: t.text, fontWeight: 600 }}>{cur.reasonLabel}</span> : null}
+      </div>
+      {explained && cur.kind === "ended" && <div style={line}>{[cur.lastDay ? tr("Last day {0}", fdLong(cur.lastDay)) : "", cur.rehireEligible === true ? tr("Eligible for rehire") : cur.rehireEligible === false ? tr("Not eligible for rehire") : ""].filter(Boolean).join(". ")}</div>}
+      {explained && cur.kind === "leave" && cur.expectedReturn && <div style={line}>{tr("Expected back {0}", fdLong(cur.expectedReturn))}</div>}
+      {explained && cur.note ? <div style={{ ...line, color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{cur.note}</div> : null}
+      {explained && <div style={{ ...line, color: t.textMut }}>{recorded(cur)}</div>}
+      {employmentNeedsReason(data) && <div data-employment-no-reason="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+        <span style={{ fontSize: 13, color: OR, fontWeight: 600 }}>{tr("No reason recorded")}</span>
+        {onRecord ? <Btn t={t} v="ghost" onClick={onRecord} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Record the reason")}</Btn> : null}
+      </div>}
+      {events.length > 0 && <div style={{ marginTop: 10 }}>
+        <Btn t={t} v="ghost" aria-expanded={open} onClick={() => setOpen(o => !o)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("History ({0})", events.length)}</Btn>
+        {open && <div data-employment-history="" style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
+          {events.map((ev, i) => (<div key={ev.id || i} style={{ padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>
+            <div style={{ fontWeight: 600, color: t.text }}>{employmentKindWord(ev.kind)}</div>
+            {detail(ev) ? <div>{detail(ev)}</div> : null}
+            {ev.note ? <div style={{ color: t.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
+            <div style={{ color: t.textMut }}>{recorded(ev)}</div>
+          </div>))}
+        </div>}
+      </div>}
+    </div>
+  </Crd>);
+}
+
+// The windows that change a person's employment: end, leave, return and rehire, and, with record, the
+// reason for someone already ended or on leave, which the same route records without changing
+// anything. A refusal is drawn word for word under the field its keys name, and anything else at
+// the top. Each window says what will happen before it is sent.
+const EMPLOYMENT_SEND = { end: "End employment", leave: "Put on leave", "return": "Return from leave", rehire: "Rehire" };
+function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast, initialReason = "" }) {
+  const today = toISO(new Date());
+  const [reasons, setReasons] = useState(null);
+  const [f, setF] = useState({ reason: initialReason || "", lastDay: "", rehireEligible: "", expectedReturn: "", hireDate: "", note: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (mode !== "end" && mode !== "leave") return undefined;
+    let alive = true;
+    loadEmploymentReasons(af).then(d => { if (alive) setReasons(d[mode === "end" ? "ended" : "leave"] || []); }).catch(e => { if (alive) { setReasons([]); setRefusal({ text: e.message || tr("Request failed"), field: "" }); } });
+    return () => { alive = false; };
+  }, [af, mode]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const FIELDS = ["reason", "lastDay", "rehireEligible", "expectedReturn", "hireDate", "note"];
+  const fieldOf = (e) => { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; return keys.find(k => FIELDS.indexOf(k) >= 0) || ""; };
+  const noteNeeded = f.reason === "other";
+  const ready = mode === "end" ? !!(f.reason && f.lastDay && f.rehireEligible && (!noteNeeded || f.note.trim()))
+    : mode === "leave" ? !!(f.reason && (!noteNeeded || f.note.trim()))
+    : mode === "rehire" ? !!f.hireDate : true;
+  const send = async () => {
+    if (savingRef.current || !ready) return;
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    const note = f.note.trim() || null;
+    const body = mode === "end" ? { reason: f.reason, lastDay: f.lastDay, rehireEligible: f.rehireEligible === "yes", note }
+      : mode === "leave" ? { reason: f.reason, expectedReturn: f.expectedReturn || null, note }
+      : mode === "rehire" ? { hireDate: f.hireDate, note } : { note };
+    try {
+      const d = await af("/api/users/" + encodeURIComponent(userId) + "/employment/" + mode, { method: "POST", body });
+      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : tr("Employment updated."));
+      onSaved(d);
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    savingRef.current = false; setSaving(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-employment-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
+  const reasonOpts = [{ v: "", l: reasons === null ? tr("Loading...") : tr("Choose a reason") }].concat((reasons || []).map(r => ({ v: String(r.code), l: String(r.label || r.code) })));
+  const lastEnded = employmentLastEnded(data);
+  const notEligible = mode === "rehire" && !!lastEnded && lastEnded.rehireEligible === false;
+  const who = name || tr("this person");
+  const confirmLine = record ? (mode === "end" ? tr("This records the reason {0} left. Their status and sites do not change.", who) : tr("This records the reason {0} is on leave. Their status and sites do not change.", who))
+    : mode === "end" ? tr("End the employment of {0}? Every site they are assigned to ends with it.", who)
+    : mode === "leave" ? tr("Put {0} on leave? They cannot sign in while on leave, and they keep their sites.", who)
+    : mode === "return" ? tr("Bring {0} back from leave? They can sign in again.", who)
+    : tr("Rehire {0}? They can sign in again, and their history stays.", who);
+  const title = record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode]);
+  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{title}</div>
+        {name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-employment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {(mode === "end" || mode === "leave") && <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Reason")}</Lbl>
+      <Sel t={t} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} options={reasonOpts} style={box("reason")} />
+      {under("reason")}
+      {mode === "end" && f.reason === "dismissed" && <div data-employment-letter="" style={{ fontSize: 12, color: t.textSec, marginTop: 6, lineHeight: 1.5 }}>
+        {tr("Record the termination letter in HR Records, under Disciplinary.")} <a href={"#hr/" + encodeURIComponent(String(userId))} style={{ color: t.goldText, fontWeight: 600 }}>{tr("Open in HR Records")}</a>
+      </div>}
+    </div>}
+    {mode === "end" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={f.lastDay} onChange={e => set("lastDay", e.target.value)} style={box("lastDay")} />{under("lastDay")}</div>
+      <div><Lbl>{tr("Eligible for rehire?")}</Lbl><Sel t={t} aria-label={tr("Eligible for rehire?")} value={f.rehireEligible} onChange={e => set("rehireEligible", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "yes", l: tr("Yes") }, { v: "no", l: tr("No") }]} style={box("rehireEligible")} />{under("rehireEligible")}</div>
+    </div>}
+    {mode === "leave" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
+      <Lbl>{tr("Expected return")}</Lbl><Inp t={t} type="date" min={today} aria-label={tr("Expected return")} value={f.expectedReturn} onChange={e => set("expectedReturn", e.target.value)} style={box("expectedReturn")} />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional.")}</div>{under("expectedReturn")}
+    </div>}
+    {mode === "rehire" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
+      <Lbl>{tr("New hire date")}</Lbl><Inp t={t} type="date" aria-label={tr("New hire date")} value={f.hireDate} onChange={e => set("hireDate", e.target.value)} style={box("hireDate")} />{under("hireDate")}
+    </div>}
+    <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Note")}</Lbl>
+      <TArea t={t} rows={3} maxLength={2000} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} style={box("note")} />
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{noteNeeded ? tr("Required for Other.") : tr("Optional.")}</div>
+      {under("note")}
+    </div>
+    {notEligible && <div data-employment-not-eligible="" style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("Marked not eligible for rehire when they left.")}</div>}
+    <div data-employment-confirm="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, marginBottom: 14 }}>{confirmLine}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={saving} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} v={mode === "end" && !record ? "danger" : "primary"} onClick={send} disabled={saving || !ready} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode])}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// HR Records' person folder: the same card, read only, with a link to the person in Staff Management,
+// where the buttons are, for a reader who can open that page. Nothing shows until the employment route
+// answers this person's reader.
+function PersonEmployment({ af, t, userId, canOpenStaff = false }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    af("/api/users/" + encodeURIComponent(userId) + "/employment").then(d => { if (alive) setData(employmentAnswerOf(d)); }).catch(e => { console.warn("Employment:", e.message); });
+    return () => { alive = false; };
+  }, [af, userId]);
+  if (!data) return null;
+  return <EmploymentCard t={t} data={data} staffHref={canOpenStaff ? "#staff/" + encodeURIComponent(String(userId)) : ""} />;
+}
+
+// The buttons that change a person's employment, by status: Put on leave and End employment for
+// someone active, Return from leave and End employment for someone inactive, Rehire for someone
+// terminated. Never on the signed-in person's own profile.
+const employmentActions = (status) => (status === "active" ? ["leave", "end"] : status === "inactive" ? ["return", "end"] : status === "terminated" ? ["rehire"] : []);
+
+// The roster check (Step 232, STEP223_CONTRACT_v2.md section 5): everyone in one table, to confirm
+// who is still working and where, then put their records right. Still working posts confirm and the
+// row shows today's date and the confirmer's name at once. Put on leave and End employment open the
+// Employment windows, and Sites opens the person's profile on Assignments. The filters narrow the
+// table on screen; Show ended reads the list again with ?all=1. Export saves the table as shown, in
+// the screen's language.
+const ROSTER_DAYS = 30;
+const rosterRecent = (p) => !!(p && p.lastConfirmed && p.lastConfirmed.at && (Date.now() - new Date(p.lastConfirmed.at).getTime()) <= ROSTER_DAYS * 86400000);
+const ROSTER_FILTERS = [
+  { k: "unconfirmed", l: "Not confirmed yet", test: p => !rosterRecent(p) },
+  { k: "noSite", l: "No site", test: p => !!p.noSite },
+  { k: "onLeave", l: "On leave", test: p => p.status === "inactive" },
+  { k: "clearances", l: "Clearances missing", test: p => Number(p.clearancesMissing) > 0 },
+];
+function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, reloadKey = 0 }) {
+  const [all, setAll] = useState(false);
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [on, setOn] = useState({});
+  const [siteId, setSiteId] = useState("");
+  const [busy, setBusy] = useState("");
+  const [refused, setRefused] = useState({});
+  const [extra, setExtra] = useState(0);
+  const busyRef = useRef(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/users/roster-check" + (all ? "?all=1" : "")).then(d => { setData(d && Array.isArray(d.people) && d.summary ? d : { people: [], summary: { total: 0, confirmedSince: 0 } }); setExtra(0); })
+      .catch(e => { setData({ people: [], summary: { total: 0, confirmedSince: 0 } }); setFailed(e.message || tr("This did not load.")); });
+  }, [af, all]);
+  useEffect(() => { load(); }, [load, reloadKey]);
+  const meName = me ? ((me.firstName || "") + " " + (me.lastName || "")).trim() : "";
+  // A person's own row takes no employment action, as their own profile does not.
+  const isMe = (p) => !!(me && me.id != null && String(me.id) === String(p.userId));
+  const confirm = async (p) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(p.userId); setRefused(r => ({ ...r, [p.userId]: "" }));
+    try {
+      await af("/api/users/" + encodeURIComponent(p.userId) + "/employment/confirm", { method: "POST", body: { note: null } });
+      const was = rosterRecent(p);
+      setData(d => ({ ...d, people: d.people.map(x => (x.userId === p.userId ? { ...x, lastConfirmed: { at: new Date().toISOString(), by: { name: meName } } } : x)) }));
+      if (!was) setExtra(n => n + 1);
+    } catch (e) { setRefused(r => ({ ...r, [p.userId]: e.message || tr("Request failed") })); }
+    busyRef.current = false; setBusy("");
+  };
+  const people = data ? data.people : [];
+  const shown = people.filter(p => ROSTER_FILTERS.every(f => !on[f.k] || f.test(p)) && (!siteId || (p.sites || []).some(s => String(s.siteId) === String(siteId))));
+  const day = (v) => (v ? irDay(v) : "--");
+  const reasonOf = (p) => (p.current && (p.status === "inactive" || p.status === "terminated") && p.current.reasonLabel ? String(p.current.reasonLabel) : "");
+  const statusWord = (p) => employmentStateWord(p.status, p.current);
+  const small = { minHeight: 44, padding: "6px 10px", fontSize: 11 };
+  const cols = [
+    { header: tr("Name"), tdStyle: { minWidth: 140 }, render: p => <span style={{ fontWeight: 600, color: t.text }}>{p.name}</span> },
+    { header: tr("Role"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => roleWord(p.role) },
+    { header: tr("Status"), tdStyle: { minWidth: 110 }, render: p => (<span><Bdg l={statusWord(p)} c={employmentStateColor(p.status)} />{reasonOf(p) ? <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{reasonOf(p)}</div> : null}</span>) },
+    { header: tr("Sites"), tdStyle: { minWidth: 130 }, render: p => (<span>{p.noSite || !(p.sites || []).length ? <span style={{ color: OR, fontWeight: 600 }}>{tr("No site")}</span> : <span style={{ color: t.textSec }}>{p.sites.map(s => s.name).join(", ")}</span>}
+      {Number(p.clearancesMissing) > 0 ? <div><button onClick={() => openClearancesOf(p.userId)} style={{ background: "none", border: "none", padding: 0, minHeight: 32, cursor: "pointer", color: RD, fontSize: 11, fontWeight: 600, textAlign: "left" }}>{trn("{0} clearances missing|count", Number(p.clearancesMissing))}</button></div> : null}</span>) },
+    { header: tr("Last shift"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => day(p.lastShiftStarted) },
+    { header: tr("Last signed in"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => day(p.lastSignIn) },
+    { header: tr("Last confirmed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => (p.lastConfirmed ? <span data-roster-confirmed={p.userId}>{day(p.lastConfirmed.at)}{p.lastConfirmed.by && p.lastConfirmed.by.name ? <div style={{ fontSize: 11, color: t.textMut }}>{p.lastConfirmed.by.name}</div> : null}</span> : "--") },
+    { header: tr("Actions"), tdStyle: { minWidth: 220 }, render: p => (<div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {!isMe(p) && p.status === "active" && <Btn t={t} onClick={() => confirm(p)} disabled={!!busy} style={small} data-roster-still={p.userId}>{busy === p.userId ? tr("Saving...") : tr("Still working")}</Btn>}
+        {!isMe(p) && p.status === "active" && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "leave")} style={small}>{tr("Put on leave")}</Btn>}
+        {!isMe(p) && (p.status === "active" || p.status === "inactive") && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "end")} style={small}>{tr("End employment")}</Btn>}
+        <Btn t={t} v="ghost" onClick={() => onOpen(p.userId, "assign")} style={small}>{tr("Sites")}</Btn>
+      </div>
+      {refused[p.userId] ? <div data-roster-refusal={p.userId} style={{ fontSize: 11, color: RD, marginTop: 4 }}>{refused[p.userId]}</div> : null}
+    </div>) },
+  ];
+  const exportCsv = () => {
+    const hdr = [tr("Name"), tr("Role"), tr("Status"), tr("Reason"), tr("Sites"), tr("Last shift"), tr("Last signed in"), tr("Last confirmed"), tr("Confirmed by"), tr("Clearances missing")];
+    const rows = shown.map(p => [p.name, roleWord(p.role), statusWord(p), reasonOf(p), p.noSite || !(p.sites || []).length ? tr("No site") : p.sites.map(s => s.name).join(", "), day(p.lastShiftStarted), day(p.lastSignIn), p.lastConfirmed ? day(p.lastConfirmed.at) : "", p.lastConfirmed && p.lastConfirmed.by ? p.lastConfirmed.by.name || "" : "", Number(p.clearancesMissing) > 0 ? String(p.clearancesMissing) : ""]);
+    dlCSV("roster-check-" + toISO(new Date()) + ".csv", hdr, rows);
+  };
+  const sum = (data && data.summary) || { total: 0, confirmedSince: 0 };
+  const chip = (f) => { const act = !!on[f.k]; return <button key={f.k} onClick={() => setOn(o => ({ ...o, [f.k]: !o[f.k] }))} aria-pressed={act} style={{ minHeight: 44, padding: "6px 12px", borderRadius: R.pill, border: "1px solid " + (act ? GO : t.border), background: act ? t.goldBg : "transparent", color: act ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tr(f.l)}</button>; };
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  return (<div data-roster-check="">
+    <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={t.goldText} /> {tr("Back to Staff")}</button>
+    <SecT t={t}>{tr("Roster check")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Go through everyone: confirm who is still working and where, then put their records right.")}</div>
+    {data && <div data-roster-summary="" style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("{0} of {1} confirmed in the last 30 days", Number(sum.confirmedSince || 0) + extra, Number(sum.total || people.length))}</div>}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      {ROSTER_FILTERS.map(chip)}
+      <select aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} style={selSt}><option value="">{tr("All sites")}</option>{(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, color: t.textSec, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} style={{ width: 20, height: 20 }} /></span>{tr("Show ended")}</label>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportCsv} disabled={!data || shown.length === 0} style={{ minHeight: 44 }}>{tr("Export")}</Btn></div>
+    </div>
+    {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={shown} rowKey={p => p.userId} empty={tr("No one matches.")} />}
+  </div>);
+}
+
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute, devicesOn = false }) {
+  // The super admin forgets another office account's trusted devices (Step 232, Part C), once the
+  // trusted devices routes answer. The flag is the account's own, as the API sends it.
+  const superAdmin = !!(user && (user.isSuperAdmin === true || user.is_super_admin === true));
+  const forgetDevices = async (u) => {
+    if (!window.confirm(tr("Forget this person's devices? Each one asks for a code at its next sign-in."))) return;
+    try { await af("/api/users/" + encodeURIComponent(u.id) + "/trusted-devices/forget", { method: "POST", body: {} }); showToast(tr("Devices forgotten.")); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+  };
   // The API's rank rule (routes/users.js): without manage_admins a person changes no account at or
   // above their own rank, admin over supervisor over everyone else, and not their own account. The
   // controls it would refuse are not drawn. A holder of manage_admins changes any account.
@@ -1137,6 +1558,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [empIdError, setEmpIdError] = useState("");
   // Profile view state
   const [profile, setProfile] = useState(null); const [profileTab, setProfileTab] = useState("info");
+  // Step 232: the open person's employment, once GET /api/users/:id/employment answers, and the
+  // window open on it.
+  const [employment, setEmployment] = useState(null); const [empWin, setEmpWin] = useState(null);
+  const loadEmployment = (id) => { af("/api/users/" + encodeURIComponent(id) + "/employment").then(d => setEmployment(employmentAnswerOf(d))).catch(e => { setEmployment(null); console.warn("Employment:", e.message); }); };
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
   const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
@@ -1157,7 +1582,15 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
   // Why the list is empty when it is: the read was refused to this person, or it failed.
   const [staffFailed, setStaffFailed] = useState(null);
-  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); };
+  // Step 232: everyone's latest employment event, from GET /api/users/roster-check once it answers;
+  // the list's badge reads On leave for someone inactive whose latest event is a leave.
+  const [roster, setRoster] = useState(null);
+  const loadRoster = () => { af("/api/users/roster-check").then(d => setRoster(d && Array.isArray(d.people) && d.summary && typeof d.summary === "object" ? d : null)).catch(e => { setRoster(null); console.warn("Roster check:", e.message); }); };
+  const onLeave = (s) => !!(s && s.status === "inactive" && roster && roster.people.some(p => String(p.userId) === String(s.id) && p.current && p.current.kind === "leave"));
+  // The roster check's own Employment window, and a count that reads the roster check again after one.
+  const [rosterWin, setRosterWin] = useState(null);
+  const [rosterAgain, setRosterAgain] = useState(0);
+  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
   // displayLabel the API sends in that language, a role the list does not hold reads the table's
@@ -1197,13 +1630,25 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const submitAdd = async () => { if (!addForm.firstName || !addForm.phone || !addForm.email) { showToast(tr("Name, phone, and email required"), "error"); return; } setEmpIdError(""); try { const d = await af("/api/users", { method: "POST", body: addForm }); const made = (d && d.user) || d || {}; setAdded({ id: made.id, name: ((addForm.firstName || "") + " " + (addForm.lastName || "")).trim(), tempPin: d && d.tempPin ? String(d.tempPin) : "", show: false }); setAddForm(null); load(); loadStaff(); } catch (e) { if (isEmployeeIdTaken(e)) { setEmpIdError(tr("That employee ID is already in use.")); } else { showToast(e.message, "error"); } } };
 
   // Open full profile
-  const openProfile = async (id) => {
+  const openProfile = async (id, tab) => {
+    setEmployment(null); setEmpWin(null);
     try {
       const d = await af("/api/users/profile/" + id);
-      setProfile(d); setProfileTab("info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
+      setProfile(d); setProfileTab(tab || "info"); setProfileEdit(null); setTimeline([]); setTlTotal(0); setTlCategory("all"); setTlStartDate(""); setTlEndDate(""); setTlDetail(null);
+      loadEmployment(id);
     } catch (e) { showToast(e.message, "error"); }
   };
-  const closeProfile = () => { setProfile(null); setProfileEdit(null); };
+  const closeProfile = () => { setProfile(null); setProfileEdit(null); setEmployment(null); setEmpWin(null); if (onRoute && route[0] && route[0] !== "roster") onRoute([]); };
+  // Step 232: #staff/<id>, from HR Records' Employment card, opens that person's profile, and
+  // #staff/<id>/assign opens it on Assignments.
+  const routeId = route[0] && route[0] !== "roster" ? String(route[0]) : "";
+  const routeTab = routeId && route[1] ? String(route[1]) : "";
+  useEffect(() => { if (routeId) openProfile(routeId, routeTab === "assign" ? "assign" : undefined); }, [routeId, routeTab]);
+  // After an employment change: the profile read again on the tab it is on, its employment, and the list.
+  const refreshProfile = async (id) => {
+    try { const d = await af("/api/users/profile/" + id); setProfile(d); } catch (e) { showToast(e.message, "error"); }
+    loadEmployment(id); load(); if (loadStaff) loadStaff();
+  };
 
   // Load HR data for the HR Files tab
   const loadHrData = async (userId) => {
@@ -1534,11 +1979,15 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {canChange(u) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendResetLink(u.id)}>{tr("Send a PIN reset link")}</Btn>}
           {canChange(u) && u.status === "pending" && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => sendInvite(u.id)}>{tr("Send activation invite")}</Btn>}
           {canChange(u) && !u.badgeNumber && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => generateBadge(u.id)}>{tr("Generate badge number")}</Btn>}
-          {canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
-          {canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {!employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
+          {!employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
+          {employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
+          {devicesOn && superAdmin && (u.role === "admin" || u.role === "supervisor") && !(user && String(user.id) === String(u.id)) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} data-forget-devices={u.id} onClick={() => forgetDevices(u)}>{tr("Forget this person's devices")}</Btn>}
           {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
+
+      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
@@ -1547,6 +1996,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
       {/* INFO TAB */}
       {profileTab === "info" && <div>
+        {employment && <EmploymentCard t={t} data={employment} onRecord={canChange(u) && !(user && String(user.id) === String(u.id)) && employmentNeedsReason(employment) ? () => setEmpWin({ mode: employment.status === "terminated" ? "end" : "leave", record: true }) : null} />}
         <Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Contact Information")}</div>
@@ -1713,7 +2163,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const dt = new Date(entry.createdAt);
               const prevDt = i > 0 ? new Date(timeline[i - 1].createdAt) : null;
               const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
-              const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
+              const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: PU, training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
               return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(localeTag(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
                 <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
@@ -1819,12 +2269,18 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // ============================================================
   // STAFF LIST VIEW
   // ============================================================
+  // Step 232: the roster check at #staff/roster, once GET /api/users/roster-check answers.
+  if (route[0] === "roster" && roster) return (<div>
+    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={(p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })} />
+    {rosterWin && <EmploymentWindow af={af} t={t} userId={rosterWin.userId} name={rosterWin.name} mode={rosterWin.mode} data={null} showToast={showToast} onClose={() => setRosterWin(null)} onSaved={() => { setRosterWin(null); setRosterAgain(n => n + 1); load(); if (loadStaff) loadStaff(); }} />}
+  </div>);
   return (<div>
     <SecT t={t} action={tr("Add Staff")} onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); }}>{tr("Staff Management")}</SecT>
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
@@ -1844,7 +2300,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
         { header: tr("Phone"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
-        { header: tr("Status"), render: s => <Bdg l={stateOf(s.status)} c={statusColor(s.status)} /> },
+        { header: tr("Status"), render: s => (onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />) },
         { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
@@ -2362,7 +2818,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   ];
 
   const tlColorMap = {
-    clock: BL, tasks: GR, inspections: TL, issues: RD, schedule: OR, marketplace: GO, supplies: "#9B59B6", staff: BL, chat: "#9B59B6", site: GO
+    clock: BL, tasks: GR, inspections: TL, issues: RD, schedule: OR, marketplace: GO, supplies: PU, staff: BL, chat: PU, site: GO
   };
 
   const getTlCategory = (actionType) => {
@@ -3017,7 +3473,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   useEffect(() => { load(); }, []);
   const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
-  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: "#9B59B6" };
+  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: PU };
   // The words for the codes an issue carries. The code is what the API sent and what is sent back;
   // these are only what the screen says. A code with no word here is drawn as it arrives.
   const filterWord = { all: tr("all|issues"), open: tr("open|issues"), in_progress: tr("in progress"), escalated: tr("escalated|issues"), resolved: tr("resolved|issues") };
@@ -5552,10 +6008,10 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
 // The client acknowledges it on the staff portal; an acknowledged report shows who, and one sent
 // and not acknowledged in 10 days is overdue. Nothing here draws until the list route answers.
 const MONTHLY_STATUS = {
-  draft: { l: "Draft|monthly report", c: BL },
-  sent: { l: "Sent|monthly report", c: OR },
-  acknowledged: { l: "Acknowledged", c: GR },
-  overdue: { l: "Overdue|monthly report", c: RD },
+  draft: { l: "Draft|monthly report", get c() { return BL; } },
+  sent: { l: "Sent|monthly report", get c() { return OR; } },
+  acknowledged: { l: "Acknowledged", get c() { return GR; } },
+  overdue: { l: "Overdue|monthly report", get c() { return RD; } },
 };
 const monthlyStatusWord = (s) => (MONTHLY_STATUS[s] ? tr(MONTHLY_STATUS[s].l) : String(s || ""));
 const monthlyStatusColor = (s) => (MONTHLY_STATUS[s] ? MONTHLY_STATUS[s].c : BL);
@@ -6843,7 +7299,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     showToast(tr("Service catalog exported"));
   };
 
-  const cimsColor = { SD: BL, HSE: OR, GB: GR, QS: GO, HR: "#9B59B6", MC: "#1ABC9C" };
+  const cimsColor = { SD: BL, HSE: OR, GB: GR, QS: GO, HR: PU, MC: "#1ABC9C" };
 
   const serviceIcons = {
     "office-cleaning": "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",
@@ -8714,10 +9170,42 @@ const InspectionThumbs = ({ t, urls, mark }) => (<div data-inspection-photos={ma
   {urls.map((u, i) => <a key={i} href={u} target="_blank" rel="noreferrer"><img src={u} alt={tr("Inspection photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, cursor: "pointer", display: "block" }} /></a>)}
 </div>);
 
+// A filed inspection's review line (Step 232, STEP217_CONTRACT_A v2 section 6): signed, with the
+// drawing and who signed it when; open to the caller, with the signature box and Sign; or waiting.
+// A refusal is drawn word for word under the box. The result's id comes from the answer, or from the
+// route its first signature names.
+const inspectionResultIdOf = (d) => {
+  if (d && d.result && d.result.id != null) return String(d.result.id);
+  const sg = (d && Array.isArray(d.signatures) ? d.signatures : []).find(x => x && /\/api\/inspections\/results\/[^/]+\/signatures\//.test(String(x.path || "")));
+  const m = sg ? /\/api\/inspections\/results\/([^/]+)\//.exec(String(sg.path)) : null;
+  return m ? decodeURIComponent(m[1]) : "";
+};
+function InspectionReviewLine({ af, t, token, resultId, line, signature, onSigned, fmtDT }) {
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const busyRef = useRef(false);
+  const label = builderText(line.label) || String(line.line || "");
+  const sign = async (png) => {
+    if (busyRef.current || !resultId) return;
+    busyRef.current = true; setBusy(true); setRefusal("");
+    try { await af("/api/inspections/results/" + encodeURIComponent(resultId) + "/signatures/" + encodeURIComponent(line.line), { method: "POST", body: { signature: png } }); onSigned(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    busyRef.current = false; setBusy(false);
+  };
+  return (<div data-inspection-line={line.line} data-line-state={line.signed ? "signed" : line.canSign ? "open" : "waiting"} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+    {line.signed || !line.canSign ? <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{label}</div> : null}
+    {line.signed ? (<div>
+      {signature && signature.path ? <SignatureImage t={t} token={token} path={signature.path} signKey={line.line} /> : null}
+      <div style={{ fontSize: 12, color: t.textSec }}>{tr("Signed by {0}, {1}", (signature && signature.signerName) || "--", signature && signature.signedAt ? fmtDT(signature.signedAt) : "--")}</div>
+    </div>) : line.canSign ? <SignatureBox t={t} label={label} busy={busy} refusal={refusal} onSign={sign} signWord={tr("Sign")} busyWord={tr("Signing...")} />
+      : <div style={{ fontSize: 13, color: line.required ? OR : t.textMut, fontWeight: line.required ? 600 : 400 }}>{line.required ? tr("Waiting for {0}", label) : tr("Not signed")}</div>}
+  </div>);
+}
+
 function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
-  const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
+  const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: BL, HSE: OR, GB: GR, QS: GOLD, HR: PU, MC: "#2C3E50" };
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
   const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
   // Where the page only shows one: a service category is the lookup's shown label, then the label
@@ -8734,7 +9222,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const stateOf = (st) => inspStateWord[st] || st.replace("_", " ");
   const cimsOpts = getOpts("cims_categories");
   const CIMS_CATS = cimsOpts.length > 0 ? cimsOpts.map(o => o.v) : ["SD", "HSE", "GB", "QS", "HR", "MC"];
-  const STATUS_C = { scheduled: "#24A4F4", in_progress: "#F39C12", completed: "#2ECC71", cancelled: "#7A8A9A" };
+  const STATUS_C = { scheduled: BL, in_progress: OR, completed: GR, cancelled: "#7A8A9A" };
   const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
   const fmtDT = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 
@@ -8742,6 +9230,11 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [templates, setTemplates] = useState([]);
   const [scheduled, setScheduled] = useState([]);
   const [completed, setCompleted] = useState([]);
+  // Step 232: the completed inspections with a required review line unsigned, from
+  // ?awaiting=review. An API that does not know the filter answers every inspection, scheduled ones
+  // among them, so the list counts only when every row it holds is completed and the full list holds
+  // one that is not.
+  const [awaiting, setAwaiting] = useState(null);
   // Analytics state
   const [analyticsRange, setAnalyticsRange] = useState(() => PRESETS.last90());
   const [analyticsSite, setAnalyticsSite] = useState("");
@@ -8800,6 +9293,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
       const all = await af("/api/inspections/scheduled");
       setScheduled(all.filter(s => s.status !== "completed" && s.status !== "cancelled"));
       setCompleted(all.filter(s => s.status === "completed"));
+      af("/api/inspections/scheduled?awaiting=review").then(aw => {
+        const filtered = Array.isArray(aw) && aw.every(r => r && r.status === "completed") && Array.isArray(all) && all.some(r => r && r.status !== "completed");
+        setAwaiting(filtered ? aw : null);
+      }).catch(() => setAwaiting(null));
     markInsp("scheduled", false); } catch (e) { markInsp("scheduled", true); showToast(e.message, "error"); }
   }, [af]);
 
@@ -8952,7 +9449,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(f.blob); });
           } catch (e) { console.warn("Inspection signature:", e.message); }
         }
-        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null });
+        const ln = sg && Array.isArray(d.lines) ? d.lines.find(x => x && x.line === sg.line) : null;
+        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null, label: ln ? builderText(ln.label) : "" });
       }
     }
     const photoImgs = (urls, size) => urls.map(u => '<img src="' + esc(u) + '" style="width:' + size[0] + 'px;height:' + size[1] + 'px;object-fit:cover;border-radius:4px;margin:2px" />').join("");
@@ -9026,7 +9524,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           <tbody>${itemRows}</tbody>
         </table>
         ${overall.length ? `<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Photos of the whole inspection")}</div>${photoImgs(overall, [160, 120])}</div>` : ""}
-        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
+        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.label ? `<div style="font-size:11px;font-weight:700;color:#333;margin-bottom:4px">${esc(sg.label)}</div>` : ""}${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div>
       </body></html>`;
 
@@ -9202,12 +9700,17 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
         </Crd>}
         {isComplete && d.capture && <Crd t={t} style={{ marginTop: 16 }}>
           <div data-inspection-signature="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Signature")}</div>
-          {(Array.isArray(d.signatures) ? d.signatures : []).length === 0
+          {(Array.isArray(d.signatures) ? d.signatures : []).filter(sg => !(Array.isArray(d.lines) && d.lines.some(ln => ln && ln.line === sg.line))).length === 0
             ? <div data-inspection-unsigned="" style={{ fontSize: 13, color: t.textMut }}>{tr("Not signed")}</div>
-            : d.signatures.map((sg, i) => (<div key={sg.line || i} data-inspection-signed={sg.line || ""} style={{ marginBottom: 8 }}>
+            : d.signatures.filter(sg => !(Array.isArray(d.lines) && d.lines.some(ln => ln && ln.line === sg.line))).map((sg, i) => (<div key={sg.line || i} data-inspection-signed={sg.line || ""} style={{ marginBottom: 8 }}>
               {sg.path ? <SignatureImage t={t} token={token} path={sg.path} signKey={sg.line} /> : null}
               <div style={{ fontSize: 12, color: t.textSec }}>{tr("Signed by {0}, {1}", sg.signerName || "--", sg.signedAt ? fmtDT(sg.signedAt) : "--")}</div>
             </div>))}
+        </Crd>}
+        {/* Step 232: the review lines, once the answer carries lines. */}
+        {isComplete && Array.isArray(d.lines) && d.lines.length > 0 && <Crd t={t} style={{ marginTop: 16 }}>
+          <div data-inspection-lines="" style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Review|inspection")}</div>
+          {d.lines.map(ln => <InspectionReviewLine key={ln.line} af={af} t={t} token={token} resultId={inspectionResultIdOf(d)} line={ln} signature={(Array.isArray(d.signatures) ? d.signatures : []).find(sg => sg && sg.line === ln.line) || null} fmtDT={fmtDT} onSigned={() => { openDetail(d.id); loadScheduled(); }} />)}
         </Crd>}
 
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
@@ -9229,8 +9732,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     <div>
       {/* Tab bar */}
       <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid " + t.border }}>
-        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")], ["reports", tr("Reports")]].map(([tb, lbl]) => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}</button>
+        {[["templates", tr("Templates")], ["scheduled", tr("Scheduled|inspections")], ["completed", tr("Completed|inspections")]].concat(awaiting ? [["awaiting", tr("Awaiting review")]] : [], [["reports", tr("Reports")]]).map(([tb, lbl]) => (
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "8px 18px", background: "none", border: "none", borderBottom: tab === tb ? "2px solid " + GO : "2px solid transparent", color: tab === tb ? t.goldText : t.textSec, fontWeight: tab === tb ? 700 : 400, fontSize: 13, cursor: "pointer" }}>{lbl}{tb === "completed" && completed.length > 0 ? " (" + completed.length + ")" : ""}{tb === "awaiting" && awaiting && awaiting.length > 0 ? " (" + awaiting.length + ")" : ""}</button>
         ))}
       </div>
 
@@ -9380,6 +9883,19 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             if (inspFailed.scheduled) return <Crd t={t}><LoadFailed t={t} onRetry={loadScheduled} /></Crd>;
             return <DataTable t={t} columns={columns} rows={items} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={completed.length === 0 ? tr("No completed inspections yet.") : tr("No inspections match this search.")} footer={<Pagination t={t} page={cur} perPage={inspPerPage} total={searched.length} onPage={setCompPage} />} />;
           })()}
+        </div>
+      )}
+
+      {/* AWAITING REVIEW TAB (Step 232) */}
+      {tab === "awaiting" && awaiting && (
+        <div data-inspections-awaiting="">
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Completed inspections with a review line still to sign. A row opens the inspection.")}</div>
+          <DataTable t={t} rows={awaiting} rowKey={si => si.id} onRowClick={si => openDetail(si.id)} empty={tr("Nothing is waiting for review.")} columns={[
+            { header: tr("Inspection"), render: si => <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text }}>{si.template_name}</div><div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{si.site_name}</div></div> },
+            { header: tr("Scheduled|date"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: si => fmtDate(si.scheduled_date) },
+            { header: tr("Assigned|inspection"), render: si => si.assigned_name ? <span style={{ color: t.textSec }}>{si.assigned_name}</span> : <span style={{ color: t.textMut }}>-</span> },
+            { header: tr("Score"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: si => (si.total_score != null && si.max_possible_score ? Math.round((si.total_score / si.max_possible_score) * 100) + "%" : "--") },
+          ]} />
         </div>
       )}
 
@@ -9597,10 +10113,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
 // every figure and check is the API's, from POST /api/quotes/calculate. Nothing here holds a zone, a
 // task, a rate, a frequency or a cost line, and nothing here does the arithmetic.
 const QUOTE_STATUS = {
-  draft: { l: "Draft|quote", c: BL },
-  sent: { l: "Sent|quote", c: OR },
-  accepted: { l: "Accepted|quote", c: GR },
-  declined: { l: "Declined|quote", c: RD },
+  draft: { l: "Draft|quote", get c() { return BL; } },
+  sent: { l: "Sent|quote", get c() { return OR; } },
+  accepted: { l: "Accepted|quote", get c() { return GR; } },
+  declined: { l: "Declined|quote", get c() { return RD; } },
   void: { l: "Void|quote", c: "#8899AA" },
 };
 const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "void"];
@@ -10328,11 +10844,12 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   </div>);
 }
 
-// A PDF the API draws, in a window: the language picked, which starts as the screen's, Download PDF,
-// and the page itself. pathFor gives the route for a language. The quote's two PDFs and a site's
-// workload plan open in it.
-function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose }) {
-  const [lang, setLang] = useState(() => getLang());
+// A PDF the API draws, in a window: the language picked, which starts as startLang when the caller
+// names one the screen offers and as the screen's otherwise, Download PDF, and the page itself.
+// pathFor gives the route for a language. The quote's two PDFs, a site's workload plan and a warning
+// (in the language it is written in) open in it.
+function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose, startLang = "" }) {
+  const [lang, setLang] = useState(() => (startLang && LANGUAGES.some(x => x.id === startLang) ? startLang : getLang()));
   const [pdf, setPdf] = useState({ url: "", filename: "", loading: true, error: "" });
   const [again, setAgain] = useState(0);
   const path = pathFor(lang);
@@ -11325,7 +11842,66 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap }) {
+// Trusted devices (Step 232, Part C; STEP225_CONTRACT.md): the browsers this office account entered a
+// code on in the last 30 days, each with when it was first and last seen and what browser it is, and
+// Forget all my devices, after which each one asks for a code at its next sign-in. The contract names
+// the route and its table and gives no answer shape, so the list is read as { devices: [...] }, the
+// shape the API's other lists take, with each device's fields in camel or snake case. Any other
+// answer, a bare list included, is no answer, so nothing shows until the route is the one built.
+const trustedDevicesOf = (d) => {
+  const list = d && !Array.isArray(d) && Array.isArray(d.devices) ? d.devices : null;
+  if (!list) return null;
+  return list.filter(x => x && typeof x === "object").map((x, i) => ({
+    id: x.id != null ? String(x.id) : "device-" + i,
+    firstSeen: x.trustedAt || x.trusted_at || x.firstSeen || x.first_seen || null,
+    lastSeen: x.lastSeenAt || x.last_seen_at || x.lastSeen || x.last_seen || null,
+    until: x.expiresAt || x.expires_at || null,
+    agent: String(x.userAgent || x.user_agent || x.browser || ""),
+  }));
+};
+// A browser's own description, read down to its name and what it runs on: Chrome on Android.
+const browserOf = (agent) => {
+  const a = String(agent || "");
+  const b = /Edg\//.test(a) ? "Edge" : /OPR\/|Opera/.test(a) ? "Opera" : /Firefox\/|FxiOS/.test(a) ? "Firefox" : /Chrome\/|CriOS/.test(a) ? "Chrome" : /Safari\//.test(a) ? "Safari" : "";
+  const o = /iPhone/.test(a) ? "iPhone" : /iPad/.test(a) ? "iPad" : /Android/.test(a) ? "Android" : /CrOS/.test(a) ? "Chromebook" : /Windows/.test(a) ? "Windows" : /Macintosh|Mac OS X/.test(a) ? "Mac" : /Linux/.test(a) ? "Linux" : "";
+  if (b && o) return tr("{0} on {1}", b, o);
+  return b || o || tr("Unknown browser");
+};
+function TrustedDevices({ af, t, showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/users/me/trusted-devices").then(d => setList(trustedDevicesOf(d) || [])).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const forget = async () => {
+    if (busy || !window.confirm(tr("Forget all your devices? Each one asks for a code at its next sign-in."))) return;
+    setBusy(true);
+    try { await af("/api/users/me/trusted-devices/forget", { method: "POST", body: {} }); showToast(tr("Devices forgotten.")); load(); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  const day = (v) => (v ? irDay(v) : "--");
+  const cols = [
+    { header: tr("Browser"), tdStyle: { minWidth: 140, fontWeight: 600, color: t.text }, render: x => browserOf(x.agent) },
+    { header: tr("First seen"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.firstSeen) },
+    { header: tr("Last seen"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.lastSeen) },
+    { header: tr("Remembered until"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.until) },
+  ];
+  return (<div data-trusted-devices="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ flex: "1 1 260px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("A device you entered a sign-in code on is remembered for 30 days. Any other device asks for a code emailed to you.")}</div>
+      <Btn t={t} v="danger" onClick={forget} disabled={busy || !list || list.length === 0} style={{ minHeight: 44 }} data-forget-mine="">{tr("Forget all my devices")}</Btn>
+    </div>
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={list} rowKey={x => x.id} empty={tr("No devices are remembered.")} />}
+  </div>);
+}
+
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap, devicesOn = false }) {
   const [cats, setCats] = useState([]);
   // Quote defaults (Step 208) is an admin's who holds build_quotes, and shows once GET
   // /api/quotes/defaults answers; a 404 or a refusal leaves it off.
@@ -11347,6 +11923,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
     { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
     { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
+    { id: "devices", label: tr("Trusted devices"), open: devicesOn },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -11484,7 +12061,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
   return (
     <div>
       <SecT t={t}>{tr("Settings")}</SecT>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
         {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
@@ -11501,6 +12078,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "quotes" && canSetQuoteDefaults && quoteDefaults && <QuoteDefaultsPanel af={af} t={t} showToast={showToast} initial={quoteDefaults} />}
+
+      {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
@@ -11689,26 +12268,33 @@ const HR_CATEGORY_OPTS = [
   { v: "vendor", l: "Vendor / W-9" },
   { v: "operational", l: "Operational" },
   { v: "safety", l: "Safety / Incident" },
+  { v: "disciplinary", l: "Disciplinary" },
   { v: "other", l: "Other" },
 ];
+// Step 232: Disciplinary is a folder category once the API's Step 228 holds it, which files the old
+// warning forms there; the shell sets this when the discipline routes answer. Until then the pickers
+// do not offer it, though a document already filed there still reads its word.
+let disciplinaryCategoryLive = false;
+const hrCategoryPickable = (c, current) => c.v !== "disciplinary" || disciplinaryCategoryLive || current === "disciplinary";
 
 const HR_CATEGORY_LABEL = (v) => (HR_CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
-// Color hint per category for badges
-const HR_CATEGORY_COLOR = {
+// Color hint per category for badges, read when it is drawn so it takes the theme's shades.
+const hrCategoryColor = (k) => ({
   uncategorized: "#94A3B8",
-  hr_onboarding: "#24A4F4",
+  hr_onboarding: BL,
   hr_ongoing: "#1ABC9C",
-  training: "#2ECC71",
-  tax: "#F39C12",
-  benefits: "#9B59B6",
-  legal: "#E74C3C",
-  client: "#24A4F4",
-  vendor: "#F39C12",
+  training: GR,
+  tax: OR,
+  benefits: PU,
+  legal: RD,
+  client: BL,
+  vendor: OR,
   operational: GOLD,
-  safety: "#E74C3C",
+  safety: RD,
+  disciplinary: RD,
   other: "#94A3B8",
-};
+})[k];
 
 function JotformPickerField({ af, form, setForm, t }) {
   const [pickerOptions, setPickerOptions] = useState([]);
@@ -14470,7 +15056,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // Session 22: hoisted to module scope as HR_CATEGORY_OPTS so HR Records can share it.
   // The Training value was added in Session 22; existing FormsPage UI still works unchanged. Each
   // category is drawn as the table's word for it, the way HR Records draws them; the code is sent.
-  const CATEGORY_OPTS = HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }));
+  const CATEGORY_OPTS = HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c)).map(c => ({ v: c.v, l: tr(c.l) }));
 
   const STATUS_OPTS = [
     { v: "", l: tr("All statuses") },
@@ -16035,11 +16621,11 @@ const ACT168_SHORT = "Act 168";
 const clearanceKindWord = (k) => { const c = CLEARANCE_KINDS.find(x => x.key === k); return c ? tr(c.label) : String(k || ""); };
 // A clearance's state as the API answers it. Expiring is within 90 days.
 const CLEARANCE_STATES = {
-  current: { l: "Current|clearance", c: GR },
-  expiring: { l: "Expiring|clearance", c: OR },
-  expired: { l: "Expired|clearance", c: RD },
+  current: { l: "Current|clearance", get c() { return GR; } },
+  expiring: { l: "Expiring|clearance", get c() { return OR; } },
+  expired: { l: "Expired|clearance", get c() { return RD; } },
   missing: { l: "Missing|clearance", c: "#8899AA" },
-  done: { l: "Done|review", c: GR },
+  done: { l: "Done|review", get c() { return GR; } },
 };
 const clearanceStateWord = (s) => (CLEARANCE_STATES[s] ? tr(CLEARANCE_STATES[s].l) : String(s || ""));
 const ClearanceChip = ({ state }) => <Bdg l={clearanceStateWord(state)} c={(CLEARANCE_STATES[state] || CLEARANCE_STATES.missing).c} />;
@@ -16517,7 +17103,347 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   );
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false }) {
+// ===== WARNINGS (Step 232, Part B) =====
+// Written warnings that follow the handbook (STEP228_CONTRACT_v2.md, OCSA-HR-002 3.4, 5.5 and 5.6):
+// verbal, written, final written and termination, normally in that order, though OCSA may begin at any
+// step. A warning is drafted, issued with the signatures its step takes, previewed as a branded PDF
+// and sent, and counted. Nothing shows until the discipline routes answer.
+const WARNING_STEPS = ["verbal_warning", "written_warning", "final_warning", "termination"];
+const WARNING_ADMIN_STEPS = ["final_warning", "termination"];
+const WARNING_STEP_WORDS = { verbal_warning: "Verbal warning", written_warning: "Written warning", final_warning: "Final written warning", termination: "Termination" };
+const WARNING_STATUS_WORDS = { draft: "Draft|warning", open: "Issued|warning", closed: "Closed|warning", rescinded: "Rescinded" };
+const WARNING_DELIVERY_WORDS = { email: "Email", in_person: "Handed over in person", printed: "Printed", mail: "Mailed" };
+// The steps and the categories, GET /api/discipline/steps, in the screen's language, read once a
+// language. A label the answer does not give is the step's own word here.
+const disciplineStepsCache = {};
+const loadDisciplineSteps = (af) => {
+  const lang = getLang();
+  if (!disciplineStepsCache[lang]) {
+    const listOf = (v) => (Array.isArray(v) ? v.map(x => ({ code: String(x.code || x.type || x.key || ""), label: String(x.label || "") })).filter(x => x.code) : []);
+    disciplineStepsCache[lang] = af("/api/discipline/steps")
+      .then(d => ({ steps: listOf(d && (d.steps || d.types)), categories: listOf(d && d.categories) }))
+      .catch(e => { delete disciplineStepsCache[lang]; throw e; });
+  }
+  return disciplineStepsCache[lang];
+};
+const warningStepWord = (code, steps) => { const s = (steps || []).find(x => x.code === code); return s && s.label ? s.label : (WARNING_STEP_WORDS[code] ? tr(WARNING_STEP_WORDS[code]) : String(code || "")); };
+const warningCategoryWord = (code, cats) => { const c = (cats || []).find(x => x.code === code); return c && c.label ? c.label : String(code || ""); };
+const warningStatusWord = (s) => (WARNING_STATUS_WORDS[s] ? tr(WARNING_STATUS_WORDS[s]) : String(s || ""));
+const warningOf = (d) => (d && d.warning && typeof d.warning === "object" ? d.warning : d);
+// A warning's fields as the API may name them, read the same way wherever a row comes from.
+const warningIssued = (w) => !!(w && (w.issuedAt || w.issued_at || (w.status && w.status !== "draft")));
+const warningRescinded = (w) => !!(w && (w.status === "rescinded" || w.rescindedAt || w.rescinded_at));
+
+// The window for one warning: a new one, a draft carried on, or one issued. A draft is the handbook's
+// fields in order; once saved it can be issued, with the issuer's signature and, for a written or
+// final warning, the person's or a note that they declined. Once issued it previews as a PDF, is sent
+// by email or recorded as handed over, printed or mailed, and an admin may rescind it. A termination
+// ends at End employment, opened with Let go by OCSA. A refusal is drawn word for word under the field
+// its keys name.
+function WarningWindow({ af, t, token, isAdmin = false, userId, personName, person = null, row = null, initial = {}, onClose, onChanged, showToast }) {
+  const [steps, setSteps] = useState({ steps: [], categories: [] });
+  const [w, setW] = useState(row || null);
+  const draftOf = (r) => ({
+    type: (r && (r.type || r.action_type)) || initial.type || "verbal_warning",
+    category: (r && r.category) || "",
+    incidentDate: (r && (r.incidentDate || r.incident_date)) ? String(r.incidentDate || r.incident_date).slice(0, 10) : "",
+    description: (r && (r.description || r.summary)) || "",
+    policyRef: (r && (r.policyRef || r.policy_ref)) || "",
+    expectations: (r && r.expectations) || "",
+    expectedBy: (r && (r.expectedBy || r.expected_by)) ? String(r.expectedBy || r.expected_by).slice(0, 10) : "",
+    suspensionStart: (r && (r.suspensionStart || r.suspension_start)) ? String(r.suspensionStart || r.suspension_start).slice(0, 10) : "",
+    suspensionEnd: (r && (r.suspensionEnd || r.suspension_end)) ? String(r.suspensionEnd || r.suspension_end).slice(0, 10) : "",
+    follows: r && (r.followsProtectedActivity || r.follows_protected_activity) ? "yes" : (r ? "no" : ""),
+    controllerDiscussedOn: (r && (r.controllerDiscussedOn || r.controller_discussed_on)) ? String(r.controllerDiscussedOn || r.controller_discussed_on).slice(0, 10) : "",
+    language: (r && r.language) || (person && (person.language || person.preferredLanguage)) || "en",
+  });
+  const [f, setF] = useState(() => draftOf(row));
+  const [issue, setIssue] = useState({ issuerSignature: "", employeeSignature: "", declined: false, witnessName: "", employeeAccount: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [busy, setBusy] = useState("");
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [deliver, setDeliver] = useState({ method: "", extra: [], draft: "" });
+  const [sentLine, setSentLine] = useState("");
+  const [rescinding, setRescinding] = useState(false);
+  const [rescindReason, setRescindReason] = useState("");
+  const [endOpen, setEndOpen] = useState(false);
+  const busyRef = useRef(false);
+  useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const id = w && w.id != null ? String(w.id) : "";
+  const issued = warningIssued(w);
+  const rescinded = warningRescinded(w);
+  const isDraft = !issued && !rescinded;
+  const type = issued ? (w.type || w.action_type) : f.type;
+  const verbal = type === "verbal_warning";
+  const personSigns = type === "written_warning" || type === "final_warning";
+  const FIELDS = ["type", "category", "incidentDate", "description", "policyRef", "expectations", "expectedBy", "suspensionStart", "suspensionEnd", "followsProtectedActivity", "controllerDiscussedOn", "language", "employeeSignature", "issuerSignature", "witnessName", "employeeAccount", "reason", "to", "method"];
+  const refuse = (e, fallback) => {
+    const code = String((e && e.code) || "");
+    const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+    const field = code === "discipline.controllerRequired" ? "controllerDiscussedOn" : code === "discipline.adminOnly" ? "type" : code === "discipline.noEmail" || code === "discipline.sendFailed" ? "send" : (keys.find(k => FIELDS.indexOf(k) >= 0) || fallback || "");
+    setRefusal({ text: (e && e.message) || tr("Request failed"), field });
+  };
+  const run = async (what, fn) => { if (busyRef.current) return; busyRef.current = true; setBusy(what); setRefusal({ text: "", field: "" }); try { await fn(); } catch (e) { refuse(e, ""); } busyRef.current = false; setBusy(""); };
+  const body = () => ({
+    userId, type: f.type, category: f.category || null, incidentDate: f.incidentDate || null, description: f.description.trim() || null,
+    policyRef: f.policyRef.trim() || null, expectations: f.expectations.trim() || null, expectedBy: f.expectedBy || null,
+    suspensionStart: f.type === "final_warning" ? (f.suspensionStart || null) : null, suspensionEnd: f.type === "final_warning" ? (f.suspensionEnd || null) : null,
+    followsProtectedActivity: f.follows === "yes", controllerDiscussedOn: f.follows === "yes" ? (f.controllerDiscussedOn || null) : null,
+    caseId: initial.caseId || (w && (w.caseId || w.case_id)) || null, language: f.language || "en",
+  });
+  const saveDraft = () => run("draft", async () => {
+    const d = id ? await af("/api/discipline/" + encodeURIComponent(id), { method: "PUT", body: body() }) : await af("/api/discipline", { method: "POST", body: body() });
+    const got = warningOf(d);
+    setW(got && got.id != null ? got : Object.assign({}, w || {}, body(), { id: (got && got.id) || id, status: "draft" }));
+    if (showToast) showToast(tr("Draft saved."));
+    if (onChanged) onChanged();
+  });
+  const draftReady = !!(f.type && f.category && f.incidentDate && f.description.trim() && (f.follows === "no" || (f.follows === "yes" && f.controllerDiscussedOn)));
+  const issueReady = !!id && (verbal || (!!issue.issuerSignature && (!personSigns || !!issue.employeeSignature || issue.declined)));
+  const doIssue = () => run("issue", async () => {
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/issue", { method: "POST", body: {
+      issuerSignature: verbal ? null : (issue.issuerSignature || null),
+      employeeSignature: personSigns && !issue.declined ? (issue.employeeSignature || null) : null,
+      declinedToSign: personSigns && issue.declined, witnessName: personSigns && issue.declined ? (issue.witnessName.trim() || null) : null,
+      employeeAccount: issue.employeeAccount.trim() || null,
+    } });
+    const got = warningOf(d);
+    setW(Object.assign({}, w || {}, got && typeof got === "object" ? got : {}, { status: (got && got.status) || "open", issuedAt: (got && (got.issuedAt || got.issued_at)) || new Date().toISOString() }));
+    if (showToast) showToast(tr("Warning issued."));
+    if (onChanged) onChanged();
+    if (type === "termination" || (d && d.employmentEndUrl)) setEndOpen(true);
+  });
+  const send = () => run("send", async () => {
+    const to = deliver.method === "email" ? deliver.extra : [];
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/deliver", { method: "POST", body: { method: deliver.method, to } });
+    const got = warningOf(d);
+    if (got && got.id != null) setW(Object.assign({}, w, got));
+    setSentLine(deliver.method === "email" ? tr("Sent by email.") : tr("Recorded as {0}.", tr(WARNING_DELIVERY_WORDS[deliver.method]).toLowerCase()));
+    if (onChanged) onChanged();
+  });
+  const rescind = () => run("rescind", async () => {
+    const d = await af("/api/discipline/" + encodeURIComponent(id) + "/rescind", { method: "POST", body: { reason: rescindReason.trim() } });
+    const got = warningOf(d);
+    setW(Object.assign({}, w, got && got.id != null ? got : {}, { status: "rescinded", rescindReason: rescindReason.trim() }));
+    setRescinding(false);
+    if (showToast) showToast(tr("Warning rescinded."));
+    if (onChanged) onChanged();
+  });
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-warning-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
+  const stepOpts = WARNING_STEPS.map(s => ({ v: s, l: warningStepWord(s, steps.steps) + (WARNING_ADMIN_STEPS.indexOf(s) >= 0 && !isAdmin ? " (" + tr("admins only") + ")" : ""), disabled: WARNING_ADMIN_STEPS.indexOf(s) >= 0 && !isAdmin }));
+  const catOpts = [{ v: "", l: tr("Choose") }].concat(steps.categories.map(c => ({ v: c.code, l: c.label || c.code })));
+  const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 };
+  const sec = { fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, margin: "16px 0 8px" };
+  const small = { minHeight: 44 };
+  const signed = (k) => (issue[k] ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setIssue(p => ({ ...p, [k]: "" }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div> : null);
+  const emailOnFile = person && person.email ? String(person.email) : "";
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-warning-window={isDraft ? "draft" : rescinded ? "rescinded" : "issued"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{isDraft ? tr("Issue a warning") : warningStepWord(type, steps.steps)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{personName || ""}{w && w.status ? ", " + warningStatusWord(w.status) : ""}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={!!busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-warning-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {isDraft && <div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("{0} may begin at any step.", clientConfig.company.shortName)}</div>
+      <div style={grid}>
+        <div><Lbl>{tr("Step")}</Lbl><select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={{ width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: R.sm, border: "1px solid " + (refusal.field === "type" ? RD : t.inputBorder), background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }}>{stepOpts.map(o => <option key={o.v} value={o.v} disabled={o.disabled}>{o.l}</option>)}</select>{under("type")}</div>
+        <div><Lbl>{tr("Category")}</Lbl><Sel t={t} aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} options={catOpts} style={box("category")} />{under("category")}</div>
+        <div><Lbl>{tr("Date of the incident")}</Lbl><Inp t={t} type="date" aria-label={tr("Date of the incident")} value={f.incidentDate} onChange={e => set("incidentDate", e.target.value)} style={box("incidentDate")} />{under("incidentDate")}</div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.description} onChange={e => set("description", e.target.value)} style={box("description")} />{under("description")}</div>
+      <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginBottom: 12 }}>{tr("Leave out any medical detail.")}</div>
+      <div style={grid}>
+        <div><Lbl>{tr("Policy")}</Lbl><Inp t={t} aria-label={tr("Policy")} value={f.policyRef} onChange={e => set("policyRef", e.target.value)} placeholder={tr("Optional, for example a handbook section")} style={box("policyRef")} />{under("policyRef")}</div>
+        <div><Lbl>{tr("By when")}</Lbl><Inp t={t} type="date" aria-label={tr("By when")} value={f.expectedBy} onChange={e => set("expectedBy", e.target.value)} style={box("expectedBy")} />{under("expectedBy")}</div>
+      </div>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("What must change")}</Lbl><TArea t={t} rows={3} aria-label={tr("What must change")} value={f.expectations} onChange={e => set("expectations", e.target.value)} style={box("expectations")} />{under("expectations")}</div>
+      {f.type === "final_warning" && <div style={grid}>
+        <div><Lbl>{tr("Suspension from")}</Lbl><Inp t={t} type="date" aria-label={tr("Suspension from")} value={f.suspensionStart} onChange={e => set("suspensionStart", e.target.value)} style={box("suspensionStart")} />{under("suspensionStart")}</div>
+        <div><Lbl>{tr("Suspension to")}</Lbl><Inp t={t} type="date" aria-label={tr("Suspension to")} value={f.suspensionEnd} onChange={e => set("suspensionEnd", e.target.value)} style={box("suspensionEnd")} />{under("suspensionEnd")}</div>
+      </div>}
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Does this follow a complaint or other protected activity by this person?")}</Lbl>
+        <Sel t={t} aria-label={tr("Does this follow a complaint or other protected activity by this person?")} value={f.follows} onChange={e => set("follows", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} style={box("followsProtectedActivity")} />
+        {under("followsProtectedActivity")}
+        {f.follows === "yes" && <div style={{ marginTop: 10, maxWidth: 260 }}><Lbl>{tr("Discussed with the Controller on")}</Lbl><Inp t={t} type="date" aria-label={tr("Discussed with the Controller on")} value={f.controllerDiscussedOn} onChange={e => set("controllerDiscussedOn", e.target.value)} style={box("controllerDiscussedOn")} />{under("controllerDiscussedOn")}</div>}
+      </div>
+      <div style={{ marginBottom: 12, maxWidth: 260 }}><Lbl>{tr("Language of the warning")}</Lbl><Sel t={t} aria-label={tr("Language of the warning")} value={f.language} onChange={e => set("language", e.target.value)} options={LANGUAGES.map(x => ({ v: x.id, l: x.label }))} style={box("language")} />{under("language")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("If this person is covered by a union agreement, follow that agreement's procedure.")}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        <Btn t={t} v="ghost" onClick={onClose} disabled={!!busy} style={small}>{tr("Cancel")}</Btn>
+        <Btn t={t} v="ghost" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
+      </div>
+      {id && <div data-warning-issue="">
+        <div style={sec}>{tr("Issue|warning")}</div>
+        {verbal ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("A verbal warning is a note of the conversation, placed on the record. It takes no signatures.")}</div> : <div>
+          <SignatureBox t={t} label={tr("The issuer signs")} busy={busy === "issue"} refusal={refusal.field === "issuerSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, issuerSignature: png }))} signWord={tr("Sign")} />
+          {signed("issuerSignature")}
+          {personSigns && <div style={{ marginTop: 12 }}>
+            <div style={{ fontSize: 12, color: t.textSec, marginBottom: 6, lineHeight: 1.5 }}>{tr("Signing confirms they received this warning. It does not mean they agree.")}</div>
+            {!issue.declined && <SignatureBox t={t} label={tr("{0} signs", personName || tr("The person"))} busy={busy === "issue"} refusal={refusal.field === "employeeSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, employeeSignature: png }))} signWord={tr("Sign")} />}
+            {!issue.declined && signed("employeeSignature")}
+            <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text, marginTop: 6 }}><span style={chkWrap}><input type="checkbox" checked={issue.declined} onChange={e => setIssue(p => ({ ...p, declined: e.target.checked, employeeSignature: "" }))} style={{ width: 22, height: 22 }} /></span>{tr("Declined to sign")}</label>
+            {issue.declined && <div style={{ maxWidth: 320 }}><Lbl>{tr("Witness")}</Lbl><Inp t={t} aria-label={tr("Witness")} value={issue.witnessName} onChange={e => setIssue(p => ({ ...p, witnessName: e.target.value }))} placeholder={tr("Optional.")} style={box("witnessName")} />{under("witnessName")}</div>}
+          </div>}
+        </div>}
+        <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : tr("Issue|warning")}</Btn></div>
+      </div>}
+    </div>}
+    {!isDraft && <div>
+      <div data-warning-summary="" style={{ fontSize: 12, color: t.textSec, lineHeight: 1.6 }}>
+        {(w.category ? warningCategoryWord(w.category, steps.categories) : "")}{(w.incidentDate || w.incident_date) ? (w.category ? ", " : "") + fdLong(w.incidentDate || w.incident_date) : ""}
+        {(w.description || w.summary) ? <div style={{ color: t.text, whiteSpace: "pre-wrap", marginTop: 4 }}>{w.description || w.summary}</div> : null}
+        {rescinded ? <div style={{ color: RD, fontWeight: 600, marginTop: 6 }}>{tr("Rescinded: {0}", w.rescindReason || w.rescind_reason || "--")}</div> : null}
+      </div>
+      {!rescinded && id && <div>
+        <div style={sec}>{tr("Send")}</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setPdfOpen(true)} style={small}>{tr("Preview PDF")}</Btn>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          {Object.keys(WARNING_DELIVERY_WORDS).map(m => { const on = deliver.method === m; return <button key={m} onClick={() => { setDeliver(p => ({ ...p, method: m })); setSentLine(""); }} aria-pressed={on} style={{ minHeight: 44, padding: "6px 12px", borderRadius: R.pill, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tr(WARNING_DELIVERY_WORDS[m])}</button>; })}
+        </div>
+        {deliver.method === "email" && <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 6 }}>{emailOnFile ? tr("To their email on file, {0}, and any office address added.", emailOnFile) : tr("To their email on file, and any office address added.")}</div>
+          {deliver.extra.map((a, i) => <div key={a + i} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: t.text, marginBottom: 4 }}><span style={{ flex: 1, minWidth: 0, wordBreak: "break-word" }}>{a}</span><Btn t={t} v="ghost" onClick={() => setDeliver(p => ({ ...p, extra: p.extra.filter((x, j) => j !== i) }))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Remove")}</Btn></div>)}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 200px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={deliver.draft} onChange={e => setDeliver(p => ({ ...p, draft: e.target.value }))} /></div>
+            <Btn t={t} v="ghost" onClick={() => setDeliver(p => (p.draft.trim() ? { ...p, extra: p.extra.concat([p.draft.trim()]), draft: "" } : p))} disabled={!deliver.draft.trim()} style={small}>{tr("Add an address")}</Btn>
+          </div>
+        </div>}
+        {under("send")}
+        {sentLine && <div data-warning-sent="" style={{ fontSize: 12, color: GR, marginBottom: 8 }}>{sentLine}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+          {type === "termination" && <Btn t={t} v="danger" onClick={() => setEndOpen(true)} style={small}>{tr("End employment")}</Btn>}
+          <Btn t={t} onClick={send} disabled={!!busy || !deliver.method} style={{ minHeight: 44, minWidth: 96 }}>{busy === "send" ? tr("Sending...") : tr("Send")}</Btn>
+        </div>
+        {isAdmin && <div style={{ marginTop: 16 }}>
+          {!rescinding ? <Btn t={t} v="ghost" onClick={() => setRescinding(true)} style={small}>{tr("Rescind")}</Btn> : <div data-warning-rescind="">
+            <Lbl>{tr("Why it is rescinded")}</Lbl>
+            <TArea t={t} rows={2} aria-label={tr("Why it is rescinded")} value={rescindReason} onChange={e => setRescindReason(e.target.value)} style={box("reason")} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("The warning stays on the record, marked rescinded.")}</div>
+            {under("reason")}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}><Btn t={t} v="ghost" onClick={() => { setRescinding(false); setRescindReason(""); }} style={small}>{tr("Cancel")}</Btn><Btn t={t} v="danger" onClick={rescind} disabled={!!busy || !rescindReason.trim()} style={small}>{busy === "rescind" ? tr("Saving...") : tr("Rescind")}</Btn></div>
+          </div>}
+        </div>}
+      </div>}
+    </div>}
+    {pdfOpen && id && <PdfWindow token={token} t={t} onClose={() => setPdfOpen(false)} boxProps={{ "data-warning-pdf": "" }}
+      title={warningStepWord(type, steps.steps)} sub={personName || ""}
+      help={tr("The warning as the person receives it, on the company's letterhead.")}
+      pathFor={(lang) => "/api/discipline/" + encodeURIComponent(id) + "/pdf?locale=" + lang} fallbackName="warning.pdf" startLang={(w && w.language) || f.language || ""} />}
+    {endOpen && <EmploymentWindow af={af} t={t} userId={userId} name={personName} mode="end" initialReason="dismissed" data={null} showToast={showToast} onClose={() => setEndOpen(false)} onSaved={() => { setEndOpen(false); if (onChanged) onChanged(); }} />}
+  </div></Mdl>);
+}
+
+// Add to the record (admins): a warning filed on the old form that is not on the record yet, entered as a
+// closed entry dated when it was given and linked to its original PDF, with no signature, delivery or
+// email (POST /api/discipline/record-past). The date starts as the form's.
+function PastWarningWindow({ af, t, userId, name, item, steps, onClose, onSaved, showToast }) {
+  const [f, setF] = useState({ type: "", actionDate: item && item.submittedAt ? String(item.submittedAt).slice(0, 10) : "", summary: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const send = async () => {
+    if (busy || !f.type || !f.actionDate || !f.summary.trim()) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      await af("/api/discipline/record-past", { method: "POST", body: { userId, type: f.type, actionDate: f.actionDate, summary: f.summary.trim(), jotformSubmissionId: item.submissionId } });
+      if (showToast) showToast(tr("Added to the record."));
+      onSaved();
+    } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => k === "type" || k === "actionDate" || k === "summary") || "" }); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-past-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-past-warning="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add to the record")}</div>{name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A warning already given on the old form, entered on the record as it was, with no signature or delivery.")}</div>
+    {refusal.text && !refusal.field && <div data-past-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Step")}</Lbl><Sel t={t} aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(WARNING_STEPS.map(s => ({ v: s, l: warningStepWord(s, steps.steps) })))} style={refusal.field === "type" ? { borderColor: RD } : {}} />{under("type")}</div>
+      <div><Lbl>{tr("Date given")}</Lbl><Inp t={t} type="date" aria-label={tr("Date given")} value={f.actionDate} onChange={e => set("actionDate", e.target.value)} style={refusal.field === "actionDate" ? { borderColor: RD } : {}} />{under("actionDate")}</div>
+    </div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><TArea t={t} rows={3} aria-label={tr("Summary")} value={f.summary} onChange={e => set("summary", e.target.value)} style={refusal.field === "summary" ? { borderColor: RD } : {}} />{under("summary")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={send} disabled={busy || !f.type || !f.actionDate || !f.summary.trim()} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Add to the record")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// A person's Disciplinary card in their HR Records folder: the counts in the last 12 months by step,
+// every warning newest first (step, category, date, status, how it was delivered, signed or declined,
+// a rescinded one struck through with its reason), and Issue a warning with the suggested next step
+// picked. A row opens the warning. Nothing shows until GET /api/discipline/person/:userId answers.
+function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToast, refreshKey = 0, onIssueDone, onOpenPdf }) {
+  const [data, setData] = useState(null);
+  const [steps, setSteps] = useState({ steps: [], categories: [] });
+  const [win, setWin] = useState(null);
+  const [past, setPast] = useState(null);
+  const [again, setAgain] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    af("/api/discipline/person/" + encodeURIComponent(userId)).then(d => { if (alive) setData(d && Array.isArray(d.history) ? d : null); }).catch(e => { if (alive) setData(null); console.warn("Discipline:", e.message); });
+    return () => { alive = false; };
+  }, [af, userId, again, refreshKey]);
+  useEffect(() => { if (!data) return undefined; let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af, data]);
+  if (!data) return null;
+  const by = (data.last12Months && data.last12Months.byType) || {};
+  const history = data.history.slice();
+  const suggested = data.suggestedNext && WARNING_STEPS.indexOf(data.suggestedNext) >= 0 ? data.suggestedNext : "verbal_warning";
+  const start = isAdmin || WARNING_ADMIN_STEPS.indexOf(suggested) < 0 ? suggested : "written_warning";
+  const line = (w) => [warningCategoryWord(w.category, steps.categories), (w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) ? fdLong(w.incidentDate || w.incident_date || w.issuedAt || w.actionDate || w.action_date) : ""].filter(Boolean).join(", ");
+  const delivered = (w) => { const d = w.delivered || {}; const m = d.method || w.deliveryMethod || w.delivery_method; return m && WARNING_DELIVERY_WORDS[m] ? tr(WARNING_DELIVERY_WORDS[m]) + (d.at ? " " + irDay(d.at) : "") : ""; };
+  return (<Crd t={t} style={{ marginBottom: 16, padding: 16 }}>
+    <div data-person-discipline="">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600 }}>{tr("Disciplinary")}</div>
+        <Btn t={t} onClick={() => setWin({ row: null, initial: { type: start } })} style={{ minHeight: 44 }}>{tr("Issue a warning")}</Btn>
+      </div>
+      <div data-discipline-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {WARNING_STEPS.map(s => <div key={s} style={{ padding: "6px 10px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("Counted over the last 12 months. The handbook sets no lookback.")}</div>
+      {history.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No warnings on record.")}</div> : history.map((w, i) => {
+        const gone = warningRescinded(w);
+        const pdfId = w.originalPdf && w.originalPdf.submissionId != null ? String(w.originalPdf.submissionId) : "";
+        return (<div key={w.id || i} style={{ display: "flex", alignItems: "flex-start", gap: 8, borderTop: i ? "1px solid " + t.border : "none" }}>
+        <button data-warning-row={w.id || i} onClick={() => setWin({ row: w, initial: {} })} style={{ display: "block", flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: gone ? t.textMut : t.text, textDecoration: gone ? "line-through" : "none" }}>{warningStepWord(w.type || w.action_type, steps.steps)}</span>
+            <Bdg l={warningStatusWord(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
+          </div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, textDecoration: gone ? "line-through" : "none" }}>{line(w)}</div>
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
+          {gone && (w.rescindReason || w.rescind_reason) ? <div style={{ fontSize: 11, color: RD, marginTop: 2 }}>{tr("Rescinded: {0}", w.rescindReason || w.rescind_reason)}</div> : null}
+        </button>
+        {pdfId && onOpenPdf ? <Btn t={t} v="ghost" onClick={() => onOpenPdf(pdfId)} data-original-form={pdfId} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, marginTop: 6 }}>{tr("Original form")}</Btn> : null}
+        </div>);
+      })}
+      {Array.isArray(data.notOnRecord) && data.notOnRecord.length > 0 && <div data-not-on-record="" style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid " + t.border }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Filed on the old form, not on the record yet")}</div>
+        {data.notOnRecord.map((n, i) => (<div key={n.submissionId || i} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0" }}>
+          <span style={{ flex: "1 1 120px", fontSize: 12, color: t.textSec }}>{n.submittedAt ? irDay(n.submittedAt) : "--"}</span>
+          {onOpenPdf ? <Btn t={t} v="ghost" onClick={() => onOpenPdf(String(n.submissionId))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Original form")}</Btn> : null}
+          {isAdmin && <Btn t={t} onClick={() => setPast(n)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }} data-add-to-record={n.submissionId}>{tr("Add to the record")}</Btn>}
+        </div>))}
+      </div>}
+    </div>
+    {past && <PastWarningWindow af={af} t={t} userId={userId} name={name} item={past} steps={steps} showToast={showToast} onClose={() => setPast(null)} onSaved={() => { setPast(null); setAgain(n => n + 1); }} />}
+    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={userId} personName={name} person={data.person || null} row={win.row} initial={win.initial} showToast={showToast} onClose={() => setWin(null)} onChanged={() => { setAgain(n => n + 1); if (onIssueDone) onIssueDone(); }} />}
+  </Crd>);
+}
+
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -16625,7 +17551,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   })[s] || s;
 
   const sourceColor = (s) => ({
-    document: "#9B59B6",
+    document: PU,
     training: GR,
     onboarding: BL,
     jotform: GO,
@@ -16685,7 +17611,9 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         </div>}
       />
 
+      <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
+      <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -16694,7 +17622,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         </button>
         {categoryEntries.map(c => {
           const active = activeCategory === c.v;
-          const color = HR_CATEGORY_COLOR[c.v] || GO;
+          const color = hrCategoryColor(c.v) || GO;
           return (
             <button key={c.v} onClick={() => setActiveCategory(c.v)} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (active ? color : t.border), background: active ? (color + "22") : "transparent", color: active ? color : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
               {tr(c.l)} ({c.count})
@@ -16712,7 +17640,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
           {filtered.map((it, idx) => {
             const isLast = idx === filtered.length - 1;
-            const catColor = HR_CATEGORY_COLOR[it.category] || GO;
+            const catColor = hrCategoryColor(it.category) || GO;
             const srcColor = sourceColor(it.source);
 
             const isForm = it.source === "form";
@@ -16762,7 +17690,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         title={it.category_override ? tr("Override active. Pick blank to revert to form default.") : tr("Inheriting form's category. Pick a value to override.")}
                       >
                         <option value="">{it.category_override ? tr("(use form default)") : tr("Form default: {0}", tr(HR_CATEGORY_LABEL(it.category)))}</option>
-                        {HR_CATEGORY_OPTS.map(c => <option key={c.v} value={c.v}>{tr(c.l)}</option>)}
+                        {HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, it.category_override)).map(c => <option key={c.v} value={c.v}>{tr(c.l)}</option>)}
                       </select>
                     ) : (
                       <span style={{ padding: "3px 8px", borderRadius: 6, background: catColor + "1A", color: catColor, fontSize: 11, fontWeight: 600 }}>{tr(HR_CATEGORY_LABEL(it.category))}</span>
@@ -16813,7 +17741,125 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 // Cases raised by staff through the portal. Admin only. The API applies the recusal rule in SQL, so a
 // case about the person looking never arrives here, and this page keeps no count of anything it did not
 // receive. The list shows no summary text; a row is opened to be read.
-function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
+// The Discipline page (Step 232): every warning from GET /api/discipline, for admins, and for a
+// supervisor the ones they issued, which the API decides. The filters are sent as the route takes
+// them; the category is narrowed on screen, since the route takes none. The counts by step are the
+// API's, over what the filters return. A row opens the warning. Export saves the rows as shown.
+function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = false, showToast }) {
+  const [f, setF] = useState({ type: "", category: "", siteId: "", userId: "", issuedBy: "", status: "", from: "", to: "" });
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [steps, setSteps] = useState({ steps: [], categories: [] });
+  const [win, setWin] = useState(null);
+  const load = useCallback(() => {
+    const q = ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k]));
+    setFailed("");
+    af("/api/discipline" + (q.length ? "?" + q.join("&") : "")).then(d => setData(d && Array.isArray(d.warnings) ? d : { warnings: [], counts: { byType: {}, total: 0 } }))
+      .catch(e => { setData({ warnings: [], counts: { byType: {}, total: 0 } }); setFailed(e.message || tr("This did not load.")); });
+  }, [af, f.userId, f.siteId, f.type, f.status, f.from, f.to, f.issuedBy]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const rows = data ? data.warnings.filter(w => !f.category || w.category === f.category) : [];
+  const by = (data && data.counts && data.counts.byType) || {};
+  const personName = (w) => (w.person && w.person.name) || "";
+  const delivered = (w) => { const d = w.delivered || {}; return d.method && WARNING_DELIVERY_WORDS[d.method] ? tr(WARNING_DELIVERY_WORDS[d.method]) + (d.at ? ", " + irDay(d.at) : "") : "--"; };
+  const office = (allStaff || []).filter(p => p && (p.role === "admin" || p.role === "supervisor"));
+  const people = (allStaff || []).filter(p => p && p.role !== "client_contact");
+  const nameOf = (p) => ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "";
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", maxWidth: "100%" };
+  const cols = [
+    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: w => <span style={{ fontWeight: 600, color: t.text }}>{personName(w)}</span> },
+    { header: tr("Step"), tdStyle: { whiteSpace: "nowrap" }, render: w => <span style={{ color: warningRescinded(w) ? t.textMut : t.text, textDecoration: warningRescinded(w) ? "line-through" : "none" }}>{warningStepWord(w.type, steps.steps)}</span> },
+    { header: tr("Category"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => warningCategoryWord(w.category, steps.categories) || "--" },
+    { header: tr("Date of the incident"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.incidentDate ? fdLong(w.incidentDate) : "--") },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <Bdg l={warningStatusWord(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /> },
+    { header: tr("Issued by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.issuedBy && w.issuedBy.name) || "--" },
+    { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
+    { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
+  ];
+  const exportCsv = () => {
+    const hdr = [tr("Person"), tr("Step"), tr("Category"), tr("Date of the incident"), tr("Status"), tr("Issued by"), tr("Delivered"), tr("Signed")];
+    dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, rows.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
+  };
+  return (<div data-discipline-page="">
+    <SecT t={t}>{tr("Discipline")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{isAdmin ? tr("Every warning on record, newest first. A row opens the warning.") : tr("The warnings you issued, newest first. A row opens the warning.")}</div>
+    <div data-discipline-page-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {WARNING_STEPS.map(s => <div key={s} style={{ padding: "8px 12px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text, fontSize: 16 }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={selSt}><option value="">{tr("Every step")}</option>{WARNING_STEPS.map(s => <option key={s} value={s}>{warningStepWord(s, steps.steps)}</option>)}</select>
+      <select aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} style={selSt}><option value="">{tr("Every category")}</option>{steps.categories.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select>
+      <select aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} style={selSt}><option value="">{tr("All sites")}</option>{(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+      <select aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} style={selSt}><option value="">{tr("Everyone")}</option>{people.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>
+      {isAdmin && <select aria-label={tr("Issued by")} value={f.issuedBy} onChange={e => set("issuedBy", e.target.value)} style={selSt}><option value="">{tr("Issued by anyone")}</option>{office.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>}
+      <select aria-label={tr("Status")} value={f.status} onChange={e => set("status", e.target.value)} style={selSt}><option value="">{tr("All statuses")}</option>{["open", "closed", "rescinded"].map(s => <option key={s} value={s}>{warningStatusWord(s)}</option>)}</select>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("From")}<Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={e => set("from", e.target.value)} style={{ width: 150 }} /></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("To")}<Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={e => set("to", e.target.value)} style={{ width: 150 }} /></label>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportCsv} disabled={rows.length === 0} style={{ minHeight: 44 }}>{tr("Export")}</Btn></div>
+    </div>
+    {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} />}
+    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={load} />}
+  </div>);
+}
+
+// Open a case from the office (Step 232, STEP228_CONTRACT_v2.md): about whom (none, one or more), what
+// happened, on behalf of a staff member who reported it in person, whether it is about someone in
+// management, and who holds it. The same case the staff side makes, with the API's rules. A refusal
+// is drawn word for word under the field its keys name.
+function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast }) {
+  const [f, setF] = useState({ summary: "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const nameOf = (p) => ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "";
+  const people = (allStaff || []).filter(p => p && p.role !== "client_contact" && (!p.status || p.status === "active"));
+  const office = people.filter(p => p.role === "admin" || p.role === "supervisor");
+  const byId = (id) => people.find(p => String(p.id) === String(id));
+  const FIELDS = ["summary", "subjectUserIds", "onBehalfOf", "aboutManagement", "assignedTo"];
+  const send = async () => {
+    if (busyRef.current || !f.summary.trim() || !f.aboutManagement) return;
+    busyRef.current = true; setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const d = await af("/api/hr-cases", { method: "POST", body: { summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null } });
+      if (showToast) showToast(tr("Case opened."));
+      onOpened(d && d.case ? d.case : d);
+    } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => FIELDS.indexOf(k) >= 0) || "" }); }
+    busyRef.current = false; setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-case-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-open-case="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Open a case")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-case-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.summary} onChange={e => set("summary", e.target.value)} style={box("summary")} />{under("summary")}</div>
+    <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("About whom")}</Lbl>
+      {f.subjects.map(id => <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: t.text, marginBottom: 4 }}><span style={{ flex: 1, minWidth: 0 }}>{byId(id) ? nameOf(byId(id)) : id}</span><Btn t={t} v="ghost" onClick={() => set("subjects", f.subjects.filter(x => x !== id))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Remove")}</Btn></div>)}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("About whom")} value={f.pick} onChange={e => set("pick", e.target.value)} options={[{ v: "", l: tr("Optional. Choose a person") }].concat(people.filter(p => f.subjects.indexOf(String(p.id)) < 0 && !(me && String(me.id) === String(p.id))).map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("subjectUserIds")} /></div>
+        <Btn t={t} v="ghost" onClick={() => { if (f.pick) setF(p => ({ ...p, subjects: p.subjects.concat([p.pick]), pick: "" })); }} disabled={!f.pick} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
+      </div>
+      {under("subjectUserIds")}
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("On behalf of")}</Lbl><Sel t={t} aria-label={tr("On behalf of")} value={f.onBehalfOf} onChange={e => set("onBehalfOf", e.target.value)} options={[{ v: "", l: tr("Optional. A staff member who reported it in person") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("onBehalfOf")} />{under("onBehalfOf")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Is this about someone in management?")}</Lbl><Sel t={t} aria-label={tr("Is this about someone in management?")} value={f.aboutManagement} onChange={e => set("aboutManagement", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} style={box("aboutManagement")} />{under("aboutManagement")}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned to")}</Lbl><Sel t={t} aria-label={tr("Assigned to")} value={f.assignedTo} onChange={e => set("assignedTo", e.target.value)} options={[{ v: "", l: tr("Nobody yet") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("assignedTo")} />{under("assignedTo")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={send} disabled={busy || !f.summary.trim() || !f.aboutManagement} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Open a case")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
   // A case's status and what the log says a person did, as words. Each stays the code it is on the
@@ -16852,6 +17898,12 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
   };
   const closeCase = () => { setDetail(null); setAccessLog([]); };
+  // Step 232: opening a case from the office, and issuing a warning from an open case, once the API's
+  // Step 228 answers; its discipline steps route is the sign.
+  const [officeCases, setOfficeCases] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [caseWarning, setCaseWarning] = useState(null);
+  useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setOfficeCases(d.steps.length > 0); }).catch(() => { if (alive) setOfficeCases(false); }); return () => { alive = false; }; }, [af]);
   // The case's own subject is never offered: the route answers 400 for that choice.
   const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
   const save = async () => {
@@ -16922,7 +17974,9 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   ];
 
   return (<div>
-    <SecT t={t}>{tr("Cases")}</SecT>
+    <SecT t={t} action={officeCases ? tr("Open a case") : undefined} onAction={officeCases ? () => setOpening(true) : undefined}>{tr("Cases")}</SecT>
+    {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter); if (onSaved) onSaved(); }} />}
+    {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => {}} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
@@ -16951,6 +18005,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
         {holdError && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{holdError}</div>}
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
+      {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Subject named")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.subject && detail.subject.name) || tr("No")}</div></div>
@@ -16970,7 +18025,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false }) {
   const [tab, setTab] = useState("employees");
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
@@ -17224,6 +18279,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           lkMap={lkMap}
           onBack={() => openFolder(null)}
           focusClearances={focusClearances}
+          isAdmin={isAdmin}
+          canOpenStaff={canOpenStaff}
           onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
           onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
@@ -17499,7 +18556,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
             {employeeField(staffOpts.filter(s => s.v))}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
-            <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
+            <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, form.category)).map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
             <input type="file" onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} /></div>)}
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
