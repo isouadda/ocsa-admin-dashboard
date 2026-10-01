@@ -1308,6 +1308,100 @@ function PersonEmployment({ af, t, userId }) {
 // terminated. Never on the signed-in person's own profile.
 const employmentActions = (status) => (status === "active" ? ["leave", "end"] : status === "inactive" ? ["return", "end"] : status === "terminated" ? ["rehire"] : []);
 
+// The roster check (Step 232, STEP223_CONTRACT_v2.md section 5): everyone in one table, to confirm
+// who is still working and where, then put their records right. Still working posts confirm and the
+// row shows today's date and the confirmer's name at once. Put on leave and End employment open the
+// Employment windows, and Sites opens the person's profile on Assignments. The filters narrow the
+// table on screen; Show ended reads the list again with ?all=1. Export saves the table as shown, in
+// the screen's language.
+const ROSTER_DAYS = 30;
+const rosterRecent = (p) => !!(p && p.lastConfirmed && p.lastConfirmed.at && (Date.now() - new Date(p.lastConfirmed.at).getTime()) <= ROSTER_DAYS * 86400000);
+const ROSTER_FILTERS = [
+  { k: "unconfirmed", l: "Not confirmed yet", test: p => !rosterRecent(p) },
+  { k: "noSite", l: "No site", test: p => !!p.noSite },
+  { k: "onLeave", l: "On leave", test: p => p.status === "inactive" },
+  { k: "clearances", l: "Clearances missing", test: p => Number(p.clearancesMissing) > 0 },
+];
+function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, reloadKey = 0 }) {
+  const [all, setAll] = useState(false);
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [on, setOn] = useState({});
+  const [siteId, setSiteId] = useState("");
+  const [busy, setBusy] = useState("");
+  const [refused, setRefused] = useState({});
+  const [extra, setExtra] = useState(0);
+  const busyRef = useRef(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/users/roster-check" + (all ? "?all=1" : "")).then(d => { setData(d && Array.isArray(d.people) && d.summary ? d : { people: [], summary: { total: 0, confirmedSince: 0 } }); setExtra(0); })
+      .catch(e => { setData({ people: [], summary: { total: 0, confirmedSince: 0 } }); setFailed(e.message || tr("This did not load.")); });
+  }, [af, all]);
+  useEffect(() => { load(); }, [load, reloadKey]);
+  const meName = me ? ((me.firstName || "") + " " + (me.lastName || "")).trim() : "";
+  // A person's own row takes no employment action, as their own profile does not.
+  const isMe = (p) => !!(me && me.id != null && String(me.id) === String(p.userId));
+  const confirm = async (p) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(p.userId); setRefused(r => ({ ...r, [p.userId]: "" }));
+    try {
+      await af("/api/users/" + encodeURIComponent(p.userId) + "/employment/confirm", { method: "POST", body: { note: null } });
+      const was = rosterRecent(p);
+      setData(d => ({ ...d, people: d.people.map(x => (x.userId === p.userId ? { ...x, lastConfirmed: { at: new Date().toISOString(), by: { name: meName } } } : x)) }));
+      if (!was) setExtra(n => n + 1);
+    } catch (e) { setRefused(r => ({ ...r, [p.userId]: e.message || tr("Request failed") })); }
+    busyRef.current = false; setBusy("");
+  };
+  const people = data ? data.people : [];
+  const shown = people.filter(p => ROSTER_FILTERS.every(f => !on[f.k] || f.test(p)) && (!siteId || (p.sites || []).some(s => String(s.siteId) === String(siteId))));
+  const day = (v) => (v ? irDay(v) : "--");
+  const reasonOf = (p) => (p.current && (p.status === "inactive" || p.status === "terminated") && p.current.reasonLabel ? String(p.current.reasonLabel) : "");
+  const statusWord = (p) => employmentStateWord(p.status, p.current);
+  const small = { minHeight: 44, padding: "6px 10px", fontSize: 11 };
+  const cols = [
+    { header: tr("Name"), tdStyle: { minWidth: 140 }, render: p => <span style={{ fontWeight: 600, color: t.text }}>{p.name}</span> },
+    { header: tr("Role"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => roleWord(p.role) },
+    { header: tr("Status"), tdStyle: { minWidth: 110 }, render: p => (<span><Bdg l={statusWord(p)} c={employmentStateColor(p.status)} />{reasonOf(p) ? <div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{reasonOf(p)}</div> : null}</span>) },
+    { header: tr("Sites"), tdStyle: { minWidth: 130 }, render: p => (<span>{p.noSite || !(p.sites || []).length ? <span style={{ color: OR, fontWeight: 600 }}>{tr("No site")}</span> : <span style={{ color: t.textSec }}>{p.sites.map(s => s.name).join(", ")}</span>}
+      {Number(p.clearancesMissing) > 0 ? <div><button onClick={() => openClearancesOf(p.userId)} style={{ background: "none", border: "none", padding: 0, minHeight: 32, cursor: "pointer", color: RD, fontSize: 11, fontWeight: 600, textAlign: "left" }}>{trn("{0} clearances missing|count", Number(p.clearancesMissing))}</button></div> : null}</span>) },
+    { header: tr("Last shift"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => day(p.lastShiftStarted) },
+    { header: tr("Last signed in"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => day(p.lastSignIn) },
+    { header: tr("Last confirmed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => (p.lastConfirmed ? <span data-roster-confirmed={p.userId}>{day(p.lastConfirmed.at)}{p.lastConfirmed.by && p.lastConfirmed.by.name ? <div style={{ fontSize: 11, color: t.textMut }}>{p.lastConfirmed.by.name}</div> : null}</span> : "--") },
+    { header: tr("Actions"), tdStyle: { minWidth: 220 }, render: p => (<div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {!isMe(p) && p.status === "active" && <Btn t={t} onClick={() => confirm(p)} disabled={!!busy} style={small} data-roster-still={p.userId}>{busy === p.userId ? tr("Saving...") : tr("Still working")}</Btn>}
+        {!isMe(p) && p.status === "active" && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "leave")} style={small}>{tr("Put on leave")}</Btn>}
+        {!isMe(p) && (p.status === "active" || p.status === "inactive") && <Btn t={t} v="ghost" onClick={() => onEmployment(p, "end")} style={small}>{tr("End employment")}</Btn>}
+        <Btn t={t} v="ghost" onClick={() => onOpen(p.userId, "assign")} style={small}>{tr("Sites")}</Btn>
+      </div>
+      {refused[p.userId] ? <div data-roster-refusal={p.userId} style={{ fontSize: 11, color: RD, marginTop: 4 }}>{refused[p.userId]}</div> : null}
+    </div>) },
+  ];
+  const exportCsv = () => {
+    const hdr = [tr("Name"), tr("Role"), tr("Status"), tr("Reason"), tr("Sites"), tr("Last shift"), tr("Last signed in"), tr("Last confirmed"), tr("Confirmed by"), tr("Clearances missing")];
+    const rows = shown.map(p => [p.name, roleWord(p.role), statusWord(p), reasonOf(p), p.noSite || !(p.sites || []).length ? tr("No site") : p.sites.map(s => s.name).join(", "), day(p.lastShiftStarted), day(p.lastSignIn), p.lastConfirmed ? day(p.lastConfirmed.at) : "", p.lastConfirmed && p.lastConfirmed.by ? p.lastConfirmed.by.name || "" : "", Number(p.clearancesMissing) > 0 ? String(p.clearancesMissing) : ""]);
+    dlCSV("roster-check-" + toISO(new Date()) + ".csv", hdr, rows);
+  };
+  const sum = (data && data.summary) || { total: 0, confirmedSince: 0 };
+  const chip = (f) => { const act = !!on[f.k]; return <button key={f.k} onClick={() => setOn(o => ({ ...o, [f.k]: !o[f.k] }))} aria-pressed={act} style={{ minHeight: 44, padding: "6px 12px", borderRadius: R.pill, border: "1px solid " + (act ? GO : t.border), background: act ? t.goldBg : "transparent", color: act ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>{tr(f.l)}</button>; };
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  return (<div data-roster-check="">
+    <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 8, border: "none", background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 8 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={t.goldText} /> {tr("Back to Staff")}</button>
+    <SecT t={t}>{tr("Roster check")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Go through everyone: confirm who is still working and where, then put their records right.")}</div>
+    {data && <div data-roster-summary="" style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 12 }}>{tr("{0} of {1} confirmed in the last 30 days", Number(sum.confirmedSince || 0) + extra, Number(sum.total || people.length))}</div>}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      {ROSTER_FILTERS.map(chip)}
+      <select aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} style={selSt}><option value="">{tr("All sites")}</option>{(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, color: t.textSec, cursor: "pointer" }}><span style={chkWrap}><input type="checkbox" checked={all} onChange={e => setAll(e.target.checked)} style={{ width: 20, height: 20 }} /></span>{tr("Show ended")}</label>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportCsv} disabled={!data || shown.length === 0} style={{ minHeight: 44 }}>{tr("Export")}</Btn></div>
+    </div>
+    {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={shown} rowKey={p => p.userId} empty={tr("No one matches.")} />}
+  </div>);
+}
+
 function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute }) {
   // The API's rank rule (routes/users.js): without manage_admins a person changes no account at or
   // above their own rank, admin over supervisor over everyone else, and not their own account. The
@@ -1362,6 +1456,9 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [roster, setRoster] = useState(null);
   const loadRoster = () => { af("/api/users/roster-check").then(d => setRoster(d && Array.isArray(d.people) && d.summary && typeof d.summary === "object" ? d : null)).catch(e => { setRoster(null); console.warn("Roster check:", e.message); }); };
   const onLeave = (s) => !!(s && s.status === "inactive" && roster && roster.people.some(p => String(p.userId) === String(s.id) && p.current && p.current.kind === "leave"));
+  // The roster check's own Employment window, and a count that reads the roster check again after one.
+  const [rosterWin, setRosterWin] = useState(null);
+  const [rosterAgain, setRosterAgain] = useState(0);
   const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
@@ -2040,12 +2137,18 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // ============================================================
   // STAFF LIST VIEW
   // ============================================================
+  // Step 232: the roster check at #staff/roster, once GET /api/users/roster-check answers.
+  if (route[0] === "roster" && roster) return (<div>
+    <RosterCheck af={af} t={t} me={user} sites={sites} reloadKey={rosterAgain} onBack={() => { if (onRoute) onRoute([]); }} onOpen={(id, tab) => openProfile(id, tab)} onEmployment={(p, mode) => setRosterWin({ userId: p.userId, name: p.name, mode })} />
+    {rosterWin && <EmploymentWindow af={af} t={t} userId={rosterWin.userId} name={rosterWin.name} mode={rosterWin.mode} data={null} showToast={showToast} onClose={() => setRosterWin(null)} onSaved={() => { setRosterWin(null); setRosterAgain(n => n + 1); load(); if (loadStaff) loadStaff(); }} />}
+  </div>);
   return (<div>
     <SecT t={t} action={tr("Add Staff")} onAction={() => { setEmpIdError(""); setAddForm({ firstName: "", lastName: "", phone: "", email: "", employeeId: "", role: "custodial_laborer", employmentType: null }); }}>{tr("Staff Management")}</SecT>
     <FilterTabs t={t} value={filter} onChange={f => { setFilter(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|people"), count: staff.length, color: t.goldText }, { id: "active", label: tr("Active|people"), count: staff.filter(s => s.status === "active").length, color: GR }, { id: "pending", label: tr("Pending|people"), count: staff.filter(s => s.status === "pending").length, color: OR }, { id: "inactive", label: tr("Inactive|people"), count: staff.filter(s => s.status === "inactive" || s.status === "terminated").length, color: RD }]} />
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
       <div style={{ minWidth: 190 }}><Sel t={t} value={roleF} onChange={e => { setRoleF(e.target.value); setPage(1); }} options={[{ v: "all", l: tr("All roles") }, ...getOpts("staff_roles", null, true)]} /></div>
       <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder={tr("Search name, ID, phone, role")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
+      {roster && <Btn t={t} v="ghost" onClick={() => { if (onRoute) onRoute(["roster"]); }} style={{ minHeight: 44 }} data-roster-open="">{tr("Roster check")}</Btn>}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
     </div>
     {(() => {
