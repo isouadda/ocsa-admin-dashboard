@@ -457,11 +457,11 @@ Last checked: 2026-09-27
 ## Find a staff member's badge number (admin dashboard)
 Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**).
-2. The **Badge** (**Credencial**) column sits right after the name. Type the person's name in the search box to find them faster.
-3. Or open the person's profile: under **Contact Information** (**Datos de contacto**), the **Badge number** (**Número de credencial**) line shows it, or **Not set** (**Sin indicar**) if the account has none.
+2. The **Badge** (**Número de empleado**) column sits right after the name. Type the person's name in the search box to find them faster.
+3. Or open the person's profile: under **Contact Information** (**Datos de contacto**), the **Badge number** (**Número de empleado**) line shows it, or **Not set** (**Sin indicar**) if the account has none.
 4. The badge number is what the person types to sign in on the staff portal, and it is on their temporary PIN slip. It comes from ADP or from the invite. When it shows **Not set** (**Sin indicar**), an admin can click **Generate badge number** (**Generar número de empleado**) on the profile.
 Words people use for this: badge number, employee number, what number do they sign in with, lost their slip, credencial, número de empleado.
-Last checked: 2026-09-26
+Last checked: 2026-10-01
 
 ## Verify and sign a safety inspection (admin dashboard)
 Who can do this: any supervisor or admin other than the person who did the inspection
@@ -948,12 +948,12 @@ Last checked: 2026-09-30
 ## Start a message to anyone (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Messages** (**Mensajes**), then **New message** (**Nuevo mensaje**) at the top right.
-2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o credencial**) to narrow it.
+2. The window lists everyone active: **Office** (**Oficina**) first, then **Staff** (**Personal**). Type in **Search by name or badge** (**Buscar por nombre o número de empleado**) to narrow it.
 3. Click the person. Someone in the office opens your direct chat with them, and a staff member opens their private chat with the office. A chat already there opens with its messages.
 4. The chat opens with the message box ready. Type and press Enter.
 If it does not work: a person who is no longer active is not listed. When a line in the window says the chat could not be opened, try again; if it keeps saying so, the person may no longer be active.
 Words people use for this: new message, start a chat, message someone new, write to anyone, message a supervisor, message a staff member who has not written, nuevo mensaje.
-Last checked: 2026-09-30
+Last checked: 2026-10-01
 
 ## Message another office person directly (admin dashboard)
 Who can do this: admins and supervisors

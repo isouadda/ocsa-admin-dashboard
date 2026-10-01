@@ -2043,6 +2043,15 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const [workload, setWorkload] = useState(null);
   const [workloadAgain, setWorkloadAgain] = useState(0);
   useEffect(() => { setWorkload(null); }, [selectedSite]);
+  // Every active site's plan at once, GET /api/workload-plans, read each time the list shows, so a
+  // plan taken or ended on a site is there on the way back.
+  const [plansAll, setPlansAll] = useState(null);
+  useEffect(() => {
+    if (selectedSite) return undefined;
+    let alive = true;
+    af("/api/workload-plans").then(d => { if (alive) setPlansAll(d && Array.isArray(d.sites) ? d.sites : null); }).catch(e => { console.warn("Workload plans:", e.message); });
+    return () => { alive = false; };
+  }, [af, selectedSite]);
   useEffect(() => {
     if (!selectedSite) return undefined;
     let alive = true;
@@ -2910,7 +2919,21 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   }
 
   // ---- LIST VIEW ----
+  // Step 218: which sites have a workload plan, above the site list. A row opens the site on its
+  // Workload plan tab. The figures are hours and people, with no price.
+  const planCols = [
+    { header: tr("Site"), tdStyle: { minWidth: 140 }, render: r => <span style={{ fontWeight: 600, color: t.text }}>{r.siteName}</span> },
+    { header: tr("Plan"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.plan ? <span>{tr("Quote {0}, revision {1}", r.plan.quoteNumber || "--", r.plan.quoteRevision != null ? r.plan.quoteRevision : "--")}{r.plan.stale ? <div style={{ marginTop: 4 }}><Bdg l={tr("Changed since")} c={OR} /></div> : null}</span> : <span style={{ color: t.textMut }}>{tr("No plan yet")}</span>) },
+    { header: tr("Hours a month"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.monthlyHours) : "--") },
+    { header: tr("Staff recommended"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => (r.plan ? workloadNum(r.plan.recommendedStaff) : "--") },
+    { header: tr("Cleaners assigned"), align: "right", tdStyle: { whiteSpace: "nowrap", color: t.text }, render: r => workloadNum(r.assigned ? r.assigned.cleaners : null) },
+  ];
   return (<div>
+    {plansAll && <div data-workload-plans="" style={{ marginBottom: 24 }}>
+      <SecT t={t}>{tr("Workload plans")}</SecT>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
+      <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
+    </div>}
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
