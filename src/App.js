@@ -223,7 +223,10 @@ const NAVY = clientConfig.brand.navy;
 const GOLD = clientConfig.brand.gold;
 const NAVY_DARK = clientConfig.brand.navyDark;
 const PANEL_LIGHT = clientConfig.brand.panelLight;
-const GO = GOLD, GL = "#FCEA4A", GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#24A4F4", TL = "#1ABC9C";
+const GO = GOLD, GL = "#FCEA4A", TL = "#1ABC9C";
+// The colors that carry meaning: green, red, orange, blue and purple. They are set by the shell as it
+// draws, from the theme (setStatusInk below), so every screen reads the shade for the theme it is in.
+let GR = "#2ECC71", RD = "#E74C3C", OR = "#F39C12", BL = "#24A4F4", PU = "#9B59B6";
 // A service category is a plain word, never the framework's own name for it. Keyed by the codes the API stores.
 const CIMS_LABELS = { SD: "Cleaning", HSE: "Safety", GB: "Green cleaning", QS: "Quality checks", HR: "Staff and training", MC: "Management" };
 const LOGO_SM = process.env.PUBLIC_URL + "/ocsa-logo-sm.png";
@@ -255,6 +258,15 @@ const LIGHT = {
   goldSubtle: "rgba(231,176,23,0.06)", goldSubtleBorder: "rgba(231,176,23,0.2)",
 };
 
+// Step 232: status colors anyone can read. In light mode the colors that color text or an icon take
+// darker shades, each 4.5 to 1 or better on white, the page and its own wash (WCAG AA); dark mode
+// keeps the bright ones. Fills, washes and dots draw from the same names, and chart series keep the
+// palette they were given.
+const STATUS_INK = {
+  dark: { GR: "#2ECC71", RD: "#E74C3C", OR: "#F39C12", BL: "#24A4F4", PU: "#9B59B6" },
+  light: { GR: "#186534", RD: "#B3261E", OR: "#8A4706", BL: "#0A5C9E", PU: "#6E3B8F" },
+};
+const setStatusInk = (dark) => { const k = dark ? STATUS_INK.dark : STATUS_INK.light; GR = k.GR; RD = k.RD; OR = k.OR; BL = k.BL; PU = k.PU; };
 const goldToText = (t, c) => (c === GO ? t.goldText : c);
 const ThemeCtx = createContext(DARK);
 const useT = () => useContext(ThemeCtx);
@@ -507,6 +519,7 @@ export default function AdminDashboard() {
   }, [drawerOpen, moreOpen]);
   const toggleGroup = (label) => { setCollapsedGroups(prev => { const next = new Set(prev); if (next.has(label)) { next.delete(label); } else { next.add(label); } return next; }); };
   const t = themeMode === "light" ? LIGHT : DARK;
+  setStatusInk(t.dark);
   useEffect(() => {
     try {
       document.body.style.backgroundColor = t.bg;
@@ -2031,7 +2044,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               const dt = new Date(entry.createdAt);
               const prevDt = i > 0 ? new Date(timeline[i - 1].createdAt) : null;
               const showDateHeader = !prevDt || dt.toDateString() !== prevDt.toDateString();
-              const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: "#9B59B6", training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
+              const catColors = { clock: BL, task: TL, inspection: GO, issue: OR, document: PU, training: GR, schedule: BL, pickup: GO, user: TL, certification: GR, shift: BL, supply: OR, message: BL, staff_site_assignment: TL, form: "#9B59B6", vendor: OR, service: TL, lookup: t.textMut, onboarding: GR };
               const dotColor = catColors[entry.entityType] || t.textMut;
               return <div key={entry.id}>{showDateHeader && <div style={{ fontSize: 10, fontWeight: 600, color: t.goldText, padding: "8px 0 4px", borderBottom: "1px solid " + t.border, marginBottom: 6, marginTop: i > 0 ? 10 : 0 }}>{dt.toLocaleDateString(localeTag(), { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>}
                 <TimelineRow t={t} last={i === timeline.length - 1} onClick={() => openTimelineDetail(entry)} node={<div style={{ width: 28, height: 28, borderRadius: "50%", background: dotColor + "1F", border: "1.5px solid " + dotColor, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: dotColor }} /></div>}>
@@ -2686,7 +2699,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   ];
 
   const tlColorMap = {
-    clock: BL, tasks: GR, inspections: TL, issues: RD, schedule: OR, marketplace: GO, supplies: "#9B59B6", staff: BL, chat: "#9B59B6", site: GO
+    clock: BL, tasks: GR, inspections: TL, issues: RD, schedule: OR, marketplace: GO, supplies: PU, staff: BL, chat: PU, site: GO
   };
 
   const getTlCategory = (actionType) => {
@@ -3341,7 +3354,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   useEffect(() => { load(); }, []);
   const openIssue = async (iss) => { setSel(iss); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
-  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: "#9B59B6" };
+  const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: PU };
   // The words for the codes an issue carries. The code is what the API sent and what is sent back;
   // these are only what the screen says. A code with no word here is drawn as it arrives.
   const filterWord = { all: tr("all|issues"), open: tr("open|issues"), in_progress: tr("in progress"), escalated: tr("escalated|issues"), resolved: tr("resolved|issues") };
@@ -5876,10 +5889,10 @@ function ClientRatingsReport({ af, t, sites, settings, showToast }) {
 // The client acknowledges it on the staff portal; an acknowledged report shows who, and one sent
 // and not acknowledged in 10 days is overdue. Nothing here draws until the list route answers.
 const MONTHLY_STATUS = {
-  draft: { l: "Draft|monthly report", c: BL },
-  sent: { l: "Sent|monthly report", c: OR },
-  acknowledged: { l: "Acknowledged", c: GR },
-  overdue: { l: "Overdue|monthly report", c: RD },
+  draft: { l: "Draft|monthly report", get c() { return BL; } },
+  sent: { l: "Sent|monthly report", get c() { return OR; } },
+  acknowledged: { l: "Acknowledged", get c() { return GR; } },
+  overdue: { l: "Overdue|monthly report", get c() { return RD; } },
 };
 const monthlyStatusWord = (s) => (MONTHLY_STATUS[s] ? tr(MONTHLY_STATUS[s].l) : String(s || ""));
 const monthlyStatusColor = (s) => (MONTHLY_STATUS[s] ? MONTHLY_STATUS[s].c : BL);
@@ -7167,7 +7180,7 @@ function ServicesPage({ af, showToast, canManageVendors = false, t, sites, lkMap
     showToast(tr("Service catalog exported"));
   };
 
-  const cimsColor = { SD: BL, HSE: OR, GB: GR, QS: GO, HR: "#9B59B6", MC: "#1ABC9C" };
+  const cimsColor = { SD: BL, HSE: OR, GB: GR, QS: GO, HR: PU, MC: "#1ABC9C" };
 
   const serviceIcons = {
     "office-cleaning": "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10",
@@ -9073,7 +9086,7 @@ function InspectionReviewLine({ af, t, token, resultId, line, signature, onSigne
 function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
   const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
-  const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: "#24A4F4", HSE: "#F39C12", GB: "#2ECC71", QS: GOLD, HR: "#9B59B6", MC: "#2C3E50" };
+  const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: BL, HSE: OR, GB: GR, QS: GOLD, HR: PU, MC: "#2C3E50" };
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
   const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
   // Where the page only shows one: a service category is the lookup's shown label, then the label
@@ -9090,7 +9103,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const stateOf = (st) => inspStateWord[st] || st.replace("_", " ");
   const cimsOpts = getOpts("cims_categories");
   const CIMS_CATS = cimsOpts.length > 0 ? cimsOpts.map(o => o.v) : ["SD", "HSE", "GB", "QS", "HR", "MC"];
-  const STATUS_C = { scheduled: "#24A4F4", in_progress: "#F39C12", completed: "#2ECC71", cancelled: "#7A8A9A" };
+  const STATUS_C = { scheduled: BL, in_progress: OR, completed: GR, cancelled: "#7A8A9A" };
   const fmtDate = (d) => d ? new Date(d.slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--";
   const fmtDT = (d) => d ? new Date(d).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--";
 
@@ -9981,10 +9994,10 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
 // every figure and check is the API's, from POST /api/quotes/calculate. Nothing here holds a zone, a
 // task, a rate, a frequency or a cost line, and nothing here does the arithmetic.
 const QUOTE_STATUS = {
-  draft: { l: "Draft|quote", c: BL },
-  sent: { l: "Sent|quote", c: OR },
-  accepted: { l: "Accepted|quote", c: GR },
-  declined: { l: "Declined|quote", c: RD },
+  draft: { l: "Draft|quote", get c() { return BL; } },
+  sent: { l: "Sent|quote", get c() { return OR; } },
+  accepted: { l: "Accepted|quote", get c() { return GR; } },
+  declined: { l: "Declined|quote", get c() { return RD; } },
   void: { l: "Void|quote", c: "#8899AA" },
 };
 const QUOTE_STATUSES = ["draft", "sent", "accepted", "declined", "void"];
@@ -12078,21 +12091,21 @@ const HR_CATEGORY_OPTS = [
 
 const HR_CATEGORY_LABEL = (v) => (HR_CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
-// Color hint per category for badges
-const HR_CATEGORY_COLOR = {
+// Color hint per category for badges, read when it is drawn so it takes the theme's shades.
+const hrCategoryColor = (k) => ({
   uncategorized: "#94A3B8",
-  hr_onboarding: "#24A4F4",
+  hr_onboarding: BL,
   hr_ongoing: "#1ABC9C",
-  training: "#2ECC71",
-  tax: "#F39C12",
-  benefits: "#9B59B6",
-  legal: "#E74C3C",
-  client: "#24A4F4",
-  vendor: "#F39C12",
+  training: GR,
+  tax: OR,
+  benefits: PU,
+  legal: RD,
+  client: BL,
+  vendor: OR,
   operational: GOLD,
-  safety: "#E74C3C",
+  safety: RD,
   other: "#94A3B8",
-};
+})[k];
 
 function JotformPickerField({ af, form, setForm, t }) {
   const [pickerOptions, setPickerOptions] = useState([]);
@@ -16419,11 +16432,11 @@ const ACT168_SHORT = "Act 168";
 const clearanceKindWord = (k) => { const c = CLEARANCE_KINDS.find(x => x.key === k); return c ? tr(c.label) : String(k || ""); };
 // A clearance's state as the API answers it. Expiring is within 90 days.
 const CLEARANCE_STATES = {
-  current: { l: "Current|clearance", c: GR },
-  expiring: { l: "Expiring|clearance", c: OR },
-  expired: { l: "Expired|clearance", c: RD },
+  current: { l: "Current|clearance", get c() { return GR; } },
+  expiring: { l: "Expiring|clearance", get c() { return OR; } },
+  expired: { l: "Expired|clearance", get c() { return RD; } },
   missing: { l: "Missing|clearance", c: "#8899AA" },
-  done: { l: "Done|review", c: GR },
+  done: { l: "Done|review", get c() { return GR; } },
 };
 const clearanceStateWord = (s) => (CLEARANCE_STATES[s] ? tr(CLEARANCE_STATES[s].l) : String(s || ""));
 const ClearanceChip = ({ state }) => <Bdg l={clearanceStateWord(state)} c={(CLEARANCE_STATES[state] || CLEARANCE_STATES.missing).c} />;
@@ -17009,7 +17022,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
   })[s] || s;
 
   const sourceColor = (s) => ({
-    document: "#9B59B6",
+    document: PU,
     training: GR,
     onboarding: BL,
     jotform: GO,
@@ -17079,7 +17092,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         </button>
         {categoryEntries.map(c => {
           const active = activeCategory === c.v;
-          const color = HR_CATEGORY_COLOR[c.v] || GO;
+          const color = hrCategoryColor(c.v) || GO;
           return (
             <button key={c.v} onClick={() => setActiveCategory(c.v)} style={{ padding: "6px 14px", borderRadius: 16, border: "1px solid " + (active ? color : t.border), background: active ? (color + "22") : "transparent", color: active ? color : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
               {tr(c.l)} ({c.count})
@@ -17097,7 +17110,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         <div style={{ background: t.card, borderRadius: 12, border: "1px solid " + t.border, overflow: "hidden" }}>
           {filtered.map((it, idx) => {
             const isLast = idx === filtered.length - 1;
-            const catColor = HR_CATEGORY_COLOR[it.category] || GO;
+            const catColor = hrCategoryColor(it.category) || GO;
             const srcColor = sourceColor(it.source);
 
             const isForm = it.source === "form";
