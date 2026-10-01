@@ -985,7 +985,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} />}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} />}
         {page === "sites" && <SitesPage af={af} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -15512,6 +15512,192 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 // inside HRRecordsPage when the "employees" tab is active.
 // =====================================================
 
+// ===== SCHOOL CLEARANCES (Step 211) =====
+// Pennsylvania's three school clearances and the Act 168 employment history review, which the API
+// keeps from Step 210 (STEP210_CONTRACT.md, section 2). A clearance is renewed 60 months from its own
+// date, and the API works out each one's expiry and state. The routes answer the people HR Records
+// already answers, the admins and supervisors routes/hr.js lets in; the section and the page show
+// once GET /api/clearances answers, and a 404 or a refusal leaves them off.
+const CLEARANCE_KINDS = [
+  { key: "act34", label: "Act 34 PA State Police check" },
+  { key: "act151", label: "Act 151 child abuse clearance" },
+  { key: "fbi", label: "FBI fingerprint check" },
+];
+const ACT168_LABEL = "Act 168 employment history review";
+const clearanceKindWord = (k) => { const c = CLEARANCE_KINDS.find(x => x.key === k); return c ? tr(c.label) : String(k || ""); };
+// A clearance's state as the API answers it. Expiring is within 90 days.
+const CLEARANCE_STATES = {
+  current: { l: "Current|clearance", c: GR },
+  expiring: { l: "Expiring|clearance", c: OR },
+  expired: { l: "Expired|clearance", c: RD },
+  missing: { l: "Missing|clearance", c: "#8899AA" },
+  done: { l: "Done|review", c: GR },
+};
+const clearanceStateWord = (s) => (CLEARANCE_STATES[s] ? tr(CLEARANCE_STATES[s].l) : String(s || ""));
+const ClearanceChip = ({ state }) => <Bdg l={clearanceStateWord(state)} c={(CLEARANCE_STATES[state] || CLEARANCE_STATES.missing).c} />;
+// The people GET /api/clearances answers, or null when it does not answer with them.
+const clearancePeopleOf = (d) => (d && Array.isArray(d.people) ? d.people : null);
+// A person's record in HR Records, from anywhere: #hr/<id>, and #hr/<id>/clearances to bring the
+// Clearances section into view.
+const openClearancesOf = (userId) => { if (userId != null) window.location.hash = "hr/" + encodeURIComponent(String(userId)) + "/clearances"; };
+
+// Add or renew a clearance, record the Act 168 review, or correct a date entered wrongly. A refusal
+// is drawn under the box its code or keys name, and anything else at the top.
+function ClearanceWindow({ af, t, userId, name, mode, kind, row, onClose, onSaved }) {
+  const today = toISO(new Date());
+  const [f, setF] = useState(() => ({ date: mode === "correct" && row && row.issuedDate ? String(row.issuedDate).slice(0, 10) : "", documentId: "", notes: "", reason: "", disclosure: "no" }));
+  const [docs, setDocs] = useState(null);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  useEffect(() => {
+    if (mode === "correct") return undefined;
+    let alive = true;
+    af("/api/hr/documents?user_id=" + encodeURIComponent(userId)).then(d => { if (alive) setDocs(Array.isArray(d) ? d : []); }).catch(e => { if (alive) setDocs([]); console.warn("Documents:", e.message); });
+    return () => { alive = false; };
+  }, [af, userId, mode]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const fieldOf = (e) => {
+    const code = String((e && e.code) || "");
+    const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+    if (code === "clearances.badReason" || keys.indexOf("reason") >= 0) return "reason";
+    if (code === "clearances.badDate" || keys.some(k => k === "issuedDate" || k === "completedOn")) return "date";
+    if (keys.indexOf("documentId") >= 0) return "documentId";
+    if (keys.indexOf("notes") >= 0) return "notes";
+    return "";
+  };
+  const save = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    const base = "/api/users/" + encodeURIComponent(userId);
+    try {
+      if (mode === "act168") await af(base + "/act168", { method: "POST", body: { completedOn: f.date, disclosure: f.disclosure === "yes", notes: f.notes.trim() || null, documentId: f.documentId || null } });
+      else if (mode === "correct") await af(base + "/clearances/" + encodeURIComponent(row.certificationId), { method: "PATCH", body: { issuedDate: f.date, reason: f.reason.trim() } });
+      else await af(base + "/clearances/" + encodeURIComponent(kind), { method: "PUT", body: { issuedDate: f.date, documentId: f.documentId || null, notes: f.notes.trim() || null } });
+      onSaved();
+    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    savingRef.current = false; setSaving(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-clearance-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const title = mode === "act168" ? tr(ACT168_LABEL) : clearanceKindWord(kind);
+  const docOpts = [{ v: "", l: tr("No document") }].concat((docs || []).map(d => ({ v: String(d.id), l: d.file_name || d.title || tr("Document") })));
+  const ready = !!f.date && (mode !== "correct" || f.reason.trim().length > 0);
+  return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-clearance-window={mode}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{mode === "correct" ? tr("Correct a date") : mode === "act168" ? tr("Record the review") : tr("Add or renew")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{title}{name ? " \u00b7 " + name : ""}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{mode === "correct"
+      ? tr("For a date entered wrongly. The clearance keeps its place, its expiry is worked out again from the right date, and the correction is recorded with your reason.")
+      : mode === "act168" ? tr("The employment history review the school can ask to see.")
+      : tr("A clearance is renewed every 60 months from the date on it. The one there now stays in the history.")}</div>
+    {refusal.text && !refusal.field && <div data-clearance-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {mode === "correct" && row && row.issuedDate && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr("Entered as {0}.", fdLong(row.issuedDate))}</div>}
+    <div style={{ marginBottom: 12 }}>
+      <Lbl>{mode === "correct" ? tr("The right date") : mode === "act168" ? tr("Completed on") : tr("Issued on")}</Lbl>
+      <Inp t={t} type="date" max={today} aria-label={mode === "correct" ? tr("The right date") : mode === "act168" ? tr("Completed on") : tr("Issued on")} value={f.date} onChange={e => set("date", e.target.value)} style={refusal.field === "date" ? { borderColor: RD } : {}} />
+      {under("date")}
+    </div>
+    {mode === "act168" && <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Anything disclosed?")}</Lbl>
+      <Sel t={t} aria-label={tr("Anything disclosed?")} value={f.disclosure} onChange={e => set("disclosure", e.target.value)} options={[{ v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} />
+    </div>}
+    {mode === "correct" ? (<div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Reason")}</Lbl>
+      <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} style={refusal.field === "reason" ? { borderColor: RD } : {}} />
+      {under("reason")}
+    </div>) : (<>
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Document")}</Lbl>
+        <Sel t={t} aria-label={tr("Document")} value={f.documentId} onChange={e => set("documentId", e.target.value)} options={docs === null ? [{ v: "", l: tr("Loading...") }] : docOpts} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("From this person's HR documents. Optional.")}</div>
+        {under("documentId")}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Notes")}</Lbl>
+        <TArea t={t} rows={2} aria-label={tr("Notes")} value={f.notes} onChange={e => set("notes", e.target.value)} />
+        {under("notes")}
+      </div>
+    </>)}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={saving} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={saving || !ready} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// A person's clearances on their HR record: each of the three with its issued date, its expiry and its
+// state, the earlier ones of a kind under it as history, and the Act 168 review. The current ones come
+// from GET /api/clearances?state=all, which lists every person, and the history from the person's
+// certifications in GET /api/users/:id, which holds every row; a refusal of that read leaves the
+// history off. A correction shows in the history when the row carries one.
+function PersonClearances({ af, t, userId, name, focus = false }) {
+  const [person, setPerson] = useState(undefined);
+  const [rows, setRows] = useState([]);
+  const [win, setWin] = useState(null);
+  const [open, setOpen] = useState({});
+  const boxRef = useRef(null);
+  const load = useCallback(() => {
+    af("/api/clearances?state=all").then(d => {
+      const people = clearancePeopleOf(d);
+      if (!people) { setPerson(null); return; }
+      setPerson(people.find(p => String(p.userId) === String(userId)) || { userId });
+    }).catch(e => { setPerson(null); console.warn("Clearances:", e.message); });
+    af("/api/users/" + encodeURIComponent(userId)).then(d => { setRows(d && Array.isArray(d.certifications) ? d.certifications.filter(c => c && c.clearance_kind) : []); }).catch(() => setRows([]));
+  }, [af, userId]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (focus && person && boxRef.current) { try { boxRef.current.scrollIntoView({ block: "start" }); } catch (e) {} } }, [focus, person]);
+  if (!person) return null;
+  const historyOf = (k, current) => rows.filter(c => c.clearance_kind === k && String(c.id) !== String(current && current.certificationId)).sort((a, b) => String(b.issued_date).localeCompare(String(a.issued_date)));
+  const corrections = (x) => (x && Array.isArray(x.corrections) ? x.corrections : []);
+  const correctedLine = (c, i) => <div key={i} style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Corrected on {0} from {1} to {2}: {3}", c.at ? irDay(c.at) : "--", c.from ? fdLong(c.from) : "--", c.to ? fdLong(c.to) : "--", c.reason || "")}</div>;
+  const small = { minHeight: 44, padding: "8px 12px", fontSize: 12 };
+  const act = person.act168 || {};
+  return (<Crd t={t} style={{ marginBottom: 16, scrollMarginTop: 96 }}>
+    <div ref={boxRef} data-person-clearances="" style={{ scrollMarginTop: 96 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Clearances")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Needed to work at a school site. Each is renewed every 60 months from its own date.")}</div>
+      {CLEARANCE_KINDS.map(k => {
+        const c = person[k.key] || { state: "missing" };
+        const earlier = historyOf(k.key, c);
+        return (<div key={k.key} data-clearance={k.key} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(k.label)}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{c.issuedDate ? tr("Issued {0}, expires {1}", fdLong(c.issuedDate), c.expiresOn ? fdLong(c.expiresOn) : "--") : tr("None on file")}</div>
+              {corrections(c).map(correctedLine)}
+            </div>
+            <ClearanceChip state={c.state || "missing"} />
+            <Btn t={t} onClick={() => setWin({ mode: "add", kind: k.key })} style={small}>{tr("Add or renew")}</Btn>
+            {c.certificationId && <Btn t={t} v="ghost" onClick={() => setWin({ mode: "correct", kind: k.key, row: c })} style={small}>{tr("Correct a date")}</Btn>}
+            {earlier.length > 0 && <Btn t={t} v="ghost" aria-expanded={!!open[k.key]} onClick={() => setOpen(o => ({ ...o, [k.key]: !o[k.key] }))} style={small}>{tr("History ({0})", earlier.length)}</Btn>}
+          </div>
+          {open[k.key] && earlier.length > 0 && <div data-clearance-history={k.key} style={{ marginTop: 8, paddingLeft: 12, borderLeft: "2px solid " + t.border }}>
+            {earlier.map(h => (<div key={h.id} style={{ fontSize: 12, color: t.textSec, padding: "4px 0" }}>
+              {tr("Issued {0}, expires {1}", h.issued_date ? fdLong(h.issued_date) : "--", h.expiry_date ? fdLong(h.expiry_date) : "--")}
+              {corrections(h).map(correctedLine)}
+            </div>))}
+          </div>}
+        </div>);
+      })}
+      <div data-clearance="act168" style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr(ACT168_LABEL)}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{act.completedOn ? tr("Completed on {0}. Disclosure: {1}.", fdLong(act.completedOn), act.disclosure ? tr("Yes") : tr("No")) : tr("None on file")}</div>
+          </div>
+          <ClearanceChip state={act.state === "done" ? "done" : "missing"} />
+          <Btn t={t} onClick={() => setWin({ mode: "act168" })} style={small}>{tr("Record the review")}</Btn>
+        </div>
+      </div>
+    </div>
+    {win && <ClearanceWindow af={af} t={t} userId={userId} name={name} mode={win.mode} kind={win.kind} row={win.row} onClose={() => setWin(null)} onSaved={() => { setWin(null); load(); }} />}
+  </Crd>);
+}
+
 function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   // A role as a word, the way Staff Management draws it: the staff_roles list's shown label, or the
   // table's word for a role the list does not hold. The code is what is filtered on and sent.
@@ -15708,7 +15894,7 @@ function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
   );
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -15875,6 +16061,8 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
           {onAddTraining && <Btn t={t} onClick={() => onAddTraining(userId, e)}>{tr("+ Add Training")}</Btn>}
         </div>}
       />
+
+      <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -16159,11 +16347,19 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [] }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute }) {
   const [tab, setTab] = useState("employees");
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
-  const [folderUserId, setFolderUserId] = useState(null);
+  const [folderUserId, setFolderUserId] = useState(() => (route[0] ? String(route[0]) : null));
+  // #hr/<id> opens that person's record, and #hr/<id>/clearances brings their Clearances into view
+  // (Step 211), so a refusal or the Clearances page can send someone straight there.
+  const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
+  useEffect(() => {
+    if (!route[0]) return;
+    setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
+  }, [route]);
+  const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
   const [selUser, setSelUser] = useState("");
@@ -16387,7 +16583,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           t={t}
           lkMap={lkMap}
           onSelectEmployee={(emp) => {
-            setFolderUserId(emp.id);
+            openFolder(emp.id);
             setSelUser(emp.id); // keep the legacy dropdown synced for when user switches to old tabs
           }}
         />
@@ -16403,7 +16599,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           allStaff={allStaff}
           getOpts={getOpts}
           lkMap={lkMap}
-          onBack={() => setFolderUserId(null)}
+          onBack={() => openFolder(null)}
+          focusClearances={focusClearances}
           onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
           onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
