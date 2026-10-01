@@ -1006,7 +1006,7 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -1289,12 +1289,26 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
   </div></Mdl>);
 }
 
+// HR Records' person folder: the same card, read only, with a link to the person in Staff Management,
+// where the buttons are. Nothing shows until the employment route answers this person's reader.
+function PersonEmployment({ af, t, userId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setData(null);
+    af("/api/users/" + encodeURIComponent(userId) + "/employment").then(d => { if (alive) setData(employmentAnswerOf(d)); }).catch(e => { console.warn("Employment:", e.message); });
+    return () => { alive = false; };
+  }, [af, userId]);
+  if (!data) return null;
+  return <EmploymentCard t={t} data={data} staffHref={"#staff/" + encodeURIComponent(String(userId))} />;
+}
+
 // The buttons that change a person's employment, by status: Put on leave and End employment for
 // someone active, Return from leave and End employment for someone inactive, Rehire for someone
 // terminated. Never on the signed-in person's own profile.
 const employmentActions = (status) => (status === "active" ? ["leave", "end"] : status === "inactive" ? ["return", "end"] : status === "terminated" ? ["rehire"] : []);
 
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null }) {
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute }) {
   // The API's rank rule (routes/users.js): without manage_admins a person changes no account at or
   // above their own rank, admin over supervisor over everyone else, and not their own account. The
   // controls it would refuse are not drawn. A holder of manage_admins changes any account.
@@ -1343,7 +1357,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
 
   // Why the list is empty when it is: the read was refused to this person, or it failed.
   const [staffFailed, setStaffFailed] = useState(null);
-  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); };
+  // Step 232: everyone's latest employment event, from GET /api/users/roster-check once it answers;
+  // the list's badge reads On leave for someone inactive whose latest event is a leave.
+  const [roster, setRoster] = useState(null);
+  const loadRoster = () => { af("/api/users/roster-check").then(d => setRoster(d && Array.isArray(d.people) && d.summary && typeof d.summary === "object" ? d : null)).catch(e => { setRoster(null); console.warn("Roster check:", e.message); }); };
+  const onLeave = (s) => !!(s && s.status === "inactive" && roster && roster.people.some(p => String(p.userId) === String(s.id) && p.current && p.current.kind === "leave"));
+  const load = () => { af("/api/users").then(d => { setStaff(d); setStaffFailed(null); }).catch(e => { setStaffFailed(e.status === 403 ? "forbidden" : "failed"); if (e.status !== 403) showToast(e.message, "error"); }); loadRoster(); };
   useEffect(() => { load(); }, []);
   // What a code is drawn as, in the language the screen is drawn in. A pick list's choice reads the
   // displayLabel the API sends in that language, a role the list does not hold reads the table's
@@ -1391,7 +1410,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
       loadEmployment(id);
     } catch (e) { showToast(e.message, "error"); }
   };
-  const closeProfile = () => { setProfile(null); setProfileEdit(null); setEmployment(null); setEmpWin(null); };
+  const closeProfile = () => { setProfile(null); setProfileEdit(null); setEmployment(null); setEmpWin(null); if (onRoute && route[0] && route[0] !== "roster") onRoute([]); };
+  // Step 232: #staff/<id>, from HR Records' Employment card, opens that person's profile, and
+  // #staff/<id>/assign opens it on Assignments.
+  const routeId = route[0] && route[0] !== "roster" ? String(route[0]) : "";
+  const routeTab = routeId && route[1] ? String(route[1]) : "";
+  useEffect(() => { if (routeId) openProfile(routeId, routeTab === "assign" ? "assign" : undefined); }, [routeId, routeTab]);
   // After an employment change: the profile read again on the tab it is on, its employment, and the list.
   const refreshProfile = async (id) => {
     try { const d = await af("/api/users/profile/" + id); setProfile(d); } catch (e) { showToast(e.message, "error"); }
@@ -2041,7 +2065,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         // lead looks it up here when someone loses their PIN slip. Empty when the account has none.
         { header: tr("Badge"), tdStyle: { color: t.textSec, whiteSpace: "nowrap", fontFamily: "monospace" }, render: s => s.badgeNumber || "" },
         { header: tr("Phone"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.phone || "-" },
-        { header: tr("Status"), render: s => <Bdg l={stateOf(s.status)} c={statusColor(s.status)} /> },
+        { header: tr("Status"), render: s => (onLeave(s) ? <Bdg l={tr("On leave")} c={OR} /> : <Bdg l={stateOf(s.status)} c={statusColor(s.status)} />) },
         { header: tr("Role"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => roleOf(s.role) },
         { header: tr("Employment"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: s => s.employmentType ? employmentOf(s.employmentType) : "-" },
         { header: tr("Sites"), tdStyle: { color: t.textMut, fontSize: 12, maxWidth: 240 }, render: s => s.sites && s.sites.length > 0 ? s.sites.map(x => x.siteName).join(", ") : tr("No sites") },
@@ -16882,6 +16906,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         </div>}
       />
 
+      <PersonEmployment af={af} t={t} userId={userId} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
 
       {/* Category pills */}
