@@ -3047,6 +3047,16 @@ export const WORDS = {
   "Anything disclosed?": { es: "\u00bfSe divulg\u00f3 algo?" },
   "No document": { es: "Sin documento" },
   "From this person's HR documents. Optional.": { es: "De los documentos de recursos humanos de esta persona. Opcional." },
+  "Every active person": { es: "Todas las personas activas" },
+  "Everyone, inactive and terminated included": { es: "Todos, incluidas las personas inactivas y dadas de baja" },
+  "Everyone's school clearances, the soonest expiry first. A row opens the person's record.": { es: "Las autorizaciones escolares de todos, primero las que vencen antes. Una fila abre el expediente de la persona." },
+  "School site": { es: "Sitio escolar" },
+  "Pick a site to export it for the school.": { es: "Elija un sitio para exportarlo para la escuela." },
+  "Export for a school": { es: "Exportar para una escuela" },
+  "Act 34": { es: "Act 34" },
+  "Act 151": { es: "Act 151" },
+  "FBI": { es: "FBI" },
+  "Act 168": { es: "Act 168" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

@@ -122,7 +122,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -549,6 +549,8 @@ export default function AdminDashboard() {
   // call when the session starts asks for the list: a 200 opens the page, and any other answer
   // leaves this person with what their role gives, which is the line Forms has shown all along.
   const [canReadFiledForms, setCanReadFiledForms] = useState(false);
+  // Whether GET /api/clearances answers this person (Step 211). Read once a session.
+  const [clearancesOn, setClearancesOn] = useState(false);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
@@ -565,8 +567,11 @@ export default function AdminDashboard() {
     // Quotes opens the same way (Step 208): build_quotes is an admin's on the API's own defaults
     // table, since an estimate shows wages and margin, and the page waits for the API to name it.
     if (id === "quotes") return hasCap("build_quotes");
+    // Clearances (Step 211) answers the people HR Records answers, admins and supervisors, and opens
+    // once GET /api/clearances answers with them.
+    if (id === "clearances") return clearancesOn;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -595,6 +600,12 @@ export default function AdminDashboard() {
       .catch(() => { if (!alive) return; af("/api/users/" + encodeURIComponent(id) + "/permissions").then(d => done(d && d.effective)).catch(e => { done(null); console.warn("Own capabilities:", e.message); }); });
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
+  useEffect(() => {
+    if (!token) { setClearancesOn(false); return undefined; }
+    let alive = true;
+    af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
+    return () => { alive = false; };
+  }, [token, af]);
   useEffect(() => {
     if (!token || isAdmin) { setCanReadFiledForms(false); return; }
     let alive = true;
@@ -722,6 +733,7 @@ export default function AdminDashboard() {
   const FmI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8" {...p} />;
   const HlpI = p => <Ic d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3 M12 17h.01" {...p} />;
   const BldI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M12 18v-6 M9 15h6" {...p} />;
+  const ShdI = p => <Ic d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z M9 12l2 2 4-4" {...p} />;
 
   const sidebarGroups = [
     { label: null, items: [{ id: "overview", l: tr("Dashboard"), i: HmI }] },
@@ -732,6 +744,7 @@ export default function AdminDashboard() {
     { label: tr("Staff"), items: [
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
+      ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
     { label: tr("Quality"), items: [
@@ -752,7 +765,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1003,6 +1016,7 @@ export default function AdminDashboard() {
         {page === "help-insights" && (canOpenPage("help-insights") ? <HelpInsightsPage af={af} t={t} sites={sites} getOpts={getOpts} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -15519,11 +15533,12 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 // already answers, the admins and supervisors routes/hr.js lets in; the section and the page show
 // once GET /api/clearances answers, and a 404 or a refusal leaves them off.
 const CLEARANCE_KINDS = [
-  { key: "act34", label: "Act 34 PA State Police check" },
-  { key: "act151", label: "Act 151 child abuse clearance" },
-  { key: "fbi", label: "FBI fingerprint check" },
+  { key: "act34", label: "Act 34 PA State Police check", short: "Act 34" },
+  { key: "act151", label: "Act 151 child abuse clearance", short: "Act 151" },
+  { key: "fbi", label: "FBI fingerprint check", short: "FBI" },
 ];
 const ACT168_LABEL = "Act 168 employment history review";
+const ACT168_SHORT = "Act 168";
 const clearanceKindWord = (k) => { const c = CLEARANCE_KINDS.find(x => x.key === k); return c ? tr(c.label) : String(k || ""); };
 // A clearance's state as the API answers it. Expiring is within 90 days.
 const CLEARANCE_STATES = {
@@ -15696,6 +15711,70 @@ function PersonClearances({ af, t, userId, name, focus = false }) {
     </div>
     {win && <ClearanceWindow af={af} t={t} userId={userId} name={name} mode={win.mode} kind={win.kind} row={win.row} onClose={() => setWin(null)} onSaved={() => { setWin(null); load(); }} />}
   </Crd>);
+}
+
+// The Clearances page (Step 211): everyone from GET /api/clearances, the soonest expiry first, with a
+// filter by state and by site. A missing clearance has no expiry and sorts first, then the expired,
+// then the rest by the day the first of them runs out. A row opens the person's record at their
+// Clearances. Export for a school saves GET /api/clearances/export.csv for the site picked.
+const CLEARANCE_FILTERS = [
+  { v: "", l: "Every active person" },
+  { v: "current", l: "Current|clearance" },
+  { v: "expiring", l: "Expiring|clearance" },
+  { v: "expired", l: "Expired|clearance" },
+  { v: "missing", l: "Missing|clearance" },
+  { v: "all", l: "Everyone, inactive and terminated included" },
+];
+const clearanceSoonest = (p) => CLEARANCE_KINDS.map(k => (p && p[k.key] && p[k.key].expiresOn ? String(p[k.key].expiresOn).slice(0, 10) : "0000-00-00")).sort()[0];
+function ClearancesPage({ af, token, t, sites = [] }) {
+  const [state, setState] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+  const load = useCallback(() => {
+    const q = [].concat(state ? ["state=" + encodeURIComponent(state)] : [], siteId ? ["siteId=" + encodeURIComponent(siteId)] : []);
+    setFailed("");
+    af("/api/clearances" + (q.length ? "?" + q.join("&") : ""))
+      .then(d => { const people = clearancePeopleOf(d) || []; setRows(people.slice().sort((a, b) => clearanceSoonest(a).localeCompare(clearanceSoonest(b)) || String(a.name || "").localeCompare(String(b.name || "")))); })
+      .catch(e => { setRows([]); setFailed(e.message || tr("This did not load.")); console.warn("Clearances:", e.message); });
+  }, [af, state, siteId]);
+  useEffect(() => { load(); }, [load]);
+  const exportCsv = async () => {
+    if (exporting || !siteId) return;
+    setExporting(true); setExportError("");
+    try { await saveDownload("/api/clearances/export.csv?siteId=" + encodeURIComponent(siteId), token, "clearances.csv"); }
+    catch (e) { setExportError(e.message || tr("Request failed")); }
+    setExporting(false);
+  };
+  const cell = (c) => (<div style={{ whiteSpace: "nowrap" }}><ClearanceChip state={(c && c.state) || "missing"} />{c && c.expiresOn ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{fdLong(c.expiresOn)}</div> : null}</div>);
+  const cols = [
+    { header: tr("Name"), tdStyle: { minWidth: 150 }, render: p => (<span><span style={{ fontWeight: 600, color: t.text }}>{p.name}</span>{p.status && p.status !== "active" ? <div style={{ fontSize: 11, color: t.textMut }}>{personStatusWord(p.status)}</div> : null}</span>) },
+    { header: tr("School site"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: p => (p.atSchoolSite ? tr("Yes") : "--") },
+  ].concat(CLEARANCE_KINDS.map(k => ({ header: <span title={tr(k.label)}>{tr(k.short)}</span>, render: p => cell(p[k.key]) })), [
+    { header: <span title={tr(ACT168_LABEL)}>{tr(ACT168_SHORT)}</span>, render: p => { const a = p.act168 || {}; return (<div style={{ whiteSpace: "nowrap" }}><ClearanceChip state={a.state === "done" ? "done" : "missing"} />{a.completedOn ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{fdLong(a.completedOn)}</div> : null}</div>); } },
+  ]);
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  return (<div data-clearances-page="">
+    <SecT t={t}>{tr("Clearances")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Everyone's school clearances, the soonest expiry first. A row opens the person's record.")}</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("State")} value={state} onChange={e => setState(e.target.value)} style={selSt}>{CLEARANCE_FILTERS.map(f => <option key={f.v} value={f.v}>{tr(f.l)}</option>)}</select>
+      <select aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} style={selSt}>
+        <option value="">{tr("All sites")}</option>
+        {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {!siteId && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Pick a site to export it for the school.")}</span>}
+        <Btn t={t} v="ghost" onClick={exportCsv} disabled={!siteId || exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export for a school")}</Btn>
+      </div>
+    </div>
+    {exportError && <div data-clearances-export-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId)} empty={tr("No one matches.")} />}
+  </div>);
 }
 
 function EmployeesGridView({ af, showToast, t, onSelectEmployee, lkMap }) {
