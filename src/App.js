@@ -3996,6 +3996,208 @@ function WsToolCard({ t, k, title, count, items, empty, onOpen }) {
   </button>);
 }
 
+// Plain text as it was typed: its line breaks kept, each web address a link that opens in a new tab,
+// and each tagged name bold, the way a chat message draws it.
+const WS_URL = /(https?:\/\/[^\s<>"]+)/g;
+const wsLinks = (text, t) => String(text || "").split(WS_URL).map((part, i) => {
+  if (i % 2 === 0) return <Fragment key={i}>{part}</Fragment>;
+  const m = /^(.*?)([.,;:!?)]*)$/.exec(part);
+  return <Fragment key={i}><a href={m[1]} target="_blank" rel="noopener noreferrer" style={{ color: t.goldText, textDecoration: "underline", wordBreak: "break-all" }}>{m[1]}</a>{m[2]}</Fragment>;
+});
+const wsMentionsOf = (list, members = []) => (Array.isArray(list) ? list : []).map(m => (m && typeof m === "object" ? { id: wsIdOf(m), name: wsNameOf(m) } : { id: String(m), name: ((members.find(x => x.id === String(m)) || {}).name) || "" })).filter(m => m.name);
+function WsText({ t, text, mentions = [], style }) {
+  return (<div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 14, color: t.text, lineHeight: 1.6, ...style }}>
+    {mentionParts(text, mentions).map(p => (p.tag ? <span key={p.k} style={{ fontWeight: 700, color: t.goldText }}>{p.text}</span> : <Fragment key={p.k}>{wsLinks(p.text, t)}</Fragment>))}
+  </div>);
+}
+
+// The comments on a post or a to-do: each with its author and time, Edit for its author, Remove for
+// its author or an admin; then Add a comment, where @ tags a member by putting @Name in the text. The
+// ids tagged go with it as mentions. POST /api/workspace/comments, PATCH /comments/:id and POST
+// /comments/:id/remove.
+function WsComments({ af, t, subjectType, subjectId, comments = [], members = [], meId, isAdmin, writable, onChanged, showToast }) {
+  const [text, setText] = useState("");
+  const [tags, setTags] = useState([]);
+  const [tagOpen, setTagOpen] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [editing, setEditing] = useState(null);
+  const others = members.filter(m => m.id !== meId);
+  const live = () => { const ids = []; tags.forEach(m => { if (text.indexOf("@" + m.name) >= 0 && ids.indexOf(m.id) < 0) ids.push(m.id); }); return ids; };
+  const pick = (m) => { setText(x => (x && !/\s$/.test(x) ? x + " " : x) + "@" + m.name + " "); setTags(l => (l.some(x => x.id === m.id) ? l : l.concat([m]))); setTagOpen(false); };
+  const send = async () => {
+    const body = text.trim();
+    if (!body || busy) return;
+    setBusy("add"); setRefusal("");
+    try { await af("/api/workspace/comments", { method: "POST", body: { subjectType, subjectId, body, mentions: live() } }); setText(""); setTags([]); onChanged(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const saveEdit = async () => {
+    const body = editing.text.trim();
+    if (!body || busy) return;
+    setBusy("edit");
+    try { await af("/api/workspace/comments/" + encodeURIComponent(editing.id), { method: "PATCH", body: { body } }); setEditing(null); onChanged(); }
+    catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  const remove = async (c) => {
+    if (busy || !window.confirm(tr("Remove this comment?"))) return;
+    setBusy("remove");
+    try { await af("/api/workspace/comments/" + encodeURIComponent(c.id) + "/remove", { method: "POST", body: {} }); onChanged(); }
+    catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  const small = { minHeight: 44, padding: "4px 10px", fontSize: 12 };
+  return (<div data-ws-comments="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, margin: "18px 0 8px" }}>{trn("{0} comments|count", comments.length)}</div>
+    {comments.map((c, i) => {
+      const a = wsPerson(wsAt(c, "author", "authorId", "author_id"), members);
+      const mineC = !!a && a.id === meId;
+      const edited = !!wsAt(c, "editedAt", "edited_at");
+      return (<div key={c.id || i} data-ws-comment={c.id} style={{ display: "flex", gap: 10, padding: "10px 0", borderTop: "1px solid " + t.border }}>
+        <Ini name={(a && a.name) || "?"} sz={30} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, color: t.textSec }}><span style={{ fontWeight: 600, color: t.text }}>{a && a.name}</span> {wsWhen(wsAt(c, "createdAt", "created_at"))}{edited ? " (" + tr("edited") + ")" : ""}</div>
+          {editing && editing.id === c.id ? <div style={{ marginTop: 6 }}>
+            <TArea t={t} rows={3} aria-label={tr("Comment")} value={editing.text} onChange={e => setEditing({ ...editing, text: e.target.value })} />
+            <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", marginTop: 6, flexWrap: "wrap" }}>
+              <Btn t={t} v="ghost" onClick={() => setEditing(null)} style={small}>{tr("Cancel")}</Btn>
+              <Btn t={t} onClick={saveEdit} disabled={busy === "edit" || !editing.text.trim()} style={small}>{busy === "edit" ? tr("Saving...") : tr("Save")}</Btn>
+            </div>
+          </div> : <WsText t={t} text={c.body} mentions={wsMentionsOf(c.mentions, members)} style={{ fontSize: 13, marginTop: 2 }} />}
+          {writable && !(editing && editing.id === c.id) && (mineC || isAdmin) && <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+            {mineC && <Btn t={t} v="ghost" onClick={() => setEditing({ id: c.id, text: String(c.body || "") })} style={small}>{tr("Edit")}</Btn>}
+            <Btn t={t} v="ghost" onClick={() => remove(c)} style={small}>{tr("Remove")}</Btn>
+          </div>}
+        </div>
+      </div>);
+    })}
+    {writable && <div style={{ borderTop: "1px solid " + t.border, paddingTop: 12 }}>
+      <Lbl>{tr("Add a comment")}</Lbl>
+      <TArea t={t} rows={3} aria-label={tr("Add a comment")} value={text} onChange={e => setText(e.target.value)} />
+      {refusal && <div data-ws-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal}</div>}
+      {tagOpen && <div data-ws-tags="" style={{ border: "1px solid " + t.border, borderRadius: R.md, marginTop: 6, maxHeight: 220, overflowY: "auto" }}>
+        {others.length === 0 ? <div style={{ padding: 12, fontSize: 12, color: t.textMut }}>{tr("No one else is in this project.")}</div>
+          : others.map(m => <button key={m.id} onClick={() => pick(m)} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 44, padding: "4px 10px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left" }}><Ini name={m.name} sz={26} /><span style={{ fontSize: 13, color: t.text }}>{m.name}</span></button>)}
+      </div>}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" onClick={() => setTagOpen(o => !o)} aria-expanded={tagOpen} style={{ minHeight: 44 }} data-ws-tag="">@ {tr("Tag someone")}</Btn>
+        <Btn t={t} onClick={send} disabled={busy === "add" || !text.trim()} style={{ minHeight: 44, minWidth: 96 }}>{busy === "add" ? tr("Saving...") : tr("Add comment")}</Btn>
+      </div>
+    </div>}
+  </div>);
+}
+
+// New post, or Edit for its author: a title, the body as plain text with its line breaks and links, and
+// Pin to keep it at the top. POST /api/workspace/projects/:id/posts or PATCH /api/workspace/posts/:id.
+function PostWindow({ af, t, projectId, post = null, onClose, onSaved }) {
+  const [f, setF] = useState({ title: post ? String(post.title || "") : "", body: post ? String(post.body || "") : "", pinned: post ? !!post.pinned : false });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const ready = !!f.title.trim() && !!f.body.trim();
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const body = { title: f.title.trim(), body: f.body, pinned: f.pinned };
+      const d = post ? await af("/api/workspace/posts/" + encodeURIComponent(post.id), { method: "PATCH", body })
+        : await af("/api/workspace/projects/" + encodeURIComponent(projectId) + "/posts", { method: "POST", body });
+      onSaved(wsOne(d, "post"));
+    } catch (e) { setRefusal(wsRefusal(e, ["title", "body"])); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-post-window={post ? "edit" : "new"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{post ? tr("Edit post") : tr("New post")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-ws-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Title")}</Lbl><Inp t={t} aria-label={tr("Title")} value={f.title} onChange={e => set("title", e.target.value)} style={refusal.field === "title" ? { borderColor: RD } : {}} />{under("title")}</div>
+    <div style={{ marginBottom: 8 }}><Lbl>{tr("Message")}</Lbl><TArea t={t} rows={10} aria-label={tr("Message")} value={f.body} onChange={e => set("body", e.target.value)} style={refusal.field === "body" ? { borderColor: RD } : {}} />{under("body")}
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Plain text. Line breaks are kept, and web addresses become links.")}</div></div>
+    <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: t.text, cursor: "pointer", marginBottom: 12 }}><span style={chkWrap}><input type="checkbox" checked={f.pinned} onChange={e => set("pinned", e.target.checked)} style={{ width: 20, height: 20 }} /></span><span style={{ minWidth: 0 }}>{tr("Pin to the top")}</span></label>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : post ? tr("Save") : tr("Post")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// The message board, #workspace/<projectId>/posts: pinned posts first, then the newest, each opening
+// its page; New post for a member while the project is open.
+function PostsView({ af, t, p, writable, showToast }) {
+  const [posts, setPosts] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [creating, setCreating] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/projects/" + encodeURIComponent(p.id) + "/posts").then(d => setPosts(wsList(d, "posts") || [])).catch(e => { setPosts([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, p.id]);
+  useEffect(() => { load(); }, [load]);
+  const shown = (posts || []).filter(x => !wsAt(x, "archivedAt", "archived_at")).map((x, i) => ({ x, i })).sort((a, b) => ((!!b.x.pinned) - (!!a.x.pinned)) || a.i - b.i).map(o => o.x);
+  return (<div data-ws-posts="">
+    <SecT t={t} action={writable ? tr("New post") : null} onAction={() => setCreating(true)}>{tr("Message Board")}</SecT>
+    {posts === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
+      : shown.length === 0 ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No posts yet.")}</div></Crd>
+      : <Crd t={t} style={{ padding: "4px 16px" }}>{shown.map((x, i) => { const a = wsPerson(wsAt(x, "author", "authorId", "author_id"), p.members); const n = wsAt(x, "commentCount", "comment_count"); return (
+        <button key={x.id} data-ws-post={x.id} onClick={() => wsGo([p.id, "posts", x.id])} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderTop: i ? "1px solid " + t.border : "none", padding: "12px 0", cursor: "pointer", minHeight: 44, fontFamily: FONT_BODY }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{x.title}</span>{x.pinned ? <Bdg l={tr("Pinned")} c={BL} /> : null}</span>
+          <span style={{ display: "block", fontSize: 12, color: t.textSec, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{String(x.body || "").split("\n")[0]}</span>
+          <span style={{ display: "block", fontSize: 11, color: t.textMut, marginTop: 3 }}>{[a && a.name, wsWhen(wsAt(x, "createdAt", "created_at")), n != null ? trn("{0} comments|count", Number(n)) : ""].filter(Boolean).join(", ")}</span>
+        </button>); })}</Crd>}
+    {creating && <PostWindow af={af} t={t} projectId={p.id} onClose={() => setCreating(false)} onSaved={x => { setCreating(false); if (showToast) showToast(tr("Posted.")); if (x && x.id != null) wsGo([p.id, "posts", x.id]); else load(); }} />}
+  </div>);
+}
+
+// A post's page, #workspace/<projectId>/posts/<postId>: its title, who wrote it and when, the body, Edit
+// for its author, Archive for its author, an owner or an admin, and its comments.
+function PostView({ af, t, p, postId, meId, isAdmin, canManage, writable, showToast }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/posts/" + encodeURIComponent(postId)).then(d => { const post = wsOne(d, "post"); setData(post ? { post, comments: (d && Array.isArray(d.comments) ? d.comments : Array.isArray(post.comments) ? post.comments : []).filter(c => !wsAt(c, "removedAt", "removed_at")) } : null); if (!post) setFailed(tr("This did not load.")); })
+      .catch(e => setFailed(e.message || tr("This did not load.")));
+  }, [af, postId]);
+  useEffect(() => { setData(null); load(); }, [load]);
+  if (!data) return <Crd t={t}>{failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}</Crd>;
+  const x = data.post;
+  const a = wsPerson(wsAt(x, "author", "authorId", "author_id"), p.members);
+  const mine = !!a && a.id === meId;
+  const gone = !!wsAt(x, "archivedAt", "archived_at");
+  const archive = async () => {
+    if (busy || !window.confirm(tr("Archive this post? It leaves the message board, and nothing is deleted."))) return;
+    setBusy(true);
+    try { await af("/api/workspace/posts/" + encodeURIComponent(x.id) + "/archive", { method: "POST", body: {} }); if (showToast) showToast(tr("Post archived.")); wsGo([p.id, "posts"]); }
+    catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
+  return (<div data-ws-post-page={x.id}>
+    <Crd t={t}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0, flex: "1 1 240px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text }}>{x.title}</div>{x.pinned ? <Bdg l={tr("Pinned")} c={BL} /> : null}{gone ? <Bdg l={tr("Archived")} c={OR} /> : null}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{[a && a.name, wsWhen(wsAt(x, "createdAt", "created_at"))].filter(Boolean).join(", ")}{wsAt(x, "editedAt", "edited_at") ? " (" + tr("edited") + ")" : ""}</div>
+        </div>
+        {writable && !gone && (mine || canManage) && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {mine && <Btn t={t} v="ghost" onClick={() => setEditing(true)} style={small} data-ws-post-edit="">{tr("Edit")}</Btn>}
+          <Btn t={t} v="ghost" onClick={archive} disabled={busy} style={small} data-ws-post-archive="">{tr("Archive")}</Btn>
+        </div>}
+      </div>
+      <WsText t={t} text={x.body} style={{ marginTop: 14 }} />
+      <WsComments af={af} t={t} subjectType="post" subjectId={x.id} comments={data.comments} members={p.members} meId={meId} isAdmin={isAdmin} writable={writable && !gone} onChanged={load} showToast={showToast} />
+    </Crd>
+    {editing && <PostWindow af={af} t={t} projectId={p.id} post={x} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); if (showToast) showToast(tr("Post saved.")); load(); }} />}
+  </div>);
+}
+
 // A project's page, #workspace/<projectId>: its name, description and members, Email me copies for a
 // member, Edit, Members and Archive for an owner or an admin, then the four tools as cards and the
 // project's Activity under them. #workspace/<projectId>/<tool> opens a tool in place of the cards.
@@ -4056,7 +4258,9 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
     if (id) window.location.hash = "chat/" + id;
     else if (showToast) showToast(tr("This project's chat did not open."), "error");
   };
-  const toolView = null;
+  const toolTitle = { posts: tr("Message Board"), todos: tr("To-dos"), files: tr("Docs and Files") }[tool] || "";
+  const toolView = tool === "posts" ? (sub ? <PostView af={af} t={t} p={p} postId={sub} meId={meId} isAdmin={isAdmin} canManage={canManage} writable={writable} showToast={showToast} /> : <PostsView af={af} t={t} p={p} writable={writable} showToast={showToast} />)
+    : null;
   const counts = p.counts;
   const num = (...vs) => { for (const v of vs) { if (v != null && isFinite(Number(v))) return Number(v); } return null; };
   const openTodos = num(counts.openTodos, counts.open_todos, counts.todos);
@@ -4090,8 +4294,8 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
   </div>);
   const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
   return (<div data-project-page={p.id}>
-    {tool && toolView ? back(tr("Back to {0}", p.name), [p.id]) : back(tr("Back to Workspace"), p.archived ? ["archived"] : [])}
-    <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
+    {tool && toolView ? (sub ? back(tr("Back to {0}", toolTitle), [p.id, tool]) : back(tr("Back to {0}", p.name), [p.id])) : back(tr("Back to Workspace"), p.archived ? ["archived"] : [])}
+    {tool && toolView ? <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ width: 12, height: 12, borderRadius: "50%", background: p.color, flexShrink: 0 }} /><button onClick={() => wsGo([p.id])} style={{ background: "none", border: "none", padding: 0, minHeight: 44, cursor: "pointer", fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text, textAlign: "left" }}>{p.name}</button>{p.archived ? <Bdg l={tr("Archived")} c={OR} /> : null}</div> : <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
       <div style={{ height: 6, background: p.color }} />
       <div style={{ padding: "16px 18px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
@@ -4112,7 +4316,7 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
           <span style={{ minWidth: 0 }}>{tr("Email me copies")}<span style={{ display: "block", fontSize: 11, color: t.textMut }}>{tr("New posts, and comments on posts, also come to your email.")}</span></span>
         </label>}
       </div>
-    </Crd>
+    </Crd>}
     {tool && toolView ? toolView : overview}
     {win === "edit" && <ProjectWindow af={af} t={t} people={people} project={p} onClose={() => setWin("")} onSaved={() => { setWin(""); if (showToast) showToast(tr("Project saved.")); refresh(); }} />}
     {win === "members" && <MembersWindow af={af} t={t} people={people} project={p} meId={meId} onClose={() => setWin("")} onSaved={() => { setWin(""); if (showToast) showToast(tr("Members saved.")); refresh(); }} />}
