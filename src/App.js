@@ -129,7 +129,7 @@ const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -571,6 +571,9 @@ export default function AdminDashboard() {
   const [canReadFiledForms, setCanReadFiledForms] = useState(false);
   // Whether GET /api/clearances answers this person (Step 211). Read once a session.
   const [clearancesOn, setClearancesOn] = useState(false);
+  // Whether GET /api/discipline answers this person (Step 232): admins read every warning, and a
+  // supervisor the ones they issued. Read once a session.
+  const [disciplineOn, setDisciplineOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -593,8 +596,9 @@ export default function AdminDashboard() {
     // Clearances (Step 211) answers the people HR Records answers, admins and supervisors, and opens
     // once GET /api/clearances answers with them.
     if (id === "clearances") return clearancesOn;
+    if (id === "discipline") return disciplineOn;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -627,6 +631,7 @@ export default function AdminDashboard() {
     if (!token) { setClearancesOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
+    af("/api/discipline").then(d => { if (alive) setDisciplineOn(!!(d && Array.isArray(d.warnings) && d.counts)); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
   useEffect(() => {
@@ -768,6 +773,7 @@ export default function AdminDashboard() {
       ...(canOpenPage("staff") ? [{ id: "staff", l: tr("Staff Management"), i: UsI }] : []),
       { id: "hr", l: tr("HR Records"), i: FolI },
       ...(canOpenPage("clearances") ? [{ id: "clearances", l: tr("Clearances"), i: ShdI }] : []),
+      ...(canOpenPage("discipline") ? [{ id: "discipline", l: tr("Discipline"), i: AlI }] : []),
       ...(isAdmin ? [{ id: "cases", l: tr("Cases"), i: ClpI }] : []),
     ]},
     { label: tr("Quality"), items: [
@@ -788,7 +794,7 @@ export default function AdminDashboard() {
     { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1020,7 +1026,7 @@ export default function AdminDashboard() {
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
@@ -1040,6 +1046,7 @@ export default function AdminDashboard() {
         {page === "forms" && (canOpenPage("forms") ? <FormsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} sites={sites} user={user} route={route} onRoute={replaceRoute} canManageSettings={canManageSettings} canManageIntegrations={hasCap("manage_integrations")} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "form-builder" && (canOpenPage("form-builder") ? <FormBuilderPage af={af} token={token} t={t} user={user} allStaff={allStaff} lkMap={lkMap} route={route} onRoute={replaceRoute} isAdmin={isAdmin} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
@@ -17500,7 +17507,125 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 // Cases raised by staff through the portal. Admin only. The API applies the recusal rule in SQL, so a
 // case about the person looking never arrives here, and this page keeps no count of anything it did not
 // receive. The list shows no summary text; a row is opened to be read.
-function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
+// The Discipline page (Step 232): every warning from GET /api/discipline, for admins, and for a
+// supervisor the ones they issued, which the API decides. The filters are sent as the route takes
+// them; the category is narrowed on screen, since the route takes none. The counts by step are the
+// API's, over what the filters return. A row opens the warning. Export saves the rows as shown.
+function DisciplinePage({ af, token, t, allStaff = [], sites = [], isAdmin = false, showToast }) {
+  const [f, setF] = useState({ type: "", category: "", siteId: "", userId: "", issuedBy: "", status: "", from: "", to: "" });
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [steps, setSteps] = useState({ steps: [], categories: [] });
+  const [win, setWin] = useState(null);
+  const load = useCallback(() => {
+    const q = ["userId", "siteId", "type", "status", "from", "to", "issuedBy"].filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k]));
+    setFailed("");
+    af("/api/discipline" + (q.length ? "?" + q.join("&") : "")).then(d => setData(d && Array.isArray(d.warnings) ? d : { warnings: [], counts: { byType: {}, total: 0 } }))
+      .catch(e => { setData({ warnings: [], counts: { byType: {}, total: 0 } }); setFailed(e.message || tr("This did not load.")); });
+  }, [af, f.userId, f.siteId, f.type, f.status, f.from, f.to, f.issuedBy]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setSteps(d); }).catch(() => {}); return () => { alive = false; }; }, [af]);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const rows = data ? data.warnings.filter(w => !f.category || w.category === f.category) : [];
+  const by = (data && data.counts && data.counts.byType) || {};
+  const personName = (w) => (w.person && w.person.name) || "";
+  const delivered = (w) => { const d = w.delivered || {}; return d.method && WARNING_DELIVERY_WORDS[d.method] ? tr(WARNING_DELIVERY_WORDS[d.method]) + (d.at ? ", " + irDay(d.at) : "") : "--"; };
+  const office = (allStaff || []).filter(p => p && (p.role === "admin" || p.role === "supervisor"));
+  const people = (allStaff || []).filter(p => p && p.role !== "client_contact");
+  const nameOf = (p) => ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "";
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", maxWidth: "100%" };
+  const cols = [
+    { header: tr("Person"), tdStyle: { minWidth: 140 }, render: w => <span style={{ fontWeight: 600, color: t.text }}>{personName(w)}</span> },
+    { header: tr("Step"), tdStyle: { whiteSpace: "nowrap" }, render: w => <span style={{ color: warningRescinded(w) ? t.textMut : t.text, textDecoration: warningRescinded(w) ? "line-through" : "none" }}>{warningStepWord(w.type, steps.steps)}</span> },
+    { header: tr("Category"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => warningCategoryWord(w.category, steps.categories) || "--" },
+    { header: tr("Date of the incident"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.incidentDate ? fdLong(w.incidentDate) : "--") },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: w => <Bdg l={warningStatusWord(w.status)} c={warningRescinded(w) ? RD : w.status === "draft" ? OR : GR} /> },
+    { header: tr("Issued by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.issuedBy && w.issuedBy.name) || "--" },
+    { header: tr("Delivered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => delivered(w) },
+    { header: tr("Signed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: w => (w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : "--") },
+  ];
+  const exportCsv = () => {
+    const hdr = [tr("Person"), tr("Step"), tr("Category"), tr("Date of the incident"), tr("Status"), tr("Issued by"), tr("Delivered"), tr("Signed")];
+    dlCSV("warnings-" + toISO(new Date()) + ".csv", hdr, rows.map(w => [personName(w), warningStepWord(w.type, steps.steps), warningCategoryWord(w.category, steps.categories), w.incidentDate ? fdLong(w.incidentDate) : "", warningStatusWord(w.status), (w.issuedBy && w.issuedBy.name) || "", delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Yes") : ""]));
+  };
+  return (<div data-discipline-page="">
+    <SecT t={t}>{tr("Discipline")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{isAdmin ? tr("Every warning on record, newest first. A row opens the warning.") : tr("The warnings you issued, newest first. A row opens the warning.")}</div>
+    <div data-discipline-page-counts="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+      {WARNING_STEPS.map(s => <div key={s} style={{ padding: "8px 12px", borderRadius: 8, background: t.hover, fontSize: 12, color: t.textSec }}><b style={{ color: t.text, fontSize: 16 }}>{Number(by[s] || 0)}</b> {warningStepWord(s, steps.steps)}</div>)}
+    </div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={selSt}><option value="">{tr("Every step")}</option>{WARNING_STEPS.map(s => <option key={s} value={s}>{warningStepWord(s, steps.steps)}</option>)}</select>
+      <select aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} style={selSt}><option value="">{tr("Every category")}</option>{steps.categories.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select>
+      <select aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} style={selSt}><option value="">{tr("All sites")}</option>{(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
+      <select aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} style={selSt}><option value="">{tr("Everyone")}</option>{people.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>
+      {isAdmin && <select aria-label={tr("Issued by")} value={f.issuedBy} onChange={e => set("issuedBy", e.target.value)} style={selSt}><option value="">{tr("Issued by anyone")}</option>{office.map(p => <option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select>}
+      <select aria-label={tr("Status")} value={f.status} onChange={e => set("status", e.target.value)} style={selSt}><option value="">{tr("All statuses")}</option>{["open", "closed", "rescinded"].map(s => <option key={s} value={s}>{warningStatusWord(s)}</option>)}</select>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("From")}<Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={e => set("from", e.target.value)} style={{ width: 150 }} /></label>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSec }}>{tr("To")}<Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={e => set("to", e.target.value)} style={{ width: 150 }} /></label>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} v="ghost" onClick={exportCsv} disabled={rows.length === 0} style={{ minHeight: 44 }}>{tr("Export")}</Btn></div>
+    </div>
+    {data === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={w => w.id} onRowClick={w => setWin(w)} empty={tr("No warnings match.")} />}
+    {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={win.person ? win.person.userId : ""} personName={personName(win)} person={win.person || null} row={win} showToast={showToast} onClose={() => setWin(null)} onChanged={load} />}
+  </div>);
+}
+
+// Open a case from the office (Step 232, STEP228_CONTRACT_v2.md): about whom (none, one or more), what
+// happened, on behalf of a staff member who reported it in person, whether it is about someone in
+// management, and who holds it. The same case the staff side makes, with the API's rules. A refusal
+// is drawn word for word under the field its keys name.
+function OpenCaseWindow({ af, t, allStaff = [], me, onClose, onOpened, showToast }) {
+  const [f, setF] = useState({ summary: "", subjects: [], pick: "", onBehalfOf: "", aboutManagement: "", assignedTo: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const nameOf = (p) => ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || p.name || "";
+  const people = (allStaff || []).filter(p => p && p.role !== "client_contact" && (!p.status || p.status === "active"));
+  const office = people.filter(p => p.role === "admin" || p.role === "supervisor");
+  const byId = (id) => people.find(p => String(p.id) === String(id));
+  const FIELDS = ["summary", "subjectUserIds", "onBehalfOf", "aboutManagement", "assignedTo"];
+  const send = async () => {
+    if (busyRef.current || !f.summary.trim() || !f.aboutManagement) return;
+    busyRef.current = true; setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const d = await af("/api/hr-cases", { method: "POST", body: { summary: f.summary.trim(), subjectUserIds: f.subjects, onBehalfOf: f.onBehalfOf || null, aboutManagement: f.aboutManagement === "yes", assignedTo: f.assignedTo || null } });
+      if (showToast) showToast(tr("Case opened."));
+      onOpened(d && d.case ? d.case : d);
+    } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => FIELDS.indexOf(k) >= 0) || "" }); }
+    busyRef.current = false; setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-case-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.field === k ? { borderColor: RD } : {});
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-open-case="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Open a case")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-case-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("What happened")}</Lbl><TArea t={t} rows={4} aria-label={tr("What happened")} value={f.summary} onChange={e => set("summary", e.target.value)} style={box("summary")} />{under("summary")}</div>
+    <div style={{ marginBottom: 12 }}>
+      <Lbl>{tr("About whom")}</Lbl>
+      {f.subjects.map(id => <div key={id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: t.text, marginBottom: 4 }}><span style={{ flex: 1, minWidth: 0 }}>{byId(id) ? nameOf(byId(id)) : id}</span><Btn t={t} v="ghost" onClick={() => set("subjects", f.subjects.filter(x => x !== id))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Remove")}</Btn></div>)}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("About whom")} value={f.pick} onChange={e => set("pick", e.target.value)} options={[{ v: "", l: tr("Optional. Choose a person") }].concat(people.filter(p => f.subjects.indexOf(String(p.id)) < 0 && !(me && String(me.id) === String(p.id))).map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("subjectUserIds")} /></div>
+        <Btn t={t} v="ghost" onClick={() => { if (f.pick) setF(p => ({ ...p, subjects: p.subjects.concat([p.pick]), pick: "" })); }} disabled={!f.pick} style={{ minHeight: 44 }}>{tr("Add")}</Btn>
+      </div>
+      {under("subjectUserIds")}
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("On behalf of")}</Lbl><Sel t={t} aria-label={tr("On behalf of")} value={f.onBehalfOf} onChange={e => set("onBehalfOf", e.target.value)} options={[{ v: "", l: tr("Optional. A staff member who reported it in person") }].concat(people.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("onBehalfOf")} />{under("onBehalfOf")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Is this about someone in management?")}</Lbl><Sel t={t} aria-label={tr("Is this about someone in management?")} value={f.aboutManagement} onChange={e => set("aboutManagement", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "no", l: tr("No") }, { v: "yes", l: tr("Yes") }]} style={box("aboutManagement")} />{under("aboutManagement")}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Assigned to")}</Lbl><Sel t={t} aria-label={tr("Assigned to")} value={f.assignedTo} onChange={e => set("assignedTo", e.target.value)} options={[{ v: "", l: tr("Nobody yet") }].concat(office.map(p => ({ v: String(p.id), l: nameOf(p) })))} style={box("assignedTo")} />{under("assignedTo")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={send} disabled={busy || !f.summary.trim() || !f.aboutManagement} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Open a case")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   const CASE_STATUSES = ["open", "in_review", "escalated", "resolved", "closed"];
   const OPEN_STATUSES = ["open", "in_review", "escalated"];
   // A case's status and what the log says a person did, as words. Each stays the code it is on the
@@ -17539,6 +17664,12 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
     af("/api/contacts/case-subjects").then(r => setSubjects(r && Array.isArray(r.subjects) ? r.subjects : [])).catch(() => setSubjects([]));
   };
   const closeCase = () => { setDetail(null); setAccessLog([]); };
+  // Step 232: opening a case from the office, and issuing a warning from an open case, once the API's
+  // Step 228 answers; its discipline steps route is the sign.
+  const [officeCases, setOfficeCases] = useState(false);
+  const [opening, setOpening] = useState(false);
+  const [caseWarning, setCaseWarning] = useState(null);
+  useEffect(() => { let alive = true; loadDisciplineSteps(af).then(d => { if (alive) setOfficeCases(d.steps.length > 0); }).catch(() => { if (alive) setOfficeCases(false); }); return () => { alive = false; }; }, [af]);
   // The case's own subject is never offered: the route answers 400 for that choice.
   const escalateOptions = detail ? subjects.filter(p => !detail.subject || String(p.id) !== String(detail.subject.id)) : [];
   const save = async () => {
@@ -17609,7 +17740,9 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
   ];
 
   return (<div>
-    <SecT t={t}>{tr("Cases")}</SecT>
+    <SecT t={t} action={officeCases ? tr("Open a case") : undefined} onAction={officeCases ? () => setOpening(true) : undefined}>{tr("Cases")}</SecT>
+    {opening && <OpenCaseWindow af={af} t={t} allStaff={allStaff} me={user} showToast={showToast} onClose={() => setOpening(false)} onOpened={() => { setOpening(false); load(statusFilter); if (onSaved) onSaved(); }} />}
+    {caseWarning && <WarningWindow af={af} t={t} token={token} isAdmin={!!(user && user.role === "admin")} userId={caseWarning.userId} personName={caseWarning.name} initial={{ caseId: caseWarning.caseId }} showToast={showToast} onClose={() => setCaseWarning(null)} onChanged={() => {}} />}
     <FilterTabs t={t} value={statusFilter} onChange={s => setStatusFilter(s)} tabs={[{ id: "needs_response", label: tr("Needs response") }, { id: "", label: tr("All|cases") }, ...CASE_STATUSES.map(s => ({ id: s, label: statusLabel[s] }))]} />
     {loading && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("Loading cases...")}</div>}
     {!loading && <DataTable t={t} columns={columns} rows={rows} rowKey={c => c.id} onRowClick={openCase} empty={tr("No cases.")} />}
@@ -17638,6 +17771,7 @@ function CasesPage({ af, showToast, t, allStaff = [], user, onSaved }) {
         {holdError && <div style={{ fontSize: 12, color: RD, marginTop: 8 }}>{holdError}</div>}
       </div>); })()}
       <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><div style={{ fontSize: 13, color: t.text, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{detail.summary}</div></div>
+      {officeCases && detail.subject && detail.subject.id != null && OPEN_STATUSES.indexOf(detail.status) >= 0 && <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => setCaseWarning({ userId: String(detail.subject.id), name: detail.subject.name || "", caseId: detail.id })} style={{ minHeight: 44 }} data-case-warning="">{tr("Issue a warning")}</Btn></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14, padding: 12, background: t.cardAlt, borderRadius: 8 }}>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported by")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.reportedBy && detail.reportedBy.name) || "-"}</div></div>
         <div style={{ fontSize: 11, color: t.textMut }}>{tr("Subject named")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{(detail.subject && detail.subject.name) || tr("No")}</div></div>
