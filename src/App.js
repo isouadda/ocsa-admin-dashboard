@@ -315,6 +315,8 @@ const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {
 const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
 const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
 const WsI = p => <Ic d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z" {...p} />;
+const FileI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" {...p} />;
+const UpI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" {...p} />;
 const FolI = p => <Ic d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p} />;
 const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 0 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 0 2 0l.43.25a2 2 0 0 0 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 0 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 0 0-2l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 0-2 0l-.43-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
@@ -4442,6 +4444,97 @@ function MyAssignments({ af, t }) {
   </div>);
 }
 
+// A file's size as people say it.
+const wsSize = (n) => { const b = Number(n); if (!isFinite(b) || b <= 0) return ""; if (b < 1024 * 1024) return tr("{0} KB", Math.max(1, Math.round(b / 1024))); return tr("{0} MB", (b / (1024 * 1024)).toFixed(1)); };
+const WS_FILE_MAX = 25 * 1024 * 1024;
+// A project's file, from GET /api/workspace/files/:fileId with the token: the file itself, opened or
+// saved under its name, or a short-lived signed link the answer gives as { url }, opened. A refusal is
+// thrown with the API's words, the way apiFetch throws one.
+const wsFetchFile = async (token, f, save) => {
+  const r = await apiRequest(API + "/api/workspace/files/" + encodeURIComponent(f.id), { headers: { "Authorization": "Bearer " + (token || "") } });
+  if (r.status === 401) { window.dispatchEvent(new Event("ocsa-session-expired")); throw new Error(tr("Session expired")); }
+  if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.error || tr("Request failed")); err.status = r.status; err.code = e.code; throw err; }
+  if ((r.headers.get("Content-Type") || "").indexOf("application/json") >= 0) {
+    const d = await r.json().catch(() => ({}));
+    const url = d && (d.url || d.signedUrl || d.signed_url);
+    if (!url) throw new Error(tr("Request failed"));
+    window.open(url, "_blank", "noopener");
+    return;
+  }
+  const blob = await r.blob();
+  const url = URL.createObjectURL(blob);
+  if (save) { const a = document.createElement("a"); a.href = url; a.download = f.name || filenameFrom(r.headers.get("Content-Disposition"), "file"); document.body.appendChild(a); a.click(); document.body.removeChild(a); }
+  else window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+};
+
+// Docs and Files, #workspace/<projectId>/files: each file with who added it and when, Open and Download,
+// and Remove for the person who added it, an owner or an admin; Upload adds one file up to 25 MB,
+// POST /api/workspace/projects/:id/files as a form with the file under "file". A larger file is
+// stopped before it is sent; every other refusal is the API's, word for word.
+function FilesView({ af, token, t, p, meId, canManage, writable, showToast }) {
+  const [files, setFiles] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const pickRef = useRef(null);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/projects/" + encodeURIComponent(p.id) + "/files").then(d => setFiles(wsList(d, "files") || [])).catch(e => { setFiles([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, p.id]);
+  useEffect(() => { load(); }, [load]);
+  const upload = async (file) => {
+    if (!file || busy) return;
+    setRefusal("");
+    if (file.size > WS_FILE_MAX) { setRefusal(tr("{0} is over 25 MB. Files up to 25 MB can be added.", file.name)); return; }
+    setBusy("upload");
+    try {
+      const fd = new FormData(); fd.append("file", file, file.name);
+      await apiMultipart("/api/workspace/projects/" + encodeURIComponent(p.id) + "/files", token, fd);
+      if (showToast) showToast(tr("File added."));
+      load();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const open = async (f, save) => {
+    if (busy) return;
+    setBusy("open" + f.id);
+    try { await wsFetchFile(token, f, save); } catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  const remove = async (f) => {
+    if (busy || !window.confirm(tr("Remove {0} from the project?", f.name))) return;
+    setBusy("remove" + f.id);
+    try { await af("/api/workspace/files/" + encodeURIComponent(f.id) + "/remove", { method: "POST", body: {} }); if (showToast) showToast(tr("File removed.")); load(); }
+    catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  const shown = (files || []).filter(x => !wsAt(x, "removedAt", "removed_at")).map(x => ({ id: String(x.id), name: String(wsAt(x, "fileName", "file_name", "name") || ""), size: wsAt(x, "sizeBytes", "size_bytes", "size"), type: String(wsAt(x, "mimeType", "mime_type") || ""), by: wsPerson(wsAt(x, "uploadedBy", "uploaded_by"), p.members), at: wsAt(x, "createdAt", "created_at") }));
+  const small = { minHeight: 44, padding: "4px 10px", fontSize: 12 };
+  return (<div data-ws-files="">
+    <SecT t={t} action={writable ? (busy === "upload" ? tr("Uploading...") : tr("Upload")) : null} onAction={() => { if (busy !== "upload" && pickRef.current) pickRef.current.click(); }} icon={UpI}>{tr("Docs and Files")}</SecT>
+    <input ref={pickRef} type="file" data-ws-file-input="" style={{ display: "none" }} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; upload(f); }} />
+    {writable && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 10 }}>{tr("Documents, images and PDFs, up to 25 MB each.")}</div>}
+    {refusal && <div data-ws-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    {files === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
+      : shown.length === 0 ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No files yet.")}</div></Crd>
+      : <Crd t={t} style={{ padding: "4px 16px" }}>{shown.map((f, i) => { const mayRemove = writable && ((f.by && f.by.id === meId) || canManage); return (
+        <div key={f.id} data-ws-file={f.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <span style={{ width: 34, height: 34, borderRadius: R.sm, background: t.cardAlt, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><FileI sz={16} c={t.textSec} /></span>
+          <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+            <div style={{ fontSize: 14, color: t.text, wordBreak: "break-word" }}>{f.name}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[f.by && f.by.name, wsWhen(f.at), wsSize(f.size)].filter(Boolean).join(", ")}</div>
+          </div>
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => open(f, false)} disabled={!!busy} style={small} data-ws-file-open={f.id}>{tr("Open|verb")}</Btn>
+            <Btn t={t} v="ghost" onClick={() => open(f, true)} disabled={!!busy} style={small} data-ws-file-save={f.id}>{tr("Download")}</Btn>
+            {mayRemove && <Btn t={t} v="ghost" onClick={() => remove(f)} disabled={!!busy} style={small} data-ws-file-remove={f.id}>{tr("Remove")}</Btn>}
+          </div>
+        </div>); })}</Crd>}
+  </div>);
+}
+
 // A project's page, #workspace/<projectId>: its name, description and members, Email me copies for a
 // member, Edit, Members and Archive for an owner or an admin, then the four tools as cards and the
 // project's Activity under them. #workspace/<projectId>/<tool> opens a tool in place of the cards.
@@ -4496,7 +4589,7 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
   const openChat = async () => {
     let id = p.channelId;
     if (!id) {
-      try { const list = await af("/api/chat/channels"); const hit = (Array.isArray(list) ? list : []).find(c => c && c.type === "project" && String(wsAt(c, "projectId", "project_id")) === p.id); id = hit ? String(hit.id) : ""; }
+      try { const list = await af("/api/chat/channels"); const hit = (Array.isArray(list) ? list : []).find(c => c && c.id != null && c.type === "project" && String(wsAt(c, "projectId", "project_id")) === p.id); id = hit ? String(hit.id) : ""; }
       catch (e) { console.warn("Project chat:", e.message); }
     }
     if (id) window.location.hash = "chat/" + id;
@@ -4505,6 +4598,7 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
   const toolTitle = { posts: tr("Message Board"), todos: tr("To-dos"), files: tr("Docs and Files") }[tool] || "";
   const toolView = tool === "posts" ? (sub ? <PostView af={af} t={t} p={p} postId={sub} meId={meId} isAdmin={isAdmin} canManage={canManage} writable={writable} showToast={showToast} /> : <PostsView af={af} t={t} p={p} writable={writable} showToast={showToast} />)
     : tool === "todos" ? (sub ? <TodoView af={af} t={t} p={p} todoId={sub} meId={meId} isAdmin={isAdmin} writable={writable} showToast={showToast} /> : <TodosView af={af} t={t} p={p} meId={meId} writable={writable} showToast={showToast} />)
+    : tool === "files" ? <FilesView af={af} token={token} t={t} p={p} meId={meId} canManage={canManage} writable={writable} showToast={showToast} />
     : null;
   const counts = p.counts;
   const num = (...vs) => { for (const v of vs) { if (v != null && isFinite(Number(v))) return Number(v); } return null; };
@@ -4568,11 +4662,11 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
   </div>);
 }
 
-// Messages: the general chat and every site chat on top, then direct messages between office people
-// (Step 213), then private conversations. Under 700 pixels the list and the conversation stack, the
-// list hidden once a conversation is open, with Back. Unread counts come from the API's unreadCount,
-// and opening a conversation marks it read (Step 179; the read route arriving with it, its refusal is
-// quiet until then).
+// Messages: the general chat, every site chat and each project's chat (Step 235) on top, then direct
+// messages between office people (Step 213), then private conversations. Under 700 pixels the list
+// and the conversation stack, the list hidden once a conversation is open, with Back. Unread counts
+// come from the API's unreadCount, and opening a conversation marks it read (Step 179; the read route
+// arriving with it, its refusal is quiet until then).
 function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, people = [] }) {
   const [channels, setChannels] = useState([]);
   // Step 213: everyone the office can write to, from GET /api/chat/people, or null until it answers.
@@ -4726,7 +4820,7 @@ function ChatPage({ af, user, t, showToast, route = [], onRead, phone = false, p
   const toStart = canStart && needle && !dmsFailed ? (found || []).filter(p => p && p.userId != null && !hasChatWith(p)) : [];
   const pickWaiting = (p) => { setSel(null); setTagOpen(false); setMentions([]); setWaiting({ id: p.id, name: personName(p) }); };
   const shownChannels = channels.filter(c => (c.name || "").toLowerCase().includes(q.trim().toLowerCase()));
-  const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : tr("General chat"));
+  const channelKind = (c) => (c && c.type === "site" ? tr("Site channel") : c && c.type === "project" ? tr("Project chat") : tr("General chat"));
   const unreadPill = (n) => (n > 0 ? <span style={{ minWidth: 18, height: 18, padding: "0 5px", borderRadius: 9, background: GO, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 600, color: NAVY, flexShrink: 0 }}>{n}</span> : null);
   const showList = !phone || (!sel && !waiting);
   const showTalk = !phone || !!sel || !!waiting;
