@@ -118,7 +118,8 @@ Who can do this: admins
 3. Click **Assign**.
 4. Choose the site, and the role, shift and times if you know them.
 5. Click **Assign** to save.
-Last checked: 2026-09-16
+If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Last checked: 2026-10-01
 
 ## Add a certification to a staff member (admin dashboard)
 Who can do this: admins
@@ -198,7 +199,8 @@ Who can do this: admins and supervisors
 3. Choose the staff member and the site, and set the start and end times.
 4. Add the building, floor, service or notes if needed.
 5. Click **Schedule Shift** at the bottom of the window to save it.
-Last checked: 2026-09-16
+If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Last checked: 2026-10-01
 
 ## Schedule a shift that repeats (admin dashboard)
 Who can do this: admins and supervisors
@@ -208,9 +210,9 @@ Who can do this: admins and supervisors
 4. Choose how long it repeats. **No end date** keeps it going until someone ends it. **Until** stops on a date you pick. **For** adds a set number of weeks.
 5. Save with the button at the bottom of the window.
 6. With **No end date** or **Until**, the app keeps the schedule filled 8 weeks ahead and keeps extending it. The shifts it adds say **Repeats**.
-If it does not work: for a shift that runs past midnight, pick the day it starts. If the person is already scheduled at that time on some dates, those dates are skipped and listed.
+If it does not work: for a shift that runs past midnight, pick the day it starts. If the person is already scheduled at that time on some dates, those dates are skipped and listed. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
 Words people use for this: weekly schedule, recurring shift, same shift every week, standing schedule, set up a pattern.
-Last checked: 2026-09-17
+Last checked: 2026-10-01
 
 ## See or change a weekly pattern (admin dashboard)
 Who can do this: admins and supervisors
@@ -218,8 +220,8 @@ Who can do this: admins and supervisors
 2. Narrow the list by person or site if needed, and click the pattern.
 3. Change the days, the times or the details, choose the date the change starts, and save.
 4. Shifts before that date stay as they are. Shifts someone changed or cancelled by hand are kept.
-If it does not work: if it says nothing changed yet, change at least one field before saving.
-Last checked: 2026-09-16
+If it does not work: if it says nothing changed yet, change at least one field before saving. At a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Last checked: 2026-10-01
 
 ## End a weekly pattern (admin dashboard)
 Who can do this: admins and supervisors
@@ -235,7 +237,8 @@ Who can do this: admins and supervisors
 3. To take it off the schedule, click **Cancel shift** (**Cancelar turno**) and confirm. The shift is kept as cancelled; nothing is deleted.
 4. To post it for someone else to take, click **Pickup**, give a reason, and click **Confirm Convert**.
 5. A shift marked **Repeats** comes from a weekly pattern. Changing it changes that date only, and its button reads **Cancel this date** (**Cancelar esta fecha**), which cancels that one date.
-Last checked: 2026-09-28
+If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Last checked: 2026-10-01
 
 ## Approve or deny a request to drop a shift (admin dashboard)
 Who can do this: admins and supervisors
@@ -259,7 +262,8 @@ Last checked: 2026-09-17
 Who can do this: admins and supervisors
 1. Click **Shift Pickup**.
 2. Find the claimed shift and click **Approve**. It is added to that person's schedule, and they get a notice.
-Last checked: 2026-09-16
+If it does not work: at a school site, a person whose clearances are missing or out of date is refused, and **Clearances missing** (**Faltan autorizaciones escolares**) says whose and which; see When a person's clearances are missing.
+Last checked: 2026-10-01
 
 ## Approve or deny a supply request (admin dashboard)
 Who can do this: admins and supervisors
@@ -960,3 +964,65 @@ Who can do this: admins and supervisors
 If it does not work: if **Your message did not send.** (**Su mensaje no se envió.**) shows, press Enter again without changing the words; the message is sent once. A direct chat has no tag button, since the other person is alerted to every message.
 Words people use for this: direct message, dm, message another admin, message a supervisor, office chat, chat between admins, mensaje directo.
 Last checked: 2026-09-30
+
+## Record a person's school clearances (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **HR Records** (**Expedientes de personal**) in the side panel and click the person on **Employees** (**Personal**). Or click the person on **Clearances** (**Autorizaciones escolares**).
+2. **Clearances** (**Autorizaciones escolares**) is at the top of their record: the **Act 34 PA State Police check** (**Verificación de la Policía Estatal (Act 34)**), the **Act 151 child abuse clearance** (**Autorización de abuso infantil (Act 151)**) and the **FBI fingerprint check** (**Verificación de huellas del FBI**), each with the day it was issued, the day it expires and its state: **Current** (**Vigente**), **Expiring** (**Por vencer**) within 90 days, **Expired** (**Vencida**) or **Missing** (**Falta**). Each is renewed every 60 months from its own date.
+3. To add one or record a renewal, click **Add or renew** (**Agregar o renovar**) on it. Enter the date on the certificate under **Issued on** (**Emitida el**), pick the scanned copy under **Document** (**Documento**) if it is in the person's HR documents, add **Notes** (**Notas**) if needed, and click **Save** (**Guardar**). The one there before stays, listed under History.
+4. For the **Act 168 employment history review** (**Revisión del historial laboral (Act 168)**), click **Record the review** (**Registrar la revisión**), enter **Completed on** (**Hecha el**), answer **Anything disclosed?** (**¿Se divulgó algo?**), and click **Save** (**Guardar**).
+If it does not work: a date in the future is refused, and the line under the date says so. When the certificate is not in the **Document** (**Documento**) list, add it first with **+ Add Document** (**+ Agregar documento**).
+Words people use for this: school clearances, act 34, act 151, fbi fingerprints, child abuse clearance, act 168, renew a clearance, autorizaciones escolares.
+Last checked: 2026-10-01
+
+## Correct a clearance date entered wrongly (admin dashboard)
+Who can do this: admins and supervisors
+1. Open the person's record in **HR Records** (**Expedientes de personal**) and find the clearance under **Clearances** (**Autorizaciones escolares**).
+2. Click **Correct a date** (**Corregir una fecha**).
+3. Enter **The right date** (**La fecha correcta**) and the **Reason** (**Motivo**), and click **Save** (**Guardar**). The expiry is worked out again from the right date, the correction is recorded with your reason, and it shows under the clearance.
+4. A correction never puts anyone on work by itself. Once the date is right, try the assignment again.
+If it does not work: a reason is required, from 5 to 500 characters, and the line under it says what is wrong. For a new certificate, use **Add or renew** (**Agregar o renovar**) instead.
+Words people use for this: wrong clearance date, fix a clearance, typo in a clearance date, correct an expiry, corregir una fecha.
+Last checked: 2026-10-01
+
+## See everyone's clearances and export them for a school (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Clearances** (**Autorizaciones escolares**) in the side panel, under HR Records.
+2. Everyone is listed with the soonest expiry first, and a missing clearance before all. **School site** (**Sitio escolar**) says who works at a school site.
+3. Narrow the list with the state filter, from **Every active person** (**Todas las personas activas**) to **Everyone, inactive and terminated included** (**Todos, incluidas las personas inactivas y dadas de baja**), or with a site.
+4. Click a row to open that person's clearances.
+5. To give a school its people's clearances, pick the site and click **Export for a school** (**Exportar para una escuela**). The file lists each person's name, badge number, clearance dates and Act 168 review date, and every export is recorded.
+If it does not work: **Export for a school** (**Exportar para una escuela**) waits until a site is picked.
+Words people use for this: clearance report, who is expiring, expired clearances, school district list, export clearances, autorizaciones vencidas.
+Last checked: 2026-10-01
+
+## When a person's clearances are missing (admin dashboard)
+Who can do this: admins and supervisors
+1. At a school site, scheduling a shift, setting up or changing a weekly pattern, assigning someone to the site, approving a claimed shift, or giving a shift to someone else is refused while the person's clearances are not in order.
+2. **Clearances missing** (**Faltan autorizaciones escolares**) opens over the screen and says whose clearances, and which are **Missing or out of date:** (**Faltan o están vencidas:**). Nobody works at a school site without current clearances, so there is no way to assign them anyway.
+3. Click **Open the clearances of {0}** (**Abrir las autorizaciones de {0}**) to go to that person's clearances.
+4. Record the renewed clearance with **Add or renew** (**Agregar o renovar**). When a date was entered wrongly, fix it with **Correct a date** (**Corregir una fecha**). Then go back and try the assignment again.
+5. In the meantime, give the work to someone whose clearances are current.
+Words people use for this: clearances missing, cannot schedule at a school, school site blocked, act 34 missing, fbi expired, faltan autorizaciones.
+Last checked: 2026-10-01
+
+## Record when the annual summary was posted, and download it for OSHA (admin dashboard)
+Who can do this: people given Keep the injury log, admins by default; company details need Company settings
+1. Click **Reports** (**Informes**), then under **Safety records** (**Registros de seguridad**) click **Open** (**Abrir**) on **Annual summary** (**Resumen anual**), and pick the **Year** (**Año**).
+2. Under **Posting** (**Publicación**), set **Posted on** (**Publicado el**) to the day the summary went up, and click **Save** (**Guardar**). It stays up from February 1 to April 30.
+3. Click **Download for OSHA** (**Descargar para OSHA**) for the file OSHA's Injury Tracking Application takes, and file it there by March 2.
+4. The summary prints the company's industry description, NAICS code and the executive's name, title and phone. Set them under **Settings** (**Configuración**), **Company** (**Empresa**), **OSHA 300A** (**OSHA 300A**), and click Save Changes. A blank one prints as a line to fill in by hand.
+If it does not work: **The posting date did not save. Try again.** (**La fecha de publicación no se guardó. Intente de nuevo.**) means the summary still holds the date it had before; save it again. The **NAICS code** (**Código NAICS**) takes six digits.
+Words people use for this: osha 300a, ita, injury tracking application, electronic filing, posting date, naics code, osha upload, descargar para osha.
+Last checked: 2026-10-01
+
+## File the product and equipment performance evaluation (admin dashboard)
+Who can do this: supervisors and admins, for the forms the server lets them start
+1. Click **Forms** (**Formularios**). On **Filed forms** (**Formularios presentados**), click **Start a form** (**Iniciar un formulario**), then the product and equipment performance evaluation, OCSA-PUR-008.
+2. Under **Which site is this for?** (**¿Para qué sitio es este reporte?**), pick the site, or **No particular site** (**Ningún sitio en particular**).
+3. Work through its nine sections: the evaluation details, the case for the product, the screening against the selection criteria, the trial design, the trial results by site, the cost in use, the worker feedback, the decision, and the sign-off and filing. **Next** (**Siguiente**) saves each section.
+4. The screening, the trial results and the cost in use are tables; add a line with **Add row** (**Agregar fila**). The sign-off opens the signature box with **Sign** (**Firmar**).
+5. On **Review** (**Revisar**), click **Send** (**Enviar**) and confirm.
+If it does not work: when the evaluation is not in the list of forms, the server does not offer it yet, or your account cannot start it.
+Words people use for this: product evaluation, equipment trial, chemical trial, pur-008, purchasing evaluation, evaluación de productos.
+Last checked: 2026-10-01
