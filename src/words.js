@@ -3126,6 +3126,8 @@ export const WORDS = {
   "Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.": { es: "Qu\u00e9 sitios activos tienen un plan de carga de trabajo, con sus horas y su personal. Una fila abre el plan del sitio." },
   "Photos of the whole inspection": { es: "Fotos de toda la inspecci\u00f3n" },
   "Signed by {0}, {1}": { es: "Firmado por {0}, {1}" },
+  "No rows yet. Add a row to price it.": { es: "Todav\u00eda no hay filas. Agregue una para cotizarla." },
+  "The equipment, supplies and other direct costs lists start every new quote with the rows set here, or with none.": { es: "Las listas de equipo, suministros y otros costos directos empiezan cada cotizaci\u00f3n nueva con las filas que se fijen aqu\u00ed, o sin ninguna." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

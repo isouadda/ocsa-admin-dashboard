@@ -9932,7 +9932,7 @@ function QuoteList({ t, list, rows, setRows, total, refusal, readOnly }) {
     {list.help ? <div style={{ fontSize: 11, color: t.textMut, margin: "2px 0 6px", lineHeight: 1.4 }}>{builderText(list.help)}</div> : null}
     <div style={{ overflowX: "auto" }}><table style={{ borderCollapse: "collapse", width: "100%", minWidth: 560 }}>
       <thead><tr>{(list.columns || []).map(c => <th key={c.key} style={thSt}>{builderText(c.label)}</th>)}{!readOnly && <th style={thSt}></th>}</tr></thead>
-      <tbody>{rows.length === 0 && <tr><td colSpan={(list.columns || []).length + 1} style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("No rows.")}</td></tr>}
+      <tbody>{rows.length === 0 && <tr><td colSpan={(list.columns || []).length + 1} data-quote-list-empty="" style={{ padding: 14, fontSize: 12, color: t.textMut }}>{readOnly ? tr("No rows.") : tr("No rows yet. Add a row to price it.")}</td></tr>}
         {rows.map((r, i) => { const d = r.key ? defaults[r.key] : null; return (<tr key={r._id || i} style={{ borderTop: "1px solid " + t.border }}>
           {(list.columns || []).map(c => {
             const lab = builderText(c.label);
@@ -9956,12 +9956,12 @@ function QuoteList({ t, list, rows, setRows, total, refusal, readOnly }) {
 // One step of the model: its sections in order, each with its inputs, a table where the section has
 // rows and columns, and the list that shares its key. The Workload step draws the task lines, and
 // Equipment and supplies the lists no section holds.
-function QuoteStep({ t, model, group, est, filled, calc, set, setTask, setList, refusal, readOnly, ratesOnly }) {
+function QuoteStep({ t, model, group, est, filled, calc, set, setTask, setList, refusal, readOnly, ratesOnly, withLists }) {
   const refusedText = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
   const sections = group.sections || [];
   const inSection = (s) => (group.inputs || []).filter(i => i.section === s.key);
   const loose = (group.inputs || []).filter(i => !sections.some(s => s.key === i.section));
-  const lists = ratesOnly ? [] : (model.lists || []);
+  const lists = ratesOnly && !withLists ? [] : (model.lists || []);
   const listsHere = (sectionKey) => lists.filter(l => { const h = quoteListHome(model, l); return h.group === group.key && h.section === sectionKey; });
   const results = (calc && calc.results) || {};
   const grid = (inputs) => (<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14 }}>
@@ -10470,6 +10470,13 @@ function QuoteSendWindow({ af, t, quote, onClose, onSent }) {
 // inputs and the task lines' rates are grouped as on the quote, each box empty until the company sets
 // it and showing greyed the model's own value it takes until then. A quote already made keeps its own
 // values. The days a quote stays valid and the terms in English and Spanish go on the client's PDF.
+// Step 218: the equipment, supplies and other direct costs lists are drawn as the quote draws them,
+// starting from defaults.lists as the API answers it and blank when it holds none, and saved in
+// defaults.lists. Each list's total is the API's, worked by the calculate route from the rows. They
+// show once the model's lists carry no starting rows of their own (QUOTE_STARTER_LISTS.md, the API's
+// Step 215); before that a list sent here would take the place of the model's rows, so the panel
+// sends back the lists it was given, as it always has.
+const quoteListsInDefaults = (model) => !!(model && Array.isArray(model.lists) && model.lists.length > 0 && model.lists.every(l => !(Array.isArray(l.defaults) && l.defaults.length > 0)));
 function QuoteDefaultsPanel({ af, t, showToast, initial }) {
   const [model, setModel] = useState(null);
   const [held, setHeld] = useState(initial || null);
@@ -10480,36 +10487,63 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
   const [refusal, setRefusal] = useState(null);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
-  const takeHeld = (h) => {
+  // The lists' totals, worked by POST /api/quotes/calculate from the rows 400 ms after typing stops,
+  // and a refusal of those rows.
+  const [listCalc, setListCalc] = useState(null);
+  const [listRefusal, setListRefusal] = useState(null);
+  const [listEdits, setListEdits] = useState(0);
+  const estRef = useRef(null);
+  estRef.current = est;
+  const takeHeld = (h, m) => {
     const d = (h && h.defaults) || {};
+    // Every list of the model, so one emptied is sent as [] and starts every new quote empty.
+    const held = quoteEstimateIn({ lists: d.lists || {} }).lists;
+    const lists = {};
+    ((m && m.lists) || []).forEach(l => { lists[l.key] = held[l.key] || []; });
     setHeld(h);
-    setEst({ values: Object.assign({}, d.values || {}), tasks: Object.keys(d.tasks || {}).reduce((m, k) => Object.assign(m, { [k]: Object.assign({}, d.tasks[k]) }), {}), lists: {} });
+    setEst({ values: Object.assign({}, d.values || {}), tasks: Object.keys(d.tasks || {}).reduce((acc, k) => Object.assign(acc, { [k]: Object.assign({}, d.tasks[k]) }), {}), lists });
     setForm({ validDays: h && h.validDays != null ? String(h.validDays) : "", termsEn: (h && h.termsEn) || "", termsEs: (h && h.termsEs) || "" });
+    setListEdits(n => n + 1);
   };
   const load = useCallback(async () => {
     setFailed("");
     try {
       const [m, h] = await Promise.all([af("/api/quotes/model"), af("/api/quotes/defaults")]);
       if (!m || !Array.isArray(m.groups)) throw new Error(tr("This did not load."));
-      setModel(m); takeHeld(h);
+      setModel(m); takeHeld(h, m);
     } catch (e) { setFailed(e.message || tr("This did not load.")); console.warn("Quote defaults:", e.message); }
   }, [af]);
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!listEdits || !quoteListsInDefaults(model) || !estRef.current) return undefined;
+    let alive = true;
+    const h = setTimeout(() => {
+      const lists = quoteEstimateOut(model, { values: {}, tasks: {}, lists: estRef.current.lists }, null).lists;
+      af("/api/quotes/calculate", { method: "POST", body: { inputs: { lists } } })
+        .then(c => { if (alive) { setListCalc(c && c.results ? c.results : null); setListRefusal(null); } })
+        .catch(e => { if (alive) setListRefusal({ text: e.message || tr("Request failed"), keys: quoteKeysOf(e) }); });
+    }, 400);
+    return () => { alive = false; clearTimeout(h); };
+  }, [listEdits, model, af]);
   if (failed) return <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>;
   if (!model || !est) return <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>;
   // The model's own values, which a box left empty takes, shown greyed in it.
   const own = { values: {}, tasks: {} };
   model.groups.forEach(g => (g.inputs || []).forEach(i => { own.values[i.key] = i.default; }));
-  const groups = model.groups.filter(g => (g.inputs || []).length > 0 || g.key === QUOTE_TASK_STEP);
+  const listsOn = quoteListsInDefaults(model);
+  const groups = model.groups.filter(g => (g.inputs || []).length > 0 || g.key === QUOTE_TASK_STEP || (listsOn && (model.lists || []).some(l => quoteListHome(model, l).group === g.key)));
   const g = groups[Math.min(step, groups.length - 1)];
   const set = (k, v) => setEst(e => Object.assign({}, e, { values: Object.assign({}, e.values, { [k]: v }) }));
   const setTask = (k, patch) => setEst(e => Object.assign({}, e, { tasks: Object.assign({}, e.tasks, { [k]: Object.assign({}, e.tasks[k] || {}, patch) }) }));
+  const setList = (k, rows) => { setEst(e => Object.assign({}, e, { lists: Object.assign({}, e.lists, { [k]: rows }) })); setListEdits(n => n + 1); };
+  const shownRefusal = refusal || listRefusal;
   const refusedText = (k) => (refusal && refusal.keys.indexOf(k) >= 0 ? refusal.text : "");
   const save = async () => {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(true); setRefusal(null);
     // What the company holds, with the boxes laid over it: a box left empty is left out, so the model's
-    // own value stands for it. Anything the page does not draw, a list or a task's frequency, is kept.
+    // own value stands for it. A task's frequency, which the page does not draw, is kept. The lists are
+    // sent as they stand, each row with key null.
     const heldDefaults = (held && held.defaults) || {};
     const byKey = {};
     model.groups.forEach(x => (x.inputs || []).forEach(i => { byKey[i.key] = i; }));
@@ -10530,14 +10564,14 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
       if (Object.keys(out).length > 0) tasks[k] = out;
     });
     const body = {
-      defaults: { values, tasks, lists: heldDefaults.lists || {} },
+      defaults: { values, tasks, lists: listsOn ? quoteEstimateOut(model, { values: {}, tasks: {}, lists: est.lists }, null).lists : (heldDefaults.lists || {}) },
       validDays: form.validDays.trim() === "" ? undefined : (isFinite(Number(form.validDays)) ? Number(form.validDays) : form.validDays),
       termsEn: form.termsEn.trim() || null,
       termsEs: form.termsEs.trim() || null,
     };
     try {
       const h = await af("/api/quotes/defaults", { method: "PUT", body });
-      takeHeld(h);
+      takeHeld(h, model);
       if (showToast) showToast(tr("Quote defaults saved."));
     } catch (e) {
       const keys = quoteKeysOf(e);
@@ -10554,6 +10588,7 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
         <div style={{ flex: "1 1 320px", minWidth: 0 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{tr("Quote defaults")}</div>
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The starting values every new quote takes. A box left empty takes the model's own value, shown greyed. A quote already made keeps its own values.")}</div>
+          {listsOn && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4, lineHeight: 1.5 }}>{tr("The equipment, supplies and other direct costs lists start every new quote with the rows set here, or with none.")}</div>}
           {held && held.updatedAt && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{who ? tr("Last saved by {0} on {1}.", who, irWhen(held.updatedAt)) : tr("Last saved on {0}.", irWhen(held.updatedAt))}</div>}
         </div>
         <Btn t={t} onClick={save} disabled={saving} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : tr("Save")}</Btn>
@@ -10568,9 +10603,9 @@ function QuoteDefaultsPanel({ af, t, showToast, initial }) {
       </div>
       <div style={{ fontSize: 11, color: t.textMut, marginTop: 6, lineHeight: 1.4 }}>{tr("The terms print on the client's PDF. A Spanish PDF prints the English terms while no Spanish is saved.")}</div>
     </Crd>
-    <QuoteStepButtons t={t} model={model} groups={groups} step={Math.min(step, groups.length - 1)} onStep={setStep} refusal={refusal} checks={null} />
+    <QuoteStepButtons t={t} model={model} groups={groups} step={Math.min(step, groups.length - 1)} onStep={setStep} refusal={shownRefusal} checks={null} />
     <Crd t={t}>
-      {g && <QuoteStep t={t} model={model} group={g} est={est} filled={own} calc={null} set={set} setTask={setTask} setList={() => {}} refusal={refusal} readOnly={false} ratesOnly />}
+      {g && <QuoteStep t={t} model={model} group={g} est={est} filled={own} calc={{ results: listCalc || {}, taskDetail: null, taskHours: null }} set={set} setTask={setTask} setList={setList} refusal={shownRefusal} readOnly={false} ratesOnly withLists={listsOn} />}
     </Crd>
   </div>);
 }
