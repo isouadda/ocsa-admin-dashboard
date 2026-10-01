@@ -631,7 +631,7 @@ export default function AdminDashboard() {
     if (!token) { setClearancesOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
-    af("/api/discipline").then(d => { if (alive) setDisciplineOn(!!(d && Array.isArray(d.warnings) && d.counts)); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
+    af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
   useEffect(() => {
@@ -12093,8 +12093,14 @@ const HR_CATEGORY_OPTS = [
   { v: "vendor", l: "Vendor / W-9" },
   { v: "operational", l: "Operational" },
   { v: "safety", l: "Safety / Incident" },
+  { v: "disciplinary", l: "Disciplinary" },
   { v: "other", l: "Other" },
 ];
+// Step 232: Disciplinary is a folder category once the API's Step 228 holds it, which files the old
+// warning forms there; the shell sets this when the discipline routes answer. Until then the pickers
+// do not offer it, though a document already filed there still reads its word.
+let disciplinaryCategoryLive = false;
+const hrCategoryPickable = (c, current) => c.v !== "disciplinary" || disciplinaryCategoryLive || current === "disciplinary";
 
 const HR_CATEGORY_LABEL = (v) => (HR_CATEGORY_OPTS.find(c => c.v === v) || { l: v }).l;
 
@@ -12111,6 +12117,7 @@ const hrCategoryColor = (k) => ({
   vendor: OR,
   operational: GOLD,
   safety: RD,
+  disciplinary: RD,
   other: "#94A3B8",
 })[k];
 
@@ -14874,7 +14881,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // Session 22: hoisted to module scope as HR_CATEGORY_OPTS so HR Records can share it.
   // The Training value was added in Session 22; existing FormsPage UI still works unchanged. Each
   // category is drawn as the table's word for it, the way HR Records draws them; the code is sent.
-  const CATEGORY_OPTS = HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }));
+  const CATEGORY_OPTS = HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c)).map(c => ({ v: c.v, l: tr(c.l) }));
 
   const STATUS_OPTS = [
     { v: "", l: tr("All statuses") },
@@ -17160,14 +17167,53 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
   </div></Mdl>);
 }
 
+// Add to the record (admins): a warning filed on the old form that is not on the record yet, entered as a
+// closed entry dated when it was given and linked to its original PDF, with no signature, delivery or
+// email (POST /api/discipline/record-past). The date starts as the form's.
+function PastWarningWindow({ af, t, userId, name, item, steps, onClose, onSaved, showToast }) {
+  const [f, setF] = useState({ type: "", actionDate: item && item.submittedAt ? String(item.submittedAt).slice(0, 10) : "", summary: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const send = async () => {
+    if (busy || !f.type || !f.actionDate || !f.summary.trim()) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      await af("/api/discipline/record-past", { method: "POST", body: { userId, type: f.type, actionDate: f.actionDate, summary: f.summary.trim(), jotformSubmissionId: item.submissionId } });
+      if (showToast) showToast(tr("Added to the record."));
+      onSaved();
+    } catch (e) { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => k === "type" || k === "actionDate" || k === "summary") || "" }); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-past-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-past-warning="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add to the record")}</div>{name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A warning already given on the old form, entered on the record as it was, with no signature or delivery.")}</div>
+    {refusal.text && !refusal.field && <div data-past-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Step")}</Lbl><Sel t={t} aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(WARNING_STEPS.map(s => ({ v: s, l: warningStepWord(s, steps.steps) })))} style={refusal.field === "type" ? { borderColor: RD } : {}} />{under("type")}</div>
+      <div><Lbl>{tr("Date given")}</Lbl><Inp t={t} type="date" aria-label={tr("Date given")} value={f.actionDate} onChange={e => set("actionDate", e.target.value)} style={refusal.field === "actionDate" ? { borderColor: RD } : {}} />{under("actionDate")}</div>
+    </div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Summary")}</Lbl><TArea t={t} rows={3} aria-label={tr("Summary")} value={f.summary} onChange={e => set("summary", e.target.value)} style={refusal.field === "summary" ? { borderColor: RD } : {}} />{under("summary")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={send} disabled={busy || !f.type || !f.actionDate || !f.summary.trim()} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Add to the record")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
 // A person's Disciplinary card in their HR Records folder: the counts in the last 12 months by step,
 // every warning newest first (step, category, date, status, how it was delivered, signed or declined,
 // a rescinded one struck through with its reason), and Issue a warning with the suggested next step
 // picked. A row opens the warning. Nothing shows until GET /api/discipline/person/:userId answers.
-function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToast, refreshKey = 0, onIssueDone }) {
+function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToast, refreshKey = 0, onIssueDone, onOpenPdf }) {
   const [data, setData] = useState(null);
   const [steps, setSteps] = useState({ steps: [], categories: [] });
   const [win, setWin] = useState(null);
+  const [past, setPast] = useState(null);
   const [again, setAgain] = useState(0);
   useEffect(() => {
     let alive = true;
@@ -17194,7 +17240,9 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
       <div style={{ fontSize: 11, color: t.textMut, marginBottom: 10 }}>{tr("Counted over the last 12 months. The handbook sets no lookback.")}</div>
       {history.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No warnings on record.")}</div> : history.map((w, i) => {
         const gone = warningRescinded(w);
-        return (<button key={w.id || i} data-warning-row={w.id || i} onClick={() => setWin({ row: w, initial: {} })} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", borderTop: i ? "1px solid " + t.border : "none", padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
+        const pdfId = w.originalPdf && w.originalPdf.submissionId != null ? String(w.originalPdf.submissionId) : "";
+        return (<div key={w.id || i} style={{ display: "flex", alignItems: "flex-start", gap: 8, borderTop: i ? "1px solid " + t.border : "none" }}>
+        <button data-warning-row={w.id || i} onClick={() => setWin({ row: w, initial: {} })} style={{ display: "block", flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: "10px 0", cursor: "pointer", minHeight: 44 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <span style={{ fontSize: 13, fontWeight: 600, color: gone ? t.textMut : t.text, textDecoration: gone ? "line-through" : "none" }}>{warningStepWord(w.type || w.action_type, steps.steps)}</span>
             <Bdg l={warningStatusWord(w.status)} c={gone ? RD : w.status === "draft" ? OR : GR} />
@@ -17202,9 +17250,20 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
           <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, textDecoration: gone ? "line-through" : "none" }}>{line(w)}</div>
           <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{[delivered(w), w.declinedToSign ? tr("Declined to sign") : w.signed ? tr("Signed") : ""].filter(Boolean).join(". ")}</div>
           {gone && (w.rescindReason || w.rescind_reason) ? <div style={{ fontSize: 11, color: RD, marginTop: 2 }}>{tr("Rescinded: {0}", w.rescindReason || w.rescind_reason)}</div> : null}
-        </button>);
+        </button>
+        {pdfId && onOpenPdf ? <Btn t={t} v="ghost" onClick={() => onOpenPdf(pdfId)} data-original-form={pdfId} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, marginTop: 6 }}>{tr("Original form")}</Btn> : null}
+        </div>);
       })}
+      {Array.isArray(data.notOnRecord) && data.notOnRecord.length > 0 && <div data-not-on-record="" style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid " + t.border }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Filed on the old form, not on the record yet")}</div>
+        {data.notOnRecord.map((n, i) => (<div key={n.submissionId || i} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0" }}>
+          <span style={{ flex: "1 1 120px", fontSize: 12, color: t.textSec }}>{n.submittedAt ? irDay(n.submittedAt) : "--"}</span>
+          {onOpenPdf ? <Btn t={t} v="ghost" onClick={() => onOpenPdf(String(n.submissionId))} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Original form")}</Btn> : null}
+          {isAdmin && <Btn t={t} onClick={() => setPast(n)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }} data-add-to-record={n.submissionId}>{tr("Add to the record")}</Btn>}
+        </div>))}
+      </div>}
     </div>
+    {past && <PastWarningWindow af={af} t={t} userId={userId} name={name} item={past} steps={steps} showToast={showToast} onClose={() => setPast(null)} onSaved={() => { setPast(null); setAgain(n => n + 1); }} />}
     {win && <WarningWindow af={af} t={t} token={token} isAdmin={isAdmin} userId={userId} personName={name} person={data.person || null} row={win.row} initial={win.initial} showToast={showToast} onClose={() => setWin(null)} onChanged={() => { setAgain(n => n + 1); if (onIssueDone) onIssueDone(); }} />}
   </Crd>);
 }
@@ -17379,7 +17438,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
 
       <PersonEmployment af={af} t={t} userId={userId} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
-      <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} />
+      <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -17456,7 +17515,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
                         title={it.category_override ? tr("Override active. Pick blank to revert to form default.") : tr("Inheriting form's category. Pick a value to override.")}
                       >
                         <option value="">{it.category_override ? tr("(use form default)") : tr("Form default: {0}", tr(HR_CATEGORY_LABEL(it.category)))}</option>
-                        {HR_CATEGORY_OPTS.map(c => <option key={c.v} value={c.v}>{tr(c.l)}</option>)}
+                        {HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, it.category_override)).map(c => <option key={c.v} value={c.v}>{tr(c.l)}</option>)}
                       </select>
                     ) : (
                       <span style={{ padding: "3px 8px", borderRadius: 6, background: catColor + "1A", color: catColor, fontSize: 11, fontWeight: 600 }}>{tr(HR_CATEGORY_LABEL(it.category))}</span>
@@ -18321,7 +18380,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Employee")}</div>
             {employeeField(staffOpts.filter(s => s.v))}</div>
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Category")}</div>
-            <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
+            <Sel options={[{ v: "", l: tr("Select category...") }, ...HR_CATEGORY_OPTS.filter(c => hrCategoryPickable(c, form.category)).map(c => ({ v: c.v, l: tr(c.l) }))]} value={form.category || ""} onChange={e => setForm({ ...form, category: e.target.value })} t={t} /></div>
           {!form.id && (<div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Upload File")}</div>
             <input type="file" onChange={e => setFile(e.target.files[0])} style={{ fontSize: 13, color: t.text }} /></div>)}
           <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Expiry Date (optional)")}</div>
