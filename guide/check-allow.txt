@@ -28,7 +28,6 @@
 **Field Lead, reviewed** (**Encargado de campo, revisado**)
 
 # Form wording, from the entry Move a corrective action forward and close it.
-**Closed** (**Cerrada**)
 **What was completed** (**Qu\u00e9 se concluy\u00f3**)
 **Actions confirmed in place** (**Acciones confirmadas en su lugar**)
 **Approval** (**Aprobaci\u00f3n**)

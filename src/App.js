@@ -1060,7 +1060,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} />}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -1412,8 +1412,9 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
 }
 
 // HR Records' person folder: the same card, read only, with a link to the person in Staff Management,
-// where the buttons are. Nothing shows until the employment route answers this person's reader.
-function PersonEmployment({ af, t, userId }) {
+// where the buttons are, for a reader who can open that page. Nothing shows until the employment route
+// answers this person's reader.
+function PersonEmployment({ af, t, userId, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     let alive = true;
@@ -1422,7 +1423,7 @@ function PersonEmployment({ af, t, userId }) {
     return () => { alive = false; };
   }, [af, userId]);
   if (!data) return null;
-  return <EmploymentCard t={t} data={data} staffHref={"#staff/" + encodeURIComponent(String(userId))} />;
+  return <EmploymentCard t={t} data={data} staffHref={canOpenStaff ? "#staff/" + encodeURIComponent(String(userId)) : ""} />;
 }
 
 // The buttons that change a person's employment, by status: Put on leave and End employment for
@@ -10843,11 +10844,12 @@ function QuoteEditor({ af, token, t, sites = [], phone = false, id, startSiteId 
   </div>);
 }
 
-// A PDF the API draws, in a window: the language picked, which starts as the screen's, Download PDF,
-// and the page itself. pathFor gives the route for a language. The quote's two PDFs and a site's
-// workload plan open in it.
-function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose }) {
-  const [lang, setLang] = useState(() => getLang());
+// A PDF the API draws, in a window: the language picked, which starts as startLang when the caller
+// names one the screen offers and as the screen's otherwise, Download PDF, and the page itself.
+// pathFor gives the route for a language. The quote's two PDFs, a site's workload plan and a warning
+// (in the language it is written in) open in it.
+function PdfWindow({ token, t, title, sub, help, note, pathFor, fallbackName, boxProps, onClose, startLang = "" }) {
+  const [lang, setLang] = useState(() => (startLang && LANGUAGES.some(x => x.id === startLang) ? startLang : getLang()));
   const [pdf, setPdf] = useState({ url: "", filename: "", loading: true, error: "" });
   const [again, setAgain] = useState(0);
   const path = pathFor(lang);
@@ -17247,7 +17249,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     </div>
     {refusal.text && !refusal.field && <div data-warning-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     {isDraft && <div>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("OCSA may begin at any step.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("{0} may begin at any step.", clientConfig.company.shortName)}</div>
       <div style={grid}>
         <div><Lbl>{tr("Step")}</Lbl><select aria-label={tr("Step")} value={f.type} onChange={e => set("type", e.target.value)} style={{ width: "100%", minHeight: 44, padding: "8px 10px", borderRadius: R.sm, border: "1px solid " + (refusal.field === "type" ? RD : t.inputBorder), background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }}>{stepOpts.map(o => <option key={o.v} value={o.v} disabled={o.disabled}>{o.l}</option>)}</select>{under("type")}</div>
         <div><Lbl>{tr("Category")}</Lbl><Sel t={t} aria-label={tr("Category")} value={f.category} onChange={e => set("category", e.target.value)} options={catOpts} style={box("category")} />{under("category")}</div>
@@ -17277,7 +17279,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
         <Btn t={t} v="ghost" onClick={saveDraft} disabled={!!busy || !draftReady} style={small}>{busy === "draft" ? tr("Saving...") : tr("Save as draft")}</Btn>
       </div>
       {id && <div data-warning-issue="">
-        <div style={sec}>{tr("Issue")}</div>
+        <div style={sec}>{tr("Issue|warning")}</div>
         {verbal ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{tr("A verbal warning is a note of the conversation, placed on the record. It takes no signatures.")}</div> : <div>
           <SignatureBox t={t} label={tr("The issuer signs")} busy={busy === "issue"} refusal={refusal.field === "issuerSignature" ? refusal.text : ""} onSign={png => setIssue(p => ({ ...p, issuerSignature: png }))} signWord={tr("Sign")} />
           {signed("issuerSignature")}
@@ -17290,7 +17292,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
           </div>}
         </div>}
         <div style={{ marginTop: 12 }}><Lbl>{tr("Their account")}</Lbl><TArea t={t} rows={3} aria-label={tr("Their account")} value={issue.employeeAccount} onChange={e => setIssue(p => ({ ...p, employeeAccount: e.target.value }))} placeholder={tr("Optional. What the person says, recorded on the warning.")} style={box("employeeAccount")} />{under("employeeAccount")}</div>
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : tr("Issue")}</Btn></div>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}><Btn t={t} onClick={doIssue} disabled={!!busy || !issueReady} style={{ minHeight: 44, minWidth: 96 }}>{busy === "issue" ? tr("Saving...") : tr("Issue|warning")}</Btn></div>
       </div>}
     </div>}
     {!isDraft && <div>
@@ -17335,7 +17337,7 @@ function WarningWindow({ af, t, token, isAdmin = false, userId, personName, pers
     {pdfOpen && id && <PdfWindow token={token} t={t} onClose={() => setPdfOpen(false)} boxProps={{ "data-warning-pdf": "" }}
       title={warningStepWord(type, steps.steps)} sub={personName || ""}
       help={tr("The warning as the person receives it, on the company's letterhead.")}
-      pathFor={(lang) => "/api/discipline/" + encodeURIComponent(id) + "/pdf?locale=" + lang} fallbackName="warning.pdf" />}
+      pathFor={(lang) => "/api/discipline/" + encodeURIComponent(id) + "/pdf?locale=" + lang} fallbackName="warning.pdf" startLang={(w && w.language) || f.language || ""} />}
     {endOpen && <EmploymentWindow af={af} t={t} userId={userId} name={personName} mode="end" initialReason="dismissed" data={null} showToast={showToast} onClose={() => setEndOpen(false)} onSaved={() => { setEndOpen(false); if (onChanged) onChanged(); }} />}
   </div></Mdl>);
 }
@@ -17441,7 +17443,7 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   </Crd>);
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false, isAdmin = false }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -17609,7 +17611,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
         </div>}
       />
 
-      <PersonEmployment af={af} t={t} userId={userId} />
+      <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
 
@@ -18023,7 +18025,7 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false }) {
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false }) {
   const [tab, setTab] = useState("employees");
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
@@ -18278,6 +18280,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           onBack={() => openFolder(null)}
           focusClearances={focusClearances}
           isAdmin={isAdmin}
+          canOpenStaff={canOpenStaff}
           onAddDocument={(uid, emp) => openFromFolder("doc", uid, emp)}
           onAddTraining={(uid, emp) => openFromFolder("training", uid, emp)}
           onEditDocument={async (docId) => {
