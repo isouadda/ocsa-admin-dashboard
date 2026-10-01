@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -316,6 +316,7 @@ const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7
 const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
 const WsI = p => <Ic d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z" {...p} />;
 const FileI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" {...p} />;
+const RecI = p => <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" {...p} />;
 const UpI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" {...p} />;
 const FolI = p => <Ic d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p} />;
 const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 0 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 0 2 0l.43.25a2 2 0 0 0 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 0 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 0 0-2l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 0-2 0l-.43-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
@@ -624,8 +625,11 @@ export default function AdminDashboard() {
     if (id === "clearances") return clearancesOn;
     if (id === "discipline") return disciplineOn;
     if (id === "workspace") return workspaceOn;
+    // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
+    // the super admin, and anyone it is granted to. It waits for the API to name it.
+    if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn, devicesOn, workspaceOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -831,11 +835,14 @@ export default function AdminDashboard() {
       ...(canOpenPage("form-builder") ? [{ id: "form-builder", l: tr("Form builder"), i: BldI }] : []),
     ]},
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
-    ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
+    ...(canOpenPage("settings") || canOpenPage("chat-records") ? [{ label: null, items: [
+      ...(canOpenPage("settings") ? [{ id: "settings", l: tr("Settings"), i: StgI }] : []),
+      ...(canOpenPage("chat-records") ? [{ id: "chat-records", l: tr("Chat records"), i: RecI }] : []),
+    ] }] : []),
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1079,6 +1086,7 @@ export default function AdminDashboard() {
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
@@ -4659,6 +4667,126 @@ function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, too
     {tool && toolView ? toolView : overview}
     {win === "edit" && <ProjectWindow af={af} t={t} people={people} project={p} onClose={() => setWin("")} onSaved={() => { setWin(""); if (showToast) showToast(tr("Project saved.")); refresh(); }} />}
     {win === "members" && <MembersWindow af={af} t={t} people={people} project={p} meId={meId} onClose={() => setWin("")} onSaved={() => { setWin(""); if (showToast) showToast(tr("Members saved.")); refresh(); }} />}
+  </div>);
+}
+
+// ===== CHAT RECORDS (Step 235) =====
+// The chat records screen (STEP234_CONTRACT.md, section 5), for the super admin and anyone granted
+// read_chat_records, and shown to nobody else: the side panel item and the page wait for GET
+// /api/users/me/permissions to name the capability, which no role holds by default. A search by people,
+// a channel, a date range and words reads GET /api/chat/records, every matching message from every
+// kind of channel, oldest first, up to 2,000; Download PDF reads /api/chat/records/pdf with the same
+// filters. Every search and every PDF is recorded, and the screen says so above the search. The
+// contract names no route for that log: the records answer's log is read when it carries one, and
+// otherwise GET /api/activity's chat_records_read and chat_records_pdf rows, which the API lets an
+// admin read.
+const recWhen = (v) => { if (!v) return ""; const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toLocaleString(localeTag(), { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+const recQuery = (f) => {
+  const sp = new URLSearchParams();
+  if (f.userIds.length) sp.set("userIds", f.userIds.join(","));
+  if (f.channelId) sp.set("channelId", f.channelId);
+  if (f.from) sp.set("from", f.from);
+  if (f.to) sp.set("to", f.to);
+  if (f.q.trim()) sp.set("q", f.q.trim());
+  const s = sp.toString();
+  return s ? "?" + s : "";
+};
+function ChatRecordsPage({ af, token, t, allStaff = [], showToast }) {
+  const [f, setF] = useState({ userIds: [], channelId: "", from: "", to: "", q: "" });
+  const [who, setWho] = useState("");
+  const [channels, setChannels] = useState([]);
+  const [result, setResult] = useState(null);
+  const [ran, setRan] = useState("");
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const [log, setLog] = useState(null);
+  const [logFailed, setLogFailed] = useState(false);
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  useEffect(() => { af("/api/chat/channels").then(d => setChannels((Array.isArray(d) ? d : []).filter(c => c && c.id != null))).catch(e => console.warn("Channels:", e.message)); }, [af]);
+  const people = useMemo(() => (Array.isArray(allStaff) ? allStaff : []).filter(p => p && p.id != null).map(p => ({ id: String(p.id), name: ((p.firstName || p.first_name || "") + " " + (p.lastName || p.last_name || "")).trim() || String(p.name || "") })).filter(p => p.name).sort((a, b) => a.name.localeCompare(b.name)), [allStaff]);
+  const nameOf = (id) => ((people.find(p => p.id === String(id)) || {}).name) || String(id);
+  const loadLog = useCallback(async (fromAnswer) => {
+    if (Array.isArray(fromAnswer)) { setLog(fromAnswer); setLogFailed(false); return; }
+    try {
+      const [a, b] = await Promise.all([af("/api/activity?action_type=chat_records_read&limit=50"), af("/api/activity?action_type=chat_records_pdf&limit=50")]);
+      const rows = [].concat(a && Array.isArray(a.results) ? a.results : [], b && Array.isArray(b.results) ? b.results : []);
+      rows.sort((x, y) => String(wsAt(y, "created_at", "createdAt", "at") || "").localeCompare(String(wsAt(x, "created_at", "createdAt", "at") || "")));
+      setLog(rows.slice(0, 50)); setLogFailed(false);
+    } catch (e) { setLog(null); setLogFailed(true); console.warn("Chat records log:", e.message); }
+  }, [af]);
+  useEffect(() => { loadLog(); }, [loadLog]);
+  const search = async () => {
+    if (busy) return;
+    setBusy("search"); setRefusal("");
+    const qs = recQuery(f);
+    try {
+      const d = await af("/api/chat/records" + qs);
+      setResult({ messages: wsList(d, "messages") || [], more: !!(d && (d.more || d.truncated)), total: d && d.total != null ? Number(d.total) : null });
+      setRan(qs);
+      loadLog(d && Array.isArray(d.log) ? d.log : undefined);
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const pdf = async () => {
+    if (busy) return;
+    setBusy("pdf");
+    try { await saveDownload("/api/chat/records/pdf" + ran, token, "chat-records.pdf"); loadLog(); }
+    catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  const needle = who.trim().toLowerCase();
+  const matches = needle ? people.filter(p => f.userIds.indexOf(p.id) < 0 && p.name.toLowerCase().includes(needle)).slice(0, 8) : [];
+  const filtersLine = (x) => {
+    const g = x && typeof x === "object" ? x : {};
+    const ids = Array.isArray(g.userIds) ? g.userIds : String(g.userIds || "").split(",").filter(Boolean);
+    const ch = g.channelId ? ((channels.find(c => String(c.id) === String(g.channelId)) || {}).name || String(g.channelId)) : "";
+    return [ids.map(nameOf).join(", "), ch, g.from || g.to ? tr("{0} to {1}", g.from ? fdLong(g.from) : "...", g.to ? fdLong(g.to) : "...") : "", g.q ? "\"" + g.q + "\"" : ""].filter(Boolean).join("; ") || tr("Everything");
+  };
+  const cols = [
+    { header: tr("When"), tdStyle: { whiteSpace: "nowrap", color: t.textSec, verticalAlign: "top" }, render: m => recWhen(wsAt(m, "sentAt", "sent_at", "createdAt", "at")) },
+    { header: tr("Sender"), tdStyle: { minWidth: 120, verticalAlign: "top" }, render: m => <span style={{ fontWeight: 600, color: t.text }}>{wsAt(m, "senderName", "sender_name") || wsNameOf(m.sender)}</span> },
+    { header: tr("Channel"), tdStyle: { minWidth: 110, color: t.textSec, verticalAlign: "top" }, render: m => String((m.channel && m.channel.name) || wsAt(m, "channelName", "channel_name") || "") },
+    { header: tr("Message"), tdStyle: { minWidth: 220, verticalAlign: "top" }, render: m => <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", color: t.text }}>{String(m.text || m.messageText || m.message_text || "")}</span> },
+  ];
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", width: "100%" };
+  return (<div data-chat-records="">
+    <SecT t={t}>{tr("Chat records")}</SecT>
+    <div data-records-notice="" style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderRadius: R.md, background: t.goldBg, border: "1px solid " + t.goldBorder, color: t.text, fontSize: 13, fontWeight: 600, marginBottom: 14 }}>{tr("Every search here is recorded.")}</div>
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 12 }}><Lbl>{tr("People")}</Lbl>
+        {f.userIds.length > 0 && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>{f.userIds.map(id => <button key={id} onClick={() => set("userIds", f.userIds.filter(x => x !== id))} aria-label={tr("Remove {0}", nameOf(id))} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "4px 12px", borderRadius: R.pill, border: "1px solid " + t.goldBorder, background: t.goldBg, color: t.text, fontSize: 12, cursor: "pointer" }}>{nameOf(id)} <XI sz={12} c={t.textMut} /></button>)}</div>}
+        <Inp t={t} value={who} onChange={e => setWho(e.target.value)} placeholder={tr("Search people")} aria-label={tr("Search people")} />
+        {matches.length > 0 && <div data-records-people="" style={{ border: "1px solid " + t.border, borderRadius: R.md, marginTop: 4 }}>{matches.map(p => <button key={p.id} onClick={() => { set("userIds", f.userIds.concat([p.id])); setWho(""); }} style={{ display: "block", width: "100%", minHeight: 44, padding: "6px 12px", textAlign: "left", border: "none", background: "transparent", color: t.text, fontSize: 13, cursor: "pointer" }}>{p.name}</button>)}</div>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
+        <div><Lbl>{tr("Channel")}</Lbl><select aria-label={tr("Channel")} value={f.channelId} onChange={e => set("channelId", e.target.value)} style={selSt}><option value="">{tr("Every channel")}</option>{channels.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+        <div><Lbl>{tr("From")}</Lbl><Inp t={t} type="date" aria-label={tr("From")} value={f.from} onChange={e => set("from", e.target.value)} /></div>
+        <div><Lbl>{tr("To")}</Lbl><Inp t={t} type="date" aria-label={tr("To")} value={f.to} onChange={e => set("to", e.target.value)} /></div>
+        <div><Lbl>{tr("Words")}</Lbl><Inp t={t} aria-label={tr("Words")} value={f.q} onChange={e => set("q", e.target.value)} onKeyDown={e => e.key === "Enter" && search()} /></div>
+      </div>
+      {refusal && <div data-records-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" onClick={pdf} disabled={!!busy || result === null} style={{ minHeight: 44 }} data-records-pdf="">{busy === "pdf" ? tr("Preparing...") : tr("Download PDF")}</Btn>
+        <Btn t={t} onClick={search} disabled={!!busy} style={{ minHeight: 44, minWidth: 96 }} data-records-search="">{busy === "search" ? tr("Searching...") : tr("Search")}</Btn>
+      </div>
+    </Crd>
+    {result && <div data-records-result="" style={{ marginBottom: 18 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{trn("{0} messages|count", result.total != null ? result.total : result.messages.length)}</div>
+      {result.more && <div style={{ fontSize: 12, color: OR, marginBottom: 8 }}>{tr("Only the first 2,000 are shown. Narrow the search to see the rest.")}</div>}
+      <DataTable t={t} columns={cols} rows={result.messages} rowKey={m => String(m.id)} empty={tr("No messages match.")} />
+    </div>}
+    <SecT t={t}>{tr("Searches recorded")}</SecT>
+    <Crd t={t} style={{ padding: log && log.length ? "4px 16px" : 16 }}>
+      {logFailed ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("The record of searches did not load.")}</div>
+        : log === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+        : log.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No searches yet.")}</div>
+        : <div data-records-log="">{log.map((r, i) => { const det = r.details || r.metadata || r.meta || {}; const pdfRow = /pdf/.test(String(wsAt(r, "action_type", "actionType", "action") || "")); const cnt = det.count != null ? Number(det.count) : null; return (
+          <div key={r.id || i} style={{ padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+            <div style={{ fontSize: 13, color: t.text }}><span style={{ fontWeight: 600 }}>{String(wsAt(r, "actor_name", "actorName") || wsNameOf(r.actor) || "")}</span> {pdfRow ? tr("downloaded a PDF") : tr("searched")}{cnt != null ? ", " + trn("{0} messages|count", cnt) : ""}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{filtersLine(det.filters || det)}</div>
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{recWhen(wsAt(r, "created_at", "createdAt", "at"))}</div>
+          </div>); })}</div>}
+    </Crd>
   </div>);
 }
 
