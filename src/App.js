@@ -128,6 +128,21 @@ const AUTH_KEY = "ocsa_auth";
 const readAuth = () => { try { const raw = localStorage.getItem(AUTH_KEY); if (!raw) return null; const d = JSON.parse(raw); return d && typeof d.token === "string" && d.token ? d : null; } catch { return null; } };
 const writeAuth = (token, user) => { try { localStorage.setItem(AUTH_KEY, JSON.stringify({ token, user })); } catch {} };
 const clearAuth = () => { try { localStorage.removeItem(AUTH_KEY); } catch {} };
+// The device id every sign-in sends for the second sign-in step (Step 232, Part C; STEP225_CONTRACT.md):
+// made once with crypto.randomUUID() and kept as ocsa-device-id. A browser that refuses storage makes a
+// new one at each sign-in and is simply asked for a code each time. It names the browser and nothing
+// else, and the API keeps only its hash.
+const DEVICE_KEY = "ocsa-device-id";
+const newDeviceId = () => {
+  const c = window.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  const b = new Uint8Array(16); c.getRandomValues(b);
+  return Array.from(b, x => x.toString(16).padStart(2, "0")).join("");
+};
+const signInDeviceId = () => {
+  try { const had = localStorage.getItem(DEVICE_KEY); if (had) return had; const made = newDeviceId(); localStorage.setItem(DEVICE_KEY, made); return made; }
+  catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
+};
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
 const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
@@ -574,13 +589,18 @@ export default function AdminDashboard() {
   // Whether GET /api/discipline answers this person (Step 232): admins read every warning, and a
   // supervisor the ones they issued. Read once a session.
   const [disciplineOn, setDisciplineOn] = useState(false);
+  // Whether GET /api/users/me/trusted-devices answers this office account (Step 232, Part C): Settings
+  // gains Trusted devices, and a super admin gains Forget this person's devices on a profile. Read once
+  // a session.
+  const [devicesOn, setDevicesOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
   // One rule for the pages this person can open. The render switch, the sidebar, the user menu and
   // the notice panel read it, so a page is never open in one place and closed in another.
   const canOpenPage = useCallback((id) => {
-    if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups");
+    // Settings also opens for Trusted devices, which is every office account's own (Step 232).
+    if (id === "settings") return canManagePermissions || canManageSettings || hasCap("manage_lookups") || devicesOn;
     if (id === "forms") return isAdmin || canReadFiledForms || hasCap("manage_integrations");
     if (id === "staff") return hasCap("manage_staff");
     if (id === "announcements") return hasCap("send_announcements");
@@ -598,7 +618,7 @@ export default function AdminDashboard() {
     if (id === "clearances") return clearancesOn;
     if (id === "discipline") return disciplineOn;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn, devicesOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -628,10 +648,11 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
+    af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
   useEffect(() => {
@@ -733,9 +754,21 @@ export default function AdminDashboard() {
     })();
     return () => { alive = false; };
   }, []);
+  // The second sign-in step (Step 232, Part C; STEP225_CONTRACT.md). Every sign-in sends this browser's
+  // device id. When the answer carries secondStep in place of a token, the sign-in card asks for the
+  // code emailed to the account, and POST /api/auth/second-step answers what sign-in answers, which
+  // signs in the same way. Until the API sends secondStep, sign-in is what it was. The PIN and the code
+  // live only in the form's own fields and are never stored or logged.
+  const [second, setSecond] = useState(null);
+  const signedIn = (d) => { if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast(tr("Admin access required"), "error"); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); };
   const handleLogin = async (phone, pin) => {
     setLoading(true);
-    try { const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin } }); if (d.user.role !== "admin" && d.user.role !== "supervisor") { showToast(tr("Admin access required"), "error"); setLoading(false); return; } writeAuth(d.token, d.user); setToken(d.token); setUser(d.user); showToast(tr("Welcome, {0}", d.user.firstName)); } catch (e) { showToast(e.message, "error"); }
+    const deviceId = signInDeviceId();
+    try {
+      const d = await apiFetch("/api/auth/login", { method: "POST", body: { phone, pin, deviceId } });
+      if (d && d.secondStep && d.challengeId) setSecond({ challengeId: d.challengeId, emailHint: d.emailHint ? String(d.emailHint) : "", deviceId, sentAt: Date.now() });
+      else signedIn(d);
+    } catch (e) { showToast(e.message, "error"); }
     setLoading(false);
   };
   if (authChecking) return (<div style={{ ...zoomStyle, width: "100%", minHeight: vh(100, zoom), background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>);
@@ -743,7 +776,7 @@ export default function AdminDashboard() {
     <div style={{ width: "100%", maxWidth: 400 }}>
       <div style={{ background: t.card, border: "1px solid " + t.border, borderRadius: 18, boxShadow: t.popShadow, padding: "34px 30px 28px" }}>
         <div style={{ textAlign: "center", marginBottom: 26 }}><div style={{ display: "inline-block", padding: themeMode === "dark" ? "12px 20px" : "0", background: themeMode === "dark" ? "rgba(255,255,255,0.95)" : "transparent", borderRadius: 12 }}><img src={LOGO_LG} alt={clientConfig.company.shortName} style={{ height: 64 }} /></div><div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, marginTop: 16, letterSpacing: ".3px" }}>{tr("Admin Dashboard")}</div><div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: GR, marginTop: 7 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: GR, display: "inline-block" }} />{tr("Connected to Live API")}</div></div>
-        <LoginForm onLogin={handleLogin} loading={loading} t={t} />
+        <LoginForm onLogin={handleLogin} loading={loading} t={t} second={second} onSecondDone={d => { setSecond(null); signedIn(d); }} onSecondBack={() => setSecond(null)} />
       </div>
       <div style={{ marginTop: 18, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{textSizeChoice()}</div>
       <div style={{ marginTop: 14, maxWidth: 400, marginLeft: "auto", marginRight: "auto" }}>{languageChoice()}</div>
@@ -1025,7 +1058,7 @@ export default function AdminDashboard() {
       {/* Page Content */}
       <div style={{ flex: 1, padding: phone ? "12px 16px 30px" : "16px 24px 30px", display: "flex", flexDirection: "column" }}>
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
-        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -1048,7 +1081,7 @@ export default function AdminDashboard() {
         {page === "clearances" && (canOpenPage("clearances") ? <ClearancesPage af={af} token={token} t={t} sites={sites} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "discipline" && (canOpenPage("discipline") ? <DisciplinePage af={af} token={token} t={t} allStaff={allStaff} sites={sites} isAdmin={isAdmin} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "quotes" && (canOpenPage("quotes") ? <QuotesPage af={af} token={token} t={t} sites={sites} phone={phone} route={route} onRoute={replaceRoute} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "settings" && (canOpenPage("settings") ? <SettingsPage af={af} showToast={showToast} t={t} sites={sites} uf={uf} allStaff={allStaff} canManageSettings={canManageSettings} canManageLookups={hasCap("manage_lookups")} canManagePermissions={canManagePermissions} canManageAdmins={canManageAdmins} canSetQuoteDefaults={isAdmin && hasCap("build_quotes")} selfId={user && user.id != null ? String(user.id) : ""} lkMap={lkMap} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
       </div>
     </div>
 
@@ -1058,12 +1091,81 @@ export default function AdminDashboard() {
   </div></ThemeCtx.Provider>);
 }
 
-function LoginForm({ onLogin, loading, t }) {
+function LoginForm({ onLogin, loading, t, second = null, onSecondDone, onSecondBack }) {
   const [ph, setPh] = useState(""); const [pn, setPn] = useState("");
-  return (<><div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && onLogin(ph, pn)} /></div>
-    <button onClick={() => onLogin(ph, pn)} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
+  // The words the code screen came back with (an expired code, too many tries), shown over the PIN.
+  const [notice, setNotice] = useState("");
+  // The PIN is let go once the code screen opens, so Back asks for it again.
+  useEffect(() => { if (second) setPn(""); }, [second]);
+  const go = () => { setNotice(""); onLogin(ph, pn); };
+  if (second) return <SecondStepForm t={t} second={second} onDone={onSecondDone} onBack={(words) => { setNotice(words || ""); onSecondBack(); }} />;
+  return (<>{notice ? <div data-signin-notice="" role="alert" style={{ fontSize: 13, color: RD, marginBottom: 16, lineHeight: 1.5 }}>{notice}</div> : null}<div style={{ marginBottom: 16 }}><Lbl>{tr("Phone or Email")}</Lbl><Inp t={t} value={ph} onChange={e => setPh(e.target.value)} placeholder={tr("Phone or email address")} onKeyDown={e => e.key === "Enter" && go()} /></div>
+    <div style={{ marginBottom: 24 }}><Lbl>{tr("PIN")}</Lbl><Inp t={t} value={pn} onChange={e => setPn(e.target.value)} type="password" maxLength={4} style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20 }} onKeyDown={e => e.key === "Enter" && go()} /></div>
+    <button onClick={go} disabled={loading} style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.6 : 1, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{loading ? tr("Signing in...") : tr("Sign In")}</button>
   </>);}
+
+// The code screen of the second sign-in step (STEP225_CONTRACT.md): the six digits emailed to the
+// account, sent by themselves once all six are typed, or with Verify. Send a new code waits 30 seconds
+// after each send, counting down. A wrong code shows the API's words and the tries left under the box,
+// as does a code that did not go or a new code asked for too soon; an expired code or too many tries
+// goes back to the PIN with the API's words. Remember this device is on unless the person turns it off.
+function SecondStepForm({ t, second, onDone, onBack }) {
+  const [code, setCode] = useState("");
+  const [remember, setRemember] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [say, setSay] = useState({ text: "", bad: false, left: null });
+  const [sentAt, setSentAt] = useState(() => second.sentAt || Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  // A wrong code empties the box and draws it again, so it takes the focus for the next try.
+  const [round, setRound] = useState(0);
+  const busyRef = useRef(false);
+  const wait = Math.max(0, Math.ceil((sentAt + 30000 - now) / 1000));
+  const counting = wait > 0;
+  useEffect(() => { if (!counting) return undefined; const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, [counting]);
+  const backToPin = (e) => !!e && (e.code === "auth.codeExpired" || e.code === "auth.codeTooMany");
+  const verify = async (c) => {
+    if (busyRef.current || !/^[0-9]{6}$/.test(c)) return;
+    busyRef.current = true; setBusy(true); setSay({ text: "", bad: false, left: null });
+    try {
+      const d = await apiFetch("/api/auth/second-step", { method: "POST", body: { challengeId: second.challengeId, code: c, deviceId: second.deviceId, rememberDevice: remember } });
+      busyRef.current = false; onDone(d); return;
+    } catch (e) {
+      busyRef.current = false;
+      if (backToPin(e)) { onBack(e.message); return; }
+      const left = e.code === "auth.codeWrong" && e.body && e.body.attemptsLeft != null && isFinite(Number(e.body.attemptsLeft)) ? Number(e.body.attemptsLeft) : null;
+      setSay({ text: e.message || tr("Request failed"), bad: true, left });
+      setCode(""); setRound(n => n + 1);
+    }
+    setBusy(false);
+  };
+  const resend = async () => {
+    if (sending || busy || wait > 0) return;
+    setSending(true); setSay({ text: "", bad: false, left: null });
+    try {
+      await apiFetch("/api/auth/second-step/resend", { method: "POST", body: { challengeId: second.challengeId } });
+      const at = Date.now(); setSentAt(at); setNow(at); setCode(""); setRound(n => n + 1);
+      setSay({ text: tr("We sent a new code."), bad: false, left: null });
+    } catch (e) {
+      if (backToPin(e)) { onBack(e.message); return; }
+      setSay({ text: e.message || tr("Request failed"), bad: true, left: null });
+    }
+    setSending(false);
+  };
+  const type = (v) => { const digits = String(v || "").replace(/[^0-9]/g, "").slice(0, 6); setCode(digits); if (digits.length === 6) verify(digits); };
+  const ready = code.length === 6 && !busy;
+  return (<div data-second-step="">
+    <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16, textAlign: "center" }}>{second.emailHint ? tr("Enter the code we emailed to {0}", second.emailHint) : tr("Enter the code we emailed to you.")}</div>
+    <div style={{ marginBottom: 8 }}><Lbl>{tr("Code")}</Lbl><Inp t={t} key={round} autoFocus value={code} onChange={e => type(e.target.value)} inputMode="numeric" autoComplete="one-time-code" aria-label={tr("Code")} aria-invalid={say.bad ? true : undefined} data-second-code="" style={{ letterSpacing: "8px", textAlign: "center", fontSize: 20, ...(say.bad ? { borderColor: RD } : {}) }} onKeyDown={e => e.key === "Enter" && verify(code)} /></div>
+    {say.text ? <div data-second-say="" role={say.bad ? "alert" : "status"} style={{ fontSize: 12, color: say.bad ? RD : t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{say.text}{say.left != null ? <div data-second-left="" style={{ fontWeight: 600, marginTop: 2 }}>{trn("{0} tries left|count", say.left)}</div> : null}</div> : null}
+    <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, minHeight: 44, fontSize: 13, color: t.textSec, cursor: "pointer", marginBottom: 16 }}><span style={chkWrap}><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} style={{ width: 20, height: 20 }} /></span><span style={{ minWidth: 0 }}>{tr("Remember this device for 30 days")}</span></label>
+    <button onClick={() => verify(code)} disabled={!ready} data-second-verify="" style={{ width: "100%", padding: "13px", borderRadius: 10, border: "none", background: "linear-gradient(135deg," + GO + "," + GL + ")", color: NAVY, fontSize: 15, fontWeight: 600, cursor: ready ? "pointer" : "default", opacity: ready ? 1 : 0.6, boxShadow: "0 10px 24px -10px " + GO, fontFamily: FONT_BODY }}>{busy ? tr("Checking...") : tr("Verify")}</button>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <button onClick={() => onBack("")} disabled={busy} data-second-back="" style={{ background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44, minWidth: 44, padding: "0 6px", fontFamily: FONT_BODY }}>{tr("Back")}</button>
+      <button onClick={resend} disabled={sending || busy || wait > 0} data-second-resend="" style={{ background: "none", border: "1px solid " + t.border, borderRadius: 10, color: wait > 0 ? t.textMut : t.text, fontSize: 13, fontWeight: 600, cursor: wait > 0 ? "default" : "pointer", minHeight: 44, padding: "0 14px", fontFamily: FONT_BODY }}>{sending ? tr("Sending...") : wait > 0 ? trn("Send a new code in {0} seconds|count", wait) : tr("Send a new code")}</button>
+    </div>
+  </div>);
+}
 
 const FilterTabs = ({ tabs, value, onChange, t }) => <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, flexWrap: "wrap", borderBottom: "1px solid " + t.border, paddingBottom: 12 }}>{tabs.map(tb => { const on = value === tb.id; const cc = tb.color || t.goldText; return <button key={tb.id} onClick={() => onChange(tb.id)} style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 44, padding: "7px 14px", borderRadius: R.sm, background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontFamily: FONT_HEAD, fontWeight: on ? 700 : 600, cursor: "pointer", border: on ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{tb.label}{tb.count != null && <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 999, background: on ? "rgba(231,176,23,0.18)" : t.cardAlt, color: on ? (t.dark ? t.goldText : t.text) : cc }}>{tb.count}</span>}</button>; })}</div>;
 
@@ -1422,7 +1524,15 @@ function RosterCheck({ af, t, me, sites = [], onBack, onOpen, onEmployment, relo
   </div>);
 }
 
-function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute }) {
+function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpts, lkMap, uf, canManageAdmins = false, user = null, route = [], onRoute, devicesOn = false }) {
+  // The super admin forgets another office account's trusted devices (Step 232, Part C), once the
+  // trusted devices routes answer. The flag is the account's own, as the API sends it.
+  const superAdmin = !!(user && (user.isSuperAdmin === true || user.is_super_admin === true));
+  const forgetDevices = async (u) => {
+    if (!window.confirm(tr("Forget this person's devices? Each one asks for a code at its next sign-in."))) return;
+    try { await af("/api/users/" + encodeURIComponent(u.id) + "/trusted-devices/forget", { method: "POST", body: {} }); showToast(tr("Devices forgotten.")); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+  };
   // The API's rank rule (routes/users.js): without manage_admins a person changes no account at or
   // above their own rank, admin over supervisor over everyone else, and not their own account. The
   // controls it would refuse are not drawn. A holder of manage_admins changes any account.
@@ -1871,6 +1981,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
           {!employment && canChange(u) && u.status === "active" && <Btn t={t} v="danger" style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "inactive")}>{tr("Deactivate")}</Btn>}
           {!employment && canChange(u) && u.status === "inactive" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => updateStatus(u.id, "active")}>{tr("Reactivate")}</Btn>}
           {employment && canChange(u) && !(user && String(user.id) === String(u.id)) && employmentActions(employment.status).map(m => <Btn key={m} t={t} v={m === "end" ? "danger" : "ghost"} data-employment-action={m} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => setEmpWin({ mode: m, record: false })}>{tr(EMPLOYMENT_SEND[m])}</Btn>)}
+          {devicesOn && superAdmin && (u.role === "admin" || u.role === "supervisor") && !(user && String(user.id) === String(u.id)) && <Btn t={t} v="ghost" style={{ fontSize: 11, padding: "6px 12px" }} data-forget-devices={u.id} onClick={() => forgetDevices(u)}>{tr("Forget this person's devices")}</Btn>}
           {u.status === "pending" && <Btn t={t} style={{ fontSize: 11, padding: "6px 12px" }} onClick={() => { approve(u.id); closeProfile(); }}>{tr("Approve")}</Btn>}
         </>}
       />
@@ -11729,7 +11840,66 @@ function PermissionsEditorPanel({ af, uf, showToast, t, lkMap, selfId = "", canM
   );
 }
 
-function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap }) {
+// Trusted devices (Step 232, Part C; STEP225_CONTRACT.md): the browsers this office account entered a
+// code on in the last 30 days, each with when it was first and last seen and what browser it is, and
+// Forget all my devices, after which each one asks for a code at its next sign-in. The contract names
+// the route and its table and gives no answer shape, so the list is read as { devices: [...] }, the
+// shape the API's other lists take, with each device's fields in camel or snake case. Any other
+// answer, a bare list included, is no answer, so nothing shows until the route is the one built.
+const trustedDevicesOf = (d) => {
+  const list = d && !Array.isArray(d) && Array.isArray(d.devices) ? d.devices : null;
+  if (!list) return null;
+  return list.filter(x => x && typeof x === "object").map((x, i) => ({
+    id: x.id != null ? String(x.id) : "device-" + i,
+    firstSeen: x.trustedAt || x.trusted_at || x.firstSeen || x.first_seen || null,
+    lastSeen: x.lastSeenAt || x.last_seen_at || x.lastSeen || x.last_seen || null,
+    until: x.expiresAt || x.expires_at || null,
+    agent: String(x.userAgent || x.user_agent || x.browser || ""),
+  }));
+};
+// A browser's own description, read down to its name and what it runs on: Chrome on Android.
+const browserOf = (agent) => {
+  const a = String(agent || "");
+  const b = /Edg\//.test(a) ? "Edge" : /OPR\/|Opera/.test(a) ? "Opera" : /Firefox\/|FxiOS/.test(a) ? "Firefox" : /Chrome\/|CriOS/.test(a) ? "Chrome" : /Safari\//.test(a) ? "Safari" : "";
+  const o = /iPhone/.test(a) ? "iPhone" : /iPad/.test(a) ? "iPad" : /Android/.test(a) ? "Android" : /CrOS/.test(a) ? "Chromebook" : /Windows/.test(a) ? "Windows" : /Macintosh|Mac OS X/.test(a) ? "Mac" : /Linux/.test(a) ? "Linux" : "";
+  if (b && o) return tr("{0} on {1}", b, o);
+  return b || o || tr("Unknown browser");
+};
+function TrustedDevices({ af, t, showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/users/me/trusted-devices").then(d => setList(trustedDevicesOf(d) || [])).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const forget = async () => {
+    if (busy || !window.confirm(tr("Forget all your devices? Each one asks for a code at its next sign-in."))) return;
+    setBusy(true);
+    try { await af("/api/users/me/trusted-devices/forget", { method: "POST", body: {} }); showToast(tr("Devices forgotten.")); load(); }
+    catch (e) { showToast(e.message || tr("Request failed"), "error"); }
+    setBusy(false);
+  };
+  const day = (v) => (v ? irDay(v) : "--");
+  const cols = [
+    { header: tr("Browser"), tdStyle: { minWidth: 140, fontWeight: 600, color: t.text }, render: x => browserOf(x.agent) },
+    { header: tr("First seen"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.firstSeen) },
+    { header: tr("Last seen"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.lastSeen) },
+    { header: tr("Remembered until"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => day(x.until) },
+  ];
+  return (<div data-trusted-devices="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ flex: "1 1 260px", fontSize: 12, color: t.textSec, lineHeight: 1.5 }}>{tr("A device you entered a sign-in code on is remembered for 30 days. Any other device asks for a code emailed to you.")}</div>
+      <Btn t={t} v="danger" onClick={forget} disabled={busy || !list || list.length === 0} style={{ minHeight: 44 }} data-forget-mine="">{tr("Forget all my devices")}</Btn>
+    </div>
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={list} rowKey={x => x.id} empty={tr("No devices are remembered.")} />}
+  </div>);
+}
+
+function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap, devicesOn = false }) {
   const [cats, setCats] = useState([]);
   // Quote defaults (Step 208) is an admin's who holds build_quotes, and shows once GET
   // /api/quotes/defaults answers; a 404 or a refusal leaves it off.
@@ -11751,6 +11921,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
     { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
     { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
+    { id: "devices", label: tr("Trusted devices"), open: devicesOn },
   ];
   const tabs = TABS.filter(x => x.open);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0].id : "permissions"));
@@ -11888,7 +12059,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
   return (
     <div>
       <SecT t={t}>{tr("Settings")}</SecT>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
         {tabs.map(tb => <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "6px 14px", borderRadius: 6, border: tab === tb.id ? "2px solid " + GO : "1px solid " + t.border, background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 12, fontWeight: 600, cursor: "pointer", ...(tb.style || {}) }}>{tb.label}</button>)}
       </div>
 
@@ -11905,6 +12076,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "quotes" && canSetQuoteDefaults && quoteDefaults && <QuoteDefaultsPanel af={af} t={t} showToast={showToast} initial={quoteDefaults} />}
+
+      {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
 
       {tab === "global" && isAdmin && lkFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
       {tab === "global" && isAdmin && !lkFailed && <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
