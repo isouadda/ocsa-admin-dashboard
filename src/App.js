@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -314,6 +314,7 @@ const WkI = p => <Ic d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3
 const EdI = p => <Ic d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" {...p} />;
 const DlrI = p => <Ic d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" {...p} />;
 const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
+const WsI = p => <Ic d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z" {...p} />;
 const FolI = p => <Ic d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p} />;
 const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 0 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 0 2 0l.43.25a2 2 0 0 0 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 0 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 0 0-2l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 0-2 0l-.43-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
 const SunI = p => <Ic d="M12 3v1m0 16v1m-8-9H3m18 0h-1m-2.636-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" {...p} />;
@@ -593,6 +594,9 @@ export default function AdminDashboard() {
   // gains Trusted devices, and a super admin gains Forget this person's devices on a profile. Read once
   // a session.
   const [devicesOn, setDevicesOn] = useState(false);
+  // Whether GET /api/workspace/projects answers this office account with { projects } (Step 235):
+  // Workspace joins the side panel. Read once a session.
+  const [workspaceOn, setWorkspaceOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -617,8 +621,9 @@ export default function AdminDashboard() {
     // once GET /api/clearances answers with them.
     if (id === "clearances") return clearancesOn;
     if (id === "discipline") return disciplineOn;
+    if (id === "workspace") return workspaceOn;
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn, devicesOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, clearancesOn, disciplineOn, devicesOn, workspaceOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -648,10 +653,11 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
+    af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -824,10 +830,10 @@ export default function AdminDashboard() {
     ]},
     ...(canOpenPage("announcements") ? [{ label: null, items: [{ id: "announcements", l: tr("Announcements"), i: AnnI }] }] : []),
     ...(canOpenPage("settings") ? [{ label: null, items: [{ id: "settings", l: tr("Settings"), i: StgI }] }] : []),
-    { label: null, items: [{ id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
+    { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1071,6 +1077,7 @@ export default function AdminDashboard() {
         {page === "services" && <ServicesPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} sites={sites} lkMap={lkMap} />}
         {page === "schedule" && <SchedulePage af={af} showToast={showToast} isAdmin={isAdmin} phone={phone} t={t} sites={sites} allStaff={allStaff} user={user} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
@@ -3730,6 +3737,386 @@ function NewMessageWindow({ af, t, starting, error, onPick, onClose }) {
       </div>))}
     </div>
   </div></Mdl>);
+}
+
+// ===== WORKSPACE (Step 235) =====
+// The team workspace (STEP234_CONTRACT.md): each project is a page of tools, a message board, to-dos,
+// the project's chat and its files, with My assignments across every project. Office accounts only,
+// and the side panel item shows once GET /api/workspace/projects answers with { projects }. The
+// contract names the routes and leaves the answers' shapes to the API, so each is read the way the
+// API's other answers come: a list under its plural name ({ projects }, { posts }, { lists }, { files },
+// { activity }), one thing under its singular name ({ project }, { post }, { todo }) or bare, keys in
+// camel or snake case, and a person as { id, name } or as an id the project's members name. The
+// dashboard's routes: #workspace, #workspace/archived, #workspace/<projectId>, and
+// #workspace/<projectId>/<tool> for posts, todos and files, with a post or a to-do after it.
+const WS_COLORS = [
+  { v: "#2D6CDF", l: "Blue" }, { v: "#2E8B57", l: "Green" }, { v: "#C9731C", l: "Orange" }, { v: "#C0392B", l: "Red" },
+  { v: "#7D5BBE", l: "Purple" }, { v: "#1F8A99", l: "Teal" }, { v: "#B8912A", l: "Gold" }, { v: "#6B7280", l: "Gray" },
+];
+const wsColor = (c) => (/^#[0-9a-fA-F]{6}$/.test(String(c || "")) ? String(c) : WS_COLORS[0].v);
+const wsList = (d, key) => (d && !Array.isArray(d) && Array.isArray(d[key]) ? d[key] : null);
+const wsOne = (d, key) => (d && typeof d === "object" && !Array.isArray(d) ? (d[key] && typeof d[key] === "object" ? d[key] : (d.id != null ? d : null)) : null);
+const wsAt = (o, ...keys) => { for (const k of keys) { if (o && o[k] != null && o[k] !== "") return o[k]; } return null; };
+const wsIdOf = (v) => (v == null ? "" : typeof v === "object" ? String(v.id != null ? v.id : v.userId != null ? v.userId : "") : String(v));
+const wsNameOf = (v) => (v && typeof v === "object" ? String(v.name || [v.firstName || v.first_name, v.lastName || v.last_name].filter(Boolean).join(" ") || "") : "");
+// A person an answer names, as { id, name }: an object, or an id the members name.
+const wsPerson = (v, members = []) => {
+  if (v == null || v === "") return null;
+  const id = wsIdOf(v);
+  const known = id ? members.find(m => m.id === id) : null;
+  return { id, name: wsNameOf(v) || (known ? known.name : "") };
+};
+const wsProjectOf = (p) => {
+  if (!p || p.id == null) return null;
+  const members = (Array.isArray(p.members) ? p.members : []).map(m => ({
+    id: wsIdOf(wsAt(m, "userId", "user_id", "id")), name: wsNameOf(m),
+    role: m.role === "owner" ? "owner" : "member", emailCopies: wsAt(m, "emailCopies", "email_copies") !== false,
+  })).filter(m => m.id);
+  const latest = p.latest && typeof p.latest === "object" ? p.latest : {};
+  const arr = (...vs) => { for (const v of vs) { if (Array.isArray(v)) return v; } return []; };
+  return {
+    id: String(p.id), name: String(p.name || ""), description: String(p.description || ""), color: wsColor(p.color),
+    archived: p.status === "archived" || !!wsAt(p, "archivedAt", "archived_at"),
+    members,
+    counts: p.counts && typeof p.counts === "object" ? p.counts : {},
+    latest: { posts: arr(latest.posts, p.latestPosts), todos: arr(latest.todos, p.latestTodos), files: arr(latest.files, p.latestFiles), messages: arr(latest.messages, latest.chat, p.latestMessages) },
+    lastActivity: wsAt(p, "lastActivity", "latestActivity", "last_activity"),
+    lastActivityAt: wsAt(p, "lastActivityAt", "last_activity_at", "updatedAt", "updated_at", "createdAt", "created_at"),
+    channelId: wsIdOf(wsAt(p, "channelId", "chatChannelId", "chat_channel_id", "channel")),
+  };
+};
+const wsText = (a) => (a == null ? "" : typeof a === "string" ? a : String(a.summary || a.text || a.description || ""));
+const wsWhen = (v) => { if (!v) return ""; const d = new Date(v); return isNaN(d.getTime()) ? "" : d.toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); };
+const wsRefusal = (e, fields = []) => {
+  const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+  return { text: (e && e.message) || tr("Request failed"), field: keys.find(k => fields.indexOf(k) >= 0) || "" };
+};
+const wsGo = (parts) => { window.location.hash = ["workspace"].concat((parts || []).filter(x => x != null && x !== "").map(String)).join("/"); };
+const wsSecLine = (t) => ({ fontSize: 12, color: t.textSec, lineHeight: 1.5 });
+
+// The office people a project's members come from: the office kind of GET /api/chat/people, which
+// every office account reads and which leaves the caller out. null until it answers.
+function useWsPeople(af) {
+  const [people, setPeople] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/chat/people").then(d => {
+      if (!alive) return;
+      const list = d && Array.isArray(d.people) ? d.people : [];
+      setPeople(list.filter(p => p && p.kind === "office" && p.userId != null).map(p => ({ id: String(p.userId), name: String(p.name || ""), role: p.role || "" })));
+    }).catch(e => { if (alive) setPeople([]); console.warn("Office people:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  return people;
+}
+
+// Members' initials, side by side, at most five, with the rest counted.
+function WsAvatars({ t, members = [], max = 5, sz = 26 }) {
+  const shown = members.slice(0, max);
+  const more = members.length - shown.length;
+  return (<span style={{ display: "inline-flex", alignItems: "center", flexWrap: "nowrap", gap: 4 }}>
+    {shown.map(m => <span key={m.id} title={m.name} style={{ display: "inline-flex" }}><Ini name={m.name} sz={sz} /></span>)}
+    {more > 0 && <span style={{ marginLeft: 6, fontSize: 11, color: t.textMut }}>+{more}</span>}
+  </span>);
+}
+
+// A list of office people to tick, searched by name. With owners, a ticked person can also be made an
+// owner. meId marks the caller.
+function WsPeoplePicker({ t, people, chosen, onToggle, owners = null, onOwner, meId = "" }) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const shown = (people || []).filter(p => !needle || p.name.toLowerCase().includes(needle));
+  return (<div>
+    <Inp t={t} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Search people")} aria-label={tr("Search people")} style={{ marginBottom: 8 }} />
+    <div data-people-picker="" style={{ maxHeight: 260, overflowY: "auto", border: "1px solid " + t.border, borderRadius: R.md }}>
+      {people === null ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+        : shown.length === 0 ? <div style={{ padding: 14, fontSize: 12, color: t.textMut }}>{tr("No one matches.")}</div>
+        : shown.map((p, i) => { const on = chosen.indexOf(p.id) >= 0; return (
+          <div key={p.id} style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, padding: "0 8px", borderTop: i ? "1px solid " + t.border : "none" }}>
+            <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, flex: 1, minWidth: 0, minHeight: 44, cursor: "pointer" }}>
+              <span style={chkWrap}><input type="checkbox" checked={on} onChange={() => onToggle(p.id)} style={{ width: 20, height: 20 }} /></span>
+              <Ini name={p.name} sz={26} />
+              <span style={{ fontSize: 13, color: t.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}{p.id === meId ? " (" + tr("you") + ")" : ""}</span>
+            </label>
+            {owners && on && <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 2, minHeight: 44, fontSize: 12, color: t.textSec, cursor: "pointer", flexShrink: 0 }}>
+              <span style={chkWrap}><input type="checkbox" checked={owners.indexOf(p.id) >= 0} onChange={() => onOwner(p.id)} style={{ width: 20, height: 20 }} /></span>{tr("Owner")}
+            </label>}
+          </div>); })}
+    </div>
+  </div>);
+}
+
+// New project, or Edit for an owner or an admin: name, description and color; a new project also takes
+// its members, and the person who starts it is its owner. POST /api/workspace/projects or
+// PATCH /api/workspace/projects/:id. A refusal is drawn under the field its keys name.
+function ProjectWindow({ af, t, people, project = null, onClose, onSaved }) {
+  const editing = !!project;
+  const [f, setF] = useState({ name: project ? project.name : "", description: project ? project.description : "", color: project ? project.color : WS_COLORS[0].v, memberIds: [] });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const ready = !!f.name.trim();
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", field: "" });
+    try {
+      const body = { name: f.name.trim(), description: f.description.trim() || null, color: f.color };
+      const d = editing ? await af("/api/workspace/projects/" + encodeURIComponent(project.id), { method: "PATCH", body })
+        : await af("/api/workspace/projects", { method: "POST", body: { ...body, memberIds: f.memberIds } });
+      onSaved(wsProjectOf(wsOne(d, "project")));
+    } catch (e) { setRefusal(wsRefusal(e, ["name", "description", "color", "memberIds"])); }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-ws-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-project-window={editing ? "edit" : "new"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{editing ? tr("Edit project") : tr("New project")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && !refusal.field && <div data-ws-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Name")}</Lbl><Inp t={t} aria-label={tr("Name")} value={f.name} onChange={e => set("name", e.target.value)} style={refusal.field === "name" ? { borderColor: RD } : {}} />{under("name")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Description")}</Lbl><TArea t={t} rows={3} aria-label={tr("Description")} value={f.description} onChange={e => set("description", e.target.value)} style={refusal.field === "description" ? { borderColor: RD } : {}} />{under("description")}</div>
+    <div style={{ marginBottom: 14 }}><Lbl>{tr("Color")}</Lbl>
+      <div role="radiogroup" aria-label={tr("Color")} style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {WS_COLORS.map(c => { const on = f.color === c.v; return <button key={c.v} role="radio" aria-checked={on} aria-label={tr(c.l)} title={tr(c.l)} onClick={() => set("color", c.v)} style={{ width: 44, height: 44, borderRadius: "50%", border: "2px solid " + (on ? t.text : "transparent"), background: "transparent", padding: 4, cursor: "pointer" }}><span style={{ display: "block", width: "100%", height: "100%", borderRadius: "50%", background: c.v }} /></button>; })}
+      </div>{under("color")}</div>
+    {!editing && <div style={{ marginBottom: 14 }}><Lbl>{tr("Members")}</Lbl>
+      <div style={{ ...wsSecLine(t), marginBottom: 8 }}>{tr("You are the owner of a project you start. Add the office people who work on it.")}</div>
+      <WsPeoplePicker t={t} people={people} chosen={f.memberIds} onToggle={id => set("memberIds", f.memberIds.indexOf(id) >= 0 ? f.memberIds.filter(x => x !== id) : f.memberIds.concat([id]))} />{under("memberIds")}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : editing ? tr("Save") : tr("Start the project")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Members, for an owner or an admin: who is in the project and who owns it, PUT
+// /api/workspace/projects/:id/members { memberIds, ownerIds }. The project's chat follows its members.
+function MembersWindow({ af, t, people, project, meId, onClose, onSaved }) {
+  const [memberIds, setMemberIds] = useState(() => project.members.map(m => m.id));
+  const [ownerIds, setOwnerIds] = useState(() => project.members.filter(m => m.role === "owner").map(m => m.id));
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const all = useMemo(() => {
+    const seen = new Set(); const out = [];
+    project.members.concat(people || []).forEach(p => { if (p && p.id && !seen.has(p.id)) { seen.add(p.id); out.push({ id: p.id, name: p.name }); } });
+    return out.sort((a, b) => a.name.localeCompare(b.name));
+  }, [people, project]);
+  const owners = ownerIds.filter(id => memberIds.indexOf(id) >= 0);
+  const ready = memberIds.length > 0 && owners.length > 0;
+  const toggle = (id) => setMemberIds(l => (l.indexOf(id) >= 0 ? l.filter(x => x !== id) : l.concat([id])));
+  const toggleOwner = (id) => setOwnerIds(l => (l.indexOf(id) >= 0 ? l.filter(x => x !== id) : l.concat([id])));
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal("");
+    try { await af("/api/workspace/projects/" + encodeURIComponent(project.id) + "/members", { method: "PUT", body: { memberIds, ownerIds: owners } }); onSaved(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-members-window="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Members")}</div><div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{project.name}</div></div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ ...wsSecLine(t), marginBottom: 10 }}>{tr("Members read and write everything in the project, and its chat follows them. Owners also rename it, change its members and archive it.")}</div>
+    {refusal && <div data-ws-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    <WsPeoplePicker t={t} people={all} chosen={memberIds} onToggle={toggle} owners={ownerIds} onOwner={toggleOwner} meId={meId} />
+    {!owners.length && <div style={{ fontSize: 12, color: OR, marginTop: 8 }}>{tr("A project needs at least one owner.")}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// A project on the Workspace page: its color, name, description, members and what happened last.
+function ProjectCard({ t, p, onOpen }) {
+  const last = wsText(p.lastActivity);
+  return (<button data-project-card={p.id} onClick={onOpen} style={{ textAlign: "left", background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 0, cursor: "pointer", overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 150, boxShadow: t.shadow, fontFamily: FONT_BODY }}>
+    <span style={{ display: "block", height: 6, width: "100%", background: p.color }} />
+    <span style={{ padding: "14px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
+      <span style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: t.text }}>{p.name}</span>
+      {p.description ? <span style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.description}</span> : null}
+      <span style={{ marginTop: "auto", paddingTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+        <WsAvatars t={t} members={p.members} />
+        <span style={{ fontSize: 11, color: t.textMut, minWidth: 0 }}>{last || (p.lastActivityAt ? tr("Last activity {0}", irDay(p.lastActivityAt)) : "")}</span>
+      </span>
+    </span>
+  </button>);
+}
+
+// Workspace, #workspace: My assignments, then the projects as cards and New project; Archived lists
+// the archived ones (?status=archived). A project opens at #workspace/<projectId>.
+function WorkspacePage({ af, token, t, user, isAdmin = false, route = [], showToast, phone = false }) {
+  const meId = user && user.id != null ? String(user.id) : "";
+  const people = useWsPeople(af);
+  const first = route[0] ? String(route[0]) : "";
+  if (first && first !== "archived") return <ProjectPage af={af} token={token} t={t} user={user} isAdmin={isAdmin} meId={meId} people={people} projectId={first} tool={route[1] ? String(route[1]) : ""} sub={route[2] ? String(route[2]) : ""} showToast={showToast} phone={phone} />;
+  return <WorkspaceHome af={af} t={t} meId={meId} people={people} archived={first === "archived"} showToast={showToast} />;
+}
+
+function WorkspaceHome({ af, t, meId, people, archived, showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [creating, setCreating] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/projects" + (archived ? "?status=archived" : ""))
+      .then(d => setList((wsList(d, "projects") || []).map(wsProjectOf).filter(Boolean)))
+      .catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, archived]);
+  useEffect(() => { setList(null); load(); }, [load]);
+  const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14 };
+  return (<div data-workspace={archived ? "archived" : "active"}>
+    {archived && <button onClick={() => wsGo([])} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", minHeight: 44, borderRadius: 8, border: "none", background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 4 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={t.goldText} /> {tr("Back to Workspace")}</button>}
+    <SecT t={t} action={archived ? null : tr("New project")} onAction={() => setCreating(true)}>{archived ? tr("Archived projects") : tr("Workspace")}</SecT>
+    {!archived && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 14 }}>{tr("Each project keeps its posts, to-dos, chat and files in one place.")}</div>}
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
+      : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
+      : list.length === 0 ? <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{archived ? tr("No archived projects.") : tr("No projects yet. Start one with New project.")}</div></Crd>
+      : <div style={grid}>{list.map(p => <ProjectCard key={p.id} t={t} p={p} onOpen={() => wsGo([p.id])} />)}</div>}
+    {!archived && <div style={{ marginTop: 14 }}><Btn t={t} v="ghost" onClick={() => wsGo(["archived"])} style={{ minHeight: 44 }} data-ws-archived="">{tr("Archived")}</Btn></div>}
+    {creating && <ProjectWindow af={af} t={t} people={people} onClose={() => setCreating(false)} onSaved={p => { setCreating(false); if (showToast) showToast(tr("Project started.")); if (p) wsGo([p.id]); else load(); }} />}
+  </div>);
+}
+
+// A tool's card on a project's page: its name and count, its latest few items, and the whole card
+// opening the tool.
+function WsToolCard({ t, k, title, count, items, empty, onOpen }) {
+  return (<button data-tool-card={k} onClick={onOpen} style={{ textAlign: "left", background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: "14px 16px", cursor: "pointer", display: "flex", flexDirection: "column", gap: 8, minHeight: 170, boxShadow: t.shadow, fontFamily: FONT_BODY }}>
+    <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, width: "100%" }}>
+      <span style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{title}</span>
+      {count != null && count !== "" ? <span style={{ fontSize: 11, fontWeight: 600, color: t.textSec, background: t.cardAlt, borderRadius: R.pill, padding: "2px 8px" }}>{count}</span> : null}
+    </span>
+    {items.length === 0 ? <span style={{ fontSize: 12, color: t.textMut, lineHeight: 1.5 }}>{empty}</span>
+      : items.map((it, i) => (<span key={it.id || i} style={{ display: "block", width: "100%", borderTop: i ? "1px solid " + t.border : "none", paddingTop: i ? 6 : 0 }}>
+        <span style={{ display: "block", fontSize: 13, color: it.done ? t.textMut : t.text, textDecoration: it.done ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.main}</span>
+        {it.sub ? <span style={{ display: "block", fontSize: 11, color: it.late ? RD : t.textMut, marginTop: 2 }}>{it.sub}</span> : null}
+      </span>))}
+  </button>);
+}
+
+// A project's page, #workspace/<projectId>: its name, description and members, Email me copies for a
+// member, Edit, Members and Archive for an owner or an admin, then the four tools as cards and the
+// project's Activity under them. #workspace/<projectId>/<tool> opens a tool in place of the cards.
+function ProjectPage({ af, token, t, user, isAdmin, meId, people, projectId, tool, sub, showToast, phone }) {
+  const [p, setP] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [activity, setActivity] = useState(null);
+  const [win, setWin] = useState("");
+  const [busy, setBusy] = useState("");
+  const load = useCallback(() => {
+    setFailed("");
+    return af("/api/workspace/projects/" + encodeURIComponent(projectId))
+      .then(d => { const got = wsProjectOf(wsOne(d, "project")); setP(got); if (!got) setFailed(tr("This did not load.")); })
+      .catch(e => setFailed(e.message || tr("This did not load.")));
+  }, [af, projectId]);
+  const loadActivity = useCallback(() => af("/api/workspace/projects/" + encodeURIComponent(projectId) + "/activity")
+    .then(d => setActivity(wsList(d, "activity") || []))
+    .catch(e => { setActivity(null); console.warn("Project activity:", e.message); }), [af, projectId]);
+  useEffect(() => { setP(null); setActivity(null); load(); loadActivity(); }, [load, loadActivity]);
+  const refresh = () => { load(); loadActivity(); };
+  const back = (label, to) => <button onClick={() => wsGo(to)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", minHeight: 44, borderRadius: 8, border: "none", background: "transparent", color: t.goldText, fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 4 }}><Ic d="M15 18l-6-6 6-6" sz={16} c={t.goldText} /> {label}</button>;
+  if (!p) return (<div data-project-page="">
+    {back(tr("Back to Workspace"), [])}
+    <Crd t={t}>{failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}</Crd>
+  </div>);
+  const mine = p.members.find(m => m.id === meId) || null;
+  const canManage = (!!mine && mine.role === "owner") || isAdmin;
+  const writable = !p.archived;
+  const setCopies = async (on) => {
+    if (busy) return;
+    setBusy("copies");
+    try {
+      await af("/api/workspace/projects/" + encodeURIComponent(p.id) + "/me", { method: "PATCH", body: { emailCopies: on } });
+      setP(x => ({ ...x, members: x.members.map(m => (m.id === meId ? { ...m, emailCopies: on } : m)) }));
+      if (showToast) showToast(on ? tr("Email copies on.") : tr("Email copies off."));
+    } catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  const archive = async (undo) => {
+    if (busy) return;
+    if (!undo && !window.confirm(tr("Archive this project? It moves to Archived, and nothing in it is deleted."))) return;
+    setBusy("archive");
+    try {
+      await af("/api/workspace/projects/" + encodeURIComponent(p.id) + (undo ? "/unarchive" : "/archive"), { method: "POST", body: {} });
+      if (showToast) showToast(undo ? tr("Project brought back.") : tr("Project archived."));
+      refresh();
+    } catch (e) { if (showToast) showToast(e.message || tr("Request failed"), "error"); }
+    setBusy("");
+  };
+  // The project's chat is a channel of the existing chat. The project's answer names it, and when it
+  // does not, the channel list's project channel for this project is the one.
+  const openChat = async () => {
+    let id = p.channelId;
+    if (!id) {
+      try { const list = await af("/api/chat/channels"); const hit = (Array.isArray(list) ? list : []).find(c => c && c.type === "project" && String(wsAt(c, "projectId", "project_id")) === p.id); id = hit ? String(hit.id) : ""; }
+      catch (e) { console.warn("Project chat:", e.message); }
+    }
+    if (id) window.location.hash = "chat/" + id;
+    else if (showToast) showToast(tr("This project's chat did not open."), "error");
+  };
+  const toolView = null;
+  const counts = p.counts;
+  const num = (...vs) => { for (const v of vs) { if (v != null && isFinite(Number(v))) return Number(v); } return null; };
+  const openTodos = num(counts.openTodos, counts.open_todos, counts.todos);
+  const cards = [
+    { k: "posts", title: tr("Message Board"), count: num(counts.posts), empty: tr("No posts yet."),
+      items: p.latest.posts.slice(0, 3).map(x => { const a = wsPerson(wsAt(x, "author", "authorId", "author_id"), p.members); return { id: x.id, main: String(x.title || ""), sub: [a && a.name, wsWhen(wsAt(x, "createdAt", "created_at"))].filter(Boolean).join(", ") }; }) },
+    { k: "todos", title: tr("To-dos"), count: openTodos == null ? null : trn("{0} open|count", openTodos), empty: tr("No to-dos yet."),
+      items: p.latest.todos.slice(0, 3).map(x => { const due = wsAt(x, "dueOn", "due_on"); const done = !!wsAt(x, "completedAt", "completed_at"); return { id: x.id, main: String(x.title || ""), done, sub: due ? tr("Due {0}", fdLong(due)) : "", late: !done && !!due && String(due).slice(0, 10) < toISO(new Date()) }; }) },
+    { k: "chat", title: tr("Chat"), count: null, empty: tr("Talk with the project's members. It opens in Messages."),
+      items: p.latest.messages.slice(0, 3).map((x, i) => { const s = wsPerson(wsAt(x, "sender", "senderId", "sender_id"), p.members); const who = String(wsAt(x, "senderName", "sender_name") || (s && s.name) || ""); return { id: x.id || i, main: String(x.text || x.messageText || x.message_text || ""), sub: [who, wsWhen(wsAt(x, "sentAt", "sent_at", "createdAt"))].filter(Boolean).join(", ") }; }) },
+    { k: "files", title: tr("Docs and Files"), count: num(counts.files), empty: tr("No files yet."),
+      items: p.latest.files.slice(0, 3).map(x => { const by = wsPerson(wsAt(x, "uploadedBy", "uploaded_by"), p.members); return { id: x.id, main: String(wsAt(x, "fileName", "file_name") || ""), sub: [by && by.name, wsWhen(wsAt(x, "createdAt", "created_at"))].filter(Boolean).join(", ") }; }) },
+  ];
+  const overview = (<div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 14, marginBottom: 20 }}>
+      {cards.map(c => <WsToolCard key={c.k} t={t} k={c.k} title={c.title} count={c.count} items={c.items} empty={c.empty} onOpen={() => (c.k === "chat" ? openChat() : wsGo([p.id, c.k]))} />)}
+    </div>
+    <SecT t={t}>{tr("Activity")}</SecT>
+    <Crd t={t} style={{ padding: activity && activity.length ? "4px 16px" : 16 }}>
+      {activity === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Activity did not load.")}</div>
+        : activity.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing has happened here yet.")}</div>
+        : <div data-project-activity="">{activity.map((a, i) => { const who = wsPerson(wsAt(a, "actor", "user", "actorName", "actor_name"), p.members); return (
+          <div key={a.id || i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+            <Ini name={(who && who.name) || "?"} sz={28} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{who && who.name ? <span style={{ fontWeight: 600 }}>{who.name}</span> : null}{who && who.name ? " " : ""}{wsText(a)}</div>
+              <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{wsWhen(wsAt(a, "at", "createdAt", "created_at"))}</div>
+            </div>
+          </div>); })}</div>}
+    </Crd>
+  </div>);
+  const small = { minHeight: 44, padding: "6px 12px", fontSize: 12 };
+  return (<div data-project-page={p.id}>
+    {tool && toolView ? back(tr("Back to {0}", p.name), [p.id]) : back(tr("Back to Workspace"), p.archived ? ["archived"] : [])}
+    <Crd t={t} style={{ padding: 0, overflow: "hidden", marginBottom: 16 }}>
+      <div style={{ height: 6, background: p.color }} />
+      <div style={{ padding: "16px 18px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 20, fontWeight: 600, color: t.text }}>{p.name}</div>
+            {p.description ? <div style={{ fontSize: 13, color: t.textSec, marginTop: 4, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{p.description}</div> : null}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}><WsAvatars t={t} members={p.members} max={8} /><span style={{ fontSize: 12, color: t.textMut }}>{trn("{0} members|count", p.members.length)}</span></div>
+          </div>
+          {canManage && <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {writable && <Btn t={t} v="ghost" onClick={() => setWin("edit")} style={small} data-project-edit="">{tr("Edit")}</Btn>}
+            {writable && <Btn t={t} v="ghost" onClick={() => setWin("members")} style={small} data-project-members="">{tr("Members")}</Btn>}
+            <Btn t={t} v="ghost" onClick={() => archive(p.archived)} disabled={busy === "archive"} style={small} data-project-archive="">{p.archived ? tr("Bring back") : tr("Archive")}</Btn>
+          </div>}
+        </div>
+        {p.archived && <div style={{ fontSize: 12, color: OR, fontWeight: 600, marginTop: 10 }}>{tr("This project is archived. It can be read, and nothing new can be added.")}</div>}
+        {mine && <label style={{ display: "flex", flexWrap: "nowrap", alignItems: "center", gap: 6, minHeight: 44, marginTop: 8, cursor: "pointer", fontSize: 13, color: t.text }}>
+          <span style={chkWrap}><input type="checkbox" data-email-copies="" checked={mine.emailCopies} disabled={busy === "copies"} onChange={e => setCopies(e.target.checked)} style={{ width: 20, height: 20 }} /></span>
+          <span style={{ minWidth: 0 }}>{tr("Email me copies")}<span style={{ display: "block", fontSize: 11, color: t.textMut }}>{tr("New posts, and comments on posts, also come to your email.")}</span></span>
+        </label>}
+      </div>
+    </Crd>
+    {tool && toolView ? toolView : overview}
+    {win === "edit" && <ProjectWindow af={af} t={t} people={people} project={p} onClose={() => setWin("")} onSaved={() => { setWin(""); if (showToast) showToast(tr("Project saved.")); refresh(); }} />}
+    {win === "members" && <MembersWindow af={af} t={t} people={people} project={p} meId={meId} onClose={() => setWin("")} onSaved={() => { setWin(""); if (showToast) showToast(tr("Members saved.")); refresh(); }} />}
+  </div>);
 }
 
 // Messages: the general chat and every site chat on top, then direct messages between office people
