@@ -92,7 +92,7 @@ Who can do this: admins
 1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
 2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
 3. Change what is needed and click **Save Changes** (**Guardar los cambios**).
-4. **Preferred Language** (**Idioma preferido**) offers English and Español. A person whose language is French shows Français, and stays French when you save other changes.
+4. **Preferred Language** (**Idioma preferido**) offers English and Español, and Français once the system keeps people in French. Before then, a person whose language is French shows Français and stays French when you save other changes.
 Last checked: 2026-10-02
 
 ## Reset a staff member's PIN (admin dashboard)
@@ -628,7 +628,7 @@ A customer link lets a customer fill a form from their own phone, with no accoun
 1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. The **Customer links** (**Enlaces para clientes**) button on **Filed forms** (**Formularios presentados**) opens the same tab.
 2. Under **Make a link** (**Crear un enlace**), pick the **Form** (**Formulario**) and the **Site** (**Sitio**), then click **Make a link** (**Crear un enlace**). The forms are the ones customers fill: **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**), **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**) and, for a client to report a problem, **Customer Complaint Log** (**Registro de quejas de clientes**).
 3. The QR window opens with the code, the site, the form's title and the link's address. A site has one link on for each form; when the site already has one on, that one's QR window opens.
-4. Click **Print sheet** (**Imprimir la hoja**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it. Post it where the customer will see it.
+4. Click **Print sheet** (**Imprimir la hoja**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it. Post it where the customer will see it. A form with a name for clients prints that name under the site: the **Customer Complaint Log** (**Registro de quejas de clientes**) prints as Report a concern and Informar un problema.
 5. **Copy link** (**Copiar enlace**) copies the address, to send by email or text.
 6. A site's own links are also on the site's **General Info** (**Información general**), under **Customer links** (**Enlaces para clientes**).
 What the customer sees: OCSA's logo, the site's name and the form, a box for their name and their role, the questions, up to three photos and a signature drawn with a finger, then Send and a thank-you. Nothing else of the app is shown. Their filing arrives under **Filed forms** (**Formularios presentados**) marked **Customer** (**Cliente**).
@@ -1554,7 +1554,7 @@ Who can do this: admins who can change settings
 A concern link lets a client report a problem from their phone by scanning a QR code posted in the building. It files a **Customer Complaint Log** (**Registro de quejas de clientes**) for that site, and the site's supervisors, the Field Lead and the admins are told at once.
 1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. Or click **Sites** (**Sitios**), open the site, and use its **Customer links** (**Enlaces para clientes**) card.
 2. Under **Make a link** (**Crear un enlace**), pick **Customer Complaint Log** (**Registro de quejas de clientes**) and the site, then click **Make a link** (**Crear un enlace**).
-3. Click **Print sheet** (**Imprimir la hoja**). Under the code the sheet reads **Scan to report a problem to OCSA.** (**Escanee para informar un problema a OCSA.**), in English and in Spanish. Post it where the client will see it.
+3. Click **Print sheet** (**Imprimir la hoja**). Under the site the sheet reads Report a concern and Informar un problema, and under the code **Scan to report a problem to OCSA.** (**Escanee para informar un problema a OCSA.**), in English and in Spanish. Post it where the client will see it. Every screen in the office keeps the form's own name, **Customer Complaint Log** (**Registro de quejas de clientes**).
 What the client sees: a short form for what happened and where, with photos if they like, and a reference number once it is sent.
 If it does not work: when **Customer Complaint Log** (**Registro de quejas de clientes**) is not offered, the system does not take a client's concern from a link yet. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: report a concern, complaint qr code, client complaint link, report a problem, concern poster, informar un problema.

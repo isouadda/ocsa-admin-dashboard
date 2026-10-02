@@ -1587,6 +1587,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   const [employment, setEmployment] = useState(null); const [empWin, setEmpWin] = useState(null);
   const loadEmployment = (id) => { af("/api/users/" + encodeURIComponent(id) + "/employment").then(d => setEmployment(employmentAnswerOf(d))).catch(e => { setEmployment(null); console.warn("Employment:", e.message); }); };
   const [profileEdit, setProfileEdit] = useState(null); const [photoUploading, setPhotoUploading] = useState(false);
+  // Step 243 review: whether the API keeps an account in French, read once from GET /api/languages.
+  const frenchKept = useFrenchKept(af);
   const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
   // Step 187: the filed reports about this person, the source form items of their HR folder, and
@@ -2077,7 +2079,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>{tr("Emergency Contact")}</Lbl><Inp t={t} value={pe.emergencyContactName || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactName: e.target.value })} placeholder={tr("Full name")} /></div>
               <div><Lbl>{tr("Emergency Phone")}</Lbl><Inp t={t} value={pe.emergencyContactPhone || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactPhone: e.target.value })} placeholder={tr("Phone number")} /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><Lbl>{tr("Preferred Language")}</Lbl><Sel t={t} aria-label={tr("Preferred Language")} value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={langOptsFor(profile.user.preferredLanguage)} /></div>
+            <div style={{ marginBottom: 10 }}><Lbl>{tr("Preferred Language")}</Lbl><Sel t={t} aria-label={tr("Preferred Language")} value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={langOptsFor(profile.user.preferredLanguage, frenchKept)} /></div>
             <div style={{ marginBottom: 14 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder={tr("Internal notes about this employee...")} /></div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setEmpIdError(""); setProfileEdit(null); }}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveProfileInfo}>{tr("Save Changes")}</Btn></div>
           </div>}
@@ -9582,9 +9584,23 @@ const langCode = (v) => {
   return "en";
 };
 const langLabel = (v) => (RECORD_LANGUAGES.find((x) => x.id === langCode(v)) || LANGUAGES[0]).label;
-// The profile's choices: the screen's two languages, and French for an account that holds it, since
-// the API keeps an account in English or Spanish and refuses French when it is sent.
-const langOptsFor = (v) => (langCode(v) === "fr" ? RECORD_LANGUAGES : LANGUAGES).map((x) => ({ v: x.id, l: x.label }));
+// The profile's choices: the screen's two languages, and French for every account once the API keeps
+// accounts in French. Until it does, it refuses French when it is sent, so French is offered only to
+// an account that already holds it.
+const langOptsFor = (v, frenchKept = false) => (frenchKept || langCode(v) === "fr" ? RECORD_LANGUAGES : LANGUAGES).map((x) => ({ v: x.id, l: x.label }));
+// The API's Step 241 answers the public GET /api/languages with { languages }, each a code or an
+// object naming one (code, id or locale). True once French is among them; false until the route
+// answers, and when it does not.
+const languageCodeOf = (x) => String(x && typeof x === "object" ? (x.code || x.id || x.locale || "") : (x == null ? "" : x)).trim().toLowerCase();
+function useFrenchKept(af) {
+  const [kept, setKept] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    af("/api/languages").then(d => { if (alive) setKept(!!(d && Array.isArray(d.languages) && d.languages.some(x => langCode(languageCodeOf(x)) === "fr"))); }).catch(e => { console.warn("Languages:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  return kept;
+}
 const runsPastMidnight = (start, end) => !!start && !!end && String(end) < String(start);
 const OVERNIGHT_NOTE = "This shift runs past midnight. Pick the day it starts.";
 const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
@@ -16433,6 +16449,27 @@ function customerFormTitles(link) {
   const all = [tr(FORM_TITLE_LABELS[link.formCode])].concat(others.map(l => wordIn(l, FORM_TITLE_LABELS[link.formCode])));
   return all.filter((v, i) => all.indexOf(v) === i);
 }
+// The title the printed sheet carries under the site, in every language, the screen's first. Since
+// the API's Step 242 v3 a form a client fills may carry customerTitle in GET /api/forms?app=customer,
+// a client's words for it ("Report a concern" for OCSA-FRM-009), as a string in the language asked
+// or as { en, es }; the catalog is read once in each language, and a language it gives none in
+// takes the screen's. A form with none keeps its own title. The office's screens keep the approved
+// title everywhere; only the sheet carries this one.
+const customerTitleIn = (f, lang) => {
+  const c = f ? f.customerTitle : null;
+  if (typeof c === "string") return c.trim();
+  return c && typeof c === "object" ? String(c[lang] || c.en || "").trim() : "";
+};
+async function sheetTitlesFor(af, link) {
+  const langs = [getLang()].concat(LOCALES.filter(l => l !== getLang()));
+  const read = await Promise.all(langs.map(l => af("/api/forms?app=customer&locale=" + l)
+    .then(d => customerTitleIn((d && Array.isArray(d.forms) ? d.forms : []).find(f => f && f.code === link.formCode), l))
+    .catch(e => { console.warn("Customer forms:", e.message); return ""; })));
+  if (!read.some(Boolean)) return customerFormTitles(link);
+  const first = read.find(Boolean);
+  const all = read.map(x => x || first);
+  return all.filter((v, i) => all.indexOf(v) === i);
+}
 // The line under the QR code, in every language, for the form the link opens.
 function customerScanLines(link) {
   if (!CUSTOMER_SCAN_LABELS[link.formCode]) return [];
@@ -16664,8 +16701,8 @@ function useLinkActions(af, token, onLink) {
     if (!w) { say(link.id, tr("Allow pop-ups to print the sheet")); return; }
     setPrinting(link.id);
     try {
-      const qr = await linkQrDataUrl(link.id, token);
-      printCustomerLinkSheet({ link, qr, titles: customerFormTitles(link), scanLines: customerScanLines(link), w });
+      const [qr, titles] = await Promise.all([linkQrDataUrl(link.id, token), sheetTitlesFor(af, link)]);
+      printCustomerLinkSheet({ link, qr, titles, scanLines: customerScanLines(link), w });
     } catch (e) {
       try { w.close(); } catch (x) { /* already closed */ }
       if (mounted.current) say(link.id, e.message || tr("Request failed"));
@@ -16730,22 +16767,31 @@ function TurnOffLinkWindow({ t, link, onCancel, onConfirm }) {
 
 // The QR window: the code at up to 512 pixels, the site, the form's title in each language, the
 // link's state and address, and Print sheet, which puts it all on one clean sheet.
-function LinkQrWindow({ t, token, link, acts, onClose }) {
+function LinkQrWindow({ af, t, token, link, acts, onClose }) {
   const [qr, setQr] = useState("");
+  const [sheetTitles, setSheetTitles] = useState(null);
   const [qrError, setQrError] = useState("");
   const [printError, setPrintError] = useState("");
   const id = link.id;
+  const formCode = link.formCode;
+  const formTitle = link.formTitle;
   useEffect(() => {
     let alive = true;
     setQr(""); setQrError(""); setPrintError("");
     linkQrDataUrl(id, token).then(url => { if (alive) setQr(url); }).catch(e => { if (alive) setQrError(e.message || tr("Request failed")); });
     return () => { alive = false; };
   }, [id, token]);
+  useEffect(() => {
+    let alive = true;
+    setSheetTitles(null);
+    sheetTitlesFor(af, { formCode, formTitle }).then(x => { if (alive) setSheetTitles(x); });
+    return () => { alive = false; };
+  }, [af, formCode, formTitle]);
   useEscape(onClose);
   const print = () => {
-    if (!qr) return;
+    if (!qr || !sheetTitles) return;
     setPrintError("");
-    if (!printCustomerLinkSheet({ link, qr, titles: customerFormTitles(link), scanLines: customerScanLines(link) })) setPrintError(tr("Allow pop-ups to print the sheet"));
+    if (!printCustomerLinkSheet({ link, qr, titles: sheetTitles, scanLines: customerScanLines(link) })) setPrintError(tr("Allow pop-ups to print the sheet"));
   };
   return (<Mdl t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
@@ -16766,7 +16812,7 @@ function LinkQrWindow({ t, token, link, acts, onClose }) {
     <LinkRefusal text={acts.rowError[link.id]} />
     {printError && <div style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{printError}</div>}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 16 }}>
-      <Btn t={t} onClick={print} disabled={!qr} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
+      <Btn t={t} onClick={print} disabled={!qr || !sheetTitles} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
       <Btn t={t} v="ghost" onClick={() => acts.copy(link)} style={{ minHeight: 44, minWidth: 96 }}>{acts.copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
     </div>
@@ -16897,7 +16943,7 @@ function CustomerLinksTab({ af, token, t, sites = [], siteFilter = "", onSiteFil
     {state === "ready" && (phone
       ? (rows.length === 0 ? <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{links.length === 0 ? tr("No customer links yet.") : tr("Nothing matches these filters.")}</div> : <div role="list" aria-label={tr("Customer links")}>{rows.map(card)}</div>)
       : <DataTable t={t} columns={columns} rows={rows} rowKey={l => l.id} empty={links.length === 0 ? tr("No customer links yet.") : tr("Nothing matches these filters.")} />)}
-    {shownLink && <LinkQrWindow t={t} token={token} link={shownLink} acts={acts} onClose={() => setShownId("")} />}
+    {shownLink && <LinkQrWindow af={af} t={t} token={token} link={shownLink} acts={acts} onClose={() => setShownId("")} />}
     {acts.asking && <TurnOffLinkWindow t={t} link={acts.asking} onCancel={acts.cancelOff} onConfirm={acts.confirmOff} />}
     {schedFor && <LinkSurveyWindow af={af} t={t} site={schedFor} onClose={() => setSchedFor(null)} />}
   </div>);
@@ -16945,7 +16991,7 @@ function SiteCustomerLinks({ af, token, t, siteId, onAllLinks }) {
       <LinkRefusal text={acts.rowError[l.id]} />
     </div>))}
     {missing.length > 0 && <div style={{ marginTop: 6 }}><MakeLinkBar af={af} t={t} forms={missing} siteId={id} onMade={link => { replaceLink(link); setShownId(link.id); }} /></div>}
-    {shownLink && <LinkQrWindow t={t} token={token} link={shownLink} acts={acts} onClose={() => setShownId("")} />}
+    {shownLink && <LinkQrWindow af={af} t={t} token={token} link={shownLink} acts={acts} onClose={() => setShownId("")} />}
     {acts.asking && <TurnOffLinkWindow t={t} link={acts.asking} onCancel={acts.cancelOff} onConfirm={acts.confirmOff} />}
   </div></Crd>);
 }
