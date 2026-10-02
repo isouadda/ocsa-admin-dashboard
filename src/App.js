@@ -1082,7 +1082,7 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} />}
-        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
@@ -2516,7 +2516,7 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
-function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
+function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute, onOpenLinks }) {
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 218: the site's workload plan, once GET /api/sites/:id/workload-plan answers with the
   // contract's keys. The tab draws it from here, and it is read again after a change.
@@ -3066,6 +3066,9 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             <div><div style={{ fontSize: 10, color: t.textMut }}>{tr("Phone")}</div><div style={{ fontSize: 13, color: t.text, fontWeight: 500, marginTop: 2 }}>{s.client_contact_phone || tr("N/A")}</div></div>
           </div>
         </Crd>
+
+        {/* Step 243: the site's customer links, for holders of manage_settings */}
+        {canManageSettings && <SiteCustomerLinks key={selectedSite} af={af} token={token} t={t} siteId={selectedSite} onAllLinks={onOpenLinks} />}
 
         <Crd t={t} style={{ marginBottom: 16 }}>
           <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Assigned Staff ({0})", sp.staff.length)}</div>
@@ -16878,6 +16881,53 @@ function CustomerLinksTab({ af, token, t, sites = [], siteFilter = "", onSiteFil
     {acts.asking && <TurnOffLinkWindow t={t} link={acts.asking} onCancel={acts.cancelOff} onConfirm={acts.confirmOff} />}
     {schedFor && <LinkSurveyWindow af={af} t={t} site={schedFor} onClose={() => setSchedFor(null)} />}
   </div>);
+}
+
+// A site's own links, a card on its General Info: read from GET /api/customer-links?siteId= and
+// kept to this site in the browser as well, since an API before Step 242 answers that read with
+// every link. Each has Show QR code, Print sheet, Copy link and Turn off or Turn on, through the
+// same parts as the tab. Make a link offers the customer forms this site has no link for, and All
+// links opens the tab on this site. Nothing is drawn until the read answers.
+function SiteCustomerLinks({ af, token, t, siteId, onAllLinks }) {
+  const forms = useCustomerForms(af);
+  const [links, setLinks] = useState(null);
+  const [shownId, setShownId] = useState("");
+  const id = String(siteId || "");
+  useEffect(() => {
+    let alive = true;
+    setLinks(null); setShownId("");
+    af("/api/customer-links?siteId=" + encodeURIComponent(id))
+      .then(d => { if (alive) setLinks((d && Array.isArray(d.links) ? d.links : []).filter(l => linkSiteId(l) === id)); })
+      .catch(e => { console.warn("Customer links:", e.message); });
+    return () => { alive = false; };
+  }, [af, id]);
+  const replaceLink = useCallback((link) => setLinks(prev => {
+    const list = prev || [];
+    return list.some(l => l.id === link.id) ? list.map(l => (l.id === link.id ? link : l)) : [link].concat(list);
+  }), []);
+  const acts = useLinkActions(af, token, replaceLink);
+  if (!links) return null;
+  const missing = forms.filter(f => !links.some(l => l.formCode === f.code));
+  const shownLink = shownId ? links.find(l => l.id === shownId) || null : null;
+  return (<Crd t={t} style={{ marginBottom: 16 }}><div data-site-customer-links="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Customer links")}</div>
+      {onAllLinks && <Btn t={t} v="ghost" onClick={() => onAllLinks(id)} style={LINK_SMALL}>{tr("All links")}</Btn>}
+    </div>
+    {links.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 10 }}>{tr("No customer links yet.")}</div>}
+    {links.map(l => (<div key={l.id} data-customer-link={l.id} style={{ padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{linkFormName(l)}</div>
+        <Bdg l={linkStateWord(l.state)} c={linkStateColor(l.state)} />
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4, marginBottom: 8 }}>{tr("Uses")}: {Number(l.uses) || 0} &middot; {tr("Last used")}: {l.lastUsedAt ? irWhen(l.lastUsedAt) : "--"}</div>
+      <LinkButtons t={t} link={l} acts={acts} withPrint onShowQr={x => setShownId(x.id)} />
+      <LinkRefusal text={acts.rowError[l.id]} />
+    </div>))}
+    {missing.length > 0 && <div style={{ marginTop: 6 }}><MakeLinkBar af={af} t={t} forms={missing} siteId={id} onMade={link => { replaceLink(link); setShownId(link.id); }} /></div>}
+    {shownLink && <LinkQrWindow t={t} token={token} link={shownLink} acts={acts} onClose={() => setShownId("")} />}
+    {acts.asking && <TurnOffLinkWindow t={t} link={acts.asking} onCancel={acts.cancelOff} onConfirm={acts.confirmOff} />}
+  </div></Crd>);
 }
 
 function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks }) {
