@@ -16413,13 +16413,13 @@ function customerScanLines(link) {
   const others = LOCALES.filter(l => l !== getLang());
   return [tr(CUSTOMER_SCAN_LABELS[link.formCode])].concat(others.map(l => wordIn(l, CUSTOMER_SCAN_LABELS[link.formCode])));
 }
-const linkStateWord = (s) => (s === "live" ? tr("Live|link") : s === "disabled" ? tr("Off|link") : s === "expired" ? tr("Expired|link") : String(s || ""));
+const linkStateWord = (s) => (s === "live" ? tr("On|link") : s === "disabled" ? tr("Off|link") : s === "expired" ? tr("Expired|link") : String(s || ""));
 const linkStateColor = (s) => (s === "live" ? GR : s === "expired" ? OR : RD);
 
 // The sheet Print puts in a new window: the logo, the site, the form's title in each language, the
-// QR code at its full size, the scan line in each language and the address in small type. False
-// when the browser would not open the window.
-function printCustomerLinkSheet({ link, qr, titles, scanLines }) {
+// QR code at its full size, the scan line in each language and the address in small type, in the
+// window the caller opened in the click when it did. False when the browser would not open one.
+function printCustomerLinkSheet({ link, qr, titles, scanLines, w: opened }) {
   const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   const cName = clientConfig.company.name;
   const siteName = link.site && link.site.name ? link.site.name : tr("No site");
@@ -16433,7 +16433,7 @@ function printCustomerLinkSheet({ link, qr, titles, scanLines }) {
     + '<p class="url">' + esc(link.url) + '</p>'
     + '<div class="footer">' + esc(cName) + '</div>'
     + '</body></html>';
-  const w = window.open("", "_blank");
+  const w = opened || window.open("", "_blank");
   if (!w) return false;
   w.document.write(html); w.document.close();
   setTimeout(() => w.print(), 400);
@@ -16539,199 +16539,345 @@ function SurveyScheduleEditor({ af, t, siteId, initial, onSaved }) {
   </div>);
 }
 
-function CustomerLinksWindow({ af, token, t, sites = [], onClose }) {
-  const [links, setLinks] = useState([]);
-  // Step 196: the survey schedule of the site whose survey link was pressed, on a screen of its own,
-  // offered once the route answers for the first survey link's site.
-  const [schedFor, setSchedFor] = useState(null);
-  const [surveyLive, setSurveyLive] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [formCode, setFormCode] = useState(CUSTOMER_FORM_CODES[0]);
-  const [customerForms, setCustomerForms] = useState(() => customerFormsOf([]));
-  const [siteId, setSiteId] = useState(sites.length ? String(sites[0].id) : "");
-  const [making, setMaking] = useState(false);
-  const [makeError, setMakeError] = useState("");
-  // The link whose switch is in flight, and what the API said when it refused one, by link id.
+// ===== CUSTOMER LINKS, A TAB OF THEIR OWN AND A CARD ON EACH SITE (Step 243) =====
+// The window Filed forms opened is gone. Its contents are the Customer links tab on Forms,
+// #forms/links, laid out across the width, and #forms/links/site/<id> opens it on one site. Every
+// part below draws a link the same way wherever it is: its buttons and their state, the window that
+// asks before a link goes off, the QR window with Print sheet, the survey schedule window and Make
+// a link. All of it is for holders of manage_settings, which every customer link route requires.
+
+const linkSiteId = (link) => (link && link.site && link.site.id != null ? String(link.site.id) : "");
+const linkSiteName = (link) => (link && link.site && link.site.name ? link.site.name : tr("No site"));
+const linkFormName = (link) => builderText(link.formTitle) || link.formCode;
+// On is a live link. Off is one switched off or run out, and Turn on brings back either.
+const linkIsOn = (link) => !!link && link.state === "live";
+
+// The link's QR image as a data URL, fetched with the token, so the screen and the printed sheet
+// draw the same bytes the API sent.
+const linkQrDataUrl = (id, token) => apiDownload("/api/customer-links/" + encodeURIComponent(id) + "/qr.png", token)
+  .then(f => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error(tr("Request failed")));
+    reader.readAsDataURL(f.blob);
+  }));
+
+// Whether the window is a phone's, by the shell's own measure, read again as the window changes.
+function usePhoneWidth() {
+  const [phone, setPhone] = useState(() => { try { return window.innerWidth < PHONE_PX; } catch (e) { return false; } });
+  useEffect(() => {
+    const on = () => setPhone(window.innerWidth < PHONE_PX);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+  return phone;
+}
+
+// The forms a customer may fill, from GET /api/forms?app=customer, and the two codes until it answers.
+function useCustomerForms(af) {
+  const [list, setList] = useState(() => customerFormsOf([]));
+  useEffect(() => {
+    let alive = true;
+    af("/api/forms?app=customer").then(d => { if (alive) setList(customerFormsOf(d && d.forms)); }).catch(e => { console.warn("Customer forms:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  return list;
+}
+
+// Survey schedule beside a site's survey link, once GET /api/sites/:id/survey-schedule answers for
+// the first survey link's site (Step 196).
+const surveySiteOf = (link) => (link && link.formCode === SURVEY_FORM_CODE && link.site && link.site.id ? link.site : null);
+function useSurveyLive(af, links) {
+  const probe = (links.map(surveySiteOf).filter(Boolean)[0] || {}).id || "";
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!probe) return undefined;
+    let alive = true;
+    af("/api/sites/" + encodeURIComponent(probe) + "/survey-schedule").then(() => { if (alive) setLive(true); }).catch(e => { if (alive) setLive(false); console.warn("Survey schedule:", e.message); });
+    return () => { alive = false; };
+  }, [af, probe]);
+  return live;
+}
+
+// A link's buttons and what they are doing: the switch in flight, the line a refusal leaves under
+// the link, Copied for two seconds, the link Turn off is asking about, and Print sheet from a row,
+// which opens its window in the click so no browser blocks it and writes the sheet into it once
+// the QR image is read. onLink is handed every link the API sends back.
+function useLinkActions(af, token, onLink) {
   const [busy, setBusy] = useState("");
   const busyRef = useRef(false);
   const [rowError, setRowError] = useState({});
   const [copied, setCopied] = useState("");
-  // The link on the QR screen, its image as a data URL once fetched, and the line when it fails.
-  const [shown, setShown] = useState(null);
-  const [qr, setQr] = useState("");
-  const [qrError, setQrError] = useState("");
-  const [printError, setPrintError] = useState("");
+  const [asking, setAsking] = useState(null);
+  const [printing, setPrinting] = useState("");
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const say = (id, text) => setRowError(prev => Object.assign({}, prev, { [id]: text }));
+  const flip = async (link, on) => {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(link.id); say(link.id, "");
+    try {
+      const r = await af("/api/customer-links/" + encodeURIComponent(link.id) + (on ? "/enable" : "/disable"), { method: "POST", body: {} });
+      if (r && r.link) onLink(r.link);
+    } catch (e) { if (mounted.current) say(link.id, e.message || tr("Request failed")); }
+    busyRef.current = false;
+    if (mounted.current) setBusy("");
+  };
+  const copy = async (link) => {
+    say(link.id, "");
+    try {
+      await navigator.clipboard.writeText(link.url);
+      setCopied(link.id);
+      setTimeout(() => { if (mounted.current) setCopied(prev => (prev === link.id ? "" : prev)); }, 2000);
+    } catch (e) { say(link.id, tr("The address could not be copied.")); }
+  };
+  const print = async (link) => {
+    if (printing) return;
+    say(link.id, "");
+    const w = window.open("", "_blank");
+    if (!w) { say(link.id, tr("Allow pop-ups to print the sheet")); return; }
+    setPrinting(link.id);
+    try {
+      const qr = await linkQrDataUrl(link.id, token);
+      printCustomerLinkSheet({ link, qr, titles: customerFormTitles(link), scanLines: customerScanLines(link), w });
+    } catch (e) {
+      try { w.close(); } catch (x) { /* already closed */ }
+      if (mounted.current) say(link.id, e.message || tr("Request failed"));
+    }
+    if (mounted.current) setPrinting("");
+  };
+  return {
+    busy, rowError, copied, printing, asking, copy, print,
+    turnOn: (link) => flip(link, true),
+    askOff: (link) => setAsking(link),
+    cancelOff: () => setAsking(null),
+    confirmOff: () => { const link = asking; setAsking(null); if (link) flip(link, false); },
+  };
+}
 
-  useEffect(() => {
-    let alive = true;
-    af("/api/customer-links")
-      .then(d => { if (alive) { setLinks(d && Array.isArray(d.links) ? d.links : []); setLoading(false); } })
-      .catch(e => { if (alive) { setError(e.message || tr("Request failed")); setLoading(false); } });
-    // The forms a customer may fill, from the catalog. A read that fails keeps the two codes.
-    af("/api/forms?app=customer")
-      .then(d => { if (!alive) return; const list = customerFormsOf(d && d.forms); setCustomerForms(list); setFormCode(prev => (list.some(f => f.code === prev) ? prev : (list[0] ? list[0].code : ""))); })
-      .catch(e => { console.warn("Customer forms:", e.message); });
-    return () => { alive = false; };
-  }, [af]);
+const LINK_SMALL = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
+
+// One link's buttons, in the order every place draws them. Print sheet where the place offers it,
+// Survey schedule beside a survey link once its route answers.
+function LinkButtons({ t, link, acts, onShowQr, withPrint = false, onSurvey }) {
+  return (<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+    <Btn t={t} v="ghost" onClick={() => onShowQr(link)} style={LINK_SMALL}>{tr("Show QR code")}</Btn>
+    {withPrint && <Btn t={t} v="ghost" onClick={() => acts.print(link)} disabled={!!acts.printing} style={LINK_SMALL}>{acts.printing === link.id ? tr("Loading...") : tr("Print sheet")}</Btn>}
+    <Btn t={t} v="ghost" onClick={() => acts.copy(link)} style={LINK_SMALL}>{acts.copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
+    {linkIsOn(link)
+      ? <Btn t={t} v="ghost" onClick={() => acts.askOff(link)} disabled={!!acts.busy} style={LINK_SMALL}>{acts.busy === link.id ? tr("Saving...") : tr("Turn off")}</Btn>
+      : <Btn t={t} v="ghost" onClick={() => acts.turnOn(link)} disabled={!!acts.busy} style={LINK_SMALL}>{acts.busy === link.id ? tr("Saving...") : tr("Turn on")}</Btn>}
+    {onSurvey && surveySiteOf(link) && <Btn t={t} v="ghost" onClick={() => onSurvey(surveySiteOf(link))} style={LINK_SMALL}>{tr("Survey schedule")}</Btn>}
+  </div>);
+}
+const LinkRefusal = ({ text }) => (text ? <div data-link-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{text}</div> : null);
+
+// A window's own close button and Escape, as every window here has them.
+function useEscape(onClose) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+}
+const WindowX = ({ t, onClose }) => (<button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>);
+const WINDOW_HEAD = { fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600 };
 
-  // The QR image is fetched with the token and kept as a data URL, so the screen and the printed
-  // sheet draw the same bytes the API sent.
-  const shownId = shown ? shown.id : "";
-  useEffect(() => {
-    if (!shownId) return undefined;
-    let alive = true;
-    setQr(""); setQrError(""); setPrintError("");
-    apiDownload("/api/customer-links/" + encodeURIComponent(shownId) + "/qr.png", token)
-      .then(f => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error(tr("Request failed")));
-        reader.readAsDataURL(f.blob);
-      }))
-      .then(url => { if (alive) setQr(url); })
-      .catch(e => { if (alive) setQrError(e.message || tr("Request failed")); });
-    return () => { alive = false; };
-  }, [shownId, token]);
-
-  const surveySite = (link) => (link && link.formCode === SURVEY_FORM_CODE && link.site && link.site.id ? link.site : null);
-  const probeSite = (links.map(surveySite).filter(Boolean)[0] || {}).id || "";
-  useEffect(() => {
-    if (!probeSite) return undefined;
-    let alive = true;
-    af("/api/sites/" + encodeURIComponent(probeSite) + "/survey-schedule").then(() => { if (alive) setSurveyLive(true); }).catch(e => { if (alive) setSurveyLive(false); console.warn("Survey schedule:", e.message); });
-    return () => { alive = false; };
-  }, [af, probeSite]);
-  const replaceLink = (link) => setLinks(prev => (prev.some(l => l.id === link.id) ? prev.map(l => (l.id === link.id ? link : l)) : [link].concat(prev)));
-  // One tap: the live link for the pair, made now or found. Either way its QR screen opens.
-  const makeLink = async () => {
-    if (making) return;
-    setMaking(true); setMakeError("");
-    try {
-      const r = await af("/api/customer-links", { method: "POST", body: { formCode, siteId } });
-      if (r && r.link) { replaceLink(r.link); setShown(r.link); }
-    } catch (e) { setMakeError(e.message || tr("Request failed")); }
-    if (mounted.current) setMaking(false);
-  };
-  const flip = async (link, on) => {
-    if (busyRef.current) return;
-    busyRef.current = true; setBusy(link.id);
-    setRowError(prev => Object.assign({}, prev, { [link.id]: "" }));
-    try {
-      const r = await af("/api/customer-links/" + encodeURIComponent(link.id) + (on ? "/enable" : "/disable"), { method: "POST", body: {} });
-      if (r && r.link) { replaceLink(r.link); if (shown && shown.id === r.link.id) setShown(r.link); }
-    } catch (e) { setRowError(prev => Object.assign({}, prev, { [link.id]: e.message || tr("Request failed") })); }
-    busyRef.current = false;
-    if (mounted.current) setBusy("");
-  };
-  const copy = async (link) => {
-    setRowError(prev => Object.assign({}, prev, { [link.id]: "" }));
-    try {
-      await navigator.clipboard.writeText(link.url);
-      setCopied(link.id);
-      setTimeout(() => { if (mounted.current) setCopied(prev => (prev === link.id ? "" : prev)); }, 2000);
-    } catch (e) { setRowError(prev => Object.assign({}, prev, { [link.id]: tr("The address could not be copied.") })); }
-  };
-  const print = () => {
-    if (!shown || !qr) return;
-    setPrintError("");
-    if (!printCustomerLinkSheet({ link: shown, qr, titles: customerFormTitles(shown), scanLines: customerScanLines(shown) })) setPrintError(tr("Allow pop-ups to print the sheet"));
-  };
-
-  const head = { fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text };
-  const small = { minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 };
-  const closeX = (<button onClick={onClose} aria-label={tr("Close")} style={{ background: "none", border: "none", cursor: "pointer", minHeight: 44, minWidth: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><XI sz={18} c={t.textMut} /></button>);
-  const formOptions = customerForms.map(f => ({ v: f.code, l: formTitleName(f) }));
-  const siteOptions = sites.map(s => ({ v: String(s.id), l: s.name }));
-
-  const row = (link) => (<div key={link.id} data-customer-link={link.id} style={{ padding: "12px 0", borderTop: "1px solid " + t.border }}>
-    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, wordBreak: "break-word" }}>{builderText(link.formTitle) || link.formCode}</div>
-      <Bdg l={linkStateWord(link.state)} c={linkStateColor(link.state)} />
+// Turn off asks once: the posted QR code stops working for everyone who scans it.
+function TurnOffLinkWindow({ t, link, onCancel, onConfirm }) {
+  useEscape(onCancel);
+  return (<Mdl t={t} onClose={onCancel}><div data-link-ask-off="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ ...WINDOW_HEAD, color: t.text, overflowWrap: "anywhere" }}>{linkFormName(link)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{linkSiteName(link)}</div>
+      </div>
+      <WindowX t={t} onClose={onCancel} />
     </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{link.site && link.site.name ? link.site.name : tr("No site")}</div>
-    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Uses")}: {Number(link.uses) || 0} &middot; {tr("Last used")}: {link.lastUsedAt ? irWhen(link.lastUsedAt) : "--"}</div>
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-      <Btn t={t} v="ghost" onClick={() => setShown(link)} style={small}>{tr("Show QR code")}</Btn>
-      <Btn t={t} v="ghost" onClick={() => copy(link)} style={small}>{copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
-      {link.state === "live"
-        ? <Btn t={t} v="ghost" onClick={() => flip(link, false)} disabled={!!busy} style={small}>{busy === link.id ? tr("Saving...") : tr("Turn off")}</Btn>
-        : <Btn t={t} v="ghost" onClick={() => flip(link, true)} disabled={!!busy} style={small}>{busy === link.id ? tr("Saving...") : tr("Turn on")}</Btn>}
-      {surveyLive && surveySite(link) && <Btn t={t} v="ghost" onClick={() => setSchedFor(surveySite(link))} style={small}>{tr("Survey schedule")}</Btn>}
+    <div style={{ fontSize: 14, color: t.text, lineHeight: 1.5, marginBottom: 16 }}>{tr("Turn off this link? Anyone who scans it is told it is no longer in use.")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onCancel} style={{ minHeight: 44, minWidth: 96 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={onConfirm} style={{ minHeight: 44, minWidth: 96 }}>{tr("Turn off")}</Btn>
     </div>
-    {rowError[link.id] && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{rowError[link.id]}</div>}
-  </div>);
-
-  return (<Mdl t={t} onClose={onClose}><div style={{ padding: 20 }}>
-    {schedFor ? (<div data-survey-screen="">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={head}>{tr("Client survey schedule")}</div>
-          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{schedFor.name || tr("No site")}</div>
-        </div>
-        {closeX}
-      </div>
-      <SurveyScheduleEditor af={af} t={t} siteId={schedFor.id} />
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-        <Btn t={t} v="ghost" onClick={() => setSchedFor(null)} style={{ minHeight: 44, minWidth: 96 }}>{tr("Back")}</Btn>
-      </div>
-    </div>) : shown ? (<div data-qr-screen="">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-        <div style={head}>{tr("Customer links")}</div>
-        {closeX}
-      </div>
-      <div style={{ textAlign: "center" }}>
-        {qr
-          ? <img src={qr} alt={tr("QR code")} width={512} height={512} style={{ display: "block", width: "100%", maxWidth: 512, height: "auto", margin: "0 auto", background: "#FFFFFF", borderRadius: 8 }} />
-          : qrError
-            ? <div data-qr-refusal="" style={{ fontSize: 12, color: RD, padding: 20 }}>{qrError}</div>
-            : <div style={{ fontSize: 13, color: t.textMut, padding: 40 }}>{tr("Loading...")}</div>}
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginTop: 14 }}>{shown.site && shown.site.name ? shown.site.name : tr("No site")}</div>
-        {customerFormTitles(shown).map(x => <div key={x} style={{ fontSize: 13, color: t.textSec, marginTop: 2 }}>{x}</div>)}
-        <div style={{ marginTop: 8 }}><Bdg l={linkStateWord(shown.state)} c={linkStateColor(shown.state)} /></div>
-        <div data-link-address="" style={{ fontSize: 11, color: t.textMut, marginTop: 10, wordBreak: "break-all" }}>{shown.url}</div>
-      </div>
-      {rowError[shown.id] && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{rowError[shown.id]}</div>}
-      {printError && <div style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{printError}</div>}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 16 }}>
-        <Btn t={t} onClick={print} disabled={!qr} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print")}</Btn>
-        <Btn t={t} v="ghost" onClick={() => copy(shown)} style={{ minHeight: 44, minWidth: 96 }}>{copied === shown.id ? tr("Copied") : tr("Copy link")}</Btn>
-        <Btn t={t} v="ghost" onClick={() => setShown(null)} style={{ minHeight: 44, minWidth: 96 }}>{tr("Back")}</Btn>
-        <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
-      </div>
-    </div>) : (<div data-links-list="">
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
-        <div style={head}>{tr("Customer links")}</div>
-        {closeX}
-      </div>
-      <div style={{ padding: 12, borderRadius: 10, border: "1px solid " + t.border, background: t.hover, marginBottom: 14 }}>
-        <Lbl>{tr("New link")}</Lbl>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 160px", minWidth: 0 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={formOptions} style={{ minHeight: 44 }} /></div>
-          <div style={{ flex: "1 1 160px", minWidth: 0 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={siteOptions} style={{ minHeight: 44 }} /></div>
-          <Btn t={t} onClick={makeLink} disabled={making || !siteId || !formCode} style={{ minHeight: 44, minWidth: 96 }}>{making ? tr("Saving...") : tr("New link")}</Btn>
-        </div>
-        {makeError && <div data-link-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{makeError}</div>}
-      </div>
-      {loading && <div style={{ padding: 20, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
-      {!loading && error && <div style={{ padding: 20, textAlign: "center", color: RD, fontSize: 13 }}>{error}</div>}
-      {!loading && !error && links.length === 0 && <div style={{ fontSize: 13, color: t.textMut, padding: "10px 0" }}>{tr("No customer links yet.")}</div>}
-      {!loading && !error && <div role="list" aria-label={tr("Customer links")}>{links.map(row)}</div>}
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
-        <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44 }}>{tr("Close")}</Btn>
-      </div>
-    </div>)}
   </div></Mdl>);
 }
 
-function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished }) {
+// The QR window: the code at up to 512 pixels, the site, the form's title in each language, the
+// link's state and address, and Print sheet, which puts it all on one clean sheet.
+function LinkQrWindow({ t, token, link, acts, onClose }) {
+  const [qr, setQr] = useState("");
+  const [qrError, setQrError] = useState("");
+  const [printError, setPrintError] = useState("");
+  const id = link.id;
+  useEffect(() => {
+    let alive = true;
+    setQr(""); setQrError(""); setPrintError("");
+    linkQrDataUrl(id, token).then(url => { if (alive) setQr(url); }).catch(e => { if (alive) setQrError(e.message || tr("Request failed")); });
+    return () => { alive = false; };
+  }, [id, token]);
+  useEscape(onClose);
+  const print = () => {
+    if (!qr) return;
+    setPrintError("");
+    if (!printCustomerLinkSheet({ link, qr, titles: customerFormTitles(link), scanLines: customerScanLines(link) })) setPrintError(tr("Allow pop-ups to print the sheet"));
+  };
+  return (<Mdl t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Customer links")}</div>
+      <WindowX t={t} onClose={onClose} />
+    </div>
+    <div style={{ textAlign: "center" }}>
+      {qr
+        ? <img src={qr} alt={tr("QR code")} width={512} height={512} style={{ display: "block", width: "100%", maxWidth: 512, height: "auto", margin: "0 auto", background: "#FFFFFF", borderRadius: 8 }} />
+        : qrError
+          ? <div data-qr-refusal="" style={{ fontSize: 12, color: RD, padding: 20 }}>{qrError}</div>
+          : <div style={{ fontSize: 13, color: t.textMut, padding: 40 }}>{tr("Loading...")}</div>}
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text, marginTop: 14 }}>{linkSiteName(link)}</div>
+      {customerFormTitles(link).map(x => <div key={x} style={{ fontSize: 13, color: t.textSec, marginTop: 2 }}>{x}</div>)}
+      <div style={{ marginTop: 8 }}><Bdg l={linkStateWord(link.state)} c={linkStateColor(link.state)} /></div>
+      <div data-link-address="" style={{ fontSize: 11, color: t.textMut, marginTop: 10, wordBreak: "break-all" }}>{link.url}</div>
+    </div>
+    <LinkRefusal text={acts.rowError[link.id]} />
+    {printError && <div style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{printError}</div>}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 16 }}>
+      <Btn t={t} onClick={print} disabled={!qr} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
+      <Btn t={t} v="ghost" onClick={() => acts.copy(link)} style={{ minHeight: 44, minWidth: 96 }}>{acts.copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// A site's survey schedule in a window of its own, from beside the site's survey link.
+function LinkSurveyWindow({ af, t, site, onClose }) {
+  useEscape(onClose);
+  return (<Mdl t={t} onClose={onClose}><div data-survey-screen="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ ...WINDOW_HEAD, color: t.text }}>{tr("Client survey schedule")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{site.name || tr("No site")}</div>
+      </div>
+      <WindowX t={t} onClose={onClose} />
+    </div>
+    <SurveyScheduleEditor af={af} t={t} siteId={site.id} />
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+      <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// Make a link: the live link for a form and a site, made now or, when the site has one, found.
+// Either way onMade is handed it. A site's card names its own site and offers only the forms the
+// site has no link for.
+function MakeLinkBar({ af, t, forms, sites = [], siteId: fixedSite = "", onMade }) {
+  const [formCode, setFormCode] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [making, setMaking] = useState(false);
+  const [error, setError] = useState("");
+  const code = forms.some(f => f.code === formCode) ? formCode : (forms[0] ? forms[0].code : "");
+  const site = fixedSite ? String(fixedSite) : (sites.some(s => String(s.id) === siteId) ? siteId : (sites[0] ? String(sites[0].id) : ""));
+  const make = async () => {
+    if (making || !code || !site) return;
+    setMaking(true); setError("");
+    try {
+      const r = await af("/api/customer-links", { method: "POST", body: { formCode: code, siteId: site } });
+      if (r && r.link) onMade(r.link);
+    } catch (e) { setError(e.message || tr("Request failed")); }
+    setMaking(false);
+  };
+  return (<div data-make-link="">
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+      <div style={{ flex: "1 1 220px", minWidth: 0 }}><Lbl>{tr("Form")}</Lbl><Sel t={t} aria-label={tr("Form")} value={code} onChange={e => setFormCode(e.target.value)} options={forms.map(f => ({ v: f.code, l: formTitleName(f) }))} /></div>
+      {!fixedSite && <div style={{ flex: "1 1 220px", minWidth: 0 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={site} onChange={e => setSiteId(e.target.value)} options={sites.map(s => ({ v: String(s.id), l: s.name }))} /></div>}
+      <Btn t={t} onClick={make} disabled={making || !code || !site} style={{ minHeight: 44, minWidth: 120 }}>{making ? tr("Saving...") : tr("Make a link")}</Btn>
+    </div>
+    <LinkRefusal text={error} />
+  </div>);
+}
+
+// The Customer links tab: Make a link across the top, the filters for Site, Form and On, Off or
+// All, and every link the API holds, as a table that stacks into cards on a phone. siteFilter is
+// the site the address names; onSiteFilter writes the one picked back into it.
+function CustomerLinksTab({ af, token, t, sites = [], siteFilter = "", onSiteFilter }) {
+  const phone = usePhoneWidth();
+  const forms = useCustomerForms(af);
+  const [links, setLinks] = useState([]);
+  const [state, setState] = useState("loading");
+  const [site, setSite] = useState(String(siteFilter || ""));
+  useEffect(() => { setSite(String(siteFilter || "")); }, [siteFilter]);
+  const [formFilter, setFormFilter] = useState("");
+  const [onOff, setOnOff] = useState("all");
+  const [shownId, setShownId] = useState("");
+  const [schedFor, setSchedFor] = useState(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const load = useCallback(() => {
+    setState("loading");
+    af("/api/customer-links")
+      .then(d => { if (!mounted.current) return; setLinks(d && Array.isArray(d.links) ? d.links : []); setState("ready"); })
+      .catch(e => { console.warn("Customer links:", e.message); if (mounted.current) setState("failed"); });
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  const replaceLink = useCallback((link) => setLinks(prev => (prev.some(l => l.id === link.id) ? prev.map(l => (l.id === link.id ? link : l)) : [link].concat(prev))), []);
+  const acts = useLinkActions(af, token, replaceLink);
+  const surveyLive = useSurveyLive(af, links);
+  const pickSite = (v) => { setSite(v); if (onSiteFilter) onSiteFilter(v); };
+
+  // The site and form choices: every site and every customer form, and any a link names that the
+  // lists do not, so a filter never points at a choice the select cannot show.
+  const siteOptions = [{ v: "", l: tr("All sites") }].concat(sites.map(s => ({ v: String(s.id), l: s.name })));
+  links.forEach(l => { const id = linkSiteId(l); if (id && !siteOptions.some(o => o.v === id)) siteOptions.push({ v: id, l: linkSiteName(l) }); });
+  if (site && !siteOptions.some(o => o.v === site)) siteOptions.push({ v: site, l: site });
+  const formOptions = [{ v: "", l: tr("All forms") }].concat(forms.map(f => ({ v: f.code, l: formTitleName(f) })));
+  links.forEach(l => { if (l.formCode && !formOptions.some(o => o.v === l.formCode)) formOptions.push({ v: l.formCode, l: linkFormName(l) }); });
+
+  const picked = links.filter(l => (!site || linkSiteId(l) === site) && (!formFilter || l.formCode === formFilter));
+  const counts = { on: picked.filter(linkIsOn).length, off: picked.filter(l => !linkIsOn(l)).length, all: picked.length };
+  const rows = picked.filter(l => onOff === "all" || (onOff === "on") === linkIsOn(l));
+  const shownLink = shownId ? links.find(l => l.id === shownId) || null : null;
+  const buttons = (link) => <LinkButtons t={t} link={link} acts={acts} onShowQr={l => setShownId(l.id)} onSurvey={surveyLive ? setSchedFor : null} />;
+  const when = (link) => (link.lastUsedAt ? irWhen(link.lastUsedAt) : "--");
+  const columns = [
+    { header: tr("Form"), render: l => <span style={{ fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{linkFormName(l)}</span> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: l => linkSiteName(l) },
+    { header: tr("Uses"), align: "right", tdStyle: { color: t.textSec }, render: l => Number(l.uses) || 0 },
+    { header: tr("Last used"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: when },
+    { header: tr("State|link"), render: l => <Bdg l={linkStateWord(l.state)} c={linkStateColor(l.state)} /> },
+    { header: "", render: l => (<div data-customer-link={l.id}>{buttons(l)}<LinkRefusal text={acts.rowError[l.id]} /></div>) },
+  ];
+  const card = (l) => (<Crd key={l.id} t={t} style={{ marginBottom: 10, padding: 14 }}><div data-customer-link={l.id}>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{linkFormName(l)}</div>
+      <Bdg l={linkStateWord(l.state)} c={linkStateColor(l.state)} />
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{linkSiteName(l)}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 4, marginBottom: 8 }}>{tr("Uses")}: {Number(l.uses) || 0} &middot; {tr("Last used")}: {when(l)}</div>
+    {buttons(l)}
+    <LinkRefusal text={acts.rowError[l.id]} />
+  </div></Crd>);
+
+  return (<div data-customer-links-tab="">
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Make a link")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Each link opens one form for one site. When the site already has that form's link on, it opens instead of a new one.")}</div>
+      <MakeLinkBar af={af} t={t} forms={forms} sites={sites} onMade={link => { replaceLink(link); setShownId(link.id); }} />
+    </Crd>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: phone ? "none" : 320 }}><Sel t={t} aria-label={tr("Site")} value={site} onChange={e => pickSite(e.target.value)} options={siteOptions} /></div>
+      <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: phone ? "none" : 320 }}><Sel t={t} aria-label={tr("Form")} value={formFilter} onChange={e => setFormFilter(e.target.value)} options={formOptions} /></div>
+    </div>
+    <FilterTabs t={t} value={onOff} onChange={setOnOff} tabs={[{ id: "on", label: tr("On|link"), count: counts.on }, { id: "off", label: tr("Off|link"), count: counts.off }, { id: "all", label: tr("All|links"), count: counts.all }]} />
+    {state === "loading" && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+    {state === "failed" && <LoadFailed t={t} onRetry={load} />}
+    {state === "ready" && (phone
+      ? (rows.length === 0 ? <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{links.length === 0 ? tr("No customer links yet.") : tr("Nothing matches these filters.")}</div> : <div role="list" aria-label={tr("Customer links")}>{rows.map(card)}</div>)
+      : <DataTable t={t} columns={columns} rows={rows} rowKey={l => l.id} empty={links.length === 0 ? tr("No customer links yet.") : tr("Nothing matches these filters.")} />)}
+    {shownLink && <LinkQrWindow t={t} token={token} link={shownLink} acts={acts} onClose={() => setShownId("")} />}
+    {acts.asking && <TurnOffLinkWindow t={t} link={acts.asking} onCancel={acts.cancelOff} onConfirm={acts.confirmOff} />}
+    {schedFor && <LinkSurveyWindow af={af} t={t} site={schedFor} onClose={() => setSchedFor(null)} />}
+  </div>);
+}
+
+function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks }) {
   const [status, setStatus] = useState("submitted");
   // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
   // and a refusal or a 404 leaves the switch undrawn.
@@ -16821,8 +16967,6 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const [starting, setStarting] = useState("");
   const [fill, setFill] = useState(null);
   const [openError, setOpenError] = useState("");
-  // Step 169: the customer links window, for whoever holds manage_settings.
-  const [linksOpen, setLinksOpen] = useState(false);
   const startable = offered.filter(formStartable);
   const readCatalog = async (query) => { const d = await af("/api/forms" + (query || "")); return d && Array.isArray(d.forms) ? d.forms : []; };
   // Step 205: the sites a form started here may name, GET /api/forms/my-sites (STEP204_CONTRACT.md,
@@ -16925,7 +17069,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Form")} value={formCode} onChange={e => setFormCode(e.target.value)} options={[{ v: "", l: tr("All forms") }, ...forms.map(f => ({ v: f.code, l: formTitleName(f) }))]} /></div>
       <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {canManageSettings && <Btn t={t} v="ghost" onClick={() => setLinksOpen(true)} style={{ minHeight: 44 }}>{tr("Customer links")}</Btn>}
+        {canManageSettings && onOpenLinks && <Btn t={t} v="ghost" onClick={onOpenLinks} style={{ minHeight: 44 }}>{tr("Customer links")}</Btn>}
         {startable.length > 0 && <Btn t={t} onClick={openPicker} disabled={!!starting} style={{ minHeight: 44 }}>{tr("Start a form")}</Btn>}
       </div>
     </div>
@@ -16966,7 +17110,6 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       </div>
     </div></Mdl>)}
     {fill && <FormFillWindow af={af} token={token} t={t} form={fill.form} draft={fill.draft} onLeave={leaveFill} people={allStaff} />}
-    {linksOpen && <CustomerLinksWindow af={af} token={token} t={t} sites={sites} onClose={() => setLinksOpen(false)} />}
   </div>);
 }
 
@@ -16988,20 +17131,31 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
   // holding Inbox, Forms and Maintenance, and the PDF access log. Anyone else sees Filed forms alone.
   // The Jotform and PDF access log tabs are the integrations capability's, which an admin holds by default.
   const isAdmin = canManageIntegrations;
-  const [tab, setTab] = useState("incident_reports");
+  // Step 243: Customer links, a tab of its own for holders of manage_settings, at #forms/links, and
+  // at #forms/links/site/<id> on one site.
+  const [tab, setTab] = useState(() => (route[0] === "links" && canManageSettings ? "links" : "incident_reports"));
   const [jotSection, setJotSection] = useState("inbox");
   // How many filings are unfinished, read by the Filed forms tab from the list it loads.
   const [unfinishedCount, setUnfinishedCount] = useState(null);
   const [irOpenId, setIrOpenId] = useState(() => (route[0] === "reports" && route[1] ? route[1] : null));
   const [irOpenRow, setIrOpenRow] = useState(null);
-  // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well. #forms alone
-  // behaves as it always has.
+  // #forms/reports opens this tab, and #forms/reports/<id> opens that report as well; #forms/links
+  // opens Customer links for a holder of manage_settings. #forms alone behaves as it always has.
   useEffect(() => {
+    if (route[0] === "links" && canManageSettings) { setTab("links"); return; }
     if (route[0] !== "reports") return;
     setTab("incident_reports");
     setIrOpenId(prev => (route[1] ? route[1] : null));
     if (!route[1]) setIrOpenRow(null);
-  }, [route]);
+  }, [route, canManageSettings]);
+  const linkSite = route[0] === "links" && route[1] === "site" && route[2] ? String(route[2]) : "";
+  // A tab picked writes its address when it has one: Customer links its own, and leaving it clears it.
+  const pickTab = (id) => {
+    setTab(id);
+    if (!onRoute) return;
+    if (id === "links") onRoute(["links"]);
+    else if (route[0] === "links") onRoute([]);
+  };
   const [config, setConfig] = useState(null);
   const [forms, setForms] = useState([]);
   const [submissions, setSubmissions] = useState([]);
@@ -17686,13 +17840,15 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
 
   // Step 165: three tabs. Filed forms first and the default for everyone, with the count of unfinished
   // filings the tab reads; Jotform, one tab holding Inbox, Forms and Maintenance, switched inside it;
-  // and the PDF access log, which reads both kinds since the API's Step 163.
+  // and the PDF access log, which reads both kinds since the API's Step 163. Step 243 adds Customer
+  // links, for holders of manage_settings, whether or not they hold the Jotform tabs.
   const TABS = [
     { id: "incident_reports", l: unfinishedCount > 0 ? tr("Filed forms ({0})", unfinishedCount) : tr("Filed forms"), adminOnly: false },
     { id: "jotform", l: tr("Jotform"), adminOnly: true },
     { id: "pdf_access", l: tr("PDF access log"), adminOnly: true },
+    { id: "links", l: tr("Customer links"), settingsOnly: true },
   ];
-  const tabs = TABS.filter(x => isAdmin || !x.adminOnly);
+  const tabs = TABS.filter(x => (x.settingsOnly ? canManageSettings : isAdmin || !x.adminOnly));
   const SECTIONS = [
     { id: "inbox", l: tr("Inbox") },
     { id: "forms", l: tr("Forms") },
@@ -17707,7 +17863,7 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       {/* TABS */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
         {tabs.map(tb => (
-          <button key={tb.id} onClick={() => setTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
+          <button key={tb.id} onClick={() => pickTab(tb.id)} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
       </div>
 
@@ -18219,7 +18375,8 @@ function FormsPage({ af, token, showToast, t, allStaff, sites, user, route = [],
       )}
 
       {/* ================ FILED FORMS ================ */}
-      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "incident_reports" && <IncidentReportsTab af={af} token={token} t={t} user={user} sites={sites} allStaff={allStaff} canManageSettings={canManageSettings} onOpenLinks={() => pickTab("links")} openId={irOpenId} openRow={irOpenRow} onUnfinished={setUnfinishedCount} onOpen={(id, row) => { setIrOpenId(id); setIrOpenRow(row || null); if (onRoute) onRoute(["reports", id]); }} onClose={() => { setIrOpenId(null); setIrOpenRow(null); if (onRoute) onRoute(["reports"]); }} />}
+      {tab === "links" && canManageSettings && <CustomerLinksTab af={af} token={token} t={t} sites={sites} siteFilter={linkSite} onSiteFilter={v => { if (onRoute) onRoute(v ? ["links", "site", v] : ["links"]); }} />}
 
       {/* ================ JOTFORM, MAINTENANCE: ALIASES (Session 27) ================ */}
       {maintenance && (
