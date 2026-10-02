@@ -2485,12 +2485,10 @@ export const WORDS = {
   },  // Step 169: customer links and their QR codes, a customer's filings, and the signature box on a
   // dashboard filing.
   "Customer links": { es: "Enlaces para clientes" },
-  "New link": { es: "Nuevo enlace" },
   "Show QR code": { es: "Ver c\u00f3digo QR" },
   "Copy link": { es: "Copiar enlace" },
   "Turn off": { es: "Apagar" },
   "Turn on": { es: "Encender" },
-  "Live|link": { es: "Activo" },
   "Off|link": { es: "Apagado" },
   "Expired|link": { es: "Vencido" },
   "Uses": { es: "Usos" },
@@ -3796,6 +3794,18 @@ export const WORDS = {
   "Whole-room treatment recorded in Section 5. Critical touchpoints on every round. Dedicated equipment for affected areas. Daily written coverage report to the customer": { es: "Tratamiento de toda la sala registrado en la Secci\u00f3n 5. Puntos de contacto cr\u00edticos en cada ronda. Equipo exclusivo para las \u00e1reas afectadas. Informe escrito diario de cobertura para el cliente" },
   "Due by": { es: "Fecha l\u00edmite" },
   "All but retired": { es: "Todos menos los dados de baja" },
+  "Make a link": { es: "Crear un enlace" },
+  "Each link opens one form for one site. A site has one link on for each form, and asking again opens that one.": { es: "Cada enlace abre un formulario para un sitio. Un sitio tiene un enlace encendido por formulario, y pedirlo otra vez abre ese mismo." },
+  "On|link": { es: "Encendido" },
+  "All|links": { es: "Todos" },
+  "State|link": { es: "Estado" },
+  "Print sheet": { es: "Imprimir la hoja" },
+  "Turn off this link? Anyone who scans it is told it is no longer in use.": { es: "\u00bfApagar este enlace? A quien lo escanee se le dir\u00e1 que ya no est\u00e1 en uso." },
+  "All links": { es: "Todos los enlaces" },
+  "Scan to report a problem to OCSA.": { es: "Escanee para informar un problema a OCSA." },
+  "From a client": { es: "De un cliente" },
+  "For the Controller": { es: "Para el Contralor" },
+  "Answered {0}": { es: "Respondida el {0}" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
