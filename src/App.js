@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -317,6 +317,7 @@ const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
 const WsI = p => <Ic d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z" {...p} />;
 const FileI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" {...p} />;
 const RecI = p => <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" {...p} />;
+const EqI = p => <Ic d="M3 7h18v13H3z M8 7V4h8v3 M3 12h18 M10 12v3h4v-3" {...p} />;
 const UpI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" {...p} />;
 const FolI = p => <Ic d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p} />;
 const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 0 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 0 2 0l.43.25a2 2 0 0 0 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 0 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 0 0-2l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 0-2 0l-.43-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
@@ -600,6 +601,9 @@ export default function AdminDashboard() {
   // Whether GET /api/workspace/projects answers this office account with { projects } (Step 235):
   // Workspace joins the side panel. Read once a session.
   const [workspaceOn, setWorkspaceOn] = useState(false);
+  // Whether GET /api/equipment answers this office account with { equipment } (Step 239): Equipment
+  // joins the side panel. Read once a session.
+  const [equipmentOn, setEquipmentOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -625,11 +629,12 @@ export default function AdminDashboard() {
     if (id === "clearances") return clearancesOn;
     if (id === "discipline") return disciplineOn;
     if (id === "workspace") return workspaceOn;
+    if (id === "equipment") return equipmentOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -659,11 +664,12 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
+    af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -826,7 +832,7 @@ export default function AdminDashboard() {
       { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
       { id: "inspections", l: tr("Inspections"), i: ClpI },
     ]},
-    { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }] },
+    { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }, ...(canOpenPage("equipment") ? [{ id: "equipment", l: tr("Equipment"), i: EqI }] : [])] },
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }, ...(canOpenPage("quotes") ? [{ id: "quotes", l: tr("Quotes"), i: DlrI }] : [])] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }, ...(canOpenPage("help-insights") ? [{ id: "help-insights", l: tr("Help insights"), i: HlpI }] : [])] },
@@ -842,7 +848,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1088,6 +1094,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
@@ -8404,6 +8411,256 @@ function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
       <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
       <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// ===== EQUIPMENT (Step 239) =====
+// The equipment register (STEP238_CONTRACT.md, Part 4; the inventory of OCSA-FRM-037): every item with
+// its site, its status, its next service and its latest event, filtered by site, status and Service
+// due, with Add equipment and Print labels for the items ticked. An item's page, #equipment/<id>, shows
+// its events and records a service, a repair, a tag out, a return to service, a move or a retirement.
+// The register joins the side panel once GET /api/equipment answers with { equipment }.
+const EQUIPMENT_STATUSES = { in_service: { l: "In service", get c() { return GR; } }, out_of_service: { l: "Out of service", get c() { return RD; } }, retired: { l: "Retired|equipment", c: "#8899AA" } };
+const equipmentStatusWord = (s) => (EQUIPMENT_STATUSES[s] ? tr(EQUIPMENT_STATUSES[s].l) : String(s || ""));
+const EquipmentChip = ({ status }) => <Bdg l={equipmentStatusWord(status)} c={(EQUIPMENT_STATUSES[status] || EQUIPMENT_STATUSES.retired).c} />;
+const EQUIPMENT_EVENTS = { check: "Checked|equipment", service: "Serviced", repair: "Repaired", tagged_out: "Tagged out", returned: "Returned to service", moved: "Moved|equipment", retired: "Retired|equipment" };
+const equipmentEventWord = (k) => (EQUIPMENT_EVENTS[k] ? tr(EQUIPMENT_EVENTS[k]) : String(k || ""));
+const equipmentList = (d) => (d && Array.isArray(d.equipment) ? d.equipment : null);
+const equipmentLatest = (x) => (x && (x.latestEvent || x.lastEvent)) || null;
+const equipmentGo = (id) => { window.location.hash = "equipment" + (id != null && id !== "" ? "/" + encodeURIComponent(String(id)) : ""); };
+const equipmentDue = (x, today) => !!(x && x.status !== "retired" && x.nextServiceOn && String(x.nextServiceOn).slice(0, 10) <= today);
+const equipmentByOf = (ev) => ev.byName || ev.by_name || (ev.by && typeof ev.by === "object" ? ev.by.name : "") || "";
+function EquipmentPage({ af, token, t, sites = [], route = [], showToast }) {
+  const id = route[0] ? String(route[0]) : "";
+  if (id) return <EquipmentItem key={id} af={af} t={t} id={id} sites={sites} showToast={showToast} />;
+  return <EquipmentRegister af={af} token={token} t={t} sites={sites} showToast={showToast} />;
+}
+function EquipmentRegister({ af, token, t, sites = [], showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [status, setStatus] = useState("");
+  const [due, setDue] = useState(false);
+  const [ticked, setTicked] = useState(() => new Set());
+  const [adding, setAdding] = useState(false);
+  const [labels, setLabels] = useState({ busy: false, error: "" });
+  const load = useCallback(() => {
+    const q = [].concat(siteId ? ["siteId=" + encodeURIComponent(siteId)] : [], status ? ["status=" + encodeURIComponent(status)] : [], due ? ["due=true"] : []);
+    setFailed("");
+    af("/api/equipment" + (q.length ? "?" + q.join("&") : "")).then(d => setList(equipmentList(d) || [])).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, siteId, status, due]);
+  useEffect(() => { load(); }, [load]);
+  const today = todayISO();
+  const siteName = (sid) => ((sites || []).find(s => String(s.id) === String(sid)) || {}).name || "";
+  const rows = (list || []).filter(x => (!siteId || String(x.siteId) === siteId) && (!status || x.status === status) && (!due || equipmentDue(x, today)));
+  const tick = (rid) => setTicked(p => { const n = new Set(p); if (n.has(rid)) n.delete(rid); else n.add(rid); return n; });
+  const shownTicked = rows.filter(x => ticked.has(String(x.id)));
+  const printLabels = async () => {
+    if (labels.busy || shownTicked.length === 0) return;
+    setLabels({ busy: true, error: "" });
+    try { await saveDownload("/api/equipment/labels.pdf?ids=" + shownTicked.map(x => encodeURIComponent(String(x.id))).join(","), token, "labels.pdf"); setLabels({ busy: false, error: "" }); }
+    catch (e) { setLabels({ busy: false, error: e.message || tr("Request failed") }); }
+  };
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  const cols = [
+    { header: "", tdStyle: { width: 44 }, render: x => (<label onClick={e => e.stopPropagation()} style={{ ...chkWrap, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><input type="checkbox" aria-label={tr("Tick {0} for labels", x.name || "")} checked={ticked.has(String(x.id))} onChange={() => tick(String(x.id))} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></label>) },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).length ? <div style={{ fontSize: 11, color: t.textMut }}>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div> : null}</span>) },
+    { header: tr("Site"), tdStyle: { color: t.textSec, minWidth: 120 }, render: x => x.siteName || siteName(x.siteId) || "--" },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <EquipmentChip status={x.status} /> },
+    { header: tr("Next service"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.nextServiceOn ? <span style={{ color: equipmentDue(x, today) ? RD : t.textSec, fontWeight: equipmentDue(x, today) ? 600 : 400 }}>{keptDay(x.nextServiceOn)}</span> : <span style={{ color: t.textMut }}>--</span>) },
+    { header: tr("Latest event"), tdStyle: { minWidth: 150, color: t.textSec }, render: x => { const ev = equipmentLatest(x); return ev ? <span>{equipmentEventWord(ev.kind)}<div style={{ fontSize: 11, color: t.textMut }}>{ev.at ? irDay(ev.at) : ""}</div></span> : "--"; } },
+  ];
+  return (<div data-equipment-page="">
+    <SecT t={t} action={tr("Add equipment")} onAction={() => setAdding(true)}>{tr("Equipment")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Every machine and tool on the register, where it is and when it is next serviced. A row opens the item.")}</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} style={selSt}>
+        <option value="">{tr("All sites")}</option>
+        {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <select aria-label={tr("Status")} value={status} onChange={e => setStatus(e.target.value)} style={selSt}>
+        <option value="">{tr("Every status")}</option>
+        {Object.keys(EQUIPMENT_STATUSES).map(k => <option key={k} value={k}>{equipmentStatusWord(k)}</option>)}
+      </select>
+      <button type="button" aria-pressed={due} onClick={() => setDue(v => !v)} style={{ ...selSt, border: "1px solid " + (due ? GO : t.borderSolid), background: due ? t.goldBg : t.card, color: due ? t.goldText : t.text, fontWeight: 600 }}>{tr("Service due")}</button>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {shownTicked.length === 0 && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Tick items to print their labels.")}</span>}
+        <Btn t={t} v="ghost" onClick={printLabels} disabled={labels.busy || shownTicked.length === 0} style={{ minHeight: 44 }}>{labels.busy ? tr("Downloading...") : shownTicked.length ? tr("Print labels ({0})", shownTicked.length) : tr("Print labels")}</Btn>
+      </div>
+    </div>
+    {labels.error && <div role="alert" data-equipment-labels-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{labels.error}</div>}
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.id)} onRowClick={x => equipmentGo(x.id)} empty={(list || []).length ? tr("Nothing matches these filters.") : tr("No equipment on the register yet.")} />}
+    {adding && <EquipmentWindow af={af} t={t} sites={sites} onClose={() => setAdding(false)} onSaved={(row) => { setAdding(false); if (showToast) showToast(tr("Equipment added.")); if (row && row.id != null) equipmentGo(row.id); else load(); }} />}
+  </div>);
+}
+// Add an item, or change one. A refusal is drawn under the box its keys name, and one without keys at
+// the top.
+const EQUIPMENT_FIELDS = ["siteId", "name", "category", "make", "model", "serial", "purchasedOn", "serviceEveryDays", "lastServiceOn", "notes"];
+function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
+  const [f, setF] = useState(() => {
+    const x = item || {};
+    return { siteId: x.siteId != null ? String(x.siteId) : "", name: x.name || "", category: x.category || "", make: x.make || "", model: x.model || "", serial: x.serial || "", purchasedOn: x.purchasedOn ? String(x.purchasedOn).slice(0, 10) : "", serviceEveryDays: x.serviceEveryDays != null ? String(x.serviceEveryDays) : "", lastServiceOn: x.lastServiceOn ? String(x.lastServiceOn).slice(0, 10) : "", notes: x.notes || "" };
+  });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const every = f.serviceEveryDays.trim();
+  const everyOk = every === "" || (/^\d+$/.test(every) && Number(every) >= 1);
+  const ready = !!f.name.trim() && !!f.siteId && everyOk;
+  const bad = (k) => refusal.keys.indexOf(k) >= 0;
+  const under = (k) => (bad(k) ? <div data-equipment-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    const body = { name: f.name.trim(), category: f.category.trim() || null, make: f.make.trim() || null, model: f.model.trim() || null, serial: f.serial.trim() || null, purchasedOn: f.purchasedOn || null, serviceEveryDays: every ? Number(every) : null, notes: f.notes.trim() || null };
+    if (!item) { body.siteId = f.siteId; body.lastServiceOn = f.lastServiceOn || null; }
+    try {
+      const d = await af("/api/equipment" + (item ? "/" + encodeURIComponent(item.id) : ""), { method: item ? "PATCH" : "POST", body });
+      onSaved(d && d.equipment ? d.equipment : d);
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setRefusal({ text: e.message || tr("Request failed"), keys });
+    }
+    setBusy(false);
+  };
+  const field = (k, label, extra) => (<div><Lbl>{label}</Lbl><Inp t={t} aria-label={label} value={f[k]} onChange={e => set(k, e.target.value)} {...(extra || {})} style={box(k)} />{under(k)}</div>);
+  const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 };
+  const known = refusal.keys.filter(k => EQUIPMENT_FIELDS.indexOf(k) >= 0);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-window={item ? "edit" : "add"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{item ? tr("Edit equipment") : tr("Add equipment")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && known.length === 0 && <div role="alert" data-equipment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}>{field("name", tr("Name"), { maxLength: 120, placeholder: tr("e.g. {0}", tr("Floor scrubber 2")) })}</div>
+    {!item && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    <div style={grid}>
+      {field("category", tr("Type"), { maxLength: 80, placeholder: tr("e.g. {0}", tr("Auto scrubber")) })}
+      {field("make", tr("Make"), { maxLength: 80 })}
+      {field("model", tr("Model"), { maxLength: 80 })}
+      {field("serial", tr("Serial number"), { maxLength: 80 })}
+      {field("purchasedOn", tr("Bought on"), { type: "date" })}
+      {field("serviceEveryDays", tr("Service every (days)"), { type: "number", min: "1", step: "1" })}
+      {!item && field("lastServiceOn", tr("Last serviced on"), { type: "date" })}
+    </div>
+    {!everyOk && <div style={{ fontSize: 12, color: RD, marginTop: -6, marginBottom: 10 }}>{tr("A whole number of days, 1 or more.")}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} rows={3} aria-label={tr("Notes")} value={f.notes} onChange={e => set("notes", e.target.value)} maxLength={2000} style={box("notes")} />{under("notes")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// What each action writes, and which status it is offered from. A tag out needs a note, and a move
+// names the site it goes to.
+const EQUIPMENT_ACTIONS = [
+  { kind: "service", l: "Record service", from: ["in_service", "out_of_service"] },
+  { kind: "repair", l: "Repair", from: ["in_service", "out_of_service"] },
+  { kind: "tagged_out", l: "Tag out", from: ["in_service"], noteNeeded: true },
+  { kind: "returned", l: "Return to service", from: ["out_of_service"] },
+  { kind: "moved", l: "Move", from: ["in_service", "out_of_service"], toSite: true },
+  { kind: "retired", l: "Retire", from: ["in_service", "out_of_service"], confirm: true },
+];
+function EquipmentItem({ af, t, id, sites = [], showToast }) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [act, setAct] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/equipment/" + encodeURIComponent(id)).then(r => { if (!r || !r.equipment) throw new Error(tr("This did not load.")); setD(r); }).catch(e => { setD(null); setFailed(e.message || tr("This did not load.")); });
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  const back = <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => equipmentGo("")} style={{ minHeight: 44 }}>{tr("Back to equipment")}</Btn></div>;
+  if (!d) return (<div>{back}{failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> : <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>}</div>);
+  const x = d.equipment;
+  const events = (Array.isArray(d.events) ? d.events : []).slice().sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const siteName = (sid) => ((sites || []).find(s => String(s.id) === String(sid)) || {}).name || "";
+  const today = todayISO();
+  const fact = (label, value) => (value ? <div style={{ minWidth: 0 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>{label}</div><div style={{ fontSize: 13, color: t.text, marginTop: 2, overflowWrap: "anywhere" }}>{value}</div></div> : null);
+  const offered = EQUIPMENT_ACTIONS.filter(a => a.from.indexOf(x.status) >= 0);
+  return (<div data-equipment-item={String(x.id)}>
+    {back}
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{x.name}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{x.siteName || siteName(x.siteId)}</div>
+        </div>
+        <EquipmentChip status={x.status} />
+        {x.status !== "retired" && <Btn t={t} v="ghost" onClick={() => setEditing(true)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+        {fact(tr("Type"), x.category)}
+        {fact(tr("Make"), x.make)}
+        {fact(tr("Model"), x.model)}
+        {fact(tr("Serial number"), x.serial)}
+        {fact(tr("Bought on"), x.purchasedOn ? keptDay(x.purchasedOn) : "")}
+        {fact(tr("Service every (days)"), x.serviceEveryDays != null ? String(x.serviceEveryDays) : "")}
+        {fact(tr("Last serviced on"), x.lastServiceOn ? keptDay(x.lastServiceOn) : "")}
+        {fact(tr("Next service"), x.nextServiceOn ? keptDay(x.nextServiceOn) + (equipmentDue(x, today) ? " (" + tr("due") + ")" : "") : "")}
+        {fact(tr("Label code"), x.qrCode)}
+        {fact(tr("Retired on"), x.retiredAt ? irDay(x.retiredAt) : "")}
+      </div>
+      {x.notes ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 12, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{x.notes}</div> : null}
+      {offered.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        {offered.map(a => <Btn key={a.kind} t={t} v={a.kind === "retired" || a.kind === "tagged_out" ? "danger" : a.kind === "service" || a.kind === "returned" ? "primary" : "ghost"} onClick={() => setAct(a)} style={{ minHeight: 44 }}>{tr(a.l)}</Btn>)}
+      </div>}
+    </Crd>
+    <Crd t={t}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 }}>{tr("Events")}</div>
+      {events.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing recorded yet.")}</div> : events.map((ev, i) => (
+        <div key={ev.id != null ? String(ev.id) : "e" + i} data-equipment-event={ev.kind} style={{ padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: ev.kind === "tagged_out" ? RD : t.text }}>{equipmentEventWord(ev.kind)}</span>
+            <span style={{ fontSize: 11, color: t.textMut }}>{[ev.at ? new Date(ev.at).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "", equipmentByOf(ev)].filter(Boolean).join(", ")}</span>
+          </div>
+          {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", siteName(ev.fromSiteId) || "--", siteName(ev.toSiteId) || "--")}</div> : null}
+          {ev.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
+          {ev.photoUrl ? <a href={ev.photoUrl} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
+        </div>))}
+    </Crd>
+    {act && <EquipmentEventWindow af={af} t={t} item={x} action={act} sites={sites} onClose={() => setAct(null)} onSaved={() => { setAct(null); if (showToast) showToast(tr("Recorded.")); load(); }} />}
+    {editing && <EquipmentWindow af={af} t={t} sites={sites} item={x} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); if (showToast) showToast(tr("Saved")); load(); }} />}
+  </div>);
+}
+function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSaved }) {
+  const [note, setNote] = useState("");
+  const [toSiteId, setToSiteId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const ready = (!action.noteNeeded || !!note.trim()) && (!action.toSite || !!toSiteId);
+  const save = async () => {
+    if (busy || !ready) return;
+    if (action.confirm && !window.confirm(tr("Retire {0}? It stays on the register, and nothing more can be recorded against it.", item.name || ""))) return;
+    setBusy(true); setRefusal("");
+    try {
+      await af("/api/equipment/" + encodeURIComponent(item.id) + "/events", { method: "POST", body: Object.assign({ kind: action.kind, note: note.trim() || null }, action.toSite ? { toSiteId } : {}) });
+      onSaved();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const others = (sites || []).filter(s => String(s.id) !== String(item.siteId));
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-action={action.kind}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr(action.l)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{item.name}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {action.kind === "tagged_out" && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A tagged out item is out of service until it is returned. The site's supervisors and the admins are told.")}</div>}
+    {action.kind === "service" && item.serviceEveryDays ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The next service moves {0} days on from today.", item.serviceEveryDays)}</div> : null}
+    {action.toSite && <div style={{ marginBottom: 12 }}><Lbl>{tr("Move to")}</Lbl><Sel t={t} aria-label={tr("Move to")} value={toSiteId} onChange={e => setToSiteId(e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(others.map(s => ({ v: String(s.id), l: s.name })))} /></div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{action.noteNeeded ? tr("What is wrong") : tr("Note")}</Lbl><TArea t={t} rows={3} aria-label={action.noteNeeded ? tr("What is wrong") : tr("Note")} value={note} onChange={e => setNote(e.target.value)} placeholder={action.noteNeeded ? tr("Required.") : tr("Optional.")} maxLength={2000} /></div>
+    {refusal && <div role="alert" data-equipment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} v={action.kind === "retired" || action.kind === "tagged_out" ? "danger" : "primary"} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr(action.l)}</Btn>
     </div>
   </div></Mdl>);
 }
