@@ -3169,6 +3169,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supplies assigned to this site")}</div>}
         </Crd>
+        <PpeIssues key={selectedSite} af={af} token={token} t={t} siteId={selectedSite} sites={sites} people={sp.staff} showToast={showToast} />
 
         {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply to Site")}</div><button onClick={() => setShowAddSupply(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
@@ -8286,6 +8287,125 @@ function KeptRecordView({ id, af, token, t, sites = [], allStaff = [], lkMap }) 
       {note && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{note}</div>}
     </Crd>
   </div>);
+}
+
+// ===== PPE ISSUES (Step 239) =====
+// Protective equipment handed to a person at a site and signed for on the screen it is issued on
+// (STEP238_CONTRACT.md, Part 3, the issue part of OCSA-FRM-019). A person's HR Records folder lists what
+// they were issued and a site's Supplies tab what was issued there, each with Issue PPE. Neither draws
+// anything until GET /api/ppe-issues answers.
+const ppeIssuedOn = (x) => keptIssueDay(x);
+function PpeIssues({ af, token, t, userId = "", siteId = "", sites = [], people = [], name = "", showToast }) {
+  const [issues, setIssues] = useState(null);
+  const [win, setWin] = useState(false);
+  const [shown, setShown] = useState({});
+  const load = useCallback(() => {
+    const q = userId ? "userId=" + encodeURIComponent(userId) : "siteId=" + encodeURIComponent(siteId);
+    af("/api/ppe-issues?" + q).then(d => setIssues(d && Array.isArray(d.issues) ? d.issues : null)).catch(e => { setIssues(null); console.warn("PPE issues:", e.message); });
+  }, [af, userId, siteId]);
+  useEffect(() => { load(); }, [load]);
+  if (issues === null) return null;
+  const list = issues.slice().sort((a, b) => String(b.issuedAt || b.createdAt || "").localeCompare(String(a.issuedAt || a.createdAt || "")));
+  const siteName = (id) => ((sites || []).find(s => String(s.id) === String(id)) || {}).name || "";
+  return (<Crd t={t} style={{ marginBottom: 16 }}>
+    <div data-ppe-issues={userId ? "person" : "site"}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("PPE issued")}</div>
+        <Btn t={t} onClick={() => setWin(true)} style={{ minHeight: 44 }}>{tr("Issue PPE")}</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{userId ? tr("Protective equipment this person was given, each signed for when it was handed over.") : tr("Protective equipment given out at this site, each signed for when it was handed over.")}</div>
+      {list.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing issued yet.")}</div> : list.map(x => (
+        <div key={x.id} data-ppe-issue={x.id} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{[ppeItemOf(x), x.size].filter(Boolean).join(", ")}{x.quantity > 1 ? " x " + x.quantity : ""}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[keptDay(ppeIssuedOn(x)), userId ? siteName(x.siteId) : ppeWhoOf(x, people)].filter(Boolean).join(", ")}</div>
+              {x.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{x.note}</div> : null}
+            </div>
+            {x.fitOk === true || x.fitOk === false ? <Bdg l={x.fitOk ? tr("Fits well") : tr("Does not fit")} c={x.fitOk ? GR : OR} /> : null}
+            <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>
+          </div>
+          {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/ppe-issues/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
+        </div>))}
+    </div>
+    {win && <IssuePpeWindow af={af} t={t} userId={userId} siteId={siteId} sites={sites} people={people} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("PPE issue saved.")); load(); }} />}
+  </Crd>);
+}
+// The item comes from the site's PPE stock or is typed, with its size, how many, whether it fits, a
+// note, and the person's drawing on this screen. A refusal is drawn under the box its keys name, and
+// one without keys at the top.
+const PPE_TYPED = "__typed";
+function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = [], name = "", onClose, onSaved }) {
+  const [f, setF] = useState({ userId: userId || "", siteId: siteId || "", supplyId: "", item: "", size: "", quantity: "1", fitOk: null, note: "" });
+  const [stock, setStock] = useState([]);
+  const [sig, setSig] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  useEffect(() => {
+    setStock([]);
+    if (!f.siteId) return undefined;
+    let alive = true;
+    af("/api/supplies?site_id=" + encodeURIComponent(f.siteId) + "&category=ppe").then(d => { if (alive) setStock((Array.isArray(d) ? d : []).filter(s => s && s.category === "ppe")); }).catch(e => { if (alive) setStock([]); console.warn("PPE stock:", e.message); });
+    return () => { alive = false; };
+  }, [af, f.siteId]);
+  const who = name || ppePersonName((people || []).find(p => String(p.id) === String(f.userId)));
+  const typed = f.supplyId === PPE_TYPED;
+  const qty = Number(f.quantity);
+  const ready = !!f.userId && !!f.siteId && (typed ? !!f.item.trim() : !!f.supplyId) && Number.isInteger(qty) && qty >= 1 && (f.fitOk === true || f.fitOk === false) && !!sig;
+  const bad = (k) => refusal.keys.indexOf(k) >= 0;
+  const under = (k) => (bad(k) ? <div data-ppe-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    try {
+      await af("/api/ppe-issues", { method: "POST", body: Object.assign({ userId: f.userId, siteId: f.siteId, size: f.size.trim(), quantity: qty, fitOk: f.fitOk, note: f.note.trim(), employeeSignature: sig }, typed ? { item: f.item.trim() } : { supplyId: f.supplyId }) });
+      onSaved();
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      const sigRefused = e && e.code === "ppe.signatureRequired";
+      setRefusal({ text: e.message || tr("Request failed"), keys: sigRefused ? ["employeeSignature"] : keys.map(k => (k === "supplyId" ? "item" : k)) });
+      if (sigRefused) setSig("");
+    }
+    setBusy(false);
+  };
+  const choice = (on) => ({ minWidth: 72, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  const known = refusal.keys.filter(k => ["userId", "siteId", "item", "size", "quantity", "fitOk", "note", "employeeSignature"].indexOf(k) >= 0);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ppe-window="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue PPE")}</div>
+        {who ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{who}</div> : null}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && known.length === 0 && <div role="alert" data-ppe-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {!userId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
+      <Sel t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
+    {!siteId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
+      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF(p => ({ ...p, siteId: e.target.value, supplyId: p.supplyId === PPE_TYPED ? PPE_TYPED : "" }))} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Item")}</Lbl>
+      <Sel t={t} aria-label={tr("Item")} value={f.supplyId} onChange={e => set("supplyId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(stock.map(s => ({ v: String(s.id), l: s.name })), [{ v: PPE_TYPED, l: tr("Something else, typed") }])} style={box("item")} />
+      {typed && <Inp t={t} aria-label={tr("What was issued")} value={f.item} onChange={e => set("item", e.target.value)} placeholder={tr("What was issued")} maxLength={200} style={{ marginTop: 8, ...box("item") }} />}
+      {under("item")}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Size")}</Lbl><Inp t={t} aria-label={tr("Size")} value={f.size} onChange={e => set("size", e.target.value)} maxLength={40} style={box("size")} />{under("size")}</div>
+      <div><Lbl>{tr("Quantity")}</Lbl><Inp t={t} type="number" min="1" step="1" aria-label={tr("Quantity")} value={f.quantity} onChange={e => set("quantity", e.target.value)} style={box("quantity")} />{under("quantity")}</div>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Fits well?")}</Lbl>
+      <div role="group" aria-label={tr("Fits well?")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" aria-pressed={f.fitOk === true} onClick={() => set("fitOk", true)} style={choice(f.fitOk === true)}>{tr("Yes")}</button>
+        <button type="button" aria-pressed={f.fitOk === false} onClick={() => set("fitOk", false)} style={choice(f.fitOk === false)}>{tr("No")}</button>
+      </div>{under("fitOk")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
+    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+      : <SignatureBox t={t} label={who ? tr("{0} signs for what they received", who) : tr("The person signs for what they received")} busy={busy} refusal={bad("employeeSignature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
 }
 
 function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
@@ -18983,7 +19103,7 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   </Crd>);
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false, isAdmin = false, canOpenStaff = false }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -19154,6 +19274,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
+      <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -19815,6 +19936,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           userId={folderUserId}
           refreshKey={folderRefresh}
           allStaff={allStaff}
+          sites={sites}
           getOpts={getOpts}
           lkMap={lkMap}
           onBack={() => openFolder(null)}
