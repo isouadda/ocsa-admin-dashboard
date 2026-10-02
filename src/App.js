@@ -2560,6 +2560,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const [siteProfile, setSiteProfile] = useState(null);
   const [siteTab, setSiteTab] = useState("general");
   const [st, setSt] = useState([]);
+  // Step 239: the Touchpoint switch, once the site's items answer a touchpoint of their own.
+  const touchLive = st.some(tk => tk && typeof tk.touchpoint === "boolean");
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
@@ -2791,7 +2793,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const submitTask = async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -2800,7 +2802,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -3112,12 +3114,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}>
-              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}</div>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })}>
+              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -3369,6 +3371,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
+        {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v })} />}
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
 
@@ -3391,6 +3394,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             <TArea t={t} value={taskEs.description} onChange={e => setTaskEs({ ...taskEs, description: e.target.value })} aria-label={tr("Detailed Instructions")} placeholder={tr("Detailed Instructions")} rows={2} />
           </>}
         </div>}
+        {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v })} />}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -3415,6 +3419,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
       <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
     </div>}
+    <PeriodicWorkPanel af={af} t={t} canEdit={canManageTasks} onOpenSite={(sid) => openProfile(sid, "tasks")} showToast={showToast} />
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -8664,6 +8669,88 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
     </div>
   </div></Mdl>);
 }
+
+// ===== PERIODIC WORK (Step 239) =====
+// The checklist's periodic items across every site in one table (STEP238_CONTRACT.md, Part 5): weekly,
+// every two weeks, monthly, quarterly and seasonal work, each with when it was last done, by whom, when
+// it is next due and whether it is done, due or overdue, worked out by the API's period rules. An item
+// whose period needs a day to count from and has none gains Set start date. The table sits on the Sites
+// list once GET /api/periodic-work answers with { items }.
+const PERIODIC_FREQUENCIES = { weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly", quarterly: "Quarterly", seasonal: "Seasonal" };
+const periodicFrequencyWord = (f) => (PERIODIC_FREQUENCIES[f] ? tr(PERIODIC_FREQUENCIES[f]) : String(f || ""));
+const PERIODIC_STATES = { overdue: { l: "Overdue", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
+const periodicStateWord = (s) => (PERIODIC_STATES[s] ? tr(PERIODIC_STATES[s].l) : String(s || ""));
+const PERIODIC_ORDER = ["overdue", "due", "done"];
+// An item with no day to count from: the answer's anchorOn when it carries one, and otherwise an item
+// that has no next due day.
+const periodicNeedsStart = (x) => (Object.prototype.hasOwnProperty.call(x, "anchorOn") ? x.anchorOn == null : !x.nextDueOn);
+const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
+function PeriodicWorkPanel({ af, t, canEdit = false, onOpenSite, showToast }) {
+  const [items, setItems] = useState(null);
+  const [state, setState] = useState("all");
+  const [anchor, setAnchor] = useState(null);
+  const load = useCallback(() => {
+    af("/api/periodic-work").then(d => setItems(d && Array.isArray(d.items) ? d.items : null)).catch(e => { setItems(null); console.warn("Periodic work:", e.message); });
+  }, [af]);
+  useEffect(() => { load(); }, [load]);
+  if (items === null) return null;
+  const count = (s) => items.filter(x => x.state === s).length;
+  const rows = items.filter(x => state === "all" || x.state === state).slice().sort((a, b) => String(a.siteName || "").localeCompare(String(b.siteName || ""), localeTag()) || PERIODIC_ORDER.indexOf(a.state) - PERIODIC_ORDER.indexOf(b.state) || String(a.label || "").localeCompare(String(b.label || ""), localeTag()));
+  const cols = [
+    { header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ color: t.text }}>{x.label}</span>{x.zone ? <div style={{ fontSize: 11, color: t.textMut }}>{x.zone}</div> : null}</span>) },
+    { header: tr("Frequency"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => periodicFrequencyWord(x.frequency) },
+    { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.lastDoneAt ? irDay(x.lastDoneAt) : "--") },
+    { header: tr("By|done by"), tdStyle: { color: t.textSec, minWidth: 110 }, render: x => periodicByOf(x) || "--" },
+    { header: tr("Next due"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.nextDueOn ? <span style={{ color: x.state === "overdue" ? RD : t.textSec, fontWeight: x.state === "overdue" ? 600 : 400 }}>{keptDay(x.nextDueOn)}</span>
+      : canEdit && periodicNeedsStart(x) ? <Btn t={t} v="ghost" onClick={e => { e.stopPropagation(); setAnchor(x); }} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Set start date")}</Btn> : <span style={{ color: t.textMut }}>--</span>) },
+    { header: tr("State"), tdStyle: { whiteSpace: "nowrap" }, render: x => <Bdg l={periodicStateWord(x.state)} c={(PERIODIC_STATES[x.state] || PERIODIC_STATES.due).c} /> },
+  ];
+  return (<div data-periodic-work="" style={{ marginBottom: 24 }}>
+    <SecT t={t}>{tr("Periodic work")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
+    <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
+    <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.siteId) + ":" + String(x.taskId)} onRowClick={onOpenSite ? (x => onOpenSite(x.siteId)) : undefined} empty={items.length ? tr("Nothing matches this filter.") : tr("No periodic work on any checklist yet.")} />
+    {anchor && <PeriodicStartWindow af={af} t={t} item={anchor} onClose={() => setAnchor(null)} onSaved={() => { setAnchor(null); if (showToast) showToast(tr("Start date set.")); load(); }} />}
+  </div>);
+}
+function PeriodicStartWindow({ af, t, item, onClose, onSaved }) {
+  const [day, setDay] = useState(() => todayISO());
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const save = async () => {
+    if (busy || !day) return;
+    setBusy(true); setRefusal("");
+    try { await af("/api/sites/" + encodeURIComponent(item.siteId) + "/tasks/" + encodeURIComponent(item.taskId) + "/anchor", { method: "PUT", body: { anchorOn: day } }); onSaved(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-periodic-start="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Set start date")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[item.label, item.siteName].filter(Boolean).join(", ")}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The day its {0} period counts from. The next due day follows from it.", periodicFrequencyWord(item.frequency).toLowerCase())}</div>
+    <div style={{ marginBottom: 12, maxWidth: 240 }}><Lbl>{tr("Start date")}</Lbl><Inp t={t} type="date" aria-label={tr("Start date")} value={day} onChange={e => setDay(e.target.value)} /></div>
+    {refusal && <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !day} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The Touchpoint switch in the checklist editor's windows (Part 2), drawn once the site's items answer
+// a touchpoint of their own.
+const TouchpointToggle = ({ t, on, onChange }) => (<div data-touchpoint-toggle="" style={{ marginBottom: 12 }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer" }}>
+    <span style={chkWrap}><input type="checkbox" checked={!!on} onChange={e => onChange(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+    <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Touchpoint")}</span>
+  </label>
+  <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("High-touch surfaces disinfected on schedule. They print on the Disinfection Coverage Log.")}</div>
+</div>);
 
 function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
   const [defs, setDefs] = useState(null);
