@@ -1580,3 +1580,15 @@ A concern a client reports from a customer link is due an answer within five wor
 5. A notice that a client reported a concern opens the report. A second notice comes when one working day is left, and a third when it is late.
 Words people use for this: client concern, complaint deadline, five working days, late complaint, controller, staff complaint, queja de un cliente.
 Last checked: 2026-10-02
+
+## Print the management review evidence pack (admin dashboard)
+Who can do this: admins
+The evidence pack is what a management review reads before it meets. The improvement plan, OCSA-QMS-018, has the pack circulated at least five working days before a quarterly or annual review.
+1. Click **Reports** (**Informes**) in the side panel. Under **Management review** (**Revisión por la dirección**), click **Open** (**Abrir**) on its card.
+2. Pick **Monthly** (**Mensual**) or **Quarterly** (**Trimestral**), then the **Month** (**Mes**) or the **Quarter** (**Trimestre**).
+3. Click **Print the evidence pack** (**Imprimir el paquete de evidencias**). The pack opens in a new window, ready to print or to save as a PDF.
+4. A quarter prints every item of the review's agenda in its order, each on its own page, then **What the review must produce** (**Lo que la revisión debe producir**). A month prints **Service quality** (**Calidad del servicio**), **Customers** (**Clientes**), **Corrective actions** (**Acciones correctivas**), **Health and safety** (**Salud y seguridad**) and **Resources** (**Recursos**), then **Follow ups** (**Seguimientos**).
+5. For every site, the pack fills in inspection scores against the period before, complaints, client survey results, corrective actions, incident reports, recordable cases, training sessions, staff, warnings, equipment and periodic work. Everything else prints as lines to fill in at the review.
+If it does not work: a section that reads **The data for this was not available when the pack was printed.** (**Estos datos no estaban disponibles al imprimir el paquete.**) could not be read; print again later, or fill its lines in by hand. If nothing opens, allow pop-ups for this site and click **Print the evidence pack** (**Imprimir el paquete de evidencias**) again.
+Words people use for this: management review, monthly review, quarterly review, evidence pack, kpis, review pack, revisión por la dirección, paquete de evidencias.
+Last checked: 2026-10-02
