@@ -1082,7 +1082,7 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} />}
-        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
@@ -2516,7 +2516,7 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
-function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
+function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 218: the site's workload plan, once GET /api/sites/:id/workload-plan answers with the
   // contract's keys. The tab draws it from here, and it is read again after a change.
@@ -2673,7 +2673,11 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const closeProfile = () => { setSelectedSite(null); setSiteProfile(null); setSt([]); };
+  const closeProfile = () => { setSelectedSite(null); setSiteProfile(null); setSt([]); if (onRoute && route[0]) onRoute([]); };
+  // Step 239: #sites/<id>/<tab> opens that site on that tab, which is where a periodic work notice lands.
+  const routeSite = route[0] ? String(route[0]) : "";
+  const routeTab = route[1] ? String(route[1]) : "";
+  useEffect(() => { if (routeSite) openProfile(routeSite, routeTab || undefined); }, [routeSite, routeTab]);
 
   const loadTimeline = async (cat, offset, append) => {
     if (!selectedSite) return;
@@ -3990,8 +3994,29 @@ function WorkspacePage({ af, token, t, user, isAdmin = false, route = [], showTo
   const meId = user && user.id != null ? String(user.id) : "";
   const people = useWsPeople(af);
   const first = route[0] ? String(route[0]) : "";
+  // Step 239: the API's email copies link a post as #workspace/posts/<postId>, which opens it in its project.
+  if (first === "posts" && route[1]) return <WsPostLink af={af} t={t} postId={String(route[1])} />;
   if (first && first !== "archived") return <ProjectPage af={af} token={token} t={t} user={user} isAdmin={isAdmin} meId={meId} people={people} projectId={first} tool={route[1] ? String(route[1]) : ""} sub={route[2] ? String(route[2]) : ""} showToast={showToast} phone={phone} />;
   return <WorkspaceHome af={af} t={t} meId={meId} people={people} archived={first === "archived"} showToast={showToast} />;
+}
+
+// A post named by its id alone, read for its project, then opened in place of this address.
+function WsPostLink({ af, t, postId }) {
+  const [failed, setFailed] = useState("");
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/posts/" + encodeURIComponent(postId)).then(d => {
+      const post = wsOne(d, "post");
+      const projectId = post ? wsAt(post, "projectId", "project_id") : null;
+      if (projectId == null || projectId === "") { setFailed(tr("This did not load.")); return; }
+      window.location.replace("#" + ["workspace", String(projectId), "posts", postId].map(String).join("/"));
+    }).catch(e => setFailed(e.message || tr("This did not load.")));
+  }, [af, postId]);
+  useEffect(() => { load(); }, [load]);
+  return (<div data-ws-post-link="">
+    <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => wsGo([])} style={{ minHeight: 44 }}>{tr("Back to Workspace")}</Btn></div>
+    <Crd t={t}>{failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}</Crd>
+  </div>);
 }
 
 function WorkspaceHome({ af, t, meId, people, archived, showToast }) {
@@ -4553,7 +4578,7 @@ function FilesView({ af, token, t, p, meId, canManage, writable, showToast }) {
   return (<div data-ws-files="">
     <SecT t={t} action={writable ? (busy === "upload" ? tr("Uploading...") : tr("Upload")) : null} onAction={() => { if (busy !== "upload" && pickRef.current) pickRef.current.click(); }} icon={UpI}>{tr("Docs and Files")}</SecT>
     <input ref={pickRef} type="file" data-ws-file-input="" style={{ display: "none" }} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; upload(f); }} />
-    {writable && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 10 }}>{tr("Documents, images and PDFs, up to 25 MB each.")}</div>}
+    {writable && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 10 }}>{tr("Word, Excel and PowerPoint documents, CSV and text files, images and PDFs, up to 25 MB each.")}</div>}
     {refusal && <div data-ws-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
     {files === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
       : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
@@ -6217,6 +6242,17 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
     // Someone told of an announcement who cannot open the page reads it in a window of its own.
     if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(n.subjectId); else onRefused(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
+    // Step 239: an equipment notice opens its item, and a periodic work notice the checklist of the site
+    // its item is on, found through GET /api/periodic-work by the item or the site the notice names.
+    if ((n.subjectType === "equipment_tagged_out" || n.subjectType === "equipment_service_due") && n.subjectId) { if (!canOpenPage("equipment")) { refuse(); return; } onOpenHash("equipment/" + n.subjectId); onClose(); return; }
+    if (n.subjectType === "periodic_overdue") {
+      if (!canOpenPage("sites")) { refuse(); return; }
+      let siteId = "";
+      const named = [n.subjectId, n.subjectKey].filter(x => x != null && x !== "").map(String);
+      if (named.length) { try { const d = await af("/api/periodic-work"); const hit = (d && Array.isArray(d.items) ? d.items : []).find(x => named.indexOf(String(x.taskId)) >= 0 || named.indexOf(String(x.siteId)) >= 0); if (hit) siteId = String(hit.siteId); } catch (e) { console.warn("Periodic work:", e.message); } }
+      if (siteId) onOpenHash("sites/" + siteId + "/tasks"); else onOpenPage("sites");
+      onClose(); return;
+    }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
