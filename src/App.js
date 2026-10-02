@@ -16370,13 +16370,15 @@ function FormBuilderWorkspace({ af, token, t, user, allStaff = [], lkMap, isAdmi
 
 // ===== CUSTOMER LINKS AND THEIR QR CODES (Step 169) =====
 // A customer link is the address a customer opens, from a QR code posted in the building, to fill
-// one of the two forms that are theirs to fill. The window lists every link the API holds, makes
-// one for a form and a site, switches one off and on, and shows the QR image the API draws at 512
-// pixels, which Print puts on one clean sheet with the site, the form's title and one line in each
-// language. The forms offered are read from GET /api/forms?app=customer (Step 187): every form
-// whose apps names customer, a builder form included once it is published, and none when no form
-// names it. An API that sends no apps on any of its forms is one from before Step 186, and only
-// then do the two codes below stand in. Every refusal is drawn in the API's own words, as sent.
+// one of the forms that are theirs to fill. The Customer links tab (a window until Step 243) lists
+// every link the API holds, makes one for a form and a site, switches one off and on, and shows the
+// QR image the API draws at 512 pixels, which Print sheet puts on one clean sheet with the site, the
+// form's title and one line in each language. The forms offered are read from GET
+// /api/forms?app=customer (Step 187): every form whose apps names customer, a builder form included
+// once it is published, and none when no form names it. An API that sends no apps on any of its
+// forms is one from before Step 186, and only then do the two codes below stand in. Every refusal is drawn in the API's own words, as sent.
+// Since the API's Step 242 the Customer Complaint Log, OCSA-FRM-009, is among the forms it flags,
+// so the concern link is made like the other two, from the same list (Step 243).
 const CUSTOMER_FORM_CODES = ["OCSA-FRM-006", "OCSA-FRM-007"];
 // The Client Satisfaction Survey, the form a site's client is sent on the survey schedule (Step 196).
 const SURVEY_FORM_CODE = "OCSA-FRM-007";
@@ -16389,6 +16391,7 @@ const customerFormsOf = (list) => {
 const CUSTOMER_SCAN_LABELS = {
   "OCSA-FRM-006": "Scan to tell OCSA how the building is being kept.",
   "OCSA-FRM-007": "Scan to tell OCSA how we are doing.",
+  "OCSA-FRM-009": "Scan to report a problem to OCSA.",
 };
 // The table's word for a key in a named language, for a line drawn in both languages at once. The
 // English is the key itself, which is what tr falls back to.
