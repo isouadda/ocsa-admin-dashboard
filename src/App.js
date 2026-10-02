@@ -933,7 +933,7 @@ export default function AdminDashboard() {
                     const active = page === item.id;
                     const NavI = item.i;
                     return (
-                      <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
+                      <button key={item.id} data-nav-item={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
                         style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                         {item.id === "chat" && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
@@ -958,7 +958,7 @@ export default function AdminDashboard() {
                 const active = page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} onClick={() => { setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                  <button key={item.id} data-nav-item={item.id} onClick={() => { setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
@@ -7872,6 +7872,8 @@ const KEPT_FORMS = {
   "OCSA-FRM-021": { title: "Disinfection Coverage Log", version: "1.0" },
   "OCSA-FRM-033": { title: "Training Attendance Roster", version: "1.0" },
   "OCSA-FRM-035": { title: "School Clearance Tracking Record", version: "1.0", landscape: true },
+  // Step 245: the management review evidence pack, headed by its procedure, OCSA-QMS-018 at 1.0.
+  "OCSA-QMS-018": { title: "Management Review Evidence Pack", version: "1.0" },
 };
 const keptEsc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const keptTime = (at) => (at ? new Date(at).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "");
@@ -7899,7 +7901,10 @@ const keptDayOf = (v) => (!v ? "" : /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? Stri
 //   { h, note }                          a line of the form's own words
 //   { h, sign: [[role, line]] }          Role, Name and Signature, Date, signed by hand
 //   { html }                             a page drawn by its own print (an inspection)
-// A part with a heading starts a numbered section; one without carries on the section before it.
+//   { lines }                            that many ruled lines to write on (Step 245)
+// A part with a heading starts a numbered section; one without carries on the section before it. A
+// part's num, where it has one, is its number instead, and an empty num heads it with none. A page
+// for every site says so with sites in place of site.
 const KEPT_STYLE = "<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#222}"
   + ".kept{page-break-after:always}.kept:last-child{page-break-after:auto}"
   + ".wide{page:wide}@page wide{size:landscape}"
@@ -7912,7 +7917,7 @@ const KEPT_STYLE = "<style>body{font-family:Arial,Helvetica,sans-serif;margin:24
   + "table.f{width:100%;border-collapse:collapse;margin-bottom:8px}table.f th{width:34%;text-align:left;font-size:11px;font-weight:600;color:#444;padding:6px 8px 6px 0;vertical-align:bottom}"
   + "table.f td{font-size:12px;padding:6px 0 2px;border-bottom:1px solid #999;height:15px}"
   + ".opt{font-size:12px;margin:4px 0 8px}.box{display:inline-block;width:11px;height:11px;border:1px solid #333;margin:0 5px -1px 14px}"
-  + ".note{font-size:11px;color:#333;margin:4px 0 8px;line-height:1.5}table.s td{height:34px}"
+  + ".note{font-size:11px;color:#333;margin:4px 0 8px;line-height:1.5}table.s td{height:34px}.ln{border-bottom:1px solid #999;height:24px}"
   + ".ft{margin-top:14px;font-size:9px;color:#888;border-top:1px solid #ddd;padding-top:6px}"
   + ".insp table{width:100%;border-collapse:collapse}.insp th{background:" + NAVY_DARK + ";color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}"
   + "@media print{body{margin:12px}}</style>";
@@ -7927,7 +7932,7 @@ function keptPageHtml(page) {
     + rows.map(r => "<tr>" + cells(r, cols) + "</tr>").join("") + "</tbody></table>";
   const body = (page.parts || []).map(p => {
     if (p.html) return p.html;
-    const head = p.h ? "<h2>" + (n += 1) + ". " + keptEsc(tr(p.h)) + "</h2>" : "";
+    const head = p.h ? "<h2>" + (p.num === undefined ? (n += 1) + ". " : p.num !== "" ? keptEsc(p.num) + ". " : "") + keptEsc(tr(p.h)) + "</h2>" : "";
     let out = head;
     if (p.note) out += '<div class="note">' + keptEsc(tr(p.note)) + "</div>";
     if (p.fields) out += '<table class="f"><tbody>' + p.fields.map(([l, v]) => "<tr><th>" + keptEsc(tr(l)) + "</th><td>" + keptEsc(v) + "</td></tr>").join("") + "</tbody></table>";
@@ -7940,11 +7945,12 @@ function keptPageHtml(page) {
       out += grid(p.cols, numbered ? rows.map((r, i) => [String(i + 1)].concat(r.slice(1))) : rows);
     }
     if (p.sign) out += grid(["Role", "Name and Signature", "Date"], p.sign.map(([r, sub]) => [tr(r) + (sub ? " (" + tr(sub) + ")" : ""), "", ""]), "s");
+    if (p.lines) out += Array.from({ length: p.lines }, () => '<div class="ln"></div>').join("");
     return out;
   }).join("");
   return '<div class="kept' + (form.landscape ? " wide" : "") + '">'
     + '<div class="hd"><div><div class="co">' + keptEsc(cName) + '</div><div class="ti">' + keptEsc(tr(form.title)) + '</div><div class="code">' + [page.code, form.version ? tr("Version {0}", form.version) : ""].filter(Boolean).map(keptEsc).join(" &middot; ") + "</div></div>"
-    + '<div class="meta">' + (page.site ? keptEsc(tr("Site")) + ": " + keptEsc(page.site) + "<br>" : "") + (when ? keptEsc(when) + "<br>" : "") + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
+    + '<div class="meta">' + (page.site ? keptEsc(tr("Site")) + ": " + keptEsc(page.site) + "<br>" : "") + (page.sites ? keptEsc(tr("Sites")) + ": " + keptEsc(page.sites) + "<br>" : "") + (when ? keptEsc(when) + "<br>" : "") + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
     + body
     + '<div class="ft">' + [page.code, tr(form.title), form.version ? tr("Version {0}", form.version) : ""].filter(Boolean).map(keptEsc).join(" &middot; ") + "</div></div>";
 }
@@ -8781,6 +8787,269 @@ const TouchpointToggle = ({ t, on, onChange }) => (<div data-touchpoint-toggle="
   <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("High-touch surfaces disinfected on schedule. They print on the Disinfection Coverage Log.")}</div>
 </div>);
 
+// ===== THE MANAGEMENT REVIEW EVIDENCE PACK (Step 245) =====
+// OCSA-QMS-018, the Continuous Improvement Plan (ocsa-mis make-qms018.js, approved at 1.0), holds a
+// monthly review (section 3: inspection scores by site, complaints, corrective actions, safety
+// findings and overdue items, with follow ups as its output) and a quarterly management review whose
+// agenda is its section 4.1 and whose outputs are the table of 4.2. The Field Lead circulates the
+// evidence pack before the review. This prints that pack for every site, read once at Print: a
+// quarter prints every agenda item in its order and under its own number, then the outputs; a month
+// prints the items the monthly review examines, then its follow ups. An item the platform holds
+// prints what it holds for the period, and what it does not hold prints as lines to fill in at the
+// review. A section whose route does not answer says so and prints its lines.
+const REVIEW_MONTHLY = [3, 4, 5, 6, 9];
+const reviewPad = (n) => String(n).padStart(2, "0");
+const reviewMonthEnd = (y, m) => y + "-" + reviewPad(m) + "-" + reviewPad(new Date(y, m, 0).getDate());
+// The periods offered: the last twelve months and the last eight quarters, the current one first.
+function reviewPeriods(kind) {
+  const now = new Date();
+  const out = [];
+  if (kind === "monthly") {
+    for (let i = 0; i < 12; i++) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); out.push(d.getFullYear() + "-" + reviewPad(d.getMonth() + 1)); }
+  } else {
+    let y = now.getFullYear(), q = Math.floor(now.getMonth() / 3) + 1;
+    for (let i = 0; i < 8; i++) { out.push(y + "-Q" + q); q -= 1; if (q < 1) { q = 4; y -= 1; } }
+  }
+  return out;
+}
+// A period's first and last day, and the period before it.
+function reviewRange(value) {
+  const m = /^(\d{4})-(\d{2})$/.exec(value);
+  if (m) { const y = Number(m[1]), mo = Number(m[2]); return { start: y + "-" + m[2] + "-01", end: reviewMonthEnd(y, mo) }; }
+  const q = /^(\d{4})-Q([1-4])$/.exec(value);
+  if (!q) return null;
+  const y = Number(q[1]), first = (Number(q[2]) - 1) * 3 + 1;
+  return { start: y + "-" + reviewPad(first) + "-01", end: reviewMonthEnd(y, first + 2) };
+}
+function reviewPrevious(value) {
+  const m = /^(\d{4})-(\d{2})$/.exec(value);
+  if (m) { const d = new Date(Number(m[1]), Number(m[2]) - 2, 1); return d.getFullYear() + "-" + reviewPad(d.getMonth() + 1); }
+  const q = /^(\d{4})-Q([1-4])$/.exec(value);
+  if (!q) return "";
+  return Number(q[2]) === 1 ? (Number(q[1]) - 1) + "-Q4" : q[1] + "-Q" + (Number(q[2]) - 1);
+}
+const reviewPeriodName = (value) => { const q = /^(\d{4})-Q([1-4])$/.exec(value); return q ? tr("Quarter {0}, {1}", q[2], q[1]) : keptMonth(value); };
+
+// Every filed report of a form, newest first, read 200 at a time until the reports reach back past
+// the day asked for.
+async function reviewFilings(af, code, from) {
+  const out = [];
+  let before = "";
+  for (let i = 0; i < 25; i++) {
+    const d = await af("/api/forms/responses?status=submitted&formCode=" + encodeURIComponent(code) + "&limit=200" + (before ? "&before=" + encodeURIComponent(before) : ""));
+    const rows = d && Array.isArray(d.responses) ? d.responses.filter(r => r && r.formCode === code) : [];
+    out.push(...rows);
+    const last = rows[rows.length - 1];
+    if (rows.length < 200 || !last || !last.submittedAt || (from && keptDayOf(last.submittedAt) < from)) break;
+    before = last.submittedAt;
+  }
+  return out;
+}
+// An inspection's score as a percentage of what it could score, or null before it has one.
+const reviewScore = (r) => { const t = Number(r && r.total_score), m = Number(r && r.max_possible_score); return m > 0 && Number.isFinite(t) ? (t / m) * 100 : null; };
+const reviewAverage = (list) => { const v = list.filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+const reviewPct = (v) => (v == null ? "--" : v.toFixed(1) + "%");
+const reviewTrend = (now, before) => {
+  if (now == null || before == null) return "--";
+  const d = Math.round((now - before) * 10) / 10;
+  return d > 0 ? tr("Up {0} points", d.toFixed(1)) : d < 0 ? tr("Down {0} points", Math.abs(d).toFixed(1)) : tr("No change|trend");
+};
+const reviewBySite = (rows, idOf, nameOf) => {
+  const m = new Map();
+  rows.forEach(r => { const id = String(idOf(r) || ""); if (!m.has(id)) m.set(id, { id, name: nameOf(r) || tr("No site"), rows: [] }); m.get(id).rows.push(r); });
+  return Array.from(m.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag()));
+};
+// The day a corrective action was signed closed, from the report read whole: its Closure sign-off.
+const reviewClosedOn = (rep) => {
+  const f = rep && Array.isArray(rep.fields) ? rep.fields.find(x => x && x.key === "closed") : null;
+  const v = (f && f.value) || (rep && rep.draft && rep.draft.answers && rep.draft.answers.closed) || null;
+  return v && typeof v === "object" && v.at ? keptDayOf(v.at) : "";
+};
+const REVIEW_UNAVAILABLE = "The data for this was not available when the pack was printed.";
+
+// The sections the platform holds, each read on its own; a failed read leaves that section's note
+// and lines in place of its figures.
+async function reviewSections(af, value) {
+  const range = reviewRange(value);
+  const prev = reviewRange(reviewPrevious(value));
+  const today = todayISO();
+  const inRange = (d) => keptInRange(keptDayOf(d), range);
+  const settle = (p) => p.then(v => ({ ok: true, v }), e => { console.warn("Management review:", e.message); return { ok: false }; });
+  const insp = (r) => af("/api/inspections/scheduled?status=completed&from=" + r.start + "&to=" + r.end).then(d => (Array.isArray(d) ? d : []).filter(x => !x.completed_at || keptInRange(keptDayOf(x.completed_at), r)));
+  const years = keptOnce([range.start.slice(0, 4), range.end.slice(0, 4)]);
+  const [now, before, complaints, ratings, actions, safety, bio, injury, training, people, warnings, equipment, periodic] = await Promise.all([
+    settle(insp(range)), settle(insp(prev)),
+    settle(reviewFilings(af, "OCSA-FRM-009", range.start)),
+    settle(af("/api/reports/client-ratings?from=" + range.start + "&to=" + range.end)),
+    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) })))))),
+    settle(reviewFilings(af, "OCSA-FRM-016", range.start)), settle(reviewFilings(af, "OCSA-FRM-017", range.start)),
+    settle(Promise.all(years.map(y => af("/api/injury-log?year=" + y))).then(list => [].concat(...list.map(d => (d && Array.isArray(d.cases) ? d.cases : []))))),
+    settle(af("/api/hr/training").then(d => (Array.isArray(d) ? d : []))),
+    settle(af("/api/users").then(list => {
+      const all = Array.isArray(list) ? list : [];
+      const gone = all.filter(u => u && u.status === "terminated");
+      return Promise.all(gone.map(u => af("/api/users/" + encodeURIComponent(u.id) + "/employment").then(employmentAnswerOf).catch(() => null))).then(hist => ({ all, gone: gone.map((u, i) => ({ u, h: hist[i] })) }));
+    })),
+    settle(af("/api/discipline?from=" + range.start + "&to=" + range.end)),
+    settle(af("/api/equipment").then(d => equipmentList(d) || [])),
+    settle(af("/api/periodic-work?state=overdue").then(d => (d && Array.isArray(d.items) ? d.items : []))),
+  ]);
+  const S = {};
+
+  // 3. Service quality: completed inspections by site and their average score, against the period before.
+  S[3] = [{ h: "Service quality", num: 3, note: "Completed inspections by site in the period, with the average score against the period before." }];
+  if (now.ok) {
+    const prevBySite = new Map(before.ok ? reviewBySite(before.v, r => r.site_id, r => r.site_name).map(s => [s.id, reviewAverage(s.rows.map(reviewScore))]) : []);
+    const sites = reviewBySite(now.v, r => r.site_id, r => r.site_name);
+    const rows = sites.map(s => { const a = reviewAverage(s.rows.map(reviewScore)); const p = prevBySite.has(s.id) ? prevBySite.get(s.id) : null; return [s.name, String(s.rows.length), reviewPct(a), reviewPct(p), reviewTrend(a, p)]; });
+    const all = reviewAverage(now.v.map(reviewScore)), allBefore = before.ok ? reviewAverage(before.v.map(reviewScore)) : null;
+    rows.push([tr("All sites"), String(now.v.length), reviewPct(all), reviewPct(allBefore), reviewTrend(all, allBefore)]);
+    S[3].push({ cols: ["Site", "Inspections", "Average score", "Period before", "Trend"], rows, least: 3 });
+    const low = sites.map(s => ({ s, a: reviewAverage(s.rows.map(reviewScore)) })).filter(x => x.a != null && x.a < 80);
+    S[3].push({ h: "Sites below 80 percent", num: "", cols: ["Site", "Average score"], rows: low.length ? low.map(x => [x.s.name, reviewPct(x.a)]) : [[tr("None"), ""]] });
+  } else S[3].push({ note: REVIEW_UNAVAILABLE }, { cols: ["Site", "Inspections", "Average score", "Period before", "Trend"], rows: [], least: 8 });
+  S[3].push({ h: "Sites in escalation", num: "", lines: 4 });
+
+  // 4. Customers: complaints by site, the ones a client filed from a link and their five working days,
+  // and the satisfaction survey.
+  S[4] = [{ h: "Customers", num: 4, note: "Complaints logged in the period by site. Answered on time and late are counted where the complaint carries its deadline." }];
+  if (complaints.ok) {
+    const filed = complaints.v.filter(r => inRange(r.submittedAt));
+    const late = (r) => !!r.dueAt && (r.answeredAt ? new Date(r.answeredAt) > new Date(r.dueAt) : new Date(r.dueAt).getTime() < Date.now());
+    const rows = reviewBySite(filed, r => r.siteId, r => r.siteName).map(s => {
+      const timed = s.rows.filter(complaintTimed);
+      return [s.name, String(s.rows.length), String(s.rows.filter(complaintFromLink).length), timed.length ? String(timed.filter(r => r.answeredAt && !late(r)).length) : "", timed.length ? String(timed.filter(late).length) : ""];
+    });
+    S[4].push({ cols: ["Site", "Complaints", "From a client link", "Answered within five working days", "Late"], rows: rows.length ? rows : [[tr("None"), "0", "", "", ""]], least: 3 });
+  } else S[4].push({ note: REVIEW_UNAVAILABLE }, { cols: ["Site", "Complaints", "From a client link", "Answered within five working days", "Late"], rows: [], least: 6 });
+  S[4].push({ h: "Client survey results", num: "" });
+  if (ratings.ok && ratings.v && Array.isArray(ratings.v.sites)) {
+    const rows = ratings.v.sites.filter(s => Number(s.responses) > 0).map(s => [s.siteName || tr("No site"), String(s.responses), s.overall == null ? "--" : String(s.overall)]);
+    rows.push([tr("All sites"), String(Number(ratings.v.responses) || 0), ratings.v.overall == null ? "--" : String(ratings.v.overall)]);
+    S[4].push({ cols: ["Site", "Responses", "Score out of 10"], rows });
+  } else S[4].push({ note: REVIEW_UNAVAILABLE }, { cols: ["Site", "Responses", "Score out of 10"], rows: [], least: 4 });
+  S[4].push({ h: "Response times, retention, and anything raised by a prime contractor", num: "", lines: 4 });
+
+  // 5. Corrective actions: opened, closed and still open, from each report's Closure sign-off.
+  S[5] = [{ h: "Corrective actions", num: 5, note: "Corrective Action Reports (OCSA-FRM-010) opened and closed in the period, and still open at its end." }];
+  if (actions.ok) {
+    const opened = actions.v.filter(x => inRange(x.r.submittedAt)).length;
+    const closed = actions.v.filter(x => keptInRange(x.closed, range)).length;
+    const open = actions.v.filter(x => !x.closed || x.closed > range.end).length;
+    S[5].push({ fields: [["Opened in the period", String(opened)], ["Closed in the period", String(closed)], ["Still open at the end of the period", String(open)]] });
+  } else S[5].push({ note: REVIEW_UNAVAILABLE }, { fields: [["Opened in the period", ""], ["Closed in the period", ""], ["Still open at the end of the period", ""]] });
+  S[5].push({ h: "Overdue, reopened, and any cause appearing at more than one site", num: "", lines: 4 });
+
+  // 6. Health and safety: incident reports filed, recordable cases, training sessions held.
+  S[6] = [{ h: "Health and safety", num: 6 }];
+  const count = (res) => (res.ok ? String(res.v.filter(r => inRange(r.submittedAt)).length) : "");
+  S[6].push({ cols: ["Report", "Filed in the period"], rows: [[tr(FORM_TITLE_LABELS["OCSA-FRM-016"]) + " (OCSA-FRM-016)", count(safety)], [tr(FORM_TITLE_LABELS["OCSA-FRM-017"]) + " (OCSA-FRM-017)", count(bio)]] });
+  if (!safety.ok || !bio.ok) S[6].push({ note: REVIEW_UNAVAILABLE });
+  const cases = injury.ok ? injury.v.filter(c => keptInRange(keptDayOf(c.eventDate), range)).length : null;
+  const held = training.ok ? training.v.filter(r => keptInRange(keptDayOf(r.completed_date), range)) : null;
+  S[6].push({ fields: [
+    ["Recordable cases on the injury log", cases == null ? "" : String(cases)],
+    ["Training sessions held", held ? String(keptOnce(held.map(r => [r.training_name, keptDayOf(r.completed_date), r.site_id || ""].join("|"))).length) : ""],
+    ["People trained", held ? String(keptOnce(held.map(r => String(r.user_id))).length) : ""],
+  ] });
+  if (!injury.ok || !training.ok) S[6].push({ note: REVIEW_UNAVAILABLE });
+  S[6].push({ h: "Safety inspections, near misses, and training completion", num: "", lines: 4 });
+
+  // 8. People: staff at the end of the period, who left and why, who is on leave, and warnings by step.
+  S[8] = [{ h: "People", num: 8 }];
+  if (people.ok) {
+    const lastDay = (g) => (g.h && (g.h.terminationDate || (g.h.events.find(e => e.kind === "ended") || {}).lastDay)) || "";
+    const left = people.v.gone.filter(g => keptInRange(lastDay(g), range));
+    const afterEnd = people.v.gone.filter(g => lastDay(g) && lastDay(g) > range.end).length;
+    const hiredBy = (u) => !u.hireDate || keptDayOf(u.hireDate) <= range.end;
+    const active = people.v.all.filter(u => (u.status === "active" || u.status === "inactive") && hiredBy(u)).length + afterEnd;
+    const reasons = {};
+    left.forEach(g => { const e = g.h && g.h.events.find(x => x.kind === "ended"); const k = (e && (e.reasonLabel || e.reason)) || tr("No reason recorded"); reasons[k] = (reasons[k] || 0) + 1; });
+    S[8].push({ fields: [["Staff employed at the end of the period", String(active)], ["Left in the period", String(left.length)], [tr("On leave on {0}", keptDay(today)), String(people.v.all.filter(u => u.status === "inactive").length)]] });
+    S[8].push({ h: "Why people left", num: "", cols: ["Reason", "People"], rows: Object.keys(reasons).sort().map(k => [k, String(reasons[k])]), least: 2 });
+  } else S[8].push({ note: REVIEW_UNAVAILABLE }, { fields: [["Staff employed at the end of the period", ""], ["Left in the period", ""], [tr("On leave on {0}", keptDay(today)), ""]] });
+  const by = warnings.ok && warnings.v && warnings.v.counts && warnings.v.counts.byType ? warnings.v.counts.byType : null;
+  S[8].push({ h: "Warnings issued, by step", num: "", cols: ["Step", "Warnings"], rows: WARNING_STEPS.map(s => [tr(WARNING_STEP_WORDS[s]), by ? String(Number(by[s]) || 0) : ""]) });
+  if (!by) S[8].push({ note: REVIEW_UNAVAILABLE });
+  S[8].push({ h: "Turnover, absence, and feedback from employees", num: "", lines: 4 });
+
+  // 9. Resources: equipment and periodic work, as they stand on the day the pack is printed.
+  S[9] = [{ h: "Resources", num: 9, note: tr("Equipment and periodic work as they stand on {0}.", keptDay(today)) }];
+  if (equipment.ok || periodic.ok) {
+    const m = new Map();
+    const at = (id, name) => { const k = String(id || ""); if (!m.has(k)) m.set(k, { name: name || tr("No site"), out: 0, due: 0, late: 0 }); return m.get(k); };
+    if (equipment.ok) equipment.v.filter(x => x.status !== "retired").forEach(x => { const s = at(x.siteId, x.siteName); if (x.status === "out_of_service") s.out += 1; if (equipmentDue(x, today)) s.due += 1; });
+    if (periodic.ok) periodic.v.filter(x => x.state === "overdue").forEach(x => { at(x.siteId, x.siteName).late += 1; });
+    const rows = Array.from(m.values()).filter(s => s.out || s.due || s.late).sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag()))
+      .map(s => [s.name, equipment.ok ? String(s.out) : "", equipment.ok ? String(s.due) : "", periodic.ok ? String(s.late) : ""]);
+    S[9].push({ cols: ["Site", "Equipment out of service", "Equipment service overdue", "Periodic work overdue"], rows: rows.length ? rows : [[tr("None"), "", "", ""]] });
+    if (!equipment.ok || !periodic.ok) S[9].push({ note: REVIEW_UNAVAILABLE });
+  } else S[9].push({ note: REVIEW_UNAVAILABLE }, { cols: ["Site", "Equipment out of service", "Equipment service overdue", "Periodic work overdue"], rows: [], least: 6 });
+  S[9].push({ h: "Supply costs, and anything the field says it does not have", num: "", lines: 4 });
+  return S;
+}
+
+// The pack's pages: the cover, then each agenda item on a page of its own under the procedure's head.
+async function reviewPages(af, kind, value, sites) {
+  const range = reviewRange(value);
+  const S = await reviewSections(af, value);
+  const sitesLine = tr("All sites ({0})", (sites || []).length);
+  const page = (parts) => ({ code: "OCSA-QMS-018", sites: sitesLine, range, parts });
+  const blank = {
+    1: [{ h: "Status of actions from the previous review", num: 1, note: "Each action open or closed, with its evidence." }, { cols: ["Action", "Owner", "Due date", "Open or closed", "Evidence"], rows: [], least: 8 }],
+    2: [{ h: "Changes outside the company", num: 2, note: "New contracts, lost contracts, regulation, insurance, the labor market and customer requirements." }, { lines: 8 }],
+    7: [{ h: "Environmental performance", num: 7 }, { lines: 8 }],
+    10: [{ h: "Progress against each annual objective", num: 10, note: "Each objective stated as its current figure." }, { cols: ["Objective", "Current figure", "Target", "On track, at risk, achieved or withdrawn"], rows: [], least: 6 }],
+    11: [{ h: "Opportunities for improvement", num: 11, note: "Raised by anyone present." }, { cols: ["Opportunity", "Raised by", "Next step"], rows: [], least: 6 }],
+  };
+  const cover = page([{ h: kind === "monthly" ? "Monthly review" : "Quarterly management review", num: "", fields: [
+    ["Period", reviewPeriodName(value)], ["Compared with", reviewPeriodName(reviewPrevious(value))], ["Sites", sitesLine],
+    ["Prepared by", ""], ["Circulated on", ""], ["Review held on", ""],
+  ] }, { note: kind === "monthly" ? "The monthly review examines inspection scores by site, complaints, corrective actions, safety findings and overdue items, and assigns follow ups." : "The evidence pack is circulated at least five working days before a quarterly or annual review. Every agenda item is here in its order; what the platform does not hold is left to fill in at the review." }]);
+  const items = kind === "monthly" ? REVIEW_MONTHLY : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  const pages = [cover].concat(items.map(i => page(S[i] || blank[i])));
+  if (kind === "monthly") pages.push(page([{ h: "Follow ups", num: "", note: "The written monthly summary and the follow ups it assigns." }, { cols: ["Follow up", "Owner", "Due date"], rows: [], least: 10 }, { lines: 6 }]));
+  else pages.push(page([{ h: "What the review must produce", num: "4.2", note: "Each decision with a named owner and a due date." }, { cols: ["Output", "Decision", "Owner", "Due date"], labels: ["Improvement decisions", "Changes to the system", "Resource decisions", "Objective status", "Risks accepted"] }, { cols: ["Output", "Decision", "Owner", "Due date"], rows: [], least: 6 }]));
+  return pages;
+}
+
+// Reports, Management review: Monthly or Quarterly, the month or the quarter, and Print the evidence pack.
+function ManagementReviewView({ af, t, sites = [] }) {
+  const [kind, setKind] = useState("quarterly");
+  const [value, setValue] = useState(() => reviewPeriods("quarterly")[0]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+  const pick = (k) => { setKind(k); setValue(reviewPeriods(k)[0]); setDone(""); setError(""); };
+  const print = async () => {
+    if (busy) return;
+    setError(""); setDone("");
+    const w = keptWindow();
+    if (!w) { setError(tr("Allow pop-ups to print")); return; }
+    setBusy(true);
+    try {
+      const pages = await reviewPages(af, kind, value, sites);
+      keptWrite(w, tr("Management review evidence pack") + " " + reviewPeriodName(value), pages);
+      setDone(trn("{0} page printed|count", pages.length));
+    } catch (e) {
+      try { w.close(); } catch (x) { /* already closed */ }
+      setError(e.message || tr("Request failed"));
+    }
+    setBusy(false);
+  };
+  return (<Crd t={t} style={{ padding: 18 }}><div data-management-review="">
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("The evidence pack for a monthly review or a quarterly management review under OCSA-QMS-018, for every site, in the order of the review's agenda. What the platform does not hold prints as lines to fill in at the review.")}</div>
+    <FilterTabs t={t} value={kind} onChange={pick} tabs={[{ id: "monthly", label: tr("Monthly") }, { id: "quarterly", label: tr("Quarterly") }]} />
+    <div style={{ maxWidth: 320, marginBottom: 14 }}>
+      <Lbl>{kind === "monthly" ? tr("Month") : tr("Quarter")}</Lbl>
+      <Sel t={t} aria-label={kind === "monthly" ? tr("Month") : tr("Quarter")} value={value} onChange={e => { setValue(e.target.value); setDone(""); }} options={reviewPeriods(kind).map(v => ({ v, l: reviewPeriodName(v) }))} />
+    </div>
+    <Btn t={t} onClick={print} disabled={busy} style={{ minHeight: 44 }}>{busy ? tr("Gathering the evidence...") : tr("Print the evidence pack")}</Btn>
+    {error && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 10 }}>{error}</div>}
+    {done && <div data-review-printed="" style={{ fontSize: 12, color: GR, marginTop: 10 }}>{done}</div>}
+  </div></Crd>);
+}
+
 function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
@@ -8933,6 +9202,17 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     </div>);
   }
 
+  // Step 245: the management review evidence pack, an admin's.
+  if (view === "management-review" && isAdmin) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Management review")}</div>
+      </div>
+      <ManagementReviewView af={af} t={t} sites={sites} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -8952,8 +9232,10 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   ];
   const keptOn = (k) => [].concat(KEPT_RECORDS[k].live).every(x => keptLive[x]);
   const keptRecords = Object.keys(KEPT_RECORDS).filter(keptOn).map(k => ({ id: k, name: tr(KEPT_RECORDS[k].name), code: KEPT_RECORDS[k].codes, line: tr(KEPT_RECORDS[k].line) }));
+  const reviewCards = isAdmin ? [{ id: "management-review", name: tr("Management review"), code: "OCSA-QMS-018", line: tr("The evidence pack for the monthly review and the quarterly management review, for every site.") }] : [];
   // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
-  const reportGroup = (heading, list) => (list.length > 0 && <div style={{ marginBottom: 18 }}>
+  // Each group carries data-report-group, which npm run smoke opens one card of (Step 245).
+  const reportGroup = (heading, list) => (list.length > 0 && <div data-report-group="" style={{ marginBottom: 18 }}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{heading}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
       {list.map(r => (
@@ -8974,13 +9256,14 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     {reportGroup(tr("Client reports"), clientReports)}
     {reportGroup(tr("Safety records"), safetyRecords)}
     {reportGroup(tr("Kept records"), keptRecords)}
+    {reportGroup(tr("Management review"), reviewCards)}
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
       defs.length === 0 ?
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No saved reports yet. Use New report to create one.")}</div></Crd> :
         groupNames.map(cat => (
-          <div key={cat} style={{ marginBottom: 18 }}>
+          <div key={cat} data-report-group="" style={{ marginBottom: 18 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{reportCategoryWord(cat)}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {groups[cat].map(d => (

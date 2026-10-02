@@ -12,7 +12,31 @@ repeats the pages, views and tables at 1024 to catch a table that will not fit, 
 more on a phone, 390 by 844, to catch a page that will not fit a hand. Nothing in `src/` is touched
 and nothing leaves the machine.
 
-**Every dashboard build from now on runs `npm run audit` and pastes the table.**
+**Every dashboard build from now on runs `npm run audit` and pastes the table.** While the owner has
+the full run paused, every build runs the smoke check below instead, beside `npm run build` and
+`npm run guide-check`, and all three pass before a pull request opens (`CLAUDE.md`).
+
+## The smoke check
+
+```
+npm run smoke
+```
+
+`smoke.js` is the quick check, in under three minutes, built from this folder's own parts: the stub,
+the static server, the browser and the driver. It serves the `build/` already made and stops at once,
+with one failed line, when anything in `src`, `public` or `package.json` is newer than that build.
+Then it checks, one line a check:
+
+- at 1280 in English and in Spanish and at 390 in English, an admin signs in, the Spanish pass through
+  the code screen of the second sign-in step, which the smoke check arms the stub to ask for;
+- every side panel item opens with no page error, no crash and no sideways scroll;
+- Reports opens one card of each group, a filed form opens, Customer links opens, and Help answers;
+- at 1280 in English a supervisor sees only the admin items the seed gives them, and every item they
+  see opens the same way.
+
+A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
+after it still run. Any failure, or a run of three minutes or more, exits non-zero. It finds the side
+panel's items by `data-nav-item` and Reports' groups by `data-report-group`.
 
 ## What comes out
 
@@ -570,13 +594,14 @@ UTC shows the wrong hour. A session that started at `22:05Z` has to read `6:05 P
 | file | what it holds |
 | --- | --- |
 | `run.js` | the one process: build, serve, drive, print the table, exit non-zero on any failure |
+| `smoke.js` | `npm run smoke`, the quick check on every build, against the `build/` already made |
 | `seed.js` | the seeded world, every value invented, every report total worked out by hand |
 | `stubs.js` | every API call answered, and nowhere else |
 | `stream.js` | Help's streaming route, written for the browser a piece at a time |
 | `inventory.js` | the declared spine: pages, views, windows, tables, reports, exports, decisions, refusals |
 | `discover.js` | reads the app's own lists out of `src/App.js` so coverage is proven |
 | `known.json` | failures the app has today, each printing on every run |
-| `lib/build.js` | runs `npm run build`, reusing a bundle that is already fresh |
+| `lib/build.js` | runs `npm run build`, reusing a bundle that is already fresh, and says whether it is |
 | `lib/serve.js` | a dependency-free static server with the single-page fallback |
 | `lib/browser.js` | launches Chromium, with fallbacks and a clear message when it cannot |
 | `lib/driver.js` | the object every case drives the app through |

@@ -55,7 +55,6 @@
 **Labor hours added or removed per week** (**Horas de trabajo agregadas o quitadas por semana**)
 **Approval inside OCSA** (**Aprobaci\u00f3n dentro de OCSA**)
 **Approval level** (**Nivel de aprobaci\u00f3n**)
-**Decision** (**Decisi\u00f3n**)
 **The customer's answer** (**La respuesta del cliente**)
 **Putting it in place** (**Puesta en marcha**)
 **Checked after the change** (**Verificaci\u00f3n despu\u00e9s del cambio**)
@@ -84,9 +83,6 @@
 **Outcome of a probationary review** (**Resultado de la evaluaci\u00f3n del per\u00edodo de prueba**)
 **Employee comments** (**Comentarios del empleado**)
 **Reviewed by** (**Evaluado por**)
-
-# Form wording, from the entry Make and send the monthly report to a client.
-**Prepared by** (**Preparado por**)
 
 # Form wording, from the entry Mark an incident report recordable. Section 8 of OCSA-FRM-016 version 4,
 # as STEP202_CONTRACT.md, section 1, names it in both languages.

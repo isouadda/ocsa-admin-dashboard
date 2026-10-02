@@ -2,12 +2,13 @@ OCSA Admin Dashboard - Claude Code Project Guide
 What this is
 React single-page admin dashboard for the OCSA operations platform. Create React App (react-scripts 5, React 18). Deployed on Vercel. Talks to the OCSA API.
 Build and validate (run before every commit)
+* Every build runs npm run build, npm run guide-check and npm run smoke, and all three pass before a pull request opens. npm run smoke (audit/smoke.js) serves the build/ just made, against the audit's stub, in under three minutes. The full npm run audit stays as it is and is not run.
 * Install: npm install
 * Build, the real check: npm run build must succeed with no errors.
 * Dev server: npm start
 * There is no separate test suite. The production build is the gate. Report the build result after any change.
 Architecture
-* Single file: src/App.js. It is large, 21,296 lines. All pages and components live here.
+* Single file: src/App.js. It is large, 21,579 lines. All pages and components live here.
 * Pages render off a page state value, registered in pageLabels and a render switch. The sidebar nav is a grouped array of items, each with id, label, and icon.
 * Shared primitives: Crd (card), SecT (section title), Btn, Inp, Sel, Lbl, TArea, Bdg (badge), DataTable, DateRangePicker, ChartCard, and the chart wrappers LineChartW, BarChartW, DonutChartW (ApexCharts).
 * Design tokens: FONT_HEAD (Montserrat), FONT_BODY (Inter), the R radius scale, the theme object t, and color consts GO GL BL RD OR GR.
