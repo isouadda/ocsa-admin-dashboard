@@ -933,7 +933,7 @@ export default function AdminDashboard() {
                     const active = page === item.id;
                     const NavI = item.i;
                     return (
-                      <button key={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
+                      <button key={item.id} data-nav-item={item.id} title={item.l} onClick={() => { toggleSidebar(); setPage(item.id); }}
                         style={{ position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: "10px 0", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", transition: "all 0.15s ease" }}>
                         <NavI sz={18} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                         {item.id === "chat" && <MessagesBadge style={{ position: "absolute", top: 4, right: 10 }} />}
@@ -958,7 +958,7 @@ export default function AdminDashboard() {
                 const active = page === item.id;
                 const NavI = item.i;
                 return (
-                  <button key={item.id} onClick={() => { setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
+                  <button key={item.id} data-nav-item={item.id} onClick={() => { setPage(item.id); if (phone) setDrawerOpen(false); }} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 16px", background: active ? SB_ACTIVE : "transparent", color: active ? SB_TEXT_ACTIVE : SB_TEXT, fontSize: 13, fontWeight: active ? 600 : 400, cursor: "pointer", border: "none", borderLeft: active ? "3px solid " + SB_STRIPE : "3px solid transparent", textAlign: "left", transition: "all 0.15s ease", whiteSpace: "nowrap" }}>
                     <NavI sz={17} c={active ? SB_TEXT_ACTIVE : SB_TEXT} />
                     <span>{item.l}</span>
                     {item.id === "cases" && <CaseQueueBadge style={{ marginLeft: "auto" }} />}
@@ -9234,7 +9234,8 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
   const keptRecords = Object.keys(KEPT_RECORDS).filter(keptOn).map(k => ({ id: k, name: tr(KEPT_RECORDS[k].name), code: KEPT_RECORDS[k].codes, line: tr(KEPT_RECORDS[k].line) }));
   const reviewCards = isAdmin ? [{ id: "management-review", name: tr("Management review"), code: "OCSA-QMS-018", line: tr("The evidence pack for the monthly review and the quarterly management review, for every site.") }] : [];
   // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
-  const reportGroup = (heading, list) => (list.length > 0 && <div style={{ marginBottom: 18 }}>
+  // Each group carries data-report-group, which npm run smoke opens one card of (Step 245).
+  const reportGroup = (heading, list) => (list.length > 0 && <div data-report-group="" style={{ marginBottom: 18 }}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{heading}</div>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
       {list.map(r => (
@@ -9262,7 +9263,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
       defs.length === 0 ?
         <Crd t={t}><div style={{ fontSize: 13, color: t.textMut }}>{tr("No saved reports yet. Use New report to create one.")}</div></Crd> :
         groupNames.map(cat => (
-          <div key={cat} style={{ marginBottom: 18 }}>
+          <div key={cat} data-report-group="" style={{ marginBottom: 18 }}>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{reportCategoryWord(cat)}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
               {groups[cat].map(d => (

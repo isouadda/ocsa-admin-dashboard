@@ -2,6 +2,7 @@ OCSA Admin Dashboard - Claude Code Project Guide
 What this is
 React single-page admin dashboard for the OCSA operations platform. Create React App (react-scripts 5, React 18). Deployed on Vercel. Talks to the OCSA API.
 Build and validate (run before every commit)
+* Every build runs npm run build, npm run guide-check and npm run smoke, and all three pass before a pull request opens. npm run smoke (audit/smoke.js) serves the build/ just made, against the audit's stub, in under three minutes. The full npm run audit stays as it is and is not run.
 * Install: npm install
 * Build, the real check: npm run build must succeed with no errors.
 * Dev server: npm start

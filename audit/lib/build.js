@@ -46,4 +46,4 @@ function build({ force } = {}) {
   return { reused: false };
 }
 
-module.exports = { build, BUILD_DIR, ROOT };
+module.exports = { build, buildIsFresh, BUILD_DIR, ROOT };
