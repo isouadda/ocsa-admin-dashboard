@@ -8714,7 +8714,7 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
 // list once GET /api/periodic-work answers with { items }.
 const PERIODIC_FREQUENCIES = { weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly", quarterly: "Quarterly", seasonal: "Seasonal" };
 const periodicFrequencyWord = (f) => (PERIODIC_FREQUENCIES[f] ? tr(PERIODIC_FREQUENCIES[f]) : String(f || ""));
-const PERIODIC_STATES = { overdue: { l: "Overdue", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
+const PERIODIC_STATES = { overdue: { l: "Overdue|periodic", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
 const periodicStateWord = (s) => (PERIODIC_STATES[s] ? tr(PERIODIC_STATES[s].l) : String(s || ""));
 const PERIODIC_ORDER = ["overdue", "due", "done"];
 // An item with no day to count from: the answer's anchorOn when it carries one, and otherwise an item
@@ -8745,7 +8745,7 @@ function PeriodicWorkPanel({ af, t, canEdit = false, onOpenSite, showToast }) {
   return (<div data-periodic-work="" style={{ marginBottom: 24 }}>
     <SecT t={t}>{tr("Periodic work")}</SecT>
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
-    <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
+    <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue|periodic"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
     <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.siteId) + ":" + String(x.taskId)} onRowClick={onOpenSite ? (x => onOpenSite(x.siteId)) : undefined} empty={items.length ? tr("Nothing matches this filter.") : tr("No periodic work on any checklist yet.")} />
     {anchor && <PeriodicStartWindow af={af} t={t} item={anchor} onClose={() => setAnchor(null)} onSaved={() => { setAnchor(null); if (showToast) showToast(tr("Start date set.")); load(); }} />}
   </div>);
