@@ -7,7 +7,7 @@ Build and validate (run before every commit)
 * Dev server: npm start
 * There is no separate test suite. The production build is the gate. Report the build result after any change.
 Architecture
-* Single file: src/App.js. It is large, 20,096 lines. All pages and components live here.
+* Single file: src/App.js. It is large, 20,996 lines. All pages and components live here.
 * Pages render off a page state value, registered in pageLabels and a render switch. The sidebar nav is a grouped array of items, each with id, label, and icon.
 * Shared primitives: Crd (card), SecT (section title), Btn, Inp, Sel, Lbl, TArea, Bdg (badge), DataTable, DateRangePicker, ChartCard, and the chart wrappers LineChartW, BarChartW, DonutChartW (ApexCharts).
 * Design tokens: FONT_HEAD (Montserrat), FONT_BODY (Inter), the R radius scale, the theme object t, and color consts GO GL BL RD OR GR.
