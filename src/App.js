@@ -3423,7 +3423,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
       <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
     </div>}
-    <PeriodicWorkPanel af={af} t={t} canEdit={canManageTasks} onOpenSite={(sid) => openProfile(sid, "tasks")} showToast={showToast} />
+    <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => openProfile(sid, "tasks")} />
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -6242,15 +6242,13 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
     // Someone told of an announcement who cannot open the page reads it in a window of its own.
     if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(n.subjectId); else onRefused(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
-    // Step 239: an equipment notice opens its item, and a periodic work notice the checklist of the site
-    // its item is on, found through GET /api/periodic-work by the item or the site the notice names.
+    // Step 239: an equipment notice names its item (subjectId, under subjectKey equipment) and opens it;
+    // a periodic work notice names its site (subjectId, under subjectKey site), one notice a site, and
+    // opens that site's checklist.
     if ((n.subjectType === "equipment_tagged_out" || n.subjectType === "equipment_service_due") && n.subjectId) { if (!canOpenPage("equipment")) { refuse(); return; } onOpenHash("equipment/" + n.subjectId); onClose(); return; }
     if (n.subjectType === "periodic_overdue") {
       if (!canOpenPage("sites")) { refuse(); return; }
-      let siteId = "";
-      const named = [n.subjectId, n.subjectKey].filter(x => x != null && x !== "").map(String);
-      if (named.length) { try { const d = await af("/api/periodic-work"); const hit = (d && Array.isArray(d.items) ? d.items : []).find(x => named.indexOf(String(x.taskId)) >= 0 || named.indexOf(String(x.siteId)) >= 0); if (hit) siteId = String(hit.siteId); } catch (e) { console.warn("Periodic work:", e.message); } }
-      if (siteId) onOpenHash("sites/" + siteId + "/tasks"); else onOpenPage("sites");
+      if (n.subjectId) onOpenHash("sites/" + n.subjectId + "/tasks"); else onOpenPage("sites");
       onClose(); return;
     }
     const target = notifTarget(n.link);
@@ -7960,7 +7958,10 @@ function printKeptRecord(pages, title) {
 const KEPT_PERIODIC = ["weekly", "biweekly", "monthly", "quarterly", "seasonal"];
 const keptDays = (rec) => (rec && Array.isArray(rec.days) ? rec.days : []).filter(d => d && Array.isArray(d.items) && d.items.length > 0);
 const keptWhere = (it) => [it.building, it.floor != null && it.floor !== "" ? tr("Floor {0}", it.floor) : ""].filter(Boolean).join(", ");
-const keptDoers = (items) => keptOnce(items.map(i => (i.completedBy && i.completedBy.name) || "")).join(", ");
+// An item's checks that day, oldest first: the record's checks (Step 238), or the first check alone from
+// an answer without them.
+const keptChecks = (i) => (Array.isArray(i.checks) && i.checks.length > 0 ? i.checks : i.done ? [{ completedAt: i.completedAt, completedBy: i.completedBy }] : []);
+const keptDoers = (items) => keptOnce([].concat(...items.map(i => keptChecks(i).map(c => (c.completedBy && c.completedBy.name) || "")))).join(", ");
 const keptDayShift = (day) => [keptDay(day.date), day.shift || ""].filter(Boolean).join(", ");
 function keptZonePages(rec, site, range) {
   const pages = [];
@@ -7968,15 +7969,15 @@ function keptZonePages(rec, site, range) {
     const zones = keptOnce(day.items.map(i => i.zone || " "));
     zones.forEach(z => {
       const its = day.items.filter(i => (i.zone || " ") === z);
-      const row = (i) => ["", i.label || "", keptWhere(i), i.done ? tr("Yes") : "", i.done ? keptTime(i.completedAt) : "", (i.done && i.completedBy && i.completedBy.initials) || ""];
+      const row = (i) => ["", shownLabel(i), keptWhere(i), i.done ? tr("Yes") : "", i.done ? keptTime(i.completedAt) : "", (i.done && i.completedBy && i.completedBy.initials) || ""];
       const periodic = (i) => KEPT_PERIODIC.indexOf(i.frequency) >= 0;
       pages.push({ code: "OCSA-FRM-003", site, range, parts: [
-        { h: "Zone Details", fields: [["Site", site], ["Zone", z.trim()], ["Date and Shift", keptDayShift(day)], ["Cleaner", keptDoers(its)], ["Crew Lead", ""], ["Scope of Work Reference", ""]] },
+        { h: "Zone Details", fields: [["Site", site], ["Zone", shownZone(its[0])], ["Date and Shift", keptDayShift(day)], ["Cleaner", keptDoers(its)], ["Crew Lead", ""], ["Scope of Work Reference", ""]] },
         { h: "Before You Start", cols: ["Check", "Done", "Note"], labels: ["Closet unlocked, and secured again behind you", "Cart stocked for the whole zone", "Wet floor signs on the cart", "Cloths in the correct color for each area type", "Dilution station working, and containers labeled", "Protective equipment for the tasks in this zone", "Vacuum or machine checked, cord along its full length", "Zone walked, and anything unusual noted before starting"] },
         { h: "Daily Tasks", cols: ["#", "Task", "Area or Room", "Done", "Time", "Initials"], rows: its.filter(i => !periodic(i)).map(row), least: 18 },
         { h: "Weekly and Periodic Tasks", cols: ["#", "Task", "Area or Room", "Done", "Time", "Initials"], rows: its.filter(periodic).map(row), least: 12 },
         { h: "Restroom Detail", cols: ["Restroom Task", "Done", "Time", "Initials"], labels: ["Toilets and urinals cleaned and disinfected, contact time held", "Sinks, counters and faucets cleaned and disinfected", "Mirrors cleaned, no streaks in the light", "Partitions, doors and latches wiped on both faces", "Dispensers restocked, tissue, towels and soap", "Waste and sanitary units emptied, wiped and relined", "Floor swept and damp mopped with disinfectant", "Behind fixtures and in corners checked", "Touchpoints disinfected on the way out", "Wet floor signs left until the floor is dry"] },
-        { h: "Anything Not Done", cols: ["#", "Task", "Area", "Reason", "Reported To"], rows: its.filter(i => !i.done).map(i => ["", i.label || "", keptWhere(i), i.notes || "", ""]), least: 8 },
+        { h: "Anything Not Done", cols: ["#", "Task", "Area", "Reason", "Reported To"], rows: its.filter(i => !i.done).map(i => ["", shownLabel(i), keptWhere(i), i.notes || "", ""]), least: 8 },
         { h: "Found and Reported", cols: ["Found", "Detail, Location and Who Was Informed"], labels: ["Damage to the building or its contents", "Spill, leak or standing water", "Sharps or broken glass", "Blood or body fluid", "Unlabeled or unknown container", "Equipment fault", "Supply running out", "Door, window or closet found insecure", "Anything else worth reporting"] },
         { h: "Close of Zone", cols: ["Check", "Done", "Note"], labels: ["Wet floor signs collected once floors were dry", "Waste removed to the collection point, streams kept separate", "Equipment cleaned, emptied and stored", "Mop heads and cloths in the laundry bag", "Cart restocked for the next shift", "Closet left clean, orderly and secured", "Containers closed and labeled", "Lights, doors and access left as the site requires"] },
         { h: "Sign-Off", sign: [["Cleaner", "Zone complete as recorded above"], ["Crew Lead", "Received and carried into OCSA-FRM-005"]] },
@@ -7987,7 +7988,8 @@ function keptZonePages(rec, site, range) {
 }
 
 // OCSA-FRM-021, one log for each day and shift, from the touchpoint items of the checklist record. An
-// item of high, critical or urgent priority is a critical touchpoint; the rest are standard.
+// item of high, critical or urgent priority is a critical touchpoint; the rest are standard. Pass 1 is
+// the day's first check and Pass 2 its second, where there is one.
 const keptCritical = (i) => ["critical", "high", "urgent"].indexOf(i.priority) >= 0;
 // The form's response levels, each with what triggers it and what the log must then show.
 const KEPT_LEVELS = [
@@ -7997,7 +7999,10 @@ const KEPT_LEVELS = [
 ];
 function keptTouchPages(rec, site, range) {
   return keptDays(rec).map(day => ({ day, tps: day.items.filter(i => i.touchpoint === true) })).filter(x => x.tps.length > 0).map(({ day, tps }) => {
-    const row = (i) => ["", i.label || "", [i.zone, keptWhere(i)].filter(Boolean).join(", "), i.done ? keptTime(i.completedAt) : "", "", i.done ? tr("Treated") : "", (i.done && i.completedBy && i.completedBy.initials) || ""];
+    const row = (i) => {
+      const c = keptChecks(i);
+      return ["", shownLabel(i), [shownZone(i), keptWhere(i)].filter(Boolean).join(", "), c[0] ? keptTime(c[0].completedAt) : "", c[1] ? keptTime(c[1].completedAt) : "", i.done ? tr("Treated") : "", keptOnce(c.slice(0, 2).map(x => (x.completedBy && x.completedBy.initials) || "")).join(" / ")];
+    };
     return { code: "OCSA-FRM-021", site, range, parts: [
       { h: "Log Details", fields: [["Site", site], ["Date and Shift", keptDayShift(day)], ["Completed By", keptDoers(tps)], ["Product in Use", ""], ["Registration Number", ""], ["Label Contact Time", ""], ["Site Touchpoint List Reference", ""], ["Number of Items on the List", String(tps.length)]] },
       { h: "Response Level", options: { label: "Level Today", choices: ["Level 1, Standard", "Level 2, Heightened", "Level 3, Outbreak"] } },
@@ -8006,7 +8011,7 @@ function keptTouchPages(rec, site, range) {
       { h: "Critical Touchpoints", cols: ["#", "Touchpoint Item", "Location", "Pass 1", "Pass 2", "Status", "Initials"], rows: tps.filter(keptCritical).map(row), least: 22 },
       { h: "Standard Touchpoints and Shared Surfaces", cols: ["#", "Touchpoint Item", "Location", "Pass 1", "Pass 2", "Status", "Initials"], rows: tps.filter(i => !keptCritical(i)).map(row), least: 18 },
       { h: "Whole-Room Treatment", cols: ["#", "Area", "Surfaces Treated", "Contact Time Held", "Completed", "Initials"], rows: [], least: 10 },
-      { h: "Items Not Treated", cols: ["#", "Item", "Reason Inaccessible", "Reported To", "Date"], rows: tps.filter(i => !i.done).map(i => ["", i.label || "", i.notes || "", "", keptDay(day.date)]), least: 10 },
+      { h: "Items Not Treated", cols: ["#", "Item", "Reason Inaccessible", "Reported To", "Date"], rows: tps.filter(i => !i.done).map(i => ["", shownLabel(i), i.notes || "", "", keptDay(day.date)]), least: 10 },
       { h: "Verification", cols: ["Verification", "Result"], labels: ["Method used, surface test or marker check", "Number of touchpoints sampled", "Number passing", "Items failing, and where", "Retraining raised, with the OCSA-FRM-033 reference", "Repeat check date and result"] },
       { h: "Sign-Off and Filing", sign: [["Completed By", "The worker at the site"], ["Reviewed By", "Supervisor"], ["Level 3 Reviewed By", "Field Lead"]] },
     ] };
@@ -8264,15 +8269,19 @@ const KEPT_RECORDS = {
     pages: (d, c) => keptClearancePages(d, c.site),
     summary: (d) => trn("{0} person on the record|count", d.length) },
   "kept-insp": { live: "record", codes: "OCSA-FRM-001, OCSA-FRM-002", name: "Inspections", line: "Every inspection completed in the range, each on its own page.", ranged: true,
+    // The list answers each inspection's kind and formCode and keeps the ones completed in the range;
+    // each is read on its own at Print only for its items, scores, photos and signatures.
     load: async (af, siteId, range) => {
       const list = await af("/api/inspections/scheduled?site_id=" + encodeURIComponent(siteId) + "&status=completed&from=" + range.start + "&to=" + range.end);
-      const done = (Array.isArray(list) ? list : []).filter(si => si && si.status === "completed" && String(si.site_id) === String(siteId));
-      const full = await Promise.all(done.map(si => af("/api/inspections/scheduled/" + encodeURIComponent(si.id))));
-      return full.filter(d => d && d.result && keptInRange(keptDayOf(d.result.completed_at), range)).sort((a, b) => String(a.result.completed_at).localeCompare(String(b.result.completed_at)));
+      return (Array.isArray(list) ? list : []).filter(si => si && si.status === "completed" && String(si.site_id) === String(siteId));
     },
     summary: (d) => trn("{0} inspection to print|count", d.length),
     count: (d) => d.length,
-    print: (w, d, c) => printInspections(w, d, { token: c.token, words: c.words, range: c.range }) },
+    print: async (w, d, c) => {
+      const full = await Promise.all(d.map(si => c.af("/api/inspections/scheduled/" + encodeURIComponent(si.id)).then(x => Object.assign({}, x, { kind: si.kind || x.kind, formCode: si.formCode || x.formCode }))));
+      const done = full.filter(x => x && x.result).sort((a, b) => String(a.result.completed_at || "").localeCompare(String(b.result.completed_at || "")));
+      await printInspections(w, done, { token: c.token, words: c.words, range: c.range });
+    } },
   "kept-033": { live: ["record", "training"], codes: "OCSA-FRM-033", name: "Training Attendance Roster", line: "A roster for each training session at the site in the range.", ranged: true,
     load: async (af) => { const d = await af("/api/hr/training"); return Array.isArray(d) ? d : []; },
     pages: (d, c) => {
@@ -8303,7 +8312,7 @@ function KeptRecordView({ id, af, token, t, sites = [], allStaff = [], lkMap }) 
     return () => { alive = false; };
   }, [af, id, siteId, range.start, range.end, tooLong]);
   const typeWords = useMemo(() => lkMap("training_types", true), [lkMap]);
-  const ctx = { site: site ? site.name : "", siteId, range, token, allStaff, atSite, typeWords, words: inspectionWordsOf(lkMap) };
+  const ctx = { af, site: site ? site.name : "", siteId, range, token, allStaff, atSite, typeWords, words: inspectionWordsOf(lkMap) };
   const waiting = id === "kept-033" && siteId && atSite === null;
   const pages = data && rec.pages && !waiting ? rec.pages(data, ctx) : null;
   const count = data === null || waiting ? null : rec.count ? rec.count(data) : pages.length;
@@ -8468,9 +8477,10 @@ const EquipmentChip = ({ status }) => <Bdg l={equipmentStatusWord(status)} c={(E
 const EQUIPMENT_EVENTS = { check: "Checked|equipment", service: "Serviced", repair: "Repaired", tagged_out: "Tagged out", returned: "Returned to service", moved: "Moved|equipment", retired: "Retired|equipment" };
 const equipmentEventWord = (k) => (EQUIPMENT_EVENTS[k] ? tr(EQUIPMENT_EVENTS[k]) : String(k || ""));
 const equipmentList = (d) => (d && Array.isArray(d.equipment) ? d.equipment : null);
+// Each item answers its latest event as latestEvent (helpers/equipment.js); lastEvent is read when it does not.
 const equipmentLatest = (x) => (x && (x.latestEvent || x.lastEvent)) || null;
 const equipmentGo = (id) => { window.location.hash = "equipment" + (id != null && id !== "" ? "/" + encodeURIComponent(String(id)) : ""); };
-const equipmentDue = (x, today) => !!(x && x.status !== "retired" && x.nextServiceOn && String(x.nextServiceOn).slice(0, 10) <= today);
+const equipmentDue = (x, today) => (x && typeof x.serviceDue === "boolean" ? x.serviceDue : !!(x && x.status !== "retired" && x.nextServiceOn && String(x.nextServiceOn).slice(0, 10) <= today));
 const equipmentByOf = (ev) => ev.byName || ev.by_name || (ev.by && typeof ev.by === "object" ? ev.by.name : "") || "";
 function EquipmentPage({ af, token, t, sites = [], route = [], showToast }) {
   const id = route[0] ? String(route[0]) : "";
@@ -8496,7 +8506,7 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
   const siteName = (sid) => ((sites || []).find(s => String(s.id) === String(sid)) || {}).name || "";
   const rows = (list || []).filter(x => (!siteId || String(x.siteId) === siteId) && (!status || x.status === status) && (!due || equipmentDue(x, today)));
   const tick = (rid) => setTicked(p => { const n = new Set(p); if (n.has(rid)) n.delete(rid); else n.add(rid); return n; });
-  const shownTicked = rows.filter(x => ticked.has(String(x.id)));
+  const shownTicked = rows.filter(x => x.status !== "retired" && ticked.has(String(x.id)));
   const printLabels = async () => {
     if (labels.busy || shownTicked.length === 0) return;
     setLabels({ busy: true, error: "" });
@@ -8505,7 +8515,7 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
   };
   const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
   const cols = [
-    { header: "", tdStyle: { width: 44 }, render: x => (<label onClick={e => e.stopPropagation()} style={{ ...chkWrap, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><input type="checkbox" aria-label={tr("Tick {0} for labels", x.name || "")} checked={ticked.has(String(x.id))} onChange={() => tick(String(x.id))} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></label>) },
+    { header: "", tdStyle: { width: 44 }, render: x => (x.status === "retired" ? null : <label onClick={e => e.stopPropagation()} style={{ ...chkWrap, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><input type="checkbox" aria-label={tr("Tick {0} for labels", x.name || "")} checked={ticked.has(String(x.id))} onChange={() => tick(String(x.id))} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></label>) },
     { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).length ? <div style={{ fontSize: 11, color: t.textMut }}>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div> : null}</span>) },
     { header: tr("Site"), tdStyle: { color: t.textSec, minWidth: 120 }, render: x => x.siteName || siteName(x.siteId) || "--" },
     { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <EquipmentChip status={x.status} /> },
@@ -8521,7 +8531,7 @@ function EquipmentRegister({ af, token, t, sites = [], showToast }) {
         {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
       </select>
       <select aria-label={tr("Status")} value={status} onChange={e => setStatus(e.target.value)} style={selSt}>
-        <option value="">{tr("Every status")}</option>
+        <option value="">{tr("All but retired")}</option>
         {Object.keys(EQUIPMENT_STATUSES).map(k => <option key={k} value={k}>{equipmentStatusWord(k)}</option>)}
       </select>
       <button type="button" aria-pressed={due} onClick={() => setDue(v => !v)} style={{ ...selSt, border: "1px solid " + (due ? GO : t.borderSolid), background: due ? t.goldBg : t.card, color: due ? t.goldText : t.text, fontWeight: 600 }}>{tr("Service due")}</button>
@@ -8660,7 +8670,7 @@ function EquipmentItem({ af, t, id, sites = [], showToast }) {
             <span style={{ fontSize: 13, fontWeight: 600, color: ev.kind === "tagged_out" ? RD : t.text }}>{equipmentEventWord(ev.kind)}</span>
             <span style={{ fontSize: 11, color: t.textMut }}>{[ev.at ? new Date(ev.at).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "", equipmentByOf(ev)].filter(Boolean).join(", ")}</span>
           </div>
-          {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", siteName(ev.fromSiteId) || "--", siteName(ev.toSiteId) || "--")}</div> : null}
+          {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", ev.fromSiteName || siteName(ev.fromSiteId) || "--", ev.toSiteName || siteName(ev.toSiteId) || "--")}</div> : null}
           {ev.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
           {ev.photoUrl ? <a href={ev.photoUrl} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
         </div>))}
@@ -8707,39 +8717,40 @@ function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSave
 }
 
 // ===== PERIODIC WORK (Step 239) =====
-// The checklist's periodic items across every site in one table (STEP238_CONTRACT.md, Part 5): weekly,
-// every two weeks, monthly, quarterly and seasonal work, each with when it was last done, by whom, when
-// it is next due and whether it is done, due or overdue, worked out by the API's period rules. An item
-// whose period needs a day to count from and has none gains Set start date. The table sits on the Sites
-// list once GET /api/periodic-work answers with { items }.
+// The checklist's periodic items across every site in one table (STEP238_CONTRACT.md, Part 5, as the
+// API's Step 238 builds it): weekly, every two weeks, monthly, quarterly and seasonal work, each with
+// when it was last done and by whom, the first day of the period it next owes work in (nextDueOn), that
+// period's last day (dueBy), and whether it is done, due or overdue, by the checklist's own week, month
+// and quarter rules, which need no start date. An item reads in the screen's language through its
+// display. The table sits on the Sites list once GET /api/periodic-work answers with { items }.
 const PERIODIC_FREQUENCIES = { weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly", quarterly: "Quarterly", seasonal: "Seasonal" };
 const periodicFrequencyWord = (f) => (PERIODIC_FREQUENCIES[f] ? tr(PERIODIC_FREQUENCIES[f]) : String(f || ""));
 const PERIODIC_STATES = { overdue: { l: "Overdue|periodic", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
 const periodicStateWord = (s) => (PERIODIC_STATES[s] ? tr(PERIODIC_STATES[s].l) : String(s || ""));
 const PERIODIC_ORDER = ["overdue", "due", "done"];
-// An item with no day to count from: the answer's anchorOn when it carries one, and otherwise an item
-// that has no next due day.
-const periodicNeedsStart = (x) => (Object.prototype.hasOwnProperty.call(x, "anchorOn") ? x.anchorOn == null : !x.nextDueOn);
 const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
-function PeriodicWorkPanel({ af, t, canEdit = false, onOpenSite, showToast }) {
+const shownLabel = (x) => (x && x.display && x.display.label) || (x && x.label) || "";
+const shownZone = (x) => (x && x.display && x.display.zone) || (x && x.zone) || "";
+function PeriodicWorkPanel({ af, t, onOpenSite }) {
   const [items, setItems] = useState(null);
   const [state, setState] = useState("all");
-  const [anchor, setAnchor] = useState(null);
-  const load = useCallback(() => {
-    af("/api/periodic-work").then(d => setItems(d && Array.isArray(d.items) ? d.items : null)).catch(e => { setItems(null); console.warn("Periodic work:", e.message); });
+  useEffect(() => {
+    let alive = true;
+    af("/api/periodic-work").then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : null); }).catch(e => { if (alive) setItems(null); console.warn("Periodic work:", e.message); });
+    return () => { alive = false; };
   }, [af]);
-  useEffect(() => { load(); }, [load]);
   if (items === null) return null;
   const count = (s) => items.filter(x => x.state === s).length;
-  const rows = items.filter(x => state === "all" || x.state === state).slice().sort((a, b) => String(a.siteName || "").localeCompare(String(b.siteName || ""), localeTag()) || PERIODIC_ORDER.indexOf(a.state) - PERIODIC_ORDER.indexOf(b.state) || String(a.label || "").localeCompare(String(b.label || ""), localeTag()));
+  const rows = items.filter(x => state === "all" || x.state === state).slice().sort((a, b) => String(a.siteName || "").localeCompare(String(b.siteName || ""), localeTag()) || PERIODIC_ORDER.indexOf(a.state) - PERIODIC_ORDER.indexOf(b.state) || shownLabel(a).localeCompare(shownLabel(b), localeTag()));
+  const late = (x) => x.state === "overdue";
   const cols = [
     { header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" },
-    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ color: t.text }}>{x.label}</span>{x.zone ? <div style={{ fontSize: 11, color: t.textMut }}>{x.zone}</div> : null}</span>) },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ color: t.text }}>{shownLabel(x)}</span>{shownZone(x) ? <div style={{ fontSize: 11, color: t.textMut }}>{shownZone(x)}</div> : null}</span>) },
     { header: tr("Frequency"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => periodicFrequencyWord(x.frequency) },
     { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.lastDoneAt ? irDay(x.lastDoneAt) : "--") },
     { header: tr("By|done by"), tdStyle: { color: t.textSec, minWidth: 110 }, render: x => periodicByOf(x) || "--" },
-    { header: tr("Next due"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.nextDueOn ? <span style={{ color: x.state === "overdue" ? RD : t.textSec, fontWeight: x.state === "overdue" ? 600 : 400 }}>{keptDay(x.nextDueOn)}</span>
-      : canEdit && periodicNeedsStart(x) ? <Btn t={t} v="ghost" onClick={e => { e.stopPropagation(); setAnchor(x); }} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Set start date")}</Btn> : <span style={{ color: t.textMut }}>--</span>) },
+    { header: tr("Next due"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.nextDueOn ? keptDay(x.nextDueOn) : "--") },
+    { header: tr("Due by"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.dueBy ? <span style={{ color: late(x) ? RD : t.textSec, fontWeight: late(x) ? 600 : 400 }}>{keptDay(x.dueBy)}</span> : <span style={{ color: t.textMut }}>--</span>) },
     { header: tr("State"), tdStyle: { whiteSpace: "nowrap" }, render: x => <Bdg l={periodicStateWord(x.state)} c={(PERIODIC_STATES[x.state] || PERIODIC_STATES.due).c} /> },
   ];
   return (<div data-periodic-work="" style={{ marginBottom: 24 }}>
@@ -8747,36 +8758,7 @@ function PeriodicWorkPanel({ af, t, canEdit = false, onOpenSite, showToast }) {
     <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
     <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue|periodic"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
     <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.siteId) + ":" + String(x.taskId)} onRowClick={onOpenSite ? (x => onOpenSite(x.siteId)) : undefined} empty={items.length ? tr("Nothing matches this filter.") : tr("No periodic work on any checklist yet.")} />
-    {anchor && <PeriodicStartWindow af={af} t={t} item={anchor} onClose={() => setAnchor(null)} onSaved={() => { setAnchor(null); if (showToast) showToast(tr("Start date set.")); load(); }} />}
   </div>);
-}
-function PeriodicStartWindow({ af, t, item, onClose, onSaved }) {
-  const [day, setDay] = useState(() => todayISO());
-  const [busy, setBusy] = useState(false);
-  const [refusal, setRefusal] = useState("");
-  const save = async () => {
-    if (busy || !day) return;
-    setBusy(true); setRefusal("");
-    try { await af("/api/sites/" + encodeURIComponent(item.siteId) + "/tasks/" + encodeURIComponent(item.taskId) + "/anchor", { method: "PUT", body: { anchorOn: day } }); onSaved(); }
-    catch (e) { setRefusal(e.message || tr("Request failed")); }
-    setBusy(false);
-  };
-  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-periodic-start="">
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Set start date")}</div>
-        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[item.label, item.siteName].filter(Boolean).join(", ")}</div>
-      </div>
-      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
-    </div>
-    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The day its {0} period counts from. The next due day follows from it.", periodicFrequencyWord(item.frequency).toLowerCase())}</div>
-    <div style={{ marginBottom: 12, maxWidth: 240 }}><Lbl>{tr("Start date")}</Lbl><Inp t={t} type="date" aria-label={tr("Start date")} value={day} onChange={e => setDay(e.target.value)} /></div>
-    {refusal && <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
-    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
-      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
-      <Btn t={t} onClick={save} disabled={busy || !day} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
-    </div>
-  </div></Mdl>);
 }
 // The Touchpoint switch in the checklist editor's windows (Part 2), drawn once the site's items answer
 // a touchpoint of their own.

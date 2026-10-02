@@ -1501,7 +1501,7 @@ Last checked: 2026-10-02
 ## Keep the equipment register (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Equipment** (**Equipo**) under **Supplies** (**Suministros**) in the menu on the left.
-2. Each item shows its **Site** (**Sitio**), its **Status** (**Estado**), its **Next service** (**Próximo servicio**), red once due, and its **Latest event** (**Último evento**). Narrow the list by site, by status, or with **Service due** (**Servicio pendiente**).
+2. Each item shows its **Site** (**Sitio**), its **Status** (**Estado**), its **Next service** (**Próximo servicio**), red once due, and its **Latest event** (**Último evento**). Narrow the list by site, by status, or with **Service due** (**Servicio pendiente**). **All but retired** (**Todos menos los dados de baja**) leaves the retired items out; pick **Retired** (**Dado de baja**) under status to see them.
 3. To add one, click **Add equipment** (**Agregar equipo**). Fill in the **Name** (**Nombre**) and the **Site** (**Sitio**), and any of **Type** (**Tipo**), **Make** (**Marca**), **Model** (**Modelo**), **Serial number** (**Número de serie**), **Bought on** (**Comprado el**), **Service every (days)** (**Servicio cada (días)**), **Last serviced on** (**Último servicio el**) and **Notes** (**Notas**). Click **Save** (**Guardar**), and the item's page opens.
 4. On an item's page, **Record service** (**Registrar servicio**) records a service and moves **Next service** (**Próximo servicio**) on by its days; **Repair** (**Reparar**) records a repair; **Move** (**Trasladar**) moves it to another site; **Edit** (**Editar**) changes its details.
 5. **Retire** (**Dar de baja**) asks first. A retired item stays on the register, and nothing more can be recorded against it.
@@ -1512,7 +1512,7 @@ Last checked: 2026-10-02
 ## Print equipment labels (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Equipment** (**Equipo**) under **Supplies** (**Suministros**) in the menu on the left.
-2. Tick the items that need a label.
+2. Tick the items that need a label. A retired item has no box, since it takes no label.
 3. Click **Print labels** (**Imprimir etiquetas**). A sheet of labels, labels.pdf, is saved: each label has the item's name, its site and its QR code, which opens the item on the staff portal.
 If it does not work: **Print labels** (**Imprimir etiquetas**) waits until an item is ticked.
 Words people use for this: qr labels, asset tags, equipment stickers, label the machines, imprimir etiquetas.
@@ -1531,9 +1531,9 @@ Last checked: 2026-10-02
 ## See periodic work across every site (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **Sites** (**Sitios**) in the menu on the left. **Periodic work** (**Trabajo periódico**) is at the top of the page.
-2. Every site's weekly, every two weeks, monthly, quarterly and seasonal checklist items are listed with **Last done** (**Última vez**), **By** (**Por**), **Next due** (**Próximo vencimiento**) and whether each is **Overdue** (**Vencido**), **Due** (**Pendiente**) or **Done** (**Hecho**) this period. The tabs above narrow the list.
-3. Click a row to open that site's checklist.
-4. An item with no day to count from shows **Set start date** (**Fijar fecha de inicio**). Click it, pick the **Start date** (**Fecha de inicio**), and click **Save** (**Guardar**).
+2. Every site's weekly, every two weeks, monthly, quarterly and seasonal checklist items are listed with **Last done** (**Última vez**), **By** (**Por**), and whether each is **Overdue** (**Vencido**), **Due** (**Pendiente**) or **Done** (**Hecho**) this period. The tabs above narrow the list.
+3. **Next due** (**Próximo vencimiento**) is the first day of the period an item next owes work in, and **Due by** (**Fecha límite**) the last day of it, red once it has passed. A week runs Monday to Sunday, and a month and a quarter are the calendar's.
+4. Click a row to open that site's checklist.
 5. A notice that periodic work is overdue opens the checklist of its site.
 Words people use for this: strip and wax schedule, periodic cleaning, deep cleaning, monthly tasks, quarterly tasks, overdue work, trabajo periodico.
 Last checked: 2026-10-02

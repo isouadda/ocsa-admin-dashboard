@@ -3718,7 +3718,6 @@ export const WORDS = {
   "The person signs for what they received": { es: "La persona firma lo que recibi\u00f3" },
   "Add equipment": { es: "Agregar equipo" },
   "Every machine and tool on the register, where it is and when it is next serviced. A row opens the item.": { es: "Cada m\u00e1quina y herramienta del registro, d\u00f3nde est\u00e1 y cu\u00e1ndo le toca el pr\u00f3ximo servicio. Una fila abre el art\u00edculo." },
-  "Every status": { es: "Todos los estados" },
   "Service due": { es: "Servicio pendiente" },
   "Tick items to print their labels.": { es: "Marque art\u00edculos para imprimir sus etiquetas." },
   "Print labels": { es: "Imprimir etiquetas" },
@@ -3776,14 +3775,10 @@ export const WORDS = {
   "Last done": { es: "\u00daltima vez" },
   "By|done by": { es: "Por" },
   "Next due": { es: "Pr\u00f3ximo vencimiento" },
-  "Set start date": { es: "Fijar fecha de inicio" },
   "Nothing matches this filter.": { es: "Nada coincide con este filtro." },
   "No periodic work on any checklist yet.": { es: "Todav\u00eda no hay trabajo peri\u00f3dico en ninguna lista." },
-  "Start date set.": { es: "Fecha de inicio fijada." },
   "Every two weeks": { es: "Cada dos semanas" },
   "Seasonal": { es: "De temporada" },
-  "The day its {0} period counts from. The next due day follows from it.": { es: "El d\u00eda desde el que cuenta su per\u00edodo {0}. El pr\u00f3ximo vencimiento se calcula a partir de \u00e9l." },
-  "Start date": { es: "Fecha de inicio" },
   "Touchpoint": { es: "Punto de contacto frecuente" },
   "High-touch surfaces disinfected on schedule. They print on the Disinfection Coverage Log.": { es: "Superficies de contacto frecuente desinfectadas seg\u00fan el horario. Se imprimen en el Registro de cobertura de desinfecci\u00f3n." },
   "Word, Excel and PowerPoint documents, CSV and text files, images and PDFs, up to 25 MB each.": { es: "Documentos de Word, Excel y PowerPoint, archivos CSV y de texto, im\u00e1genes y PDF, de hasta 25 MB cada uno." },
@@ -3799,6 +3794,8 @@ export const WORDS = {
   "Critical touchpoints treated at least twice per service day, with both pass times recorded. Standard touchpoints daily. Affected areas prioritized in the round": { es: "Puntos de contacto cr\u00edticos tratados al menos dos veces por d\u00eda de servicio, con la hora de ambas pasadas registrada. Puntos de contacto est\u00e1ndar a diario. \u00c1reas afectadas primero en la ronda" },
   "A customer or a health authority reports an outbreak, or a health authority directs a response": { es: "El cliente o una autoridad de salud reporta un brote, o una autoridad de salud ordena una respuesta" },
   "Whole-room treatment recorded in Section 5. Critical touchpoints on every round. Dedicated equipment for affected areas. Daily written coverage report to the customer": { es: "Tratamiento de toda la sala registrado en la Secci\u00f3n 5. Puntos de contacto cr\u00edticos en cada ronda. Equipo exclusivo para las \u00e1reas afectadas. Informe escrito diario de cobertura para el cliente" },
+  "Due by": { es: "Fecha l\u00edmite" },
+  "All but retired": { es: "Todos menos los dados de baja" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
