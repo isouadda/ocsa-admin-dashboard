@@ -144,7 +144,7 @@ const signInDeviceId = () => {
   catch (e) { try { return newDeviceId(); } catch (x) { return undefined; } }
 };
 // Every page id the render switch knows. The URL hash is checked against this list before it is used.
-const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records"];
+const PAGE_IDS = ["overview", "staff", "hr", "sites", "assigned", "schedule", "operations", "issues", "supplies", "vendors", "services", "chat", "reports", "inspections", "marketplace", "forms", "settings", "cases", "help", "announcements", "help-insights", "form-builder", "quotes", "clearances", "discipline", "workspace", "chat-records", "equipment"];
 // The pages an admin opens and nobody else. A person who reaches one of these another way is told
 // so in the page body rather than left looking at a header over nothing.
 const ADMIN_ONLY_PAGES = ["staff", "cases", "forms", "settings", "announcements"];
@@ -317,6 +317,7 @@ const SwpI = p => <Ic d="M16 3l4 4-4 4M20 7H4M8 21l-4-4 4-4M4 17h16" {...p} />;
 const WsI = p => <Ic d="M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z" {...p} />;
 const FileI = p => <Ic d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6" {...p} />;
 const RecI = p => <Ic d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z M21 21l-4.35-4.35" {...p} />;
+const EqI = p => <Ic d="M3 7h18v13H3z M8 7V4h8v3 M3 12h18 M10 12v3h4v-3" {...p} />;
 const UpI = p => <Ic d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4 M17 8l-5-5-5 5 M12 3v12" {...p} />;
 const FolI = p => <Ic d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p} />;
 const StgI = p => <Ic d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 0-1 1.73l-.43.25a2 2 0 0 0-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 0 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 0 2 0l.43.25a2 2 0 0 0 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 0 1-1.73l.43-.25a2 2 0 0 0 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 0 0-2l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 0-2 0l-.43-.25a2 2 0 0 0-1-1.73V4a2 2 0 0 0-2-2z M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" {...p} />;
@@ -600,6 +601,9 @@ export default function AdminDashboard() {
   // Whether GET /api/workspace/projects answers this office account with { projects } (Step 235):
   // Workspace joins the side panel. Read once a session.
   const [workspaceOn, setWorkspaceOn] = useState(false);
+  // Whether GET /api/equipment answers this office account with { equipment } (Step 239): Equipment
+  // joins the side panel. Read once a session.
+  const [equipmentOn, setEquipmentOn] = useState(false);
   // The school site refusal apiFetch announced last, drawn over whatever screen sent it, or null.
   const [clearanceRefused, setClearanceRefused] = useState(null);
   useEffect(() => { const h = (ev) => setClearanceRefused((ev && ev.detail) || {}); window.addEventListener("ocsa-clearance-missing", h); return () => window.removeEventListener("ocsa-clearance-missing", h); }, []);
@@ -625,11 +629,12 @@ export default function AdminDashboard() {
     if (id === "clearances") return clearancesOn;
     if (id === "discipline") return disciplineOn;
     if (id === "workspace") return workspaceOn;
+    if (id === "equipment") return equipmentOn;
     // Chat records (Step 235) opens for a holder of read_chat_records, which no role holds by default:
     // the super admin, and anyone it is granted to. It waits for the API to name it.
     if (id === "chat-records") return !!(caps && caps.read_chat_records === true);
     return isAdmin || ADMIN_ONLY_PAGES.indexOf(id) < 0;
-  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn]);
+  }, [isAdmin, canManagePermissions, canManageSettings, canReadFiledForms, hasCap, caps, clearancesOn, disciplineOn, devicesOn, workspaceOn, equipmentOn]);
   const [sites, setSites] = useState([]);
   const [allStaff, setAllStaff] = useState([]);
   const [lookups, setLookups] = useState([]);
@@ -659,11 +664,12 @@ export default function AdminDashboard() {
     return () => { alive = false; };
   }, [token, user, isAdmin, af]);
   useEffect(() => {
-    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); return undefined; }
+    if (!token) { setClearancesOn(false); setDevicesOn(false); setWorkspaceOn(false); setEquipmentOn(false); return undefined; }
     let alive = true;
     af("/api/clearances").then(d => { if (alive) setClearancesOn(!!clearancePeopleOf(d)); }).catch(e => { if (alive) setClearancesOn(false); console.warn("Clearances:", e.message); });
     af("/api/discipline").then(d => { const on = !!(d && Array.isArray(d.warnings) && d.counts); disciplinaryCategoryLive = on; if (alive) setDisciplineOn(on); }).catch(e => { if (alive) setDisciplineOn(false); console.warn("Discipline:", e.message); });
     af("/api/workspace/projects").then(d => { if (alive) setWorkspaceOn(!!wsList(d, "projects")); }).catch(e => { if (alive) setWorkspaceOn(false); console.warn("Workspace:", e.message); });
+    af("/api/equipment?status=out_of_service").then(d => { if (alive) setEquipmentOn(!!equipmentList(d)); }).catch(e => { if (alive) setEquipmentOn(false); console.warn("Equipment:", e.message); });
     af("/api/users/me/trusted-devices").then(d => { if (alive) setDevicesOn(!!trustedDevicesOf(d)); }).catch(e => { if (alive) setDevicesOn(false); console.warn("Trusted devices:", e.message); });
     return () => { alive = false; };
   }, [token, af]);
@@ -826,7 +832,7 @@ export default function AdminDashboard() {
       { id: "assigned", l: tr("Assigned Tasks"), i: WkI },
       { id: "inspections", l: tr("Inspections"), i: ClpI },
     ]},
-    { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }] },
+    { label: tr("Supplies"), items: [{ id: "supplies", l: tr("Inventory"), i: BxI }, { id: "vendors", l: tr("Vendors"), i: VnI }, ...(canOpenPage("equipment") ? [{ id: "equipment", l: tr("Equipment"), i: EqI }] : [])] },
     { label: tr("Services"), items: [{ id: "services", l: tr("Service Catalog"), i: SvI }, ...(canOpenPage("quotes") ? [{ id: "quotes", l: tr("Quotes"), i: DlrI }] : [])] },
     { label: tr("Time|section"), items: [{ id: "schedule", l: tr("Schedule"), i: CalI }, { id: "marketplace", l: tr("Shift Pickup"), i: SwpI }] },
     { label: tr("Reports"), items: [{ id: "reports", l: tr("Reports"), i: BrI }, ...(canOpenPage("help-insights") ? [{ id: "help-insights", l: tr("Help insights"), i: HlpI }] : [])] },
@@ -842,7 +848,7 @@ export default function AdminDashboard() {
     { label: null, items: [...(canOpenPage("workspace") ? [{ id: "workspace", l: tr("Workspace"), i: WsI }] : []), { id: "chat", l: tr("Messages"), i: ChI }, { id: "help", l: tr("Help"), i: HlpI }] },
   ].filter(g => g.items.length > 0);
 
-  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records") };
+  const pageLabels = { overview: tr("Dashboard"), staff: tr("Staff Management"), hr: tr("HR Records"), sites: tr("Sites"), assigned: tr("Assigned Tasks"), schedule: tr("Schedule"), operations: tr("Live Operations"), issues: tr("Issue Tracker"), supplies: tr("Supplies & Inventory"), vendors: tr("Vendor Registry"), services: tr("Service Catalog"), chat: tr("Messages"), announcements: tr("Announcements"), reports: tr("Reports"), inspections: tr("Inspections"), marketplace: tr("Shift Pickup"), forms: tr("Forms"), settings: tr("Settings"), cases: tr("Cases"), help: tr("Help"), "help-insights": tr("Help insights"), "form-builder": tr("Form builder"), quotes: tr("Quotes"), clearances: tr("Clearances") , discipline: tr("Discipline"), workspace: tr("Workspace"), "chat-records": tr("Chat records"), equipment: tr("Equipment") };
   const allNavItems = sidebarGroups.flatMap(g => g.items);
   const SB_W_EXPANDED = 220;
   const SB_W_COLLAPSED = 64;
@@ -1076,7 +1082,7 @@ export default function AdminDashboard() {
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} />}
-        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
+        {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
         {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
@@ -1088,6 +1094,7 @@ export default function AdminDashboard() {
         {page === "marketplace" && <ShiftMarketplacePage af={af} showToast={showToast} isAdmin={isAdmin} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
         {page === "chat-records" && (canOpenPage("chat-records") ? <ChatRecordsPage af={af} token={token} t={t} allStaff={allStaff} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "workspace" && (canOpenPage("workspace") ? <WorkspacePage af={af} token={token} t={t} user={user} isAdmin={isAdmin} route={route} showToast={showToast} phone={phone} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
+        {page === "equipment" && (canOpenPage("equipment") ? <EquipmentPage af={af} token={token} t={t} sites={sites} route={route} showToast={showToast} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "chat" && <ChatPage af={af} user={user} t={t} showToast={showToast} route={route} onRead={loadChatUnread} phone={phone} people={allStaff} />}
         {page === "announcements" && (canOpenPage("announcements") ? <AnnouncementsPage af={af} showToast={showToast} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} route={route} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "help" && <HelpPage af={af} sf={sf} uf={uf} showToast={showToast} t={t} />}
@@ -2509,7 +2516,7 @@ const siteDetailsRefusalField = (e) => {
   if (names("contractreference", "contract_reference")) return "contractReference";
   return "";
 };
-function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap }) {
+function SitesPage({ af, token, showToast, canManageSites = false, canManageTasks = false, canManageSettings = false, canBuildQuotes = false, t, sites, allStaff, loadSites, uf, getOpts, lkMap, lkColorMap, route = [], onRoute }) {
   const [selectedSite, setSelectedSite] = useState(null);
   // Step 218: the site's workload plan, once GET /api/sites/:id/workload-plan answers with the
   // contract's keys. The tab draws it from here, and it is read again after a change.
@@ -2553,6 +2560,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const [siteProfile, setSiteProfile] = useState(null);
   const [siteTab, setSiteTab] = useState("general");
   const [st, setSt] = useState([]);
+  // Step 239: the Touchpoint switch, once the site's items answer a touchpoint of their own.
+  const touchLive = st.some(tk => tk && typeof tk.touchpoint === "boolean");
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
@@ -2664,7 +2673,11 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
     } catch (e) { showToast(e.message, "error"); }
   };
 
-  const closeProfile = () => { setSelectedSite(null); setSiteProfile(null); setSt([]); };
+  const closeProfile = () => { setSelectedSite(null); setSiteProfile(null); setSt([]); if (onRoute && route[0]) onRoute([]); };
+  // Step 239: #sites/<id>/<tab> opens that site on that tab, which is where a periodic work notice lands.
+  const routeSite = route[0] ? String(route[0]) : "";
+  const routeTab = route[1] ? String(route[1]) : "";
+  useEffect(() => { if (routeSite) openProfile(routeSite, routeTab || undefined); }, [routeSite, routeTab]);
 
   const loadTimeline = async (cat, offset, append) => {
     if (!selectedSite) return;
@@ -2784,7 +2797,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const submitTask = async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard" } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -2793,7 +2806,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -3105,12 +3118,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })}>
-              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}</div>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })}>
+              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard" })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -3169,6 +3182,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           </div>)}
           {sp.supplies.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No supplies assigned to this site")}</div>}
         </Crd>
+        <PpeIssues key={selectedSite} af={af} token={token} t={t} siteId={selectedSite} sites={sites} people={sp.staff} showToast={showToast} />
 
         {showAddSupply && <Mdl t={t} onClose={() => setShowAddSupply(false)}><div style={{ padding: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Add Supply to Site")}</div><button onClick={() => setShowAddSupply(false)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
@@ -3361,6 +3375,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
+        {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v })} />}
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
 
@@ -3383,6 +3398,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             <TArea t={t} value={taskEs.description} onChange={e => setTaskEs({ ...taskEs, description: e.target.value })} aria-label={tr("Detailed Instructions")} placeholder={tr("Detailed Instructions")} rows={2} />
           </>}
         </div>}
+        {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v })} />}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -3407,6 +3423,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
       <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Which active sites have a workload plan, with its hours and staffing. A row opens the site's plan.")}</div>
       <DataTable t={t} columns={planCols} rows={plansAll} rowKey={r => r.siteId} onRowClick={r => openProfile(r.siteId, "plan")} empty={tr("No sites found.")} />
     </div>}
+    <PeriodicWorkPanel af={af} t={t} onOpenSite={(sid) => openProfile(sid, "tasks")} />
     <SecT t={t} action={canManageSites ? tr("Add Site") : undefined} onAction={canManageSites ? () => setAddSite({ name: "", address: "", city: clientConfig.company.city, state: clientConfig.company.state, zip: "", client: "", contract: "subcontractor", prime: "" }) : undefined}>{tr("Sites")}</SecT>
     {canManageSites && <FilterTabs t={t} value={statusF} onChange={f => { setStatusF(f); setPage(1); }} tabs={[{ id: "all", label: tr("All|sites"), count: sites.length, color: t.goldText }, { id: "active", label: tr("Active|sites"), count: sites.length - inactiveCount, color: GR }, { id: "inactive", label: tr("Inactive|sites"), count: inactiveCount, color: OR }]} />}
     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
@@ -3977,8 +3994,29 @@ function WorkspacePage({ af, token, t, user, isAdmin = false, route = [], showTo
   const meId = user && user.id != null ? String(user.id) : "";
   const people = useWsPeople(af);
   const first = route[0] ? String(route[0]) : "";
+  // Step 239: the API's email copies link a post as #workspace/posts/<postId>, which opens it in its project.
+  if (first === "posts" && route[1]) return <WsPostLink af={af} t={t} postId={String(route[1])} />;
   if (first && first !== "archived") return <ProjectPage af={af} token={token} t={t} user={user} isAdmin={isAdmin} meId={meId} people={people} projectId={first} tool={route[1] ? String(route[1]) : ""} sub={route[2] ? String(route[2]) : ""} showToast={showToast} phone={phone} />;
   return <WorkspaceHome af={af} t={t} meId={meId} people={people} archived={first === "archived"} showToast={showToast} />;
+}
+
+// A post named by its id alone, read for its project, then opened in place of this address.
+function WsPostLink({ af, t, postId }) {
+  const [failed, setFailed] = useState("");
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/workspace/posts/" + encodeURIComponent(postId)).then(d => {
+      const post = wsOne(d, "post");
+      const projectId = post ? wsAt(post, "projectId", "project_id") : null;
+      if (projectId == null || projectId === "") { setFailed(tr("This did not load.")); return; }
+      window.location.replace("#" + ["workspace", String(projectId), "posts", postId].map(String).join("/"));
+    }).catch(e => setFailed(e.message || tr("This did not load.")));
+  }, [af, postId]);
+  useEffect(() => { load(); }, [load]);
+  return (<div data-ws-post-link="">
+    <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => wsGo([])} style={{ minHeight: 44 }}>{tr("Back to Workspace")}</Btn></div>
+    <Crd t={t}>{failed ? <LoadFailed t={t} text={failed} onRetry={load} /> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}</Crd>
+  </div>);
 }
 
 function WorkspaceHome({ af, t, meId, people, archived, showToast }) {
@@ -4540,7 +4578,7 @@ function FilesView({ af, token, t, p, meId, canManage, writable, showToast }) {
   return (<div data-ws-files="">
     <SecT t={t} action={writable ? (busy === "upload" ? tr("Uploading...") : tr("Upload")) : null} onAction={() => { if (busy !== "upload" && pickRef.current) pickRef.current.click(); }} icon={UpI}>{tr("Docs and Files")}</SecT>
     <input ref={pickRef} type="file" data-ws-file-input="" style={{ display: "none" }} onChange={e => { const f = e.target.files && e.target.files[0]; e.target.value = ""; upload(f); }} />
-    {writable && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 10 }}>{tr("Documents, images and PDFs, up to 25 MB each.")}</div>}
+    {writable && <div style={{ ...wsSecLine(t), marginTop: -6, marginBottom: 10 }}>{tr("Word, Excel and PowerPoint documents, CSV and text files, images and PDFs, up to 25 MB each.")}</div>}
     {refusal && <div data-ws-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
     {files === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>
       : failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd>
@@ -6204,6 +6242,15 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if ((n.subjectType === "chat" || n.subjectType === "chat_mention") && n.subjectId) { onOpenHash("chat/" + n.subjectId); onClose(); return; }
     // Someone told of an announcement who cannot open the page reads it in a window of its own.
     if (n.subjectType === "announcement" && n.subjectId) { if (!canOpenPage("announcements")) { onClose(); if (onOpenAnnouncement) onOpenAnnouncement(n.subjectId); else onRefused(); return; } onOpenHash("announcements/" + n.subjectId); onClose(); return; }
+    // Step 239: an equipment notice names its item (subjectId, under subjectKey equipment) and opens it;
+    // a periodic work notice names its site (subjectId, under subjectKey site), one notice a site, and
+    // opens that site's checklist.
+    if ((n.subjectType === "equipment_tagged_out" || n.subjectType === "equipment_service_due") && n.subjectId) { if (!canOpenPage("equipment")) { refuse(); return; } onOpenHash("equipment/" + n.subjectId); onClose(); return; }
+    if (n.subjectType === "periodic_overdue") {
+      if (!canOpenPage("sites")) { refuse(); return; }
+      if (n.subjectId) onOpenHash("sites/" + n.subjectId + "/tasks"); else onOpenPage("sites");
+      onClose(); return;
+    }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -7799,6 +7846,930 @@ function ReportEditor({ t, sites, initial, onCancel, onSaved, af, showToast }) {
   );
 }
 
+// ===== KEPT RECORDS (Step 239) =====
+// The records an assessor reads, each printed on its approved form for a site and a range from what
+// the API holds (STEP238_CONTRACT.md, Part 1). Every page is headed by the form's code, its title and
+// its approved version (ocsa-mis approval-data.js), the site, the range and the day it was printed.
+// Every field and every column of the approved form prints, and one the data does not hold is a blank
+// line to fill by hand. Like every printed page it is drawn in the language of the screen.
+const KEPT_FORMS = {
+  "OCSA-FRM-001": { title: "Supervisor Inspection Report", version: "1.0" },
+  "OCSA-FRM-002": { title: "Quality Assurance Audit Inspection", version: "1.0" },
+  "OCSA-FRM-003": { title: "Master Zone Cleaning Checklist", version: "1.0" },
+  "OCSA-FRM-018": { title: "Chemical Usage Log", version: "1.0" },
+  "OCSA-FRM-019": { title: "PPE Compliance Log", version: "1.0" },
+  "OCSA-FRM-021": { title: "Disinfection Coverage Log", version: "1.0" },
+  "OCSA-FRM-033": { title: "Training Attendance Roster", version: "1.0" },
+  "OCSA-FRM-035": { title: "School Clearance Tracking Record", version: "1.0", landscape: true },
+};
+const keptEsc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const keptTime = (at) => (at ? new Date(at).toLocaleTimeString(localeTag(), { hour: "numeric", minute: "2-digit" }) : "");
+const keptDay = (d) => (d ? fdLong(String(d).slice(0, 10)) : "");
+const keptMonth = (ym) => { const [y, m] = String(ym).split("-").map(Number); return y && m ? new Date(y, m - 1, 1).toLocaleDateString(localeTag(), { month: "long", year: "numeric" }) : ""; };
+// The months a range touches, YYYY-MM, first to last.
+const keptMonths = (range) => {
+  const out = [];
+  let [y, m] = String(range.start).split("-").map(Number);
+  const [ey, em] = String(range.end).split("-").map(Number);
+  while (y && m && (y < ey || (y === ey && m <= em)) && out.length < 120) { out.push(y + "-" + String(m).padStart(2, "0")); m += 1; if (m > 12) { m = 1; y += 1; } }
+  return out;
+};
+const keptInitials = (name) => String(name || "").trim().split(/\s+/).filter(Boolean).map(w => w[0].toUpperCase()).join("");
+const keptOnce = (list) => list.filter((v, i) => v && list.indexOf(v) === i);
+const keptInRange = (day, range) => !!day && day >= range.start && day <= range.end;
+// A day a row carries, YYYY-MM-DD where the browser is, from a date or a moment.
+const keptDayOf = (v) => (!v ? "" : /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? String(v) : toISO(new Date(v)));
+
+// A page is { code, site, range, asOf, parts }. Each part is one section of the form, in its order:
+//   { h, fields: [[label, value]] }     a label and its value, a blank line where there is none
+//   { h, options: { label, choices } }   boxes to tick by hand
+//   { h, cols, rows, least }             a grid: the rows the data holds, then blank rows up to least
+//   { h, cols, labels }                  the form's own rows, each to complete by hand
+//   { h, note }                          a line of the form's own words
+//   { h, sign: [[role, line]] }          Role, Name and Signature, Date, signed by hand
+//   { html }                             a page drawn by its own print (an inspection)
+// A part with a heading starts a numbered section; one without carries on the section before it.
+const KEPT_STYLE = "<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;color:#222}"
+  + ".kept{page-break-after:always}.kept:last-child{page-break-after:auto}"
+  + ".wide{page:wide}@page wide{size:landscape}"
+  + ".hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:3px solid " + GOLD + ";padding-bottom:10px;margin-bottom:12px}"
+  + ".co{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:1px}.ti{font-size:19px;font-weight:700;color:" + NAVY + ";margin:3px 0}"
+  + ".code{font-size:12px;font-weight:700;color:" + NAVY + "}.meta{font-size:11px;color:#333;text-align:right;line-height:1.6}"
+  + "h2{font-size:12px;color:" + NAVY + ";text-transform:uppercase;letter-spacing:.5px;margin:14px 0 6px}"
+  + "table.g{width:100%;border-collapse:collapse;margin-bottom:8px}table.g th{background:" + NAVY + ";color:#fff;font-size:10px;text-align:left;padding:5px 6px;border:1px solid #bbb}"
+  + "table.g td{border:1px solid #bbb;font-size:11px;padding:5px 6px;height:15px;vertical-align:top}table.g td.n{width:22px;text-align:right;color:#666}"
+  + "table.f{width:100%;border-collapse:collapse;margin-bottom:8px}table.f th{width:34%;text-align:left;font-size:11px;font-weight:600;color:#444;padding:6px 8px 6px 0;vertical-align:bottom}"
+  + "table.f td{font-size:12px;padding:6px 0 2px;border-bottom:1px solid #999;height:15px}"
+  + ".opt{font-size:12px;margin:4px 0 8px}.box{display:inline-block;width:11px;height:11px;border:1px solid #333;margin:0 5px -1px 14px}"
+  + ".note{font-size:11px;color:#333;margin:4px 0 8px;line-height:1.5}table.s td{height:34px}"
+  + ".ft{margin-top:14px;font-size:9px;color:#888;border-top:1px solid #ddd;padding-top:6px}"
+  + ".insp table{width:100%;border-collapse:collapse}.insp th{background:" + NAVY_DARK + ";color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}"
+  + "@media print{body{margin:12px}}</style>";
+function keptPageHtml(page) {
+  const form = KEPT_FORMS[page.code] || { title: page.title || page.code || "", version: "" };
+  const cName = clientConfig.company.name;
+  const when = page.asOf ? tr("As of {0}", keptDay(page.asOf)) : page.range ? (page.range.start === page.range.end ? keptDay(page.range.start) : tr("{0} to {1}", keptDay(page.range.start), keptDay(page.range.end))) : "";
+  let n = 0;
+  const cell = (v) => (v && typeof v === "object" && v.img ? '<img src="' + keptEsc(v.img) + '" alt="" style="height:26px;max-width:120px;object-fit:contain;display:block" />' : keptEsc(v));
+  const cells = (row, cols) => cols.map((c, i) => (c === "#" && i === 0 ? '<td class="n">' + cell(row[i]) + "</td>" : "<td>" + cell(row[i]) + "</td>")).join("");
+  const grid = (cols, rows, cls) => '<table class="g' + (cls ? " " + cls : "") + '"><thead><tr>' + cols.map(c => "<th>" + keptEsc(c === "#" ? "#" : tr(c)) + "</th>").join("") + "</tr></thead><tbody>"
+    + rows.map(r => "<tr>" + cells(r, cols) + "</tr>").join("") + "</tbody></table>";
+  const body = (page.parts || []).map(p => {
+    if (p.html) return p.html;
+    const head = p.h ? "<h2>" + (n += 1) + ". " + keptEsc(tr(p.h)) + "</h2>" : "";
+    let out = head;
+    if (p.note) out += '<div class="note">' + keptEsc(tr(p.note)) + "</div>";
+    if (p.fields) out += '<table class="f"><tbody>' + p.fields.map(([l, v]) => "<tr><th>" + keptEsc(tr(l)) + "</th><td>" + keptEsc(v) + "</td></tr>").join("") + "</tbody></table>";
+    if (p.options) out += '<div class="opt"><b>' + keptEsc(tr(p.options.label)) + "</b>" + p.options.choices.map(c => '<span class="box"></span>' + keptEsc(tr(c))).join("") + "</div>";
+    if (p.labels) out += grid(p.cols, p.labels.map(l => [tr(l)].concat(p.cols.slice(1).map(() => ""))));
+    if (p.rows) {
+      const numbered = p.cols[0] === "#";
+      const rows = p.rows.slice();
+      while (rows.length < (p.least || 0)) rows.push(p.cols.map(() => ""));
+      out += grid(p.cols, numbered ? rows.map((r, i) => [String(i + 1)].concat(r.slice(1))) : rows);
+    }
+    if (p.sign) out += grid(["Role", "Name and Signature", "Date"], p.sign.map(([r, sub]) => [tr(r) + (sub ? " (" + tr(sub) + ")" : ""), "", ""]), "s");
+    return out;
+  }).join("");
+  return '<div class="kept' + (form.landscape ? " wide" : "") + '">'
+    + '<div class="hd"><div><div class="co">' + keptEsc(cName) + '</div><div class="ti">' + keptEsc(tr(form.title)) + '</div><div class="code">' + [page.code, form.version ? tr("Version {0}", form.version) : ""].filter(Boolean).map(keptEsc).join(" &middot; ") + "</div></div>"
+    + '<div class="meta">' + (page.site ? keptEsc(tr("Site")) + ": " + keptEsc(page.site) + "<br>" : "") + (when ? keptEsc(when) + "<br>" : "") + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
+    + body
+    + '<div class="ft">' + [page.code, tr(form.title), form.version ? tr("Version {0}", form.version) : ""].filter(Boolean).map(keptEsc).join(" &middot; ") + "</div></div>";
+}
+// The window a print is written into, opened in the click so a pop-up blocker lets it through, or
+// null when the browser would not open it.
+const keptWindow = () => { try { return window.open("", "_blank") || null; } catch (e) { return null; } };
+function keptWrite(w, title, pages) {
+  w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + "</head><body>" + pages.map(keptPageHtml).join("") + "</body></html>");
+  w.document.close();
+  setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
+}
+// One print of pages already in hand. False when the browser would not open the window.
+function printKeptRecord(pages, title) {
+  const w = keptWindow();
+  if (!w) return false;
+  keptWrite(w, title, pages);
+  return true;
+}
+
+// OCSA-FRM-003, one checklist per zone for each day and shift the checklist record holds. Daily work is
+// per visit, daily and every other day; the rest of what is due is weekly and periodic.
+const KEPT_PERIODIC = ["weekly", "biweekly", "monthly", "quarterly", "seasonal"];
+const keptDays = (rec) => (rec && Array.isArray(rec.days) ? rec.days : []).filter(d => d && Array.isArray(d.items) && d.items.length > 0);
+const keptWhere = (it) => [it.building, it.floor != null && it.floor !== "" ? tr("Floor {0}", it.floor) : ""].filter(Boolean).join(", ");
+// An item's checks that day, oldest first: the record's checks (Step 238), or the first check alone from
+// an answer without them.
+const keptChecks = (i) => (Array.isArray(i.checks) && i.checks.length > 0 ? i.checks : i.done ? [{ completedAt: i.completedAt, completedBy: i.completedBy }] : []);
+const keptDoers = (items) => keptOnce([].concat(...items.map(i => keptChecks(i).map(c => (c.completedBy && c.completedBy.name) || "")))).join(", ");
+const keptDayShift = (day) => [keptDay(day.date), day.shift || ""].filter(Boolean).join(", ");
+function keptZonePages(rec, site, range) {
+  const pages = [];
+  keptDays(rec).forEach(day => {
+    const zones = keptOnce(day.items.map(i => i.zone || " "));
+    zones.forEach(z => {
+      const its = day.items.filter(i => (i.zone || " ") === z);
+      const row = (i) => ["", shownLabel(i), keptWhere(i), i.done ? tr("Yes") : "", i.done ? keptTime(i.completedAt) : "", (i.done && i.completedBy && i.completedBy.initials) || ""];
+      const periodic = (i) => KEPT_PERIODIC.indexOf(i.frequency) >= 0;
+      pages.push({ code: "OCSA-FRM-003", site, range, parts: [
+        { h: "Zone Details", fields: [["Site", site], ["Zone", shownZone(its[0])], ["Date and Shift", keptDayShift(day)], ["Cleaner", keptDoers(its)], ["Crew Lead", ""], ["Scope of Work Reference", ""]] },
+        { h: "Before You Start", cols: ["Check", "Done", "Note"], labels: ["Closet unlocked, and secured again behind you", "Cart stocked for the whole zone", "Wet floor signs on the cart", "Cloths in the correct color for each area type", "Dilution station working, and containers labeled", "Protective equipment for the tasks in this zone", "Vacuum or machine checked, cord along its full length", "Zone walked, and anything unusual noted before starting"] },
+        { h: "Daily Tasks", cols: ["#", "Task", "Area or Room", "Done", "Time", "Initials"], rows: its.filter(i => !periodic(i)).map(row), least: 18 },
+        { h: "Weekly and Periodic Tasks", cols: ["#", "Task", "Area or Room", "Done", "Time", "Initials"], rows: its.filter(periodic).map(row), least: 12 },
+        { h: "Restroom Detail", cols: ["Restroom Task", "Done", "Time", "Initials"], labels: ["Toilets and urinals cleaned and disinfected, contact time held", "Sinks, counters and faucets cleaned and disinfected", "Mirrors cleaned, no streaks in the light", "Partitions, doors and latches wiped on both faces", "Dispensers restocked, tissue, towels and soap", "Waste and sanitary units emptied, wiped and relined", "Floor swept and damp mopped with disinfectant", "Behind fixtures and in corners checked", "Touchpoints disinfected on the way out", "Wet floor signs left until the floor is dry"] },
+        { h: "Anything Not Done", cols: ["#", "Task", "Area", "Reason", "Reported To"], rows: its.filter(i => !i.done).map(i => ["", shownLabel(i), keptWhere(i), i.notes || "", ""]), least: 8 },
+        { h: "Found and Reported", cols: ["Found", "Detail, Location and Who Was Informed"], labels: ["Damage to the building or its contents", "Spill, leak or standing water", "Sharps or broken glass", "Blood or body fluid", "Unlabeled or unknown container", "Equipment fault", "Supply running out", "Door, window or closet found insecure", "Anything else worth reporting"] },
+        { h: "Close of Zone", cols: ["Check", "Done", "Note"], labels: ["Wet floor signs collected once floors were dry", "Waste removed to the collection point, streams kept separate", "Equipment cleaned, emptied and stored", "Mop heads and cloths in the laundry bag", "Cart restocked for the next shift", "Closet left clean, orderly and secured", "Containers closed and labeled", "Lights, doors and access left as the site requires"] },
+        { h: "Sign-Off", sign: [["Cleaner", "Zone complete as recorded above"], ["Crew Lead", "Received and carried into OCSA-FRM-005"]] },
+      ] });
+    });
+  });
+  return pages;
+}
+
+// OCSA-FRM-021, one log for each day and shift, from the touchpoint items of the checklist record. An
+// item of high, critical or urgent priority is a critical touchpoint; the rest are standard. Pass 1 is
+// the day's first check and Pass 2 its second, where there is one.
+const keptCritical = (i) => ["critical", "high", "urgent"].indexOf(i.priority) >= 0;
+// The form's response levels, each with what triggers it and what the log must then show.
+const KEPT_LEVELS = [
+  ["Level 1", "Normal conditions", "Critical and standard touchpoints treated daily, recorded item by item in Sections 3 and 4"],
+  ["Level 2", "A customer report or a health authority report of raised illness at the site", "Critical touchpoints treated at least twice per service day, with both pass times recorded. Standard touchpoints daily. Affected areas prioritized in the round"],
+  ["Level 3", "A customer or a health authority reports an outbreak, or a health authority directs a response", "Whole-room treatment recorded in Section 5. Critical touchpoints on every round. Dedicated equipment for affected areas. Daily written coverage report to the customer"],
+];
+function keptTouchPages(rec, site, range) {
+  return keptDays(rec).map(day => ({ day, tps: day.items.filter(i => i.touchpoint === true) })).filter(x => x.tps.length > 0).map(({ day, tps }) => {
+    const row = (i) => {
+      const c = keptChecks(i);
+      return ["", shownLabel(i), [shownZone(i), keptWhere(i)].filter(Boolean).join(", "), c[0] ? keptTime(c[0].completedAt) : "", c[1] ? keptTime(c[1].completedAt) : "", i.done ? tr("Treated") : "", keptOnce(c.slice(0, 2).map(x => (x.completedBy && x.completedBy.initials) || "")).join(" / ")];
+    };
+    return { code: "OCSA-FRM-021", site, range, parts: [
+      { h: "Log Details", fields: [["Site", site], ["Date and Shift", keptDayShift(day)], ["Completed By", keptDoers(tps)], ["Product in Use", ""], ["Registration Number", ""], ["Label Contact Time", ""], ["Site Touchpoint List Reference", ""], ["Number of Items on the List", String(tps.length)]] },
+      { h: "Response Level", options: { label: "Level Today", choices: ["Level 1, Standard", "Level 2, Heightened", "Level 3, Outbreak"] } },
+      { cols: ["Level", "Trigger", "What This Log Must Show"], rows: KEPT_LEVELS.map(r => r.map(x => tr(x))) },
+      { fields: [["Level Set By", ""], ["Date the Level Was Set", ""], ["Affected Areas", ""]] },
+      { h: "Critical Touchpoints", cols: ["#", "Touchpoint Item", "Location", "Pass 1", "Pass 2", "Status", "Initials"], rows: tps.filter(keptCritical).map(row), least: 22 },
+      { h: "Standard Touchpoints and Shared Surfaces", cols: ["#", "Touchpoint Item", "Location", "Pass 1", "Pass 2", "Status", "Initials"], rows: tps.filter(i => !keptCritical(i)).map(row), least: 18 },
+      { h: "Whole-Room Treatment", cols: ["#", "Area", "Surfaces Treated", "Contact Time Held", "Completed", "Initials"], rows: [], least: 10 },
+      { h: "Items Not Treated", cols: ["#", "Item", "Reason Inaccessible", "Reported To", "Date"], rows: tps.filter(i => !i.done).map(i => ["", shownLabel(i), i.notes || "", "", keptDay(day.date)]), least: 10 },
+      { h: "Verification", cols: ["Verification", "Result"], labels: ["Method used, surface test or marker check", "Number of touchpoints sampled", "Number passing", "Items failing, and where", "Retraining raised, with the OCSA-FRM-033 reference", "Repeat check date and result"] },
+      { h: "Sign-Off and Filing", sign: [["Completed By", "The worker at the site"], ["Reviewed By", "Supervisor"], ["Level 3 Reviewed By", "Field Lead"]] },
+    ] };
+  });
+}
+
+// OCSA-FRM-018, one log for each month of the range: every chemical logged at the site that month, and
+// what was used of each.
+const keptUsageDay = (r) => keptDayOf(r.scanned_at || r.scannedAt || r.logged_at || r.loggedAt || r.created_at || r.createdAt);
+function keptChemicalPages(rows, site, range) {
+  const used = (rows || []).filter(r => r && r.category === "chemical" && keptInRange(keptUsageDay(r), range)).sort((a, b) => keptUsageDay(a).localeCompare(keptUsageDay(b)));
+  return keptMonths(range).map(ym => {
+    const month = used.filter(r => keptUsageDay(r).slice(0, 7) === ym);
+    const qty = (r) => [r.quantity, r.unit].filter(x => x != null && x !== "").join(" ");
+    const totals = [];
+    month.forEach(r => {
+      const name = r.supply_name || r.supplyName || "";
+      const hit = totals.find(x => x.name === name && x.unit === (r.unit || ""));
+      if (hit) hit.qty += Number(r.quantity) || 0; else totals.push({ name, unit: r.unit || "", qty: Number(r.quantity) || 0 });
+    });
+    return { code: "OCSA-FRM-018", site, range, parts: [
+      { h: "Log Details", fields: [["Site", site], ["Month and Year", keptMonth(ym)], ["Janitorial Closet Location", ""], ["Completed By", ""], ["Site Listing Reference", ""], ["Number of Products on the Site Listing", ""]] },
+      { h: "Daily Usage Log", cols: ["#", "Date", "Product Identifier", "Dilution Used", "Area or Task", "Quantity Used", "Initials"], rows: month.map(r => ["", keptDay(keptUsageDay(r)), r.supply_name || r.supplyName || "", "", "", qty(r), keptInitials(r.staff_name || r.staffName)]), least: 18 },
+      { h: "Monthly Stock Position", cols: ["Product Identifier", "Opening Stock", "Received", "Used", "Closing Stock", "Reorder Needed"], rows: totals.map(x => [x.name, "", "", [Math.round(x.qty * 100) / 100, x.unit].filter(v => v !== "").join(" "), "", ""]), least: 12 },
+      { fields: [["Physical Count Performed By", ""], ["Discrepancies Found", ""], ["Reorder Placed", ""]] },
+      { h: "Observations", cols: ["Observation", "Detail and Action"], labels: ["Spills or releases this month", "Reactions, fumes or odors reported", "Damaged or missing container labels", "Unlabeled or unknown containers found", "Products used at a dilution other than the label rate", "Products found on site that are absent from the site listing", "Employee complaints about a product", "Safety data sheets missing from the binder"] },
+      { h: "Standard List Compliance", fields: [["Products Used This Month On the Standard List", ""], ["Products Used Outside the Standard List", ""], ["Proportion of Total Usage On the Standard List", ""], ["Substitutions Proposed", ""]] },
+      { h: "Sign-Off and Filing", sign: [["Completed By", "Site supervisor"], ["Reviewed By", "Field Lead"]] },
+    ] };
+  });
+}
+
+// An issue's person and item as the answer carries them: the name it sends or the person the staff
+// list holds by its id, and the item typed or the stock item's name.
+const ppePersonName = (p) => (p ? (p.name || ((p.first_name || p.firstName || "") + " " + (p.last_name || p.lastName || "")).trim()) : "");
+const ppeWhoOf = (x, people) => x.userName || x.employeeName || ppePersonName((people || []).find(p => String(p.id) === String(x.userId))) || "";
+const ppeItemOf = (x) => x.item || x.supplyName || "";
+// A drawing the API keeps, read with the token as a data URL to print, or "" when it cannot be read.
+async function keptImage(path, token) {
+  try {
+    const f = await apiDownload(path, token);
+    return await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(f.blob); });
+  } catch (e) { console.warn("Signature:", e.message); return ""; }
+}
+
+// OCSA-FRM-019, one log for each month of the range: the equipment issued and signed for that month,
+// and the site's protective equipment stock on the month that holds today, the day it was read.
+const keptIssueDay = (x) => keptDayOf(x.issuedAt || x.createdAt);
+const keptYesNo = (v) => (v === true ? tr("Yes") : v === false ? tr("No") : "");
+function keptPpePages(data, site, range) {
+  const issues = (data.issues || []).filter(x => x && keptInRange(keptIssueDay(x), range)).sort((a, b) => keptIssueDay(a).localeCompare(keptIssueDay(b)));
+  const today = todayISO();
+  return keptMonths(range).map(ym => {
+    const month = issues.filter(x => keptIssueDay(x).slice(0, 7) === ym);
+    const stock = today.slice(0, 7) === ym ? (data.stock || []) : [];
+    return { code: "OCSA-FRM-019", site, range, parts: [
+      { h: "Site and Period", fields: [["Site", site], ["Month and Year", keptMonth(ym)], ["Completed By", ""], ["Crew Size This Period", ""], ["Hazard Assessment Reference", ""]] },
+      { h: "Equipment Issue Record", cols: ["#", "Date", "Employee", "Item Issued", "Size", "Qty", "Fit OK", "Signature"], rows: month.map(x => ["", keptDay(keptIssueDay(x)), ppeWhoOf(x, data.people), ppeItemOf(x), x.size || "", x.quantity != null ? String(x.quantity) : "", keptYesNo(x.fitOk), (data.signed || {})[String(x.id)] ? { img: data.signed[String(x.id)] } : ""]), least: 16 },
+      { h: "Stock Check", cols: ["#", "Item and Size", "On Hand", "Minimum", "Reorder Placed", "Date", "Notes"], rows: stock.map(s => ["", s.name || "", s.site_stock != null ? String(s.site_stock) : "", s.site_threshold != null ? String(s.site_threshold) : "", "", keptDay(today), ""]), least: 12 },
+      { cols: ["Item", "Sizes That Must Be Held"], labels: ["Disposable nitrile gloves", "Reusable forearm length gloves", "Puncture resistant gloves", "Safety glasses meeting ANSI Z87.1", "Chemical splash goggles", "Aprons, gowns and coveralls", "Hearing protection"] },
+      { h: "Compliance Observation", cols: ["#", "Date", "Task Observed", "Employees Observed", "Wearing Required Equipment", "Notes"], rows: [], least: 6 },
+      { h: "Shortages, Reactions and Actions", cols: ["#", "Issue Reported", "Reported By", "Date", "Action Taken", "Closed"], rows: [], least: 6 },
+      { fields: [["Work Stopped for Missing Equipment", ""], ["Equipment Failures", ""], ["Skin Reactions or Discomfort Reported", ""], ["Fit Problems", ""], ["Referred to Hazard Reassessment", ""]] },
+      { h: "Sign-Off and Filing", sign: [["Completed By", "Site supervisor"], ["Reviewed By", "Field Lead"]] },
+    ] };
+  });
+}
+
+// OCSA-FRM-035 for one site as of today. The status is the approved band of the earliest expiry among
+// the three clearances: Clear past 120 days, Notice at 120 or fewer, Follow up at 60, At risk at 30,
+// Expired once any is past its date. A person without all three, or without the Act 168 review, is
+// Missing. Act 114 on the form is the FBI fingerprint check.
+const KEPT_BANDS = [
+  { l: "Clear|clearance band", meaning: "All clearances current with more than 120 days remaining", action: "None" },
+  { l: "Notice|clearance band", meaning: "120 days or fewer to the earliest expiry", action: "Written renewal notice issued to the employee" },
+  { l: "Follow up|clearance band", meaning: "60 days or fewer", action: "Second notice. Field Lead informed" },
+  { l: "At risk|clearance band", meaning: "30 days or fewer", action: "Replacement coverage planned for that site" },
+  { l: "Expired|clearance band", meaning: "Any clearance past its date", action: "Employee removed from school sites the same day" },
+];
+const keptBandOf = (p, today) => {
+  const list = CLEARANCE_KINDS.map(k => p && p[k.key]);
+  if (list.some(c => !c || !c.expiresOn) || !(p.act168 && p.act168.completedOn)) return tr("Missing|clearance");
+  const days = Math.min.apply(null, list.map(c => Math.round((localDate(String(c.expiresOn).slice(0, 10)) - localDate(today)) / 86400000)));
+  return tr(days < 0 ? KEPT_BANDS[4].l : days <= 30 ? KEPT_BANDS[3].l : days <= 60 ? KEPT_BANDS[2].l : days <= 120 ? KEPT_BANDS[1].l : KEPT_BANDS[0].l);
+};
+function keptClearancePages(people, site) {
+  const today = todayISO();
+  const dates = (c) => [c && c.issuedDate ? keptDay(c.issuedDate) : "", c && c.expiresOn ? keptDay(c.expiresOn) : ""];
+  const rows = (people || []).slice().sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), localeTag())).map(p => [p.name || ""].concat([site], dates(p.act34), dates(p.act151), dates(p.fbi), [p.act168 && p.act168.completedOn ? keptDay(p.act168.completedOn) : "", "", keptBandOf(p, today)]));
+  return [{ code: "OCSA-FRM-035", site, asOf: today, parts: [
+    { h: "Tracking Grid", cols: ["Employee", "Site", "Act 34 Issued", "Act 34 Expires", "Act 151 Issued", "Act 151 Expires", "Act 114 Issued", "Act 114 Expires", "Act 168 Complete", "Training Expires", "Status"], rows, least: 14 },
+    { cols: ["Status", "Meaning", "Action"], rows: KEPT_BANDS.map(b => [tr(b.l), tr(b.meaning), tr(b.action)]) },
+    { h: "Monthly Review", fields: [["Review month", ""], ["Reviewed by", ""], ["Date reviewed", ""], ["Employees in Notice or worse", ""], ["Actions taken", ""]] },
+  ] }];
+}
+// The tracking record for a site, read as of now and printed into a window already open. The Clearances
+// page's Print and the kept record both print it this way.
+async function printClearanceTracking(af, w, siteId, siteName) {
+  const d = await af("/api/clearances?siteId=" + encodeURIComponent(siteId));
+  keptWrite(w, tr("School Clearance Tracking Record"), keptClearancePages(clearancePeopleOf(d) || [], siteName));
+}
+
+// The inspection print (OCSA-FRM-001 and 002), one page an inspection, the same page the inspection's
+// Export PDF prints and the kept record prints one after another. With capture in the answer (Step
+// 218) each card carries every photo, and the page carries the photos of the whole inspection and the
+// signatures, read with the token and embedded. The kind and the form code come from the answer
+// (STEP238_CONTRACT.md, Part 1), the code worked out from the kind where the answer names only that.
+// words carries the screen's category colors and words for a card's category and zone.
+const inspectionFormCode = (d) => (d && typeof d.formCode === "string" && d.formCode ? d.formCode : d && d.kind === "audit" ? "OCSA-FRM-002" : d && d.kind === "supervisor" ? "OCSA-FRM-001" : "");
+async function inspectionSignatures(d, token) {
+  const sigs = [];
+  if (!d || !d.capture) return sigs;
+  for (const sg of (Array.isArray(d.signatures) ? d.signatures : [])) {
+    const url = sg && sg.path ? await keptImage(sg.path, token) : "";
+    const ln = sg && Array.isArray(d.lines) ? d.lines.find(x => x && x.line === sg.line) : null;
+    sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null, label: ln ? builderText(ln.label) : "" });
+  }
+  return sigs;
+}
+function inspectionPageHtml(d, words, sigs) {
+  const esc = keptEsc;
+  const fmtDate = (v) => (v ? new Date(String(v).slice(0, 10) + "T00:00:00").toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "--");
+  const fmtDT = (v) => (v ? new Date(v).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "--");
+  const many = !!d.capture;
+  const photoImgs = (urls, size) => urls.map(u => '<img src="' + esc(u) + '" style="width:' + size[0] + 'px;height:' + size[1] + 'px;object-fit:cover;border-radius:4px;margin:2px" />').join("");
+  const overall = many ? inspectionOverallPhotosOf(d) : [];
+  const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
+  const scoreColor = pct >= 80 ? "#2ECC71" : pct >= 60 ? "#F39C12" : "#E74C3C";
+  const catColor = (c) => words.CIMS_C[c] || "#3498DB";
+  const itemRows = (d.items || []).map(item => {
+    const sr = (d.scores || []).find(s => s.template_item_id === item.id);
+    const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) : 0;
+    const iColor = iPct >= 80 ? "#2ECC71" : iPct >= 60 ? "#F39C12" : "#E74C3C";
+    const barW = Math.round((iPct / 100) * 200);
+    return '<tr style="border-bottom:1px solid #eee">'
+      + '<td style="padding:10px 8px;font-size:13px;font-weight:600">' + esc(shownItem(item).label) + "</td>"
+      + '<td style="padding:10px 8px;font-size:12px;color:#666">' + esc(words.zoneWord(item)) + "</td>"
+      + '<td style="padding:10px 8px;text-align:center"><span style="background:' + catColor(item.cims_category) + "22;color:" + catColor(item.cims_category) + ';padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">' + esc(words.catWord(item.cims_category)) + "</span></td>"
+      + '<td style="padding:10px 8px"><div style="display:flex;align-items:center;gap:8px"><div style="background:#eee;border-radius:4px;height:8px;width:200px;overflow:hidden"><div style="background:' + iColor + ";height:100%;width:" + barW + 'px;border-radius:4px"></div></div>'
+      + '<span style="font-weight:700;color:' + iColor + ';font-size:13px">' + (sr ? esc(sr.score) : "--") + '<span style="color:#999;font-weight:400;font-size:11px">/' + esc(item.max_score) + "</span></span></div></td>"
+      + '<td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">' + esc((sr && sr.notes) || "") + "</td>"
+      + '<td style="padding:10px 8px;text-align:center">' + (many ? photoImgs(inspectionPhotosOf(sr), [80, 60]) : (sr && sr.photo_url ? '<img src="' + esc(sr.photo_url) + '" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />' : "")) + "</td></tr>";
+  }).join("");
+  const box = (label, value) => '<div style="padding:12px;border:1px solid #e0e0e0;border-radius:8px"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">' + esc(label) + "</div>" + value + "</div>";
+  return '<div class="insp">'
+    + '<div style="font-size:14px;color:#555;margin-bottom:14px">' + [d.kind ? inspectionKindWord(d.kind) : "", d.template_name].filter(Boolean).map(esc).join(" &middot; ") + "</div>"
+    + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px">'
+    + box(tr("Site"), '<div style="font-size:14px;font-weight:600">' + esc(d.site_name) + "</div>")
+    + box(tr("Scheduled Date"), '<div style="font-size:14px;font-weight:600">' + esc(fmtDate(d.scheduled_date)) + "</div>")
+    + box(tr("Completed|inspection"), '<div style="font-size:14px;font-weight:600">' + esc(fmtDT(d.result.completed_at)) + "</div>")
+    + box(tr("Completed By"), '<div style="font-size:14px;font-weight:600">' + esc(d.result.completed_by_name || "--") + "</div>")
+    + box(tr("Overall Score"), '<div style="font-size:24px;font-weight:700;color:' + scoreColor + '">' + pct + '% <span style="font-size:13px;color:#888;font-weight:400">' + esc(tr("{0}/{1} pts", d.result.total_score, d.result.max_possible_score)) + "</span></div>")
+    + (d.result.overall_notes ? box(tr("Notes"), '<div style="font-size:13px;color:#333">' + esc(d.result.overall_notes) + "</div>") : "")
+    + "</div>"
+    + "<table><thead><tr><th>" + esc(tr("Item")) + "</th><th>" + esc(tr("Zone")) + "</th><th>" + esc(tr("Category")) + "</th><th>" + esc(tr("Score")) + "</th><th>" + esc(tr("Notes")) + "</th><th>" + esc(tr("Photo")) + "</th></tr></thead><tbody>" + itemRows + "</tbody></table>"
+    + (overall.length ? '<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:' + NAVY_DARK + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + esc(tr("Photos of the whole inspection")) + "</div>" + photoImgs(overall, [160, 120]) + "</div>" : "")
+    + (many ? '<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:' + NAVY_DARK + ';text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">' + esc(tr("Signature")) + "</div>"
+      + (sigs.length ? sigs.map(sg => '<div style="margin-bottom:10px">' + (sg.label ? '<div style="font-size:11px;font-weight:700;color:#333;margin-bottom:4px">' + esc(sg.label) + "</div>" : "") + (sg.url ? '<img src="' + esc(sg.url) + '" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />' : "") + '<div style="font-size:12px;color:#333">' + esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--")) + "</div></div>").join("") : '<div style="font-size:12px;color:#888">' + esc(tr("Not signed")) + "</div>")
+      + "</div>" : "")
+    + '<div style="margin-top:20px;font-size:10px;color:#aaa;text-align:center">' + esc(tr("Generated by {0} Operations Platform", clientConfig.company.shortName)) + "</div>"
+    + "</div>";
+}
+// Filed inspections printed into a window already open, each on its own page with the kept record's
+// head: the form, the site, and the range when the kept record prints them.
+async function printInspections(w, list, { token, words, range }) {
+  const pages = [];
+  for (const d of list) {
+    const sigs = await inspectionSignatures(d, token);
+    pages.push({ code: inspectionFormCode(d), title: "Inspection Report", site: d.site_name || "", range: range || null, parts: [{ html: inspectionPageHtml(d, words, sigs) }] });
+  }
+  keptWrite(w, tr("Inspection Report"), pages);
+}
+// The words an inspection print draws a card's category and zone in: the category's shown label, then
+// the label table's word; an item's zone as the API displayed it, then the zones lookup's shown label,
+// the table's word for a zone the inspection pages offer, or the zone as typed.
+const INSPECTION_ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
+function inspectionWordsOf(lkMap, lkColorMap) {
+  const colors = lkColorMap ? lkColorMap("cims_categories") : {};
+  const CIMS_C = Object.keys(colors).length > 0 ? colors : { SD: BL, HSE: OR, GB: GR, QS: GOLD, HR: PU, MC: "#2C3E50" };
+  const shown = lkMap("cims_categories", true);
+  const catWord = (c) => serviceCategoryWord(c, shown);
+  const zoneChoice = choiceWordOf(lkMap, "zones");
+  const zoneWord = (it) => { const z = it.zone; if (!z) return z; if (it.display && it.display.zone) return it.display.zone; const w = zoneChoice(z); return w !== z ? w : (INSPECTION_ZONES.indexOf(z) >= 0 ? tr(z + "|zone") : z); };
+  return { CIMS_C, catWord, zoneWord };
+}
+
+// The roster for one session of a training, a name on one day (OCSA-FRM-033): what it was, who gave it
+// and in which language, the form's other fields as lines to fill, everyone logged for it with a line to
+// sign and to initial Understood, and the trainer's attestation. The training panel, the window that
+// logs a session and the kept record all print it. False when the browser would not open the window.
+const ROSTER_ATTESTATION = "I confirm that I delivered the training described in Section 1, that each person listed in Section 3 attended for the full duration, and that the session was delivered in a format and language each attendee was able to understand. I confirm that attendees had the opportunity to ask questions and that questions raised were answered.";
+function attendanceRosterPage({ name, day, rows, typeWords = {}, site = "", staff = [] }) {
+  const people = (rows || []).slice().sort((a, b) => String(a.user_name || "").localeCompare(String(b.user_name || ""), localeTag()));
+  const types = keptOnce((rows || []).map((r) => typeWords[r.training_type] || r.training_type || ""));
+  const trainers = keptOnce((rows || []).map((r) => String(r.administered_by || "").trim()));
+  return { code: "OCSA-FRM-033", site, range: day ? { start: day, end: day } : null, parts: [
+    { h: "Session Details", fields: [["Training Title or Topic", name], ["Training Type", types.join(", ")], ["Related Document No.", ""], ["Date", trainingDayWords(day, true)], ["Start Time / End Time", ""], ["Site or Location", site], ["Delivery Method", ""], ["Language(s) Delivered In", trainingGivenIn(rows).join(", ")], ["Translation Method", ""], ["Understanding Verified By", ""], ["Materials or Equipment Used", ""]] },
+    { h: "Trainer", fields: [["Trainer Name", trainers.join(", ")], ["Trainer Role", ""], ["Qualification Held", ""], ["Trainer Signature", ""]] },
+    { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", "Employee ID", "Signature", "Understood"], rows: people.map((r) => ["", r.user_name || "", rosterEmployeeId(staff, r.user_id), "", ""]), least: 20 },
+    { fields: [["Total attendees this session", String(people.length)]] },
+    { h: "Trainer Attestation", note: ROSTER_ATTESTATION, sign: [["Trainer", ""], ["Reviewed By", "Field Lead"], ["Filed By", "Controller"]] },
+  ] };
+}
+// A person's employee ID from the staff list the shell holds, or "" when it does not hold one.
+const rosterEmployeeId = (staff, userId) => { const p = (staff || []).find((x) => String(x.id) === String(userId)); return (p && (p.employeeId || p.employee_id)) || ""; };
+function printAttendanceSheet(args) { return printKeptRecord([attendanceRosterPage(args)], tr("Attendance sheet")); }
+// A training record's site (STEP238_CONTRACT.md, Part 1), or "" for a record saved before records
+// carried one.
+const trainingSiteOf = (r) => String((r && (r.site_id != null ? r.site_id : r.siteId)) || "");
+
+// The kept records Reports offers, each shown once the routes it reads answer: the checklist record
+// (Part 1) for every one of them, since the usage log's range, the inspections' range and kind, and a
+// training record's site arrive with it; and beside it the PPE issues for the PPE log, and the
+// clearances and the training records for theirs.
+// Each reads what it prints when a site is picked and the range changes, says what it found, and
+// writes it into a window opened in the click.
+const keptChecklistRead = async (af, siteId, range) => {
+  const d = await af("/api/sites/" + encodeURIComponent(siteId) + "/checklist-record?from=" + range.start + "&to=" + range.end);
+  if (!d || !Array.isArray(d.days)) throw new Error(tr("This did not load."));
+  return d;
+};
+const KEPT_RECORDS = {
+  "kept-003": { live: "record", codes: "OCSA-FRM-003", name: "Master Zone Cleaning Checklist", line: "Each zone's checklist for each day, from the site's checklist.", ranged: true, most: 31,
+    load: keptChecklistRead,
+    pages: (d, c) => keptZonePages(d, c.site, c.range),
+    summary: (d, c, pages) => trn("{0} checklist to print|count", pages.length) },
+  "kept-021": { live: "record", codes: "OCSA-FRM-021", name: "Disinfection Coverage Log", line: "The touchpoints on each day's checklist, treated or not.", ranged: true, most: 31,
+    load: keptChecklistRead,
+    pages: (d, c) => keptTouchPages(d, c.site, c.range),
+    summary: (d, c, pages) => trn("{0} log to print|count", pages.length) },
+  "kept-018": { live: "record", codes: "OCSA-FRM-018", name: "Chemical Usage Log", line: "Every chemical logged at the site, a log for each month.", ranged: true,
+    load: async (af, siteId, range) => {
+      const d = await af("/api/supplies/usage?start_date=" + range.start + "&end_date=" + range.end + "&category=chemical&site_id=" + encodeURIComponent(siteId));
+      return Array.isArray(d) ? d : (d && Array.isArray(d.usage) ? d.usage : []);
+    },
+    pages: (d, c) => keptChemicalPages(d, c.site, c.range),
+    summary: (d, c) => trn("{0} use logged|count", d.filter(r => r && r.category === "chemical" && keptInRange(keptUsageDay(r), c.range)).length) },
+  "kept-019": { live: ["record", "ppe"], codes: "OCSA-FRM-019", name: "PPE Compliance Log", line: "The equipment issued and signed for, and the site's stock, a log for each month.", ranged: true,
+    load: async (af, siteId, range) => {
+      const [stock, issued] = await Promise.all([
+        af("/api/supplies?site_id=" + encodeURIComponent(siteId) + "&category=ppe"),
+        af("/api/ppe-issues?siteId=" + encodeURIComponent(siteId) + "&from=" + range.start + "&to=" + range.end),
+      ]);
+      return { stock: (Array.isArray(stock) ? stock : []).filter(s => s && s.category === "ppe"), issues: issued && Array.isArray(issued.issues) ? issued.issues : [] };
+    },
+    pages: (d, c) => keptPpePages({ ...d, people: c.allStaff, signed: c.signed }, c.site, c.range),
+    summary: (d, c) => trn("{0} issue recorded|count", d.issues.filter(x => x && keptInRange(keptIssueDay(x), c.range)).length),
+    before: async (d, c) => {
+      const signed = {};
+      for (const x of d.issues.filter(i => i && i.id != null && keptInRange(keptIssueDay(i), c.range))) signed[String(x.id)] = await keptImage("/api/ppe-issues/" + encodeURIComponent(x.id) + "/signature", c.token);
+      return { signed };
+    } },
+  "kept-035": { live: ["record", "clearances"], codes: "OCSA-FRM-035", name: "School Clearance Tracking Record", line: "Everyone at the site and their clearances, as of today.", ranged: false,
+    load: async (af, siteId) => clearancePeopleOf(await af("/api/clearances?siteId=" + encodeURIComponent(siteId))) || [],
+    pages: (d, c) => keptClearancePages(d, c.site),
+    summary: (d) => trn("{0} person on the record|count", d.length) },
+  "kept-insp": { live: "record", codes: "OCSA-FRM-001, OCSA-FRM-002", name: "Inspections", line: "Every inspection completed in the range, each on its own page.", ranged: true,
+    // The list answers each inspection's kind and formCode and keeps the ones completed in the range;
+    // each is read on its own at Print only for its items, scores, photos and signatures.
+    load: async (af, siteId, range) => {
+      const list = await af("/api/inspections/scheduled?site_id=" + encodeURIComponent(siteId) + "&status=completed&from=" + range.start + "&to=" + range.end);
+      return (Array.isArray(list) ? list : []).filter(si => si && si.status === "completed" && String(si.site_id) === String(siteId));
+    },
+    summary: (d) => trn("{0} inspection to print|count", d.length),
+    count: (d) => d.length,
+    print: async (w, d, c) => {
+      const full = await Promise.all(d.map(si => c.af("/api/inspections/scheduled/" + encodeURIComponent(si.id)).then(x => Object.assign({}, x, { kind: si.kind || x.kind, formCode: si.formCode || x.formCode }))));
+      const done = full.filter(x => x && x.result).sort((a, b) => String(a.result.completed_at || "").localeCompare(String(b.result.completed_at || "")));
+      await printInspections(w, done, { token: c.token, words: c.words, range: c.range });
+    } },
+  "kept-033": { live: ["record", "training"], codes: "OCSA-FRM-033", name: "Training Attendance Roster", line: "A roster for each training session at the site in the range.", ranged: true,
+    load: async (af) => { const d = await af("/api/hr/training"); return Array.isArray(d) ? d : []; },
+    pages: (d, c) => {
+      const mine = d.filter(r => keptInRange(trainingDay(r.completed_date), c.range) && (trainingSiteOf(r) ? trainingSiteOf(r) === String(c.siteId) : !!(c.atSite && c.atSite.has(String(r.user_id)))));
+      const sessions = new Map();
+      mine.forEach(r => { const k = trainingKey(r.training_name) + "|" + trainingDay(r.completed_date); if (!sessions.has(k)) sessions.set(k, []); sessions.get(k).push(r); });
+      return Array.from(sessions.values()).sort((a, b) => trainingDay(a[0].completed_date).localeCompare(trainingDay(b[0].completed_date)) || String(a[0].training_name).localeCompare(String(b[0].training_name)))
+        .map(rows => attendanceRosterPage({ name: String(rows[0].training_name || "").trim(), day: trainingDay(rows[0].completed_date), rows, typeWords: c.typeWords, site: c.site, staff: c.allStaff }));
+    },
+    summary: (d, c, pages) => trn("{0} session to print|count", pages.length) },
+};
+function KeptRecordView({ id, af, token, t, sites = [], allStaff = [], lkMap }) {
+  const rec = KEPT_RECORDS[id];
+  const [siteId, setSiteId] = useState("");
+  const [range, setRange] = useState(() => PRESETS.thisMonth());
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [atSite, siteError] = useSitePeople(af, id === "kept-033" ? siteId : "");
+  const site = (sites || []).find(s => String(s.id) === siteId);
+  const tooLong = !!(rec.most && siteId && Math.round((localDate(range.end) - localDate(range.start)) / 86400000) + 1 > rec.most);
+  useEffect(() => {
+    setData(null); setFailed(""); setNote("");
+    if (!siteId || tooLong) return undefined;
+    let alive = true;
+    rec.load(af, siteId, range).then(d => { if (alive) setData(d); }).catch(e => { if (alive) setFailed(e.message || tr("This did not load.")); });
+    return () => { alive = false; };
+  }, [af, id, siteId, range.start, range.end, tooLong]);
+  const typeWords = useMemo(() => lkMap("training_types", true), [lkMap]);
+  const ctx = { af, site: site ? site.name : "", siteId, range, token, allStaff, atSite, typeWords, words: inspectionWordsOf(lkMap) };
+  const waiting = id === "kept-033" && siteId && atSite === null;
+  const pages = data && rec.pages && !waiting ? rec.pages(data, ctx) : null;
+  const count = data === null || waiting ? null : rec.count ? rec.count(data) : pages.length;
+  const print = async () => {
+    if (busy || !count) return;
+    const w = keptWindow();
+    if (!w) { setNote(tr("Allow pop-ups to print")); return; }
+    setBusy(true); setNote("");
+    try {
+      if (rec.print) await rec.print(w, data, ctx);
+      else { const more = rec.before ? await rec.before(data, ctx) : {}; keptWrite(w, tr(rec.name), rec.pages(data, { ...ctx, ...more })); }
+    } catch (e) { try { w.close(); } catch (x) {} setNote(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<div data-kept-record={id}>
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{rec.codes}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr(rec.line)}</div>
+      <div style={{ maxWidth: 360, marginBottom: 12 }}><Lbl>{tr("Site *")}</Lbl>
+        <Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("Pick a site...") }, ...(sites || []).map(s => ({ v: String(s.id), l: s.name }))]} /></div>
+      {rec.ranged ? <DateRangePicker value={range} onChange={setRange} t={t} /> : <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12 }}>{tr("As of {0}", keptDay(todayISO()))}</div>}
+      {rec.most ? <div style={{ fontSize: 11, color: tooLong ? RD : t.textMut, marginBottom: 10 }}>{tr("At most {0} days at a time.", rec.most)}</div> : null}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <Btn t={t} onClick={print} disabled={busy || !count} style={{ minHeight: 44 }}>{busy ? tr("Preparing...") : tr("Print")}</Btn>
+        <span role="status" style={{ fontSize: 12, color: t.textSec }}>{!siteId ? tr("Pick a site to print its record.") : tooLong ? "" : failed ? "" : count === null ? tr("Loading...") : rec.summary(data, ctx, pages || [])}</span>
+      </div>
+      {siteId && !failed && count === 0 && <div style={{ fontSize: 12, color: t.textMut, marginTop: 8 }}>{tr("Nothing to print for this site in this range.")}</div>}
+      {(failed || siteError) && <div role="alert" data-kept-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8, overflowWrap: "anywhere" }}>{failed || siteError}</div>}
+      {note && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{note}</div>}
+    </Crd>
+  </div>);
+}
+
+// ===== PPE ISSUES (Step 239) =====
+// Protective equipment handed to a person at a site and signed for on the screen it is issued on
+// (STEP238_CONTRACT.md, Part 3, the issue part of OCSA-FRM-019). A person's HR Records folder lists what
+// they were issued and a site's Supplies tab what was issued there, each with Issue PPE. Neither draws
+// anything until GET /api/ppe-issues answers.
+const ppeIssuedOn = (x) => keptIssueDay(x);
+function PpeIssues({ af, token, t, userId = "", siteId = "", sites = [], people = [], name = "", showToast }) {
+  const [issues, setIssues] = useState(null);
+  const [win, setWin] = useState(false);
+  const [shown, setShown] = useState({});
+  const load = useCallback(() => {
+    const q = userId ? "userId=" + encodeURIComponent(userId) : "siteId=" + encodeURIComponent(siteId);
+    af("/api/ppe-issues?" + q).then(d => setIssues(d && Array.isArray(d.issues) ? d.issues : null)).catch(e => { setIssues(null); console.warn("PPE issues:", e.message); });
+  }, [af, userId, siteId]);
+  useEffect(() => { load(); }, [load]);
+  if (issues === null) return null;
+  const list = issues.slice().sort((a, b) => String(b.issuedAt || b.createdAt || "").localeCompare(String(a.issuedAt || a.createdAt || "")));
+  const siteName = (id) => ((sites || []).find(s => String(s.id) === String(id)) || {}).name || "";
+  return (<Crd t={t} style={{ marginBottom: 16 }}>
+    <div data-ppe-issues={userId ? "person" : "site"}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("PPE issued")}</div>
+        <Btn t={t} onClick={() => setWin(true)} style={{ minHeight: 44 }}>{tr("Issue PPE")}</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{userId ? tr("Protective equipment this person was given, each signed for when it was handed over.") : tr("Protective equipment given out at this site, each signed for when it was handed over.")}</div>
+      {list.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing issued yet.")}</div> : list.map(x => (
+        <div key={x.id} data-ppe-issue={x.id} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{[ppeItemOf(x), x.size].filter(Boolean).join(", ")}{x.quantity > 1 ? " x " + x.quantity : ""}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[keptDay(ppeIssuedOn(x)), userId ? siteName(x.siteId) : ppeWhoOf(x, people)].filter(Boolean).join(", ")}</div>
+              {x.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{x.note}</div> : null}
+            </div>
+            {x.fitOk === true || x.fitOk === false ? <Bdg l={x.fitOk ? tr("Fits well") : tr("Does not fit")} c={x.fitOk ? GR : OR} /> : null}
+            <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>
+          </div>
+          {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/ppe-issues/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
+        </div>))}
+    </div>
+    {win && <IssuePpeWindow af={af} t={t} userId={userId} siteId={siteId} sites={sites} people={people} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("PPE issue saved.")); load(); }} />}
+  </Crd>);
+}
+// The item comes from the site's PPE stock or is typed, with its size, how many, whether it fits, a
+// note, and the person's drawing on this screen. A refusal is drawn under the box its keys name, and
+// one without keys at the top.
+const PPE_TYPED = "__typed";
+function IssuePpeWindow({ af, t, userId = "", siteId = "", sites = [], people = [], name = "", onClose, onSaved }) {
+  const [f, setF] = useState({ userId: userId || "", siteId: siteId || "", supplyId: "", item: "", size: "", quantity: "1", fitOk: null, note: "" });
+  const [stock, setStock] = useState([]);
+  const [sig, setSig] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  useEffect(() => {
+    setStock([]);
+    if (!f.siteId) return undefined;
+    let alive = true;
+    af("/api/supplies?site_id=" + encodeURIComponent(f.siteId) + "&category=ppe").then(d => { if (alive) setStock((Array.isArray(d) ? d : []).filter(s => s && s.category === "ppe")); }).catch(e => { if (alive) setStock([]); console.warn("PPE stock:", e.message); });
+    return () => { alive = false; };
+  }, [af, f.siteId]);
+  const who = name || ppePersonName((people || []).find(p => String(p.id) === String(f.userId)));
+  const typed = f.supplyId === PPE_TYPED;
+  const qty = Number(f.quantity);
+  const ready = !!f.userId && !!f.siteId && (typed ? !!f.item.trim() : !!f.supplyId) && Number.isInteger(qty) && qty >= 1 && (f.fitOk === true || f.fitOk === false) && !!sig;
+  const bad = (k) => refusal.keys.indexOf(k) >= 0;
+  const under = (k) => (bad(k) ? <div data-ppe-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    try {
+      await af("/api/ppe-issues", { method: "POST", body: Object.assign({ userId: f.userId, siteId: f.siteId, size: f.size.trim(), quantity: qty, fitOk: f.fitOk, note: f.note.trim(), employeeSignature: sig }, typed ? { item: f.item.trim() } : { supplyId: f.supplyId }) });
+      onSaved();
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      const sigRefused = e && e.code === "ppe.signatureRequired";
+      setRefusal({ text: e.message || tr("Request failed"), keys: sigRefused ? ["employeeSignature"] : keys.map(k => (k === "supplyId" ? "item" : k)) });
+      if (sigRefused) setSig("");
+    }
+    setBusy(false);
+  };
+  const choice = (on) => ({ minWidth: 72, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  const known = refusal.keys.filter(k => ["userId", "siteId", "item", "size", "quantity", "fitOk", "note", "employeeSignature"].indexOf(k) >= 0);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-ppe-window="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue PPE")}</div>
+        {who ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{who}</div> : null}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && known.length === 0 && <div role="alert" data-ppe-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {!userId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Person")}</Lbl>
+      <Sel t={t} aria-label={tr("Person")} value={f.userId} onChange={e => set("userId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((people || []).map(p => ({ v: String(p.id), l: ppePersonName(p) })))} style={box("userId")} />{under("userId")}</div>}
+    {!siteId && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
+      <Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => setF(p => ({ ...p, siteId: e.target.value, supplyId: p.supplyId === PPE_TYPED ? PPE_TYPED : "" }))} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Item")}</Lbl>
+      <Sel t={t} aria-label={tr("Item")} value={f.supplyId} onChange={e => set("supplyId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(stock.map(s => ({ v: String(s.id), l: s.name })), [{ v: PPE_TYPED, l: tr("Something else, typed") }])} style={box("item")} />
+      {typed && <Inp t={t} aria-label={tr("What was issued")} value={f.item} onChange={e => set("item", e.target.value)} placeholder={tr("What was issued")} maxLength={200} style={{ marginTop: 8, ...box("item") }} />}
+      {under("item")}</div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
+      <div><Lbl>{tr("Size")}</Lbl><Inp t={t} aria-label={tr("Size")} value={f.size} onChange={e => set("size", e.target.value)} maxLength={40} style={box("size")} />{under("size")}</div>
+      <div><Lbl>{tr("Quantity")}</Lbl><Inp t={t} type="number" min="1" step="1" aria-label={tr("Quantity")} value={f.quantity} onChange={e => set("quantity", e.target.value)} style={box("quantity")} />{under("quantity")}</div>
+    </div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Fits well?")}</Lbl>
+      <div role="group" aria-label={tr("Fits well?")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button type="button" aria-pressed={f.fitOk === true} onClick={() => set("fitOk", true)} style={choice(f.fitOk === true)}>{tr("Yes")}</button>
+        <button type="button" aria-pressed={f.fitOk === false} onClick={() => set("fitOk", false)} style={choice(f.fitOk === false)}>{tr("No")}</button>
+      </div>{under("fitOk")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
+    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+      : <SignatureBox t={t} label={who ? tr("{0} signs for what they received", who) : tr("The person signs for what they received")} busy={busy} refusal={bad("employeeSignature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// ===== EQUIPMENT (Step 239) =====
+// The equipment register (STEP238_CONTRACT.md, Part 4; the inventory of OCSA-FRM-037): every item with
+// its site, its status, its next service and its latest event, filtered by site, status and Service
+// due, with Add equipment and Print labels for the items ticked. An item's page, #equipment/<id>, shows
+// its events and records a service, a repair, a tag out, a return to service, a move or a retirement.
+// The register joins the side panel once GET /api/equipment answers with { equipment }.
+const EQUIPMENT_STATUSES = { in_service: { l: "In service", get c() { return GR; } }, out_of_service: { l: "Out of service", get c() { return RD; } }, retired: { l: "Retired|equipment", c: "#8899AA" } };
+const equipmentStatusWord = (s) => (EQUIPMENT_STATUSES[s] ? tr(EQUIPMENT_STATUSES[s].l) : String(s || ""));
+const EquipmentChip = ({ status }) => <Bdg l={equipmentStatusWord(status)} c={(EQUIPMENT_STATUSES[status] || EQUIPMENT_STATUSES.retired).c} />;
+const EQUIPMENT_EVENTS = { check: "Checked|equipment", service: "Serviced", repair: "Repaired", tagged_out: "Tagged out", returned: "Returned to service", moved: "Moved|equipment", retired: "Retired|equipment" };
+const equipmentEventWord = (k) => (EQUIPMENT_EVENTS[k] ? tr(EQUIPMENT_EVENTS[k]) : String(k || ""));
+const equipmentList = (d) => (d && Array.isArray(d.equipment) ? d.equipment : null);
+// Each item answers its latest event as latestEvent (helpers/equipment.js); lastEvent is read when it does not.
+const equipmentLatest = (x) => (x && (x.latestEvent || x.lastEvent)) || null;
+const equipmentGo = (id) => { window.location.hash = "equipment" + (id != null && id !== "" ? "/" + encodeURIComponent(String(id)) : ""); };
+const equipmentDue = (x, today) => (x && typeof x.serviceDue === "boolean" ? x.serviceDue : !!(x && x.status !== "retired" && x.nextServiceOn && String(x.nextServiceOn).slice(0, 10) <= today));
+const equipmentByOf = (ev) => ev.byName || ev.by_name || (ev.by && typeof ev.by === "object" ? ev.by.name : "") || "";
+function EquipmentPage({ af, token, t, sites = [], route = [], showToast }) {
+  const id = route[0] ? String(route[0]) : "";
+  if (id) return <EquipmentItem key={id} af={af} t={t} id={id} sites={sites} showToast={showToast} />;
+  return <EquipmentRegister af={af} token={token} t={t} sites={sites} showToast={showToast} />;
+}
+function EquipmentRegister({ af, token, t, sites = [], showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [siteId, setSiteId] = useState("");
+  const [status, setStatus] = useState("");
+  const [due, setDue] = useState(false);
+  const [ticked, setTicked] = useState(() => new Set());
+  const [adding, setAdding] = useState(false);
+  const [labels, setLabels] = useState({ busy: false, error: "" });
+  const load = useCallback(() => {
+    const q = [].concat(siteId ? ["siteId=" + encodeURIComponent(siteId)] : [], status ? ["status=" + encodeURIComponent(status)] : [], due ? ["due=true"] : []);
+    setFailed("");
+    af("/api/equipment" + (q.length ? "?" + q.join("&") : "")).then(d => setList(equipmentList(d) || [])).catch(e => { setList([]); setFailed(e.message || tr("This did not load.")); });
+  }, [af, siteId, status, due]);
+  useEffect(() => { load(); }, [load]);
+  const today = todayISO();
+  const siteName = (sid) => ((sites || []).find(s => String(s.id) === String(sid)) || {}).name || "";
+  const rows = (list || []).filter(x => (!siteId || String(x.siteId) === siteId) && (!status || x.status === status) && (!due || equipmentDue(x, today)));
+  const tick = (rid) => setTicked(p => { const n = new Set(p); if (n.has(rid)) n.delete(rid); else n.add(rid); return n; });
+  const shownTicked = rows.filter(x => x.status !== "retired" && ticked.has(String(x.id)));
+  const printLabels = async () => {
+    if (labels.busy || shownTicked.length === 0) return;
+    setLabels({ busy: true, error: "" });
+    try { await saveDownload("/api/equipment/labels.pdf?ids=" + shownTicked.map(x => encodeURIComponent(String(x.id))).join(","), token, "labels.pdf"); setLabels({ busy: false, error: "" }); }
+    catch (e) { setLabels({ busy: false, error: e.message || tr("Request failed") }); }
+  };
+  const selSt = { minHeight: 44, padding: "8px 12px", borderRadius: R.md, border: "1px solid " + t.borderSolid, background: t.card, color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer" };
+  const cols = [
+    { header: "", tdStyle: { width: 44 }, render: x => (x.status === "retired" ? null : <label onClick={e => e.stopPropagation()} style={{ ...chkWrap, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><input type="checkbox" aria-label={tr("Tick {0} for labels", x.name || "")} checked={ticked.has(String(x.id))} onChange={() => tick(String(x.id))} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></label>) },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ fontWeight: 600, color: t.text }}>{x.name}</span>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).length ? <div style={{ fontSize: 11, color: t.textMut }}>{[x.category, [x.make, x.model].filter(Boolean).join(" ")].filter(Boolean).join(", ")}</div> : null}</span>) },
+    { header: tr("Site"), tdStyle: { color: t.textSec, minWidth: 120 }, render: x => x.siteName || siteName(x.siteId) || "--" },
+    { header: tr("Status"), tdStyle: { whiteSpace: "nowrap" }, render: x => <EquipmentChip status={x.status} /> },
+    { header: tr("Next service"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.nextServiceOn ? <span style={{ color: equipmentDue(x, today) ? RD : t.textSec, fontWeight: equipmentDue(x, today) ? 600 : 400 }}>{keptDay(x.nextServiceOn)}</span> : <span style={{ color: t.textMut }}>--</span>) },
+    { header: tr("Latest event"), tdStyle: { minWidth: 150, color: t.textSec }, render: x => { const ev = equipmentLatest(x); return ev ? <span>{equipmentEventWord(ev.kind)}<div style={{ fontSize: 11, color: t.textMut }}>{ev.at ? irDay(ev.at) : ""}</div></span> : "--"; } },
+  ];
+  return (<div data-equipment-page="">
+    <SecT t={t} action={tr("Add equipment")} onAction={() => setAdding(true)}>{tr("Equipment")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 14, lineHeight: 1.5 }}>{tr("Every machine and tool on the register, where it is and when it is next serviced. A row opens the item.")}</div>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <select aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} style={selSt}>
+        <option value="">{tr("All sites")}</option>
+        {(sites || []).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+      </select>
+      <select aria-label={tr("Status")} value={status} onChange={e => setStatus(e.target.value)} style={selSt}>
+        <option value="">{tr("All but retired")}</option>
+        {Object.keys(EQUIPMENT_STATUSES).map(k => <option key={k} value={k}>{equipmentStatusWord(k)}</option>)}
+      </select>
+      <button type="button" aria-pressed={due} onClick={() => setDue(v => !v)} style={{ ...selSt, border: "1px solid " + (due ? GO : t.borderSolid), background: due ? t.goldBg : t.card, color: due ? t.goldText : t.text, fontWeight: 600 }}>{tr("Service due")}</button>
+      <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        {shownTicked.length === 0 && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Tick items to print their labels.")}</span>}
+        <Btn t={t} v="ghost" onClick={printLabels} disabled={labels.busy || shownTicked.length === 0} style={{ minHeight: 44 }}>{labels.busy ? tr("Downloading...") : shownTicked.length ? tr("Print labels ({0})", shownTicked.length) : tr("Print labels")}</Btn>
+      </div>
+    </div>
+    {labels.error && <div role="alert" data-equipment-labels-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{labels.error}</div>}
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.id)} onRowClick={x => equipmentGo(x.id)} empty={(list || []).length ? tr("Nothing matches these filters.") : tr("No equipment on the register yet.")} />}
+    {adding && <EquipmentWindow af={af} t={t} sites={sites} onClose={() => setAdding(false)} onSaved={(row) => { setAdding(false); if (showToast) showToast(tr("Equipment added.")); if (row && row.id != null) equipmentGo(row.id); else load(); }} />}
+  </div>);
+}
+// Add an item, or change one. A refusal is drawn under the box its keys name, and one without keys at
+// the top.
+const EQUIPMENT_FIELDS = ["siteId", "name", "category", "make", "model", "serial", "purchasedOn", "serviceEveryDays", "lastServiceOn", "notes"];
+function EquipmentWindow({ af, t, sites = [], item = null, onClose, onSaved }) {
+  const [f, setF] = useState(() => {
+    const x = item || {};
+    return { siteId: x.siteId != null ? String(x.siteId) : "", name: x.name || "", category: x.category || "", make: x.make || "", model: x.model || "", serial: x.serial || "", purchasedOn: x.purchasedOn ? String(x.purchasedOn).slice(0, 10) : "", serviceEveryDays: x.serviceEveryDays != null ? String(x.serviceEveryDays) : "", lastServiceOn: x.lastServiceOn ? String(x.lastServiceOn).slice(0, 10) : "", notes: x.notes || "" };
+  });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const every = f.serviceEveryDays.trim();
+  const everyOk = every === "" || (/^\d+$/.test(every) && Number(every) >= 1);
+  const ready = !!f.name.trim() && !!f.siteId && everyOk;
+  const bad = (k) => refusal.keys.indexOf(k) >= 0;
+  const under = (k) => (bad(k) ? <div data-equipment-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    const body = { name: f.name.trim(), category: f.category.trim() || null, make: f.make.trim() || null, model: f.model.trim() || null, serial: f.serial.trim() || null, purchasedOn: f.purchasedOn || null, serviceEveryDays: every ? Number(every) : null, notes: f.notes.trim() || null };
+    if (!item) { body.siteId = f.siteId; body.lastServiceOn = f.lastServiceOn || null; }
+    try {
+      const d = await af("/api/equipment" + (item ? "/" + encodeURIComponent(item.id) : ""), { method: item ? "PATCH" : "POST", body });
+      onSaved(d && d.equipment ? d.equipment : d);
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setRefusal({ text: e.message || tr("Request failed"), keys });
+    }
+    setBusy(false);
+  };
+  const field = (k, label, extra) => (<div><Lbl>{label}</Lbl><Inp t={t} aria-label={label} value={f[k]} onChange={e => set(k, e.target.value)} {...(extra || {})} style={box(k)} />{under(k)}</div>);
+  const grid = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 };
+  const known = refusal.keys.filter(k => EQUIPMENT_FIELDS.indexOf(k) >= 0);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-window={item ? "edit" : "add"}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{item ? tr("Edit equipment") : tr("Add equipment")}</div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && known.length === 0 && <div role="alert" data-equipment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}>{field("name", tr("Name"), { maxLength: 120, placeholder: tr("e.g. {0}", tr("Floor scrubber 2")) })}</div>
+    {!item && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl><Sel t={t} aria-label={tr("Site")} value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    <div style={grid}>
+      {field("category", tr("Type"), { maxLength: 80, placeholder: tr("e.g. {0}", tr("Auto scrubber")) })}
+      {field("make", tr("Make"), { maxLength: 80 })}
+      {field("model", tr("Model"), { maxLength: 80 })}
+      {field("serial", tr("Serial number"), { maxLength: 80 })}
+      {field("purchasedOn", tr("Bought on"), { type: "date" })}
+      {field("serviceEveryDays", tr("Service every (days)"), { type: "number", min: "1", step: "1" })}
+      {!item && field("lastServiceOn", tr("Last serviced on"), { type: "date" })}
+    </div>
+    {!everyOk && <div style={{ fontSize: 12, color: RD, marginTop: -6, marginBottom: 10 }}>{tr("A whole number of days, 1 or more.")}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} rows={3} aria-label={tr("Notes")} value={f.notes} onChange={e => set("notes", e.target.value)} maxLength={2000} style={box("notes")} />{under("notes")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// What each action writes, and which status it is offered from. A tag out needs a note, and a move
+// names the site it goes to.
+const EQUIPMENT_ACTIONS = [
+  { kind: "service", l: "Record service", from: ["in_service", "out_of_service"] },
+  { kind: "repair", l: "Repair", from: ["in_service", "out_of_service"] },
+  { kind: "tagged_out", l: "Tag out", from: ["in_service"], noteNeeded: true },
+  { kind: "returned", l: "Return to service", from: ["out_of_service"] },
+  { kind: "moved", l: "Move", from: ["in_service", "out_of_service"], toSite: true },
+  { kind: "retired", l: "Retire", from: ["in_service", "out_of_service"], confirm: true },
+];
+function EquipmentItem({ af, t, id, sites = [], showToast }) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [act, setAct] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/equipment/" + encodeURIComponent(id)).then(r => { if (!r || !r.equipment) throw new Error(tr("This did not load.")); setD(r); }).catch(e => { setD(null); setFailed(e.message || tr("This did not load.")); });
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  const back = <div style={{ marginBottom: 14 }}><Btn t={t} v="ghost" onClick={() => equipmentGo("")} style={{ minHeight: 44 }}>{tr("Back to equipment")}</Btn></div>;
+  if (!d) return (<div>{back}{failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> : <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd>}</div>);
+  const x = d.equipment;
+  const events = (Array.isArray(d.events) ? d.events : []).slice().sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  const siteName = (sid) => ((sites || []).find(s => String(s.id) === String(sid)) || {}).name || "";
+  const today = todayISO();
+  const fact = (label, value) => (value ? <div style={{ minWidth: 0 }}><div style={{ fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px" }}>{label}</div><div style={{ fontSize: 13, color: t.text, marginTop: 2, overflowWrap: "anywhere" }}>{value}</div></div> : null);
+  const offered = EQUIPMENT_ACTIONS.filter(a => a.from.indexOf(x.status) >= 0);
+  return (<div data-equipment-item={String(x.id)}>
+    {back}
+    <Crd t={t} style={{ marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 18, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{x.name}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{x.siteName || siteName(x.siteId)}</div>
+        </div>
+        <EquipmentChip status={x.status} />
+        {x.status !== "retired" && <Btn t={t} v="ghost" onClick={() => setEditing(true)} style={{ minHeight: 44 }}>{tr("Edit")}</Btn>}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
+        {fact(tr("Type"), x.category)}
+        {fact(tr("Make"), x.make)}
+        {fact(tr("Model"), x.model)}
+        {fact(tr("Serial number"), x.serial)}
+        {fact(tr("Bought on"), x.purchasedOn ? keptDay(x.purchasedOn) : "")}
+        {fact(tr("Service every (days)"), x.serviceEveryDays != null ? String(x.serviceEveryDays) : "")}
+        {fact(tr("Last serviced on"), x.lastServiceOn ? keptDay(x.lastServiceOn) : "")}
+        {fact(tr("Next service"), x.nextServiceOn ? keptDay(x.nextServiceOn) + (equipmentDue(x, today) ? " (" + tr("due") + ")" : "") : "")}
+        {fact(tr("Label code"), x.qrCode)}
+        {fact(tr("Retired on"), x.retiredAt ? irDay(x.retiredAt) : "")}
+      </div>
+      {x.notes ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 12, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{x.notes}</div> : null}
+      {offered.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+        {offered.map(a => <Btn key={a.kind} t={t} v={a.kind === "retired" || a.kind === "tagged_out" ? "danger" : a.kind === "service" || a.kind === "returned" ? "primary" : "ghost"} onClick={() => setAct(a)} style={{ minHeight: 44 }}>{tr(a.l)}</Btn>)}
+      </div>}
+    </Crd>
+    <Crd t={t}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 }}>{tr("Events")}</div>
+      {events.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing recorded yet.")}</div> : events.map((ev, i) => (
+        <div key={ev.id != null ? String(ev.id) : "e" + i} data-equipment-event={ev.kind} style={{ padding: "10px 0", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: ev.kind === "tagged_out" ? RD : t.text }}>{equipmentEventWord(ev.kind)}</span>
+            <span style={{ fontSize: 11, color: t.textMut }}>{[ev.at ? new Date(ev.at).toLocaleString(localeTag(), { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "", equipmentByOf(ev)].filter(Boolean).join(", ")}</span>
+          </div>
+          {ev.kind === "moved" && (ev.fromSiteId || ev.toSiteId) ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{tr("From {0} to {1}", ev.fromSiteName || siteName(ev.fromSiteId) || "--", ev.toSiteName || siteName(ev.toSiteId) || "--")}</div> : null}
+          {ev.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{ev.note}</div> : null}
+          {ev.photoUrl ? <a href={ev.photoUrl} target="_blank" rel="noreferrer"><img src={ev.photoUrl} alt={tr("Photo")} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.border, marginTop: 6, display: "block" }} /></a> : null}
+        </div>))}
+    </Crd>
+    {act && <EquipmentEventWindow af={af} t={t} item={x} action={act} sites={sites} onClose={() => setAct(null)} onSaved={() => { setAct(null); if (showToast) showToast(tr("Recorded.")); load(); }} />}
+    {editing && <EquipmentWindow af={af} t={t} sites={sites} item={x} onClose={() => setEditing(false)} onSaved={() => { setEditing(false); if (showToast) showToast(tr("Saved")); load(); }} />}
+  </div>);
+}
+function EquipmentEventWindow({ af, t, item, action, sites = [], onClose, onSaved }) {
+  const [note, setNote] = useState("");
+  const [toSiteId, setToSiteId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const ready = (!action.noteNeeded || !!note.trim()) && (!action.toSite || !!toSiteId);
+  const save = async () => {
+    if (busy || !ready) return;
+    if (action.confirm && !window.confirm(tr("Retire {0}? It stays on the register, and nothing more can be recorded against it.", item.name || ""))) return;
+    setBusy(true); setRefusal("");
+    try {
+      await af("/api/equipment/" + encodeURIComponent(item.id) + "/events", { method: "POST", body: Object.assign({ kind: action.kind, note: note.trim() || null }, action.toSite ? { toSiteId } : {}) });
+      onSaved();
+    } catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const others = (sites || []).filter(s => String(s.id) !== String(item.siteId));
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-equipment-action={action.kind}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr(action.l)}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{item.name}</div>
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {action.kind === "tagged_out" && <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("A tagged out item is out of service until it is returned. The site's supervisors and the admins are told.")}</div>}
+    {action.kind === "service" && item.serviceEveryDays ? <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The next service moves {0} days on from today.", item.serviceEveryDays)}</div> : null}
+    {action.toSite && <div style={{ marginBottom: 12 }}><Lbl>{tr("Move to")}</Lbl><Sel t={t} aria-label={tr("Move to")} value={toSiteId} onChange={e => setToSiteId(e.target.value)} options={[{ v: "", l: tr("Choose") }].concat(others.map(s => ({ v: String(s.id), l: s.name })))} /></div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{action.noteNeeded ? tr("What is wrong") : tr("Note")}</Lbl><TArea t={t} rows={3} aria-label={action.noteNeeded ? tr("What is wrong") : tr("Note")} value={note} onChange={e => setNote(e.target.value)} placeholder={action.noteNeeded ? tr("Required.") : tr("Optional.")} maxLength={2000} /></div>
+    {refusal && <div role="alert" data-equipment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} v={action.kind === "retired" || action.kind === "tagged_out" ? "danger" : "primary"} onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr(action.l)}</Btn>
+    </div>
+  </div></Mdl>);
+}
+
+// ===== PERIODIC WORK (Step 239) =====
+// The checklist's periodic items across every site in one table (STEP238_CONTRACT.md, Part 5, as the
+// API's Step 238 builds it): weekly, every two weeks, monthly, quarterly and seasonal work, each with
+// when it was last done and by whom, the first day of the period it next owes work in (nextDueOn), that
+// period's last day (dueBy), and whether it is done, due or overdue, by the checklist's own week, month
+// and quarter rules, which need no start date. An item reads in the screen's language through its
+// display. The table sits on the Sites list once GET /api/periodic-work answers with { items }.
+const PERIODIC_FREQUENCIES = { weekly: "Weekly", biweekly: "Every two weeks", monthly: "Monthly", quarterly: "Quarterly", seasonal: "Seasonal" };
+const periodicFrequencyWord = (f) => (PERIODIC_FREQUENCIES[f] ? tr(PERIODIC_FREQUENCIES[f]) : String(f || ""));
+const PERIODIC_STATES = { overdue: { l: "Overdue|periodic", get c() { return RD; } }, due: { l: "Due|periodic", get c() { return OR; } }, done: { l: "Done|periodic", get c() { return GR; } } };
+const periodicStateWord = (s) => (PERIODIC_STATES[s] ? tr(PERIODIC_STATES[s].l) : String(s || ""));
+const PERIODIC_ORDER = ["overdue", "due", "done"];
+const periodicByOf = (x) => (x.lastDoneBy && typeof x.lastDoneBy === "object" ? x.lastDoneBy.name || "" : x.lastDoneBy || "");
+const shownLabel = (x) => (x && x.display && x.display.label) || (x && x.label) || "";
+const shownZone = (x) => (x && x.display && x.display.zone) || (x && x.zone) || "";
+function PeriodicWorkPanel({ af, t, onOpenSite }) {
+  const [items, setItems] = useState(null);
+  const [state, setState] = useState("all");
+  useEffect(() => {
+    let alive = true;
+    af("/api/periodic-work").then(d => { if (alive) setItems(d && Array.isArray(d.items) ? d.items : null); }).catch(e => { if (alive) setItems(null); console.warn("Periodic work:", e.message); });
+    return () => { alive = false; };
+  }, [af]);
+  if (items === null) return null;
+  const count = (s) => items.filter(x => x.state === s).length;
+  const rows = items.filter(x => state === "all" || x.state === state).slice().sort((a, b) => String(a.siteName || "").localeCompare(String(b.siteName || ""), localeTag()) || PERIODIC_ORDER.indexOf(a.state) - PERIODIC_ORDER.indexOf(b.state) || shownLabel(a).localeCompare(shownLabel(b), localeTag()));
+  const late = (x) => x.state === "overdue";
+  const cols = [
+    { header: tr("Site"), tdStyle: { minWidth: 130, fontWeight: 600, color: t.text }, render: x => x.siteName || "--" },
+    { header: tr("Item"), tdStyle: { minWidth: 170 }, render: x => (<span><span style={{ color: t.text }}>{shownLabel(x)}</span>{shownZone(x) ? <div style={{ fontSize: 11, color: t.textMut }}>{shownZone(x)}</div> : null}</span>) },
+    { header: tr("Frequency"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => periodicFrequencyWord(x.frequency) },
+    { header: tr("Last done"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.lastDoneAt ? irDay(x.lastDoneAt) : "--") },
+    { header: tr("By|done by"), tdStyle: { color: t.textSec, minWidth: 110 }, render: x => periodicByOf(x) || "--" },
+    { header: tr("Next due"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: x => (x.nextDueOn ? keptDay(x.nextDueOn) : "--") },
+    { header: tr("Due by"), tdStyle: { whiteSpace: "nowrap" }, render: x => (x.dueBy ? <span style={{ color: late(x) ? RD : t.textSec, fontWeight: late(x) ? 600 : 400 }}>{keptDay(x.dueBy)}</span> : <span style={{ color: t.textMut }}>--</span>) },
+    { header: tr("State"), tdStyle: { whiteSpace: "nowrap" }, render: x => <Bdg l={periodicStateWord(x.state)} c={(PERIODIC_STATES[x.state] || PERIODIC_STATES.due).c} /> },
+  ];
+  return (<div data-periodic-work="" style={{ marginBottom: 24 }}>
+    <SecT t={t}>{tr("Periodic work")}</SecT>
+    <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("The weekly, monthly, quarterly and seasonal work on every site's checklist, and whether it is done this period. A row opens the site's checklist.")}</div>
+    <FilterTabs t={t} value={state} onChange={setState} tabs={[{ id: "all", label: tr("All|periodic"), count: items.length }, { id: "overdue", label: tr("Overdue|periodic"), count: count("overdue"), color: RD }, { id: "due", label: tr("Due|periodic"), count: count("due"), color: OR }, { id: "done", label: tr("Done|periodic"), count: count("done"), color: GR }]} />
+    <DataTable t={t} columns={cols} rows={rows} rowKey={x => String(x.siteId) + ":" + String(x.taskId)} onRowClick={onOpenSite ? (x => onOpenSite(x.siteId)) : undefined} empty={items.length ? tr("Nothing matches this filter.") : tr("No periodic work on any checklist yet.")} />
+  </div>);
+}
+// The Touchpoint switch in the checklist editor's windows (Part 2), drawn once the site's items answer
+// a touchpoint of their own.
+const TouchpointToggle = ({ t, on, onChange }) => (<div data-touchpoint-toggle="" style={{ marginBottom: 12 }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer" }}>
+    <span style={chkWrap}><input type="checkbox" checked={!!on} onChange={e => onChange(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+    <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Touchpoint")}</span>
+  </label>
+  <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("High-touch surfaces disinfected on schedule. They print on the Disinfection Coverage Log.")}</div>
+</div>);
+
 function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff = [] }) {
   const [defs, setDefs] = useState(null);
   const [view, setView] = useState("library");
@@ -7836,6 +8807,21 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     af("/api/injury-log?year=" + new Date().getFullYear()).then(d => { if (alive) setInjuryLive(!!(d && Array.isArray(d.cases))); }).catch(e => { if (alive) setInjuryLive(false); console.warn("Injury log:", e.message); });
     return () => { alive = false; };
   }, [af]);
+  // Step 239: the kept records, each offered once the route it reads answers (KEPT_RECORDS). The
+  // checklist record is asked for the first site and today; the others for what is quickest to answer.
+  const [keptLive, setKeptLive] = useState({});
+  const firstSiteId = sites && sites[0] ? String(sites[0].id) : "";
+  useEffect(() => {
+    let alive = true;
+    const on = (k, ok) => { if (alive) setKeptLive(m => (m[k] === ok ? m : { ...m, [k]: ok })); };
+    const off = (k, what) => (e) => { on(k, false); console.warn(what + ":", e.message); };
+    const today = todayISO();
+    if (firstSiteId) af("/api/sites/" + encodeURIComponent(firstSiteId) + "/checklist-record?from=" + today + "&to=" + today).then(d => on("record", !!(d && Array.isArray(d.days)))).catch(off("record", "Checklist record"));
+    af("/api/ppe-issues?from=" + today + "&to=" + today).then(d => on("ppe", !!(d && Array.isArray(d.issues)))).catch(off("ppe", "PPE issues"));
+    af("/api/clearances?state=missing").then(d => on("clearances", clearancePeopleOf(d) !== null)).catch(off("clearances", "Clearances"));
+    af("/api/hr/training").then(d => on("training", Array.isArray(d))).catch(off("training", "Training records"));
+    return () => { alive = false; };
+  }, [af, firstSiteId]);
   // The annual summary is offered once GET /api/injury-summary answers. It is read for last year, the
   // one year whose posting window today can fall in, so the same read says whether the banner shows.
   // It is read again when the summary changes, and a failure then leaves the page as it was.
@@ -7926,6 +8912,16 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     </div>);
   }
 
+  if (KEPT_RECORDS[view] && [].concat(KEPT_RECORDS[view].live).every(x => keptLive[x])) {
+    return (<div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
+        <Btn v="ghost" t={t} onClick={() => setView("library")}>{tr("Back to reports")}</Btn>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr(KEPT_RECORDS[view].name)}</div>
+      </div>
+      <KeptRecordView key={view} id={view} af={af} token={token} t={t} sites={sites} allStaff={allStaff} lkMap={lkMap} />
+    </div>);
+  }
+
   if (view === "edit") {
     return (<div>
       <ReportEditor t={t} sites={sites} initial={editing} af={af} showToast={showToast}
@@ -7943,6 +8939,8 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     ...(injuryLive ? [{ id: "injury-log", name: tr("Injury log"), line: tr("Every recordable injury and illness of a year, with its totals.") }] : []),
     ...(summaryLive ? [{ id: "injury-summary", name: tr("Annual summary"), line: tr("The year's totals and their certification, posted from February 1 to April 30.") }] : []),
   ];
+  const keptOn = (k) => [].concat(KEPT_RECORDS[k].live).every(x => keptLive[x]);
+  const keptRecords = Object.keys(KEPT_RECORDS).filter(keptOn).map(k => ({ id: k, name: tr(KEPT_RECORDS[k].name), code: KEPT_RECORDS[k].codes, line: tr(KEPT_RECORDS[k].line) }));
   // A group of those reports under its heading, each a card that opens it. A group with none draws nothing.
   const reportGroup = (heading, list) => (list.length > 0 && <div style={{ marginBottom: 18 }}>
     <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{heading}</div>
@@ -7951,6 +8949,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
         <Crd key={r.id} t={t} style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
           <div>
             <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{r.name}</div>
+            {r.code ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{r.code}</div> : null}
             <div style={{ fontSize: 12, color: t.textSec, marginTop: 6 }}>{r.line}</div>
           </div>
           <div style={{ marginTop: "auto" }}><Btn v="primary" t={t} onClick={() => setView(r.id)} style={{ padding: "7px 14px", fontSize: 12 }}>{tr("Open|verb")}</Btn></div>
@@ -7963,6 +8962,7 @@ function ReportsPage({ af, token, showToast, isAdmin, t, sites, lkMap, allStaff 
     {summaryLive && summaryDue && <InjuryPostingBanner t={t} year={summaryDue.year} onOpen={() => setView("injury-summary")} />}
     {reportGroup(tr("Client reports"), clientReports)}
     {reportGroup(tr("Safety records"), safetyRecords)}
+    {reportGroup(tr("Kept records"), keptRecords)}
     {defs === null ?
       <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading reports...")}</div></Crd> :
       defsFailed ? <Crd t={t}><LoadFailed t={t} onRetry={loadDefs} /></Crd> :
@@ -10311,20 +11311,15 @@ function InspectionReviewLine({ af, t, token, resultId, line, signature, onSigne
 }
 
 function InspectionsPage({ af, token, showToast, canManageInspections = false, t, sites, allStaff, getOpts, lkMap, lkColorMap }) {
-  const lkCimsColors = lkColorMap("cims_categories");
   const lkCimsLabels = lkMap("cims_categories");
-  const CIMS_C = Object.keys(lkCimsColors).length > 0 ? lkCimsColors : { SD: BL, HSE: OR, GB: GR, QS: GOLD, HR: PU, MC: "#2C3E50" };
   const cimsLabels = Object.keys(lkCimsLabels).length > 0 ? lkCimsLabels : CIMS_LABELS;
-  const ZONES = ["General", "Common Areas", "Offices", "Restrooms", "Lobby", "Kitchen/Break Room", "All Areas", "Exterior", "Parking"];
+  const ZONES = INSPECTION_ZONES;
   // Where the page only shows one: a service category is the lookup's shown label, then the label
   // table's word; an item's label and zone are the display the API sent, then for a zone the zones
-  // lookup's shown label or the table's word for a zone this page offers, then the zone as typed.
-  // The template editor edits items, so it keeps each item's own English, and the exports keep the
-  // English words the API holds.
-  const lkCimsShown = lkMap("cims_categories", true);
-  const catWord = (c) => serviceCategoryWord(c, lkCimsShown);
-  const zoneChoice = choiceWordOf(lkMap, "zones");
-  const zoneWord = (it) => { const z = it.zone; if (!z) return z; if (it.display && it.display.zone) return it.display.zone; const w = zoneChoice(z); return w !== z ? w : (ZONES.indexOf(z) >= 0 ? tr(z + "|zone") : z); };
+  // lookup's shown label or the table's word for a zone this page offers, then the zone as typed
+  // (inspectionWordsOf, which the printed page shares). The template editor edits items, so it keeps
+  // each item's own English, and the exports keep the English words the API holds.
+  const { CIMS_C, catWord, zoneWord } = inspectionWordsOf(lkMap, lkColorMap);
   // An inspection's status is a code; the English keys are the codes, as the page has always drawn them.
   const inspStateWord = { scheduled: tr("scheduled|inspection"), in_progress: tr("in progress"), completed: tr("completed|inspection"), cancelled: tr("cancelled|inspection") };
   const stateOf = (st) => inspStateWord[st] || st.replace("_", " ");
@@ -10538,107 +11533,13 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     dlCSV("inspection-" + d.site_name.replace(/\s/g, "-") + "-" + d.scheduled_date + ".csv", hdr, rows);
   };
 
-  // The printed report. With capture in the answer (Step 218) it carries every photo on each card,
-  // the photos of the whole inspection, and the signature, read with the token and embedded as a data
-  // URL. The window opens in the click, so a popup blocker lets it through, and is written once the
-  // signature is read.
+  // The printed report, the same page the kept record prints for each inspection (printInspections).
+  // The window opens in the click, so a popup blocker lets it through, and is written once the
+  // signatures are read.
   const exportPrint = async (d) => {
-    const w = window.open("", "_blank");
+    const w = keptWindow();
     if (!w) return;
-    const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-    const many = !!d.capture;
-    const sigs = [];
-    if (many) {
-      for (const sg of (Array.isArray(d.signatures) ? d.signatures : [])) {
-        let url = "";
-        if (sg && sg.path) {
-          try {
-            const f = await apiDownload(sg.path, token);
-            url = await new Promise((resolve) => { const fr = new FileReader(); fr.onload = () => resolve(String(fr.result || "")); fr.onerror = () => resolve(""); fr.readAsDataURL(f.blob); });
-          } catch (e) { console.warn("Inspection signature:", e.message); }
-        }
-        const ln = sg && Array.isArray(d.lines) ? d.lines.find(x => x && x.line === sg.line) : null;
-        sigs.push({ url, name: sg ? sg.signerName : "", at: sg ? sg.signedAt : null, label: ln ? builderText(ln.label) : "" });
-      }
-    }
-    const photoImgs = (urls, size) => urls.map(u => '<img src="' + esc(u) + '" style="width:' + size[0] + 'px;height:' + size[1] + 'px;object-fit:cover;border-radius:4px;margin:2px" />').join("");
-    const overall = many ? inspectionOverallPhotosOf(d) : [];
-    const pct = d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : 0;
-    const scoreColor = pct >= 80 ? "#2ECC71" : pct >= 60 ? "#F39C12" : "#E74C3C";
-    const itemRows = (d.items || []).map(item => {
-      const sr = (d.scores || []).find(s => s.template_item_id === item.id);
-      const iPct = sr && item.max_score > 0 ? Math.round((sr.score / item.max_score) * 100) : 0;
-      const iColor = iPct >= 80 ? "#2ECC71" : iPct >= 60 ? "#F39C12" : "#E74C3C";
-      const barW = Math.round((iPct / 100) * 200);
-      return `
-        <tr style="border-bottom:1px solid #eee">
-          <td style="padding:10px 8px;font-size:13px;font-weight:600">${shownItem(item).label}</td>
-          <td style="padding:10px 8px;font-size:12px;color:#666">${zoneWord(item)}</td>
-          <td style="padding:10px 8px;text-align:center">
-            <span style="background:${(CIMS_C[item.cims_category] || "#3498DB") + "22"};color:${CIMS_C[item.cims_category] || "#3498DB"};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700">${catWord(item.cims_category)}</span>
-          </td>
-          <td style="padding:10px 8px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div style="background:#eee;border-radius:4px;height:8px;width:200px;overflow:hidden">
-                <div style="background:${iColor};height:100%;width:${barW}px;border-radius:4px"></div>
-              </div>
-              <span style="font-weight:700;color:${iColor};font-size:13px">${sr ? sr.score : "--"}<span style="color:#999;font-weight:400;font-size:11px">/${item.max_score}</span></span>
-            </div>
-          </td>
-          <td style="padding:10px 8px;font-size:12px;color:#555;max-width:160px">${sr?.notes || ""}</td>
-          <td style="padding:10px 8px;text-align:center">${many ? photoImgs(inspectionPhotosOf(sr), [80, 60]) : (sr?.photo_url ? `<img src="${sr.photo_url}" style="width:80px;height:60px;object-fit:cover;border-radius:4px" />` : "")}</td>
-        </tr>`;
-    }).join("");
-
-    const html = `<!DOCTYPE html><html><head><title>${tr("Inspection Report")}</title>
-      <style>body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1a1a1a;margin:0;padding:32px}
-      table{width:100%;border-collapse:collapse}th{background:${NAVY_DARK};color:#fff;padding:10px 8px;font-size:11px;text-align:left;text-transform:uppercase;letter-spacing:1px}
-      @media print{body{padding:16px}}</style></head>
-      <body>
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;padding-bottom:20px;border-bottom:3px solid ${GOLD}">
-          <div>
-            <div style="font-size:22px;font-weight:700;color:${NAVY_DARK}">${tr("Inspection Report")}</div>
-            <div style="font-size:14px;color:#555;margin-top:4px">${d.template_name}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px">${clientConfig.company.name}</div>
-          </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
-          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Site")}</div>
-            <div style="font-size:14px;font-weight:600">${d.site_name}</div>
-          </div>
-          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Scheduled Date")}</div>
-            <div style="font-size:14px;font-weight:600">${fmtDate(d.scheduled_date)}</div>
-          </div>
-          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Completed|inspection")}</div>
-            <div style="font-size:14px;font-weight:600">${fmtDT(d.result.completed_at)}</div>
-          </div>
-          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Completed By")}</div>
-            <div style="font-size:14px;font-weight:600">${d.result.completed_by_name || "--"}</div>
-          </div>
-          <div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px">
-            <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Overall Score")}</div>
-            <div style="font-size:24px;font-weight:700;color:${scoreColor}">${pct}% <span style="font-size:13px;color:#888;font-weight:400">${tr("{0}/{1} pts", d.result.total_score, d.result.max_possible_score)}</span></div>
-          </div>
-          ${d.result.overall_notes ? `<div style="padding:14px;border:1px solid #e0e0e0;border-radius:8px"><div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">${tr("Notes")}</div><div style="font-size:13px;color:#333">${d.result.overall_notes}</div></div>` : ""}
-        </div>
-        <table>
-          <thead><tr><th>${tr("Item")}</th><th>${tr("Zone")}</th><th>${tr("Category")}</th><th>${tr("Score")}</th><th>${tr("Notes")}</th><th>${tr("Photo")}</th></tr></thead>
-          <tbody>${itemRows}</tbody>
-        </table>
-        ${overall.length ? `<div style="margin-top:20px"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Photos of the whole inspection")}</div>${photoImgs(overall, [160, 120])}</div>` : ""}
-        ${many ? `<div style="margin-top:20px;page-break-inside:avoid"><div style="font-size:12px;font-weight:700;color:${NAVY_DARK};text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">${tr("Signature")}</div>${sigs.length ? sigs.map(sg => `<div style="margin-bottom:10px">${sg.label ? `<div style="font-size:11px;font-weight:700;color:#333;margin-bottom:4px">${esc(sg.label)}</div>` : ""}${sg.url ? `<img src="${sg.url}" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />` : ""}<div style="font-size:12px;color:#333">${esc(tr("Signed by {0}, {1}", sg.name || "--", sg.at ? fmtDT(sg.at) : "--"))}</div></div>`).join("") : `<div style="font-size:12px;color:#888">${tr("Not signed")}</div>`}</div>` : ""}
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #eee;font-size:10px;color:#aaa;text-align:center">${tr("Generated by {0} Operations Platform", clientConfig.company.shortName)}</div>
-      </body></html>`;
-
-    w.document.write(html);
-    w.document.close();
-    setTimeout(() => w.print(), 600);
+    await printInspections(w, [d], { token, words: { CIMS_C, catWord, zoneWord } });
   };
 
   // The analytics export, a data file: its columns and words stay the English the API holds.
@@ -17936,6 +18837,17 @@ function ClearancesPage({ af, token, t, sites = [] }) {
     catch (e) { setExportError(e.message || tr("Request failed")); }
     setExporting(false);
   };
+  // Step 239: the site's tracking record, OCSA-FRM-035, the same print the kept record makes.
+  const [printNote, setPrintNote] = useState("");
+  const printRecord = async () => {
+    if (!siteId) return;
+    const w = keptWindow();
+    if (!w) { setPrintNote(tr("Allow pop-ups to print")); return; }
+    setPrintNote("");
+    const site = (sites || []).find(s => String(s.id) === String(siteId));
+    try { await printClearanceTracking(af, w, siteId, site ? site.name : ""); }
+    catch (e) { try { w.close(); } catch (x) {} setPrintNote(e.message || tr("Request failed")); }
+  };
   const cell = (c) => (<div style={{ whiteSpace: "nowrap" }}><ClearanceChip state={(c && c.state) || "missing"} />{c && c.expiresOn ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{fdLong(c.expiresOn)}</div> : null}</div>);
   const cols = [
     { header: tr("Name"), tdStyle: { minWidth: 150 }, render: p => (<span><span style={{ fontWeight: 600, color: t.text }}>{p.name}</span>{p.status && p.status !== "active" ? <div style={{ fontSize: 11, color: t.textMut }}>{personStatusWord(p.status)}</div> : null}</span>) },
@@ -17956,9 +18868,11 @@ function ClearancesPage({ af, token, t, sites = [] }) {
       <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         {!siteId && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Pick a site to export it for the school.")}</span>}
         <Btn t={t} v="ghost" onClick={exportCsv} disabled={!siteId || exporting} style={{ minHeight: 44 }}>{exporting ? tr("Downloading...") : tr("Export for a school")}</Btn>
+        <Btn t={t} v="ghost" onClick={printRecord} disabled={!siteId} style={{ minHeight: 44 }}>{tr("Print the tracking record")}</Btn>
       </div>
     </div>
     {exportError && <div data-clearances-export-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{exportError}</div>}
+    {printNote && <div role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{printNote}</div>}
     {rows === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
       failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
       <DataTable t={t} columns={cols} rows={rows} rowKey={p => p.userId} onRowClick={p => openClearancesOf(p.userId)} empty={tr("No one matches.")} />}
@@ -18551,7 +19465,7 @@ function PersonDiscipline({ af, t, token, userId, name, isAdmin = false, showToa
   </Crd>);
 }
 
-function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, focusClearances = false, isAdmin = false, canOpenStaff = false }) {
+function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBack, onAddDocument, onAddTraining, onEditDocument, onDeleteDocument, onEditTraining, getOpts, lkMap, allStaff, sites = [], focusClearances = false, isAdmin = false, canOpenStaff = false }) {
   const [data, setData] = useState(null);
   // The role under the person's name, the same way the grid and Staff Management draw it.
   const roleOf = (r) => lkMap("staff_roles", true)[r] || roleWord(r);
@@ -18722,6 +19636,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonEmployment af={af} t={t} userId={userId} canOpenStaff={canOpenStaff} />
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
+      <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -19383,6 +20298,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
           userId={folderUserId}
           refreshKey={folderRefresh}
           allStaff={allStaff}
+          sites={sites}
           getOpts={getOpts}
           lkMap={lkMap}
           onBack={() => openFolder(null)}
@@ -19448,7 +20364,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
           </div>
         </div>
-        <TrainingGapsPanel af={af} t={t} sites={sites} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />
+        <TrainingGapsPanel af={af} t={t} sites={sites} staff={allStaff} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -19711,7 +20627,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </Mdl>}
 
       {/* LOG TRAINING FOR SEVERAL PEOPLE */}
-      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
+      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
 
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
@@ -19765,41 +20681,6 @@ const trainingDayWords = (day, long) => {
 };
 // The line each language a session's records name reads on a screen and on a printed page, once each.
 const trainingGivenIn = (rows) => (rows || []).map((r) => trainingLanguageOf(r.notes)).filter((l, i, all) => l && all.indexOf(l) === i).map((l) => tr(l.note));
-
-// The attendance sheet for one session, a training name on one day: what it was, who gave it and in
-// which language, and every person logged for it with a line to sign beside each. It serves payroll and
-// the file, and like every printed page it is drawn in the language of the screen. False when the
-// browser would not open the window.
-function printAttendanceSheet({ name, day, rows, typeWords = {} }) {
-  const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const once = (list) => list.filter((v, i) => v && list.indexOf(v) === i);
-  const people = (rows || []).slice().sort((a, b) => String(a.user_name || "").localeCompare(String(b.user_name || ""), localeTag()));
-  const types = once((rows || []).map((r) => typeWords[r.training_type] || r.training_type || ""));
-  const trainers = once((rows || []).map((r) => String(r.administered_by || "").trim()));
-  const cName = clientConfig.company.name;
-  const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222}.brand{border-bottom:3px solid ' + GOLD + ';padding-bottom:10px;margin-bottom:14px}.co{font-size:20px;font-weight:700;color:' + NAVY + '}h1{color:' + NAVY + ';font-size:20px;margin:10px 0 8px}.facts{border-collapse:collapse;margin:0 0 6px}.facts th{text-align:left;font-size:11px;color:#555;font-weight:600;padding:3px 14px 3px 0;vertical-align:top}.facts td{font-size:12px;padding:3px 0}.given{font-size:12px;font-weight:700;margin:0 0 14px}.people{border-collapse:collapse;width:100%}.people th{background:' + NAVY + ';color:' + GOLD + ';text-align:left;font-size:11px;padding:6px 8px;border:1px solid #ddd}.people td{border:1px solid #ddd;padding:14px 8px;font-size:12px}.people .n{width:28px;text-align:right}.people .sign{width:45%}.meta{font-size:11px;color:#666;margin-top:10px}.footer{margin-top:24px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Attendance sheet")) + '</title>' + style + '</head><body>'
-    + '<div class="brand"><div class="co">' + esc(cName) + '</div></div>'
-    + '<h1>' + esc(tr("Attendance sheet")) + '</h1>'
-    + '<table class="facts"><tbody>'
-    + '<tr><th>' + esc(tr("Training Name")) + '</th><td>' + esc(name) + '</td></tr>'
-    + '<tr><th>' + esc(tr("Date")) + '</th><td>' + esc(trainingDayWords(day, true)) + '</td></tr>'
-    + '<tr><th>' + esc(tr("Training Type")) + '</th><td>' + esc(types.join(", ")) + '</td></tr>'
-    + '<tr><th>' + esc(tr("Administered By")) + '</th><td>' + esc(trainers.join(", ")) + '</td></tr>'
-    + '</tbody></table>'
-    + '<p class="given">' + esc(trainingGivenIn(rows).join(", ")) + '</p>'
-    + '<table class="people"><thead><tr><th class="n">#</th><th>' + esc(tr("Employee")) + '</th><th class="sign">' + esc(tr("Signature")) + '</th></tr></thead><tbody>'
-    + people.map((r, i) => '<tr><td class="n">' + (i + 1) + '</td><td>' + esc(r.user_name) + '</td><td class="sign"></td></tr>').join("")
-    + '</tbody></table>'
-    + '<p class="meta">' + esc(trn("{0} person logged|count", people.length)) + ' &middot; ' + esc(tr("Generated {0}", new Date().toLocaleString(localeTag()))) + '</p>'
-    + '<div class="footer">' + esc(cName) + ' &middot; ' + esc(tr("Attendance sheet")) + '</div>'
-    + '</body></html>';
-  const w = window.open("", "_blank");
-  if (!w) return false;
-  w.document.write(html); w.document.close();
-  setTimeout(() => w.print(), 400);
-  return true;
-}
 
 // A person as the HR routes send one, which a supervisor may read, in the shape the staff list's
 // readers know: id, first and last name, the two joined, role and status.
@@ -19871,7 +20752,7 @@ function useSitePeople(af, siteId) {
 // training name on the same day is left out and named, so a second press logs nobody twice. The people
 // are everyone active, or the active people a site's record lists as assigned there, which is how
 // Shift Pickup reads a site's people.
-function LogTrainingWindow({ af, t, sites = [], typeOpts, typeWords, onClose, onSaved }) {
+function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords, onClose, onSaved }) {
   const [people, peopleError] = useActivePeople(af);
   const [known, setKnown] = useState([]);
   const [form, setForm] = useState(() => ({ name: "", type: "", date: todayISO(), by: "", lang: "" }));
@@ -19938,7 +20819,7 @@ function LogTrainingWindow({ af, t, sites = [], typeOpts, typeWords, onClose, on
       for (let i = 0; i < queue.length; i += 1) {
         const p = queue[i];
         try {
-          const row = await af("/api/hr/training", { method: "POST", body: { user_id: p.id, training_name: name, training_type: form.type, completed_date: form.date, administered_by: form.by.trim() || null, notes: lang.note } });
+          const row = await af("/api/hr/training", { method: "POST", body: { user_id: p.id, training_name: name, training_type: form.type, completed_date: form.date, administered_by: form.by.trim() || null, notes: lang.note, ...(siteId ? { siteId } : {}) } });
           saved.push({ ...row, user_name: p.name });
         } catch (e) {
           failed.push({ person: p, why: e.message });
@@ -19947,7 +20828,7 @@ function LogTrainingWindow({ af, t, sites = [], typeOpts, typeWords, onClose, on
         }
         setProgress({ saved: saved.length, total: queue.length });
       }
-      setResult({ name, day: form.date, already, failed, rows: had.concat(saved) });
+      setResult({ name, day: form.date, already, failed, rows: had.concat(saved), site: ((sites || []).find((x) => String(x.id) === siteId) || {}).name || "" });
       if (saved.length) { setKnown((k) => saved.concat(k)); onSaved(); }
     } catch (e) {
       setError(e.message);
@@ -20015,7 +20896,7 @@ function LogTrainingWindow({ af, t, sites = [], typeOpts, typeWords, onClose, on
           <Btn t={t} v="ghost" disabled={busy} onClick={() => save(result.failed.map((f) => f.person))} style={tall}>{tr("Try again")}</Btn>
         </div>}
         {result && result.rows.length > 0 && <div>
-          <Btn t={t} v="ghost" disabled={busy} onClick={() => { if (!printAttendanceSheet({ name: result.name, day: result.day, rows: result.rows, typeWords })) setError(tr("Allow pop-ups to print the sheet")); }} style={tall}>{tr("Print attendance sheet")}</Btn>
+          <Btn t={t} v="ghost" disabled={busy} onClick={() => { if (!printAttendanceSheet({ name: result.name, day: result.day, rows: result.rows, typeWords, site: result.site, staff })) setError(tr("Allow pop-ups to print the sheet")); }} style={tall}>{tr("Print attendance sheet")}</Btn>
         </div>}
       </div></div>
       <div style={{ position: "sticky", bottom: 0, background: t.card, borderTop: "1px solid " + t.border, padding: "12px 20px", display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -20030,7 +20911,7 @@ function LogTrainingWindow({ af, t, sites = [], typeOpts, typeWords, onClose, on
 // with no record of that training name. Training closes on October 29, when every active person has
 // all three pieces on record, so this is the list that closes it. The records are read again each time
 // the tab reads its own, so a save anywhere on the tab is counted here.
-function TrainingGapsPanel({ af, t, sites = [], refreshKey, typeWords, showToast }) {
+function TrainingGapsPanel({ af, t, sites = [], staff = [], refreshKey, typeWords, showToast }) {
   const [people, peopleError] = useActivePeople(af);
   const [rows, setRows] = useState(null);
   const [rowsError, setRowsError] = useState("");
@@ -20059,7 +20940,8 @@ function TrainingGapsPanel({ af, t, sites = [], refreshKey, typeWords, showToast
     });
     return Array.from(byDay.keys()).sort().reverse().map((day) => ({ day, rows: byDay.get(day) }));
   }, [rows, pick]);
-  const printSession = (s) => { if (!printAttendanceSheet({ name: pick, day: s.day, rows: s.rows, typeWords })) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
+  const siteName = ((sites || []).find((x) => String(x.id) === siteId) || {}).name || "";
+  const printSession = (s) => { if (!printAttendanceSheet({ name: pick, day: s.day, rows: s.rows, typeWords, site: siteName, staff })) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
   const error = peopleError || rowsError || siteError;
   return (
     <section aria-label={tr("Who has no record")} style={{ background: t.card, border: "1px solid " + t.border, borderRadius: R.lg, padding: 16, marginBottom: 16, boxShadow: t.shadow }}>

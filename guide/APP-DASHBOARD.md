@@ -49,12 +49,12 @@ Last checked: 2026-09-27
 ## See your notifications (admin dashboard)
 Who can do this: admins and supervisors
 1. Click the bell at the top. A number on it means unread notices.
-2. Click a notice to open what it is about. A notice about a filed report opens that report.
+2. Click a notice to open what it is about. A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, and one that periodic work is overdue opens the checklist of its site.
 3. Click **Mark all read** to clear the number.
 4. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
 5. Notices read in the language the dashboard is shown in. Switch the language and the list is read again in the new one.
 If it does not work: a notice about something only admins can open does not move you. The bell closes and says it is for admins. A notice written before notices could be read in either language shows in the words it was written in.
-Last checked: 2026-09-30
+Last checked: 2026-10-02
 
 ## Change who gets told about reports and requests (admin dashboard)
 Who can do this: admins
@@ -423,10 +423,10 @@ Who can do this: admins and supervisors
 6. Under **Language it was given in**, click **English**, **Spanish** or **French**.
 7. Under **Who attended**, pick a site to list its people, or keep **Everyone active** and use **Search by name**. Tick each person who attended, or click **Select all**. People ticked stay ticked when you switch sites.
 8. Click **Save**. The line under the list counts the records as they are saved, one person after another.
-9. Right after saving, **Print attendance sheet** prints the list with a line for each person to sign.
+9. Right after saving, **Print attendance sheet** prints the training attendance roster: the session, every person with a line to sign and a box for **Understood** (**Entendido**), and the trainer's attestation. A site picked under **Who attended** is saved with each record and printed on the roster.
 If it does not work: anyone under **Not saved** shows the reason; click **Try again** to send just those people. Anyone under **Already logged, not sent again** already has that training on that day, and is never logged twice.
 Words people use for this: log training, training attendance, sign in sheet, log a session, record who attended, orientation, skills sign-off.
-Last checked: 2026-09-26
+Last checked: 2026-10-02
 
 ## See who has no record of a training (admin dashboard)
 Who can do this: admins and supervisors
@@ -441,10 +441,11 @@ Last checked: 2026-09-26
 Who can do this: admins and supervisors
 1. Click **HR Records** in the menu, then the **Training** tab.
 2. Under **Who has no record**, pick the training in **Pick a training...**.
-3. Under **Sessions**, find the day and click **Print attendance sheet**. The sheet names the training, the day, the type, who gave it and the language, and lists every person logged, each with a line to sign.
+3. Under **Sessions**, find the day and click **Print attendance sheet**. It prints the approved **Training Attendance Roster** (**Lista de asistencia a la capacitación**), OCSA-FRM-033: the training, the day, the type, who gave it and the language, the form's other fields as lines to fill in, every person logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign. The site picked above is printed on it.
+4. To print every session at a site over a range of dates, use **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 If it does not work: allow pop-ups for the dashboard in the browser, then click **Print attendance sheet** again.
 Words people use for this: attendance sheet, print sign in sheet, training roster, payroll list for training.
-Last checked: 2026-09-26
+Last checked: 2026-10-02
 
 ## Write what was done and close a customer complaint (admin dashboard)
 Who can do this: any supervisor or admin other than the person who logged the complaint
@@ -997,9 +998,10 @@ Who can do this: admins and supervisors
 3. Narrow the list with the state filter, from **Every active person** (**Todas las personas activas**) to **Everyone, inactive and terminated included** (**Todos, incluidas las personas inactivas y dadas de baja**), or with a site.
 4. Click a row to open that person's clearances.
 5. To give a school its people's clearances, pick the site and click **Export for a school** (**Exportar para una escuela**). The file lists each person's name, badge number, clearance dates and Act 168 review date, and every export is recorded.
+6. **Print the tracking record** (**Imprimir el registro de seguimiento**) prints the site's **School Clearance Tracking Record** (**Registro de seguimiento de autorizaciones escolares**) as of today, the approved form, OCSA-FRM-035.
 If it does not work: **Export for a school** (**Exportar para una escuela**) waits until a site is picked.
 Words people use for this: clearance report, who is expiring, expired clearances, school district list, export clearances, autorizaciones vencidas.
-Last checked: 2026-10-01
+Last checked: 2026-10-02
 
 ## When a person's clearances are missing (admin dashboard)
 Who can do this: admins and supervisors
@@ -1101,10 +1103,10 @@ Who can do this: anyone who can open Inspections
 3. **Photos of the whole inspection** (**Fotos de toda la inspección**) holds the photos taken of the inspection as a whole.
 4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
-6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
+6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
-Last checked: 2026-10-01
+Last checked: 2026-10-02
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -1384,20 +1386,20 @@ Last checked: 2026-10-01
 ## Add, open or remove a project's files (admin dashboard)
 Who can do this: the project's members
 1. Open the project from **Workspace** (**Espacio de trabajo**) and click the **Docs and Files** (**Documentos y archivos**) card.
-2. Click **Upload** (**Subir**) and choose one file: a document, an image or a PDF, up to 25 MB.
+2. Click **Upload** (**Subir**) and choose one file, up to 25 MB: a Word, Excel or PowerPoint document, a CSV or text file, an image or a PDF.
 3. Each file shows who added it, when, and its size. **Open** (**Abrir**) opens it, and **Download** (**Descargar**) saves it.
 4. **Remove** (**Quitar**) takes a file out of the project; the person who added it, a project owner or an admin can remove it.
 If it does not work: a file over 25 MB is stopped before it is sent. A kind of file the server does not take is refused in the server's own words.
 Words people use for this: files, documents, upload a file, share a file, project files, attach a file, archivos.
-Last checked: 2026-10-01
+Last checked: 2026-10-02
 
 ## Get email copies of a project's posts (admin dashboard)
 Who can do this: the project's members
 1. Open the project from **Workspace** (**Espacio de trabajo**).
 2. Tick **Email me copies** (**Enviarme copias por correo**) under the project's name to get each new post, and every comment on a post, by email. Untick it to stop.
-3. The email says to reply in the app. A reply to the email is not read.
+3. The email's link opens the post in its project. The email says to reply in the app. A reply to the email is not read.
 Words people use for this: email copies, email me posts, project emails, stop project emails, copias por correo.
-Last checked: 2026-10-01
+Last checked: 2026-10-02
 
 ## Archive a project, or bring it back (admin dashboard)
 Who can do this: a project's owners, and admins
@@ -1418,3 +1420,129 @@ Who can do this: the super admin, and anyone given the chat records permission. 
 If it does not work: a date range that runs backward is refused. A search shows at most 2,000 messages; narrow it to see the rest.
 Words people use for this: chat records, search messages, chat history, find a message, chat export, registros del chat.
 Last checked: 2026-10-01
+
+## Print a site's zone cleaning checklists (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**) in the menu on the left. Under **Kept records** (**Registros conservados**), find **Master Zone Cleaning Checklist** (**Lista de verificación maestra de limpieza por zona**) and click **Open** (**Abrir**).
+2. Pick the **Site** (**Sitio**) and the dates. One print covers 31 days at most.
+3. The line beside **Print** (**Imprimir**) says how many checklists the dates hold: one for each zone on each day and shift the checklist was due.
+4. Click **Print** (**Imprimir**). Each checklist prints on the approved form, OCSA-FRM-003, with its version, the site, the dates and the day it was printed. The day's tasks show who did them, when, and their initials; anything not done is listed under **Anything Not Done** (**Lo que no se hizo**); the rest of the form prints as blank lines to fill in by hand.
+If it does not work: allow pop-ups for the dashboard, then click **Print** (**Imprimir**) again. A range longer than 31 days is refused; print it a month at a time.
+Words people use for this: binder, cleaning logs, records, zone checklist, daily checklist, print the checklists, assessor, kept records, registros conservados.
+Last checked: 2026-10-02
+
+## Print a site's disinfection coverage logs (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Disinfection Coverage Log** (**Registro de cobertura de desinfección**) and click **Open** (**Abrir**).
+2. Pick the **Site** (**Sitio**) and the dates, 31 days at most.
+3. Click **Print** (**Imprimir**). One log prints for each day and shift, on the approved form, OCSA-FRM-021. It lists the checklist's touchpoints, a high, critical or urgent one under **Critical Touchpoints** (**Puntos de contacto críticos**) and the rest under **Standard Touchpoints and Shared Surfaces** (**Puntos de contacto estándar y superficies compartidas**), each with the time it was treated and who treated it. One not treated is listed under **Items Not Treated** (**Elementos no tratados**).
+4. The product, its contact time and the response level are filled in by hand.
+If it does not work: nothing to print means the site's checklist has no touchpoint yet; see the entry on marking a checklist item as a touchpoint.
+Words people use for this: disinfection log, touchpoint log, high touch, coverage log, binder, logs, registro de desinfeccion.
+Last checked: 2026-10-02
+
+## Print a site's chemical usage log (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Chemical Usage Log** (**Registro de uso de productos químicos**) and click **Open** (**Abrir**).
+2. Pick the **Site** (**Sitio**) and the dates. The line beside **Print** (**Imprimir**) says how many chemical uses were logged in them.
+3. Click **Print** (**Imprimir**). One log prints for each month, on the approved form, OCSA-FRM-018: every chemical logged at the site that month, with the day, the product, how much and the initials of who logged it, and each product's total under **Used** (**Usado**).
+4. Dilution, the area, the stock count and the observations are filled in by hand.
+Words people use for this: chemical log, chemical usage, logs, binder, records, product use, registro de quimicos.
+Last checked: 2026-10-02
+
+## Print a site's PPE compliance log (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **PPE Compliance Log** (**Registro de cumplimiento de EPP**) and click **Open** (**Abrir**).
+2. Pick the **Site** (**Sitio**) and the dates.
+3. Click **Print** (**Imprimir**). One log prints for each month, on the approved form, OCSA-FRM-019. **Equipment Issue Record** (**Registro de entrega de equipo**) lists what was issued that month, to whom, its size and quantity, whether it fit, and the person's signature. This month's log also lists the site's PPE stock under **Stock Check** (**Revisión de existencias**), as of today.
+4. The observations and shortages are filled in by hand.
+Words people use for this: ppe log, ppe records, gloves issued, safety glasses issued, binder, logs, registro de epp.
+Last checked: 2026-10-02
+
+## Print a site's school clearance tracking record (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **School Clearance Tracking Record** (**Registro de seguimiento de autorizaciones escolares**) and click **Open** (**Abrir**). Or, on **Clearances** (**Autorizaciones escolares**), pick the site and click **Print the tracking record** (**Imprimir el registro de seguimiento**).
+2. Pick the **Site** (**Sitio**). The record is as of today.
+3. Click **Print** (**Imprimir**). The approved form, OCSA-FRM-035, lists everyone at the site with each clearance's issue and expiry dates, Act 114 being the FBI fingerprint check, the day of the Act 168 review, and a status: **Clear** (**Al día**), **Notice** (**Aviso**) at 120 days or fewer to the earliest expiry, **Follow up** (**Seguimiento**) at 60, **At risk** (**En riesgo**) at 30, and **Expired** (**Vencida**) once any is past its date. A person without all three clearances or the review reads **Missing** (**Falta**).
+4. **Monthly Review** (**Revisión mensual**) prints blank, to be signed by hand.
+Words people use for this: clearance record, clearance tracking, school clearances, expiring clearances, binder, records, registro de autorizaciones.
+Last checked: 2026-10-02
+
+## Print a site's inspections for the assessor (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Inspections** (**Inspecciones**) and click **Open** (**Abrir**).
+2. Pick the **Site** (**Sitio**) and the dates. The line beside **Print** (**Imprimir**) says how many inspections were completed in them.
+3. Click **Print** (**Imprimir**). Each completed inspection prints on its own page, headed by its kind and its form: OCSA-FRM-001 for a supervisor inspection and OCSA-FRM-002 for an audit, with the photos and the signatures.
+4. One inspection's **Export PDF** (**Exportar PDF**) prints the same page.
+Words people use for this: inspection records, inspection reports, audit records, binder, print all inspections, frm-001, frm-002.
+Last checked: 2026-10-02
+
+## Print a site's training attendance rosters (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Training Attendance Roster** (**Lista de asistencia a la capacitación**) and click **Open** (**Abrir**).
+2. Pick the **Site** (**Sitio**) and the dates. A record saved with a site counts for that site; one saved before records carried a site counts for the site its person is assigned to.
+3. Click **Print** (**Imprimir**). One roster prints for each session, a training on one day, on the approved form, OCSA-FRM-033: the session, the trainer, everyone logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign.
+Words people use for this: attendance sheet, sign in sheet, training roster, training records, binder, records, lista de asistencia.
+Last checked: 2026-10-02
+
+## Issue PPE to someone (admin dashboard)
+Who can do this: admins and supervisors
+1. Open the person's folder in **HR Records** (**Expedientes de personal**), or open the site in **Sites** (**Sitios**) and click the **Supplies** (**Suministros**) tab.
+2. Under **PPE issued** (**EPP entregado**), click **Issue PPE** (**Entregar EPP**).
+3. From a person's folder, pick the **Site** (**Sitio**); from a site, pick the **Person** (**Persona**).
+4. Pick the **Item** (**Elemento**) from the site's PPE stock, or **Something else, typed** (**Otra cosa, escrita**) and type what was issued.
+5. Fill in **Size** (**Talla**) and **Quantity** (**Cantidad**), and answer **Fits well?** (**¿Le queda bien?**) with **Yes** (**Sí**) or **No** (**No**). Add a **Note** (**Nota**) if there is one.
+6. Hand the screen to the person. They draw their signature and click **Sign** (**Firmar**).
+7. Click **Save** (**Guardar**). The issue shows under **PPE issued** (**EPP entregado**), and **Signature** (**Firma**) shows the drawing. Each issue prints on the PPE compliance log.
+If it does not work: **Save** (**Guardar**) waits until there is a site, an item, a quantity of 1 or more, an answer to **Fits well?** (**¿Le queda bien?**) and a signature. A box the server refuses is marked in red with the reason under it.
+Words people use for this: issue ppe, hand out gloves, safety glasses, ppe sign off, ppe records, entregar epp.
+Last checked: 2026-10-02
+
+## Keep the equipment register (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Equipment** (**Equipo**) under **Supplies** (**Suministros**) in the menu on the left.
+2. Each item shows its **Site** (**Sitio**), its **Status** (**Estado**), its **Next service** (**Próximo servicio**), red once due, and its **Latest event** (**Último evento**). Narrow the list by site, by status, or with **Service due** (**Servicio pendiente**). **All but retired** (**Todos menos los dados de baja**) leaves the retired items out; pick **Retired** (**Dado de baja**) under status to see them.
+3. To add one, click **Add equipment** (**Agregar equipo**). Fill in the **Name** (**Nombre**) and the **Site** (**Sitio**), and any of **Type** (**Tipo**), **Make** (**Marca**), **Model** (**Modelo**), **Serial number** (**Número de serie**), **Bought on** (**Comprado el**), **Service every (days)** (**Servicio cada (días)**), **Last serviced on** (**Último servicio el**) and **Notes** (**Notas**). Click **Save** (**Guardar**), and the item's page opens.
+4. On an item's page, **Record service** (**Registrar servicio**) records a service and moves **Next service** (**Próximo servicio**) on by its days; **Repair** (**Reparar**) records a repair; **Move** (**Trasladar**) moves it to another site; **Edit** (**Editar**) changes its details.
+5. **Retire** (**Dar de baja**) asks first. A retired item stays on the register, and nothing more can be recorded against it.
+6. A notice that an item's service is due opens the item.
+Words people use for this: equipment list, machines, floor machines, asset list, scrubbers, service schedule, equipment register, equipo.
+Last checked: 2026-10-02
+
+## Print equipment labels (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Equipment** (**Equipo**) under **Supplies** (**Suministros**) in the menu on the left.
+2. Tick the items that need a label. A retired item has no box, since it takes no label.
+3. Click **Print labels** (**Imprimir etiquetas**). A sheet of labels, labels.pdf, is saved: each label has the item's name, its site and its QR code, which opens the item on the staff portal.
+If it does not work: **Print labels** (**Imprimir etiquetas**) waits until an item is ticked.
+Words people use for this: qr labels, asset tags, equipment stickers, label the machines, imprimir etiquetas.
+Last checked: 2026-10-02
+
+## Tag out a piece of equipment, and return it to service (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Equipment** (**Equipo**) and open the item.
+2. Click **Tag out** (**Retirar de servicio**), say **What is wrong** (**Qué falla**), and click **Tag out** (**Retirar de servicio**) again. The item is **Out of service** (**Fuera de servicio**), and the site's supervisors and the admins are told.
+3. Once it is fixed, open it again and click **Return to service** (**Devolver al servicio**). It is **In service** (**En servicio**) again.
+4. A notice that an item was tagged out opens the item.
+If it does not work: **Tag out** (**Retirar de servicio**) waits until something is written under **What is wrong** (**Qué falla**).
+Words people use for this: out of order, red tag, broken machine, do not use, tag out, retirar de servicio.
+Last checked: 2026-10-02
+
+## See periodic work across every site (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **Sites** (**Sitios**) in the menu on the left. **Periodic work** (**Trabajo periódico**) is at the top of the page.
+2. Every site's weekly, every two weeks, monthly, quarterly and seasonal checklist items are listed with **Last done** (**Última vez**), **By** (**Por**), and whether each is **Overdue** (**Vencido**), **Due** (**Pendiente**) or **Done** (**Hecho**) this period. The tabs above narrow the list.
+3. **Next due** (**Próximo vencimiento**) is the first day of the period an item next owes work in, and **Due by** (**Fecha límite**) the last day of it, red once it has passed. A week runs Monday to Sunday, and a month and a quarter are the calendar's.
+4. Click a row to open that site's checklist.
+5. A notice that periodic work is overdue opens the checklist of its site.
+Words people use for this: strip and wax schedule, periodic cleaning, deep cleaning, monthly tasks, quarterly tasks, overdue work, trabajo periodico.
+Last checked: 2026-10-02
+
+## Mark a checklist item as a touchpoint (admin dashboard)
+Who can do this: anyone who can change a site's tasks
+1. Click **Sites** (**Sitios**), open the site, and click the **Service Details** (**Detalles del servicio**) tab.
+2. Click a task to edit it, or click **Add Task** to add one.
+3. Tick **Touchpoint** (**Punto de contacto frecuente**): a high-touch surface disinfected on schedule, such as a door handle or a rail.
+4. Click **Save Changes**, or **Create** for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and prints on the disinfection coverage log.
+Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, punto de contacto frecuente.
+Last checked: 2026-10-02
