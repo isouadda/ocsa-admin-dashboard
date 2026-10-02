@@ -6254,6 +6254,8 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
       if (n.subjectId) onOpenHash("sites/" + n.subjectId + "/tasks"); else onOpenPage("sites");
       onClose(); return;
     }
+    // Step 243: a client's concern names its report, the Customer Complaint Log, and opens it.
+    if (n.subjectType === "customer_concern" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -15094,6 +15096,7 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
           {draft.source === "customer"
             ? <><Bdg l={tr("Customer")} c={BL} /><span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", customerLine(draft.customer))}</span></>
             : (row && row.userName && <span style={{ fontSize: 11, color: t.textMut }}>{tr("Filed by {0}", row.userName)}</span>)}
+          {(complaintForController(draft) || complaintForController(row)) && <Bdg l={tr("For the Controller")} c={PU} />}
         </div>}
         {draft && !submitted && !isVoid && <div style={{ fontSize: 11, color: t.textSec, marginTop: 6 }}>{tr("{0} answered, {1} to go", Number(draft.answered) || 0, Number(draft.remaining) || 0)}</div>}
       </div>
@@ -16930,6 +16933,39 @@ function SiteCustomerLinks({ af, token, t, siteId, onAllLinks }) {
   </div></Crd>);
 }
 
+// ===== A CLIENT'S CONCERN AND ITS DEADLINE (Step 243) =====
+// Since the API's Step 242 a client files the Customer Complaint Log, OCSA-FRM-009, from a customer
+// link (source customer), and the report carries dueAt, five working days after it was filed, and
+// answeredAt once the office answers (STEP242_CONTRACT_v2.md, section 2). A report whose client said
+// it is about how a member of staff treated them goes to the Controller, which the report says with
+// forController, or staffConduct where the API names it so. The Due column shows only once a 009
+// report in the list answers answeredAt, so an API before Step 242 shows the list it shows today.
+const COMPLAINT_FORM_CODE = "OCSA-FRM-009";
+const isComplaint = (r) => !!r && r.formCode === COMPLAINT_FORM_CODE;
+const complaintFromLink = (r) => isComplaint(r) && r.source === "customer";
+const complaintForController = (r) => isComplaint(r) && (r.forController === true || r.staffConduct === true);
+const complaintTimed = (r) => isComplaint(r) && Object.prototype.hasOwnProperty.call(r, "answeredAt");
+// Working days, Monday to Friday, after today up to and including the day due: 0 on the day itself.
+function workingDaysUntil(due, now) {
+  const last = new Date(due);
+  if (Number.isNaN(last.getTime())) return null;
+  last.setHours(0, 0, 0, 0);
+  const d = new Date(now == null ? Date.now() : now);
+  d.setHours(0, 0, 0, 0);
+  let n = 0;
+  while (d < last && n < 30) { d.setDate(d.getDate() + 1); const w = d.getDay(); if (w !== 0 && w !== 6) n++; }
+  return n;
+}
+// The Due cell's words and color: answered clears it, past the time is late in red, one working day
+// or less left is orange, and anything further off is the day it is due.
+function complaintDue(r) {
+  if (r.answeredAt) return { text: tr("Answered {0}", irDay(r.answeredAt)), color: null };
+  if (!r.dueAt) return { text: "--", color: null };
+  if (new Date(r.dueAt).getTime() < Date.now()) return { text: tr("Past due {0}", irDay(r.dueAt)), color: RD };
+  const left = workingDaysUntil(r.dueAt);
+  return { text: irDay(r.dueAt), color: left != null && left <= 1 ? OR : null };
+}
+
 function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], canManageSettings = false, openId, openRow, onOpen, onClose, onUnfinished, onOpenLinks }) {
   const [status, setStatus] = useState("submitted");
   // Void reports are listed for an admin once the API lists them (Step 179): one quiet read asks,
@@ -17081,13 +17117,22 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   // Step 169: a customer's filing has no account. The API sends userId null and the customer's name
   // and role where an account's name goes, so the column says Customer and names them under it.
   const customerCell = (r) => (<span>{tr("Customer")}{r.userName ? <div style={{ fontSize: 10, color: t.textMut }}>{r.userName}</div> : null}</span>);
-  // Where a filing came from, under its form name, when the API says.
-  const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}{r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
+  // Where a filing came from, under its form name, when the API says. A complaint a client filed from
+  // a link says From a client, and one about how a member of staff treated someone says For the
+  // Controller (Step 243).
+  const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}
+    {complaintFromLink(r) || complaintForController(r)
+      ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{complaintFromLink(r) && <Bdg l={tr("From a client")} c={BL} />}{complaintForController(r) && <Bdg l={tr("For the Controller")} c={PU} />}</div>
+      : r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
+  // A complaint's deadline, on a list that holds one the API times.
+  const timed = rows.some(complaintTimed);
+  const dueCell = (r) => { if (!complaintTimed(r)) return null; const d = complaintDue(r); return <span data-complaint-due="" style={{ color: d.color || t.textSec, fontWeight: d.color ? 600 : 400 }}>{d.text}</span>; };
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
     { header: tr("Form"), render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => (r.userId === null ? customerCell(r) : (r.userName || "--")) },
+    ...(timed ? [{ header: tr("Due"), tdStyle: { whiteSpace: "nowrap" }, render: dueCell }] : []),
   ];
   const draftCols = [
     { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
