@@ -1926,7 +1926,11 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     if (!profileEdit) return;
     setEmpIdError("");
     try {
-      await af("/api/users/" + profile.user.id, { method: "PATCH", body: profileEdit });
+      // The language goes only when it was changed, so the one the account holds, French among them,
+      // is never written over by the code the picker shows for it (Step 243).
+      const body = Object.assign({}, profileEdit);
+      if (langCode(body.preferredLanguage) === langCode(profile.user.preferredLanguage)) delete body.preferredLanguage;
+      await af("/api/users/" + profile.user.id, { method: "PATCH", body });
       showToast(tr("Profile updated"));
       setProfileEdit(null);
       openProfile(profile.user.id); load(); loadStaff();
@@ -2073,7 +2077,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
               <div><Lbl>{tr("Emergency Contact")}</Lbl><Inp t={t} value={pe.emergencyContactName || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactName: e.target.value })} placeholder={tr("Full name")} /></div>
               <div><Lbl>{tr("Emergency Phone")}</Lbl><Inp t={t} value={pe.emergencyContactPhone || ""} onChange={e => setProfileEdit({ ...pe, emergencyContactPhone: e.target.value })} placeholder={tr("Phone number")} /></div>
             </div>
-            <div style={{ marginBottom: 10 }}><Lbl>{tr("Preferred Language")}</Lbl><Sel t={t} aria-label={tr("Preferred Language")} value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={LANG_OPTS} /></div>
+            <div style={{ marginBottom: 10 }}><Lbl>{tr("Preferred Language")}</Lbl><Sel t={t} aria-label={tr("Preferred Language")} value={langCode(pe.preferredLanguage)} onChange={e => setProfileEdit({ ...pe, preferredLanguage: e.target.value })} options={langOptsFor(profile.user.preferredLanguage)} /></div>
             <div style={{ marginBottom: 14 }}><Lbl>{tr("Notes")}</Lbl><TArea t={t} value={pe.personalNotes || ""} onChange={e => setProfileEdit({ ...pe, personalNotes: e.target.value })} rows={3} placeholder={tr("Internal notes about this employee...")} /></div>
             <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => { setEmpIdError(""); setProfileEdit(null); }}>{tr("Cancel")}</Btn><Btn t={t} onClick={saveProfileInfo}>{tr("Save Changes")}</Btn></div>
           </div>}
@@ -5925,7 +5929,7 @@ function HelpInsightsPage({ af, t, sites = [], getOpts }) {
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Site")} value={filters.siteId} onChange={e => setFilter("siteId", e.target.value)} options={[{ v: "", l: tr("All sites") }, ...sites.map(s => ({ v: s.id, l: s.name }))]} /></div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Role")} value={filters.role} onChange={e => setFilter("role", e.target.value)} options={[{ v: "", l: tr("All roles") }, ...(getOpts ? getOpts("staff_roles", null, true) : [])]} /></div>
-      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Language")} value={filters.language} onChange={e => setFilter("language", e.target.value)} options={[{ v: "", l: tr("All languages") }, ...LANGUAGES.map(l => ({ v: l.id, l: l.label }))]} /></div>
+      <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("Language")} value={filters.language} onChange={e => setFilter("language", e.target.value)} options={[{ v: "", l: tr("All languages") }, ...RECORD_LANGUAGES.map(l => ({ v: l.id, l: l.label }))]} /></div>
       <div style={{ flex: "1 1 170px", minWidth: 150 }}><Sel t={t} aria-label={tr("App")} value={filters.app} onChange={e => setFilter("app", e.target.value)} options={[{ v: "", l: tr("All apps") }, { v: "portal", l: tr("Portal") }, { v: "dashboard", l: tr("Dashboard") }]} /></div>
     </div>
     {failed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
@@ -9565,9 +9569,22 @@ const patternDate = (d) => d ? new Date(String(d).length <= 10 ? d + "T00:00:00"
 // or without its accent.
 // Each language is named in its own tongue, whatever the screen is drawn in, since a person looks for
 // their own. The names are the ones the language control uses.
-const LANG_OPTS = LANGUAGES.map((x) => ({ v: x.id, l: x.label }));
-const langCode = (v) => { const x = String(v == null ? "" : v).trim().toLowerCase(); return (x === "es" || x === "spanish" || x.indexOf("espa") === 0) ? "es" : "en"; };
-const langLabel = (v) => (LANGUAGES.find((x) => x.id === langCode(v)) || LANGUAGES[0]).label;
+// The languages an account or a record may be kept in, which is one more than the screen speaks:
+// French, which the API reads in a Language filter (Step 195) and an account may already hold. Each
+// name is written in its own language, as LANGUAGES writes them (Step 243).
+const RECORD_LANGUAGES = LANGUAGES.concat([{ id: "fr", label: "Fran\u00e7ais" }]);
+// A stored language read as its code. French stays French, so an account that holds it is never
+// read, shown or saved as English; anything this cannot read is English, as before.
+const langCode = (v) => {
+  const x = String(v == null ? "" : v).trim().toLowerCase();
+  if (x === "es" || x === "spanish" || x.indexOf("espa") === 0) return "es";
+  if (x === "fr" || x === "french" || x.indexOf("fran") === 0) return "fr";
+  return "en";
+};
+const langLabel = (v) => (RECORD_LANGUAGES.find((x) => x.id === langCode(v)) || LANGUAGES[0]).label;
+// The profile's choices: the screen's two languages, and French for an account that holds it, since
+// the API keeps an account in English or Spanish and refuses French when it is sent.
+const langOptsFor = (v) => (langCode(v) === "fr" ? RECORD_LANGUAGES : LANGUAGES).map((x) => ({ v: x.id, l: x.label }));
 const runsPastMidnight = (start, end) => !!start && !!end && String(end) < String(start);
 const OVERNIGHT_NOTE = "This shift runs past midnight. Pick the day it starts.";
 const todayISO = () => { const n = new Date(); return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, "0"), String(n.getDate()).padStart(2, "0")].join("-"); };
@@ -16867,7 +16884,7 @@ function CustomerLinksTab({ af, token, t, sites = [], siteFilter = "", onSiteFil
   return (<div data-customer-links-tab="">
     <Crd t={t} style={{ marginBottom: 14 }}>
       <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Make a link")}</div>
-      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Each link opens one form for one site. When the site already has that form's link on, it opens instead of a new one.")}</div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{tr("Each link opens one form for one site. A site has one link on for each form, and asking again opens that one.")}</div>
       <MakeLinkBar af={af} t={t} forms={forms} sites={sites} onMade={link => { replaceLink(link); setShownId(link.id); }} />
     </Crd>
     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>

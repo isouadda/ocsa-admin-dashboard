@@ -49,7 +49,7 @@ Last checked: 2026-09-27
 ## See your notifications (admin dashboard)
 Who can do this: admins and supervisors
 1. Click the bell at the top. A number on it means unread notices.
-2. Click a notice to open what it is about. A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, and one that periodic work is overdue opens the checklist of its site.
+2. Click a notice to open what it is about. A notice about a filed report opens that report. A notice that a piece of equipment was tagged out or is due for service opens the item, one that periodic work is overdue opens the checklist of its site, and one that a client reported a concern opens the report.
 3. Click **Mark all read** to clear the number.
 4. On a phone, or any window narrower than 700 pixels, the bell is inside **More** (**Más**), the three dots at the top right, as **Notifications** (**Avisos**); the unread number shows on the More button.
 5. Notices read in the language the dashboard is shown in. Switch the language and the list is read again in the new one.
@@ -89,10 +89,11 @@ Last checked: 2026-09-16
 
 ## Edit a staff member's information (admin dashboard)
 Who can do this: admins
-1. Click **Staff Management** and click the person's row to open their profile.
-2. On the **Profile** tab, click **Edit** on the contact information.
-3. Change what is needed and click **Save Changes**.
-Last checked: 2026-09-16
+1. Click **Staff Management** (**Gestión de personal**) and click the person's row to open their profile.
+2. On the **Profile** (**Perfil**) tab, click **Edit** (**Editar**) on the contact information.
+3. Change what is needed and click **Save Changes** (**Guardar los cambios**).
+4. **Preferred Language** (**Idioma preferido**) offers English and Español. A person whose language is French shows Français, and stays French when you save other changes.
+Last checked: 2026-10-02
 
 ## Reset a staff member's PIN (admin dashboard)
 Who can do this: admins
@@ -449,7 +450,7 @@ Last checked: 2026-10-02
 
 ## Write what was done and close a customer complaint (admin dashboard)
 Who can do this: any supervisor or admin other than the person who logged the complaint
-1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab. Set **Form** (**Formulario**) to **Customer Complaint Log** (**Registro de quejas de clientes**). This list is the complaint register: every complaint, open or closed.
+1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab. Set **Form** (**Formulario**) to **Customer Complaint Log** (**Registro de quejas de clientes**). This list is the complaint register: every complaint, open or closed. A complaint a client reported from a customer link shows **From a client** (**De un cliente**) and its **Due** (**Vence**) day.
 2. Click the complaint. **What was reported** (**Lo que se informó**) shows what the customer said, how urgent it is and who is handling it.
 3. Visit the area and talk to the crew first. Then under **Supervisor section** (**Sección del supervisor**), answer **What was found** (**Lo que se encontró**), **What caused it?** (**¿Qué lo causó?**), **What was done, by whom, and when** (**Lo que se hizo, quién lo hizo y cuándo**), **Date resolved** (**Fecha en que se resolvió**), **Is the customer satisfied?** (**¿Está satisfecho el cliente?**) and **Has this happened before at this site?** (**¿Ha pasado antes en este sitio?**). If it has happened before, tell the Field Lead.
 4. Click **Save** (**Guardar**).
@@ -457,7 +458,7 @@ Who can do this: any supervisor or admin other than the person who logged the co
 6. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
 If it does not work: the person who logged the complaint is refused both the supervisor section and the sign-off; another supervisor or admin does it.
 Words people use for this: close a complaint, customer complaint, complaint register, what was done about the complaint, sign the complaint, resolve a complaint, cerrar una queja, registro de quejas.
-Last checked: 2026-09-27
+Last checked: 2026-10-02
 
 ## Find a staff member's badge number (admin dashboard)
 Who can do this: admins
@@ -624,26 +625,27 @@ Last checked: 2026-09-28
 ## Make a customer link and print its QR code (admin dashboard)
 Who can do this: admins who can change settings. Supervisors do not see Customer links.
 A customer link lets a customer fill a form from their own phone, with no account: they scan the QR code posted in the building and the form opens by itself, in their phone's language.
-1. Click **Forms** (**Formularios**), then on **Filed forms** (**Formularios presentados**) click **Customer links** (**Enlaces para clientes**).
-2. Under **New link** (**Nuevo enlace**), pick the form and the site, then click **New link** (**Nuevo enlace**). Two forms take customer links: **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**) and **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**).
-3. The QR screen opens with the code, the site, the form's title and the link's address. A site has one live link per form; if one is already live, its QR screen opens instead of a new one.
-4. Click **Print** (**Imprimir**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it. Post it where the customer will see it.
-5. **Copy link** (**Copiar enlace**) copies the address, to send by email or text instead.
+1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. The **Customer links** (**Enlaces para clientes**) button on **Filed forms** (**Formularios presentados**) opens the same tab.
+2. Under **Make a link** (**Crear un enlace**), pick the **Form** (**Formulario**) and the **Site** (**Sitio**), then click **Make a link** (**Crear un enlace**). The forms are the ones customers fill: **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**), **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**) and, for a client to report a problem, **Customer Complaint Log** (**Registro de quejas de clientes**).
+3. The QR window opens with the code, the site, the form's title and the link's address. A site has one link on for each form; when the site already has one on, that one's QR window opens.
+4. Click **Print sheet** (**Imprimir la hoja**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it. Post it where the customer will see it.
+5. **Copy link** (**Copiar enlace**) copies the address, to send by email or text.
+6. A site's own links are also on the site's **General Info** (**Información general**), under **Customer links** (**Enlaces para clientes**).
 What the customer sees: OCSA's logo, the site's name and the form, a box for their name and their role, the questions, up to three photos and a signature drawn with a finger, then Send and a thank-you. Nothing else of the app is shown. Their filing arrives under **Filed forms** (**Formularios presentados**) marked **Customer** (**Cliente**).
-If it does not work: the reason is shown in the window. If printing opens nothing, allow pop-ups for this site and click **Print** (**Imprimir**) again.
-Words people use for this: QR code, customer survey link, customer feedback, print a QR code, post a survey in the building, satisfaction survey, cleanliness checklist, código QR, encuesta del cliente.
-Last checked: 2026-09-28
+If it does not work: the reason is shown under the button. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
+Words people use for this: QR code, customer survey link, customer feedback, print a QR code, post a survey in the building, satisfaction survey, cleanliness checklist, customer links tab, código QR, encuesta del cliente.
+Last checked: 2026-10-02
 
 ## Turn a customer link off or on (admin dashboard)
 Who can do this: admins who can change settings
-1. Click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), then **Customer links** (**Enlaces para clientes**).
-2. Each row shows the form, the site, **Uses** (**Usos**), **Last used** (**Último uso**) and its state: **Live** (**Activo**), **Off** (**Apagado**) or **Expired** (**Vencido**).
-3. Click **Turn off** (**Apagar**) to stop a link. Anyone who scans it then sees one line saying the form is closed, with the office number.
-4. Click **Turn on** (**Encender**) to bring a link back. **Show QR code** (**Ver código QR**) opens its QR screen to print again.
+1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab.
+2. The table shows every link with its **Form** (**Formulario**), **Site** (**Sitio**), **Uses** (**Usos**), **Last used** (**Último uso**) and its state: **On** (**Encendido**), **Off** (**Apagado**) or **Expired** (**Vencido**). Pick a site or a form to narrow it, and **On** (**Encendido**), **Off** (**Apagado**) or **All** (**Todos**) above the table; Off lists the expired links too. On a phone each link is a card.
+3. Click **Turn off** (**Apagar**) to stop a link. The window asks once; click **Turn off** (**Apagar**) again. Anyone who scans it then sees one line saying the form is closed, with the office number.
+4. Click **Turn on** (**Encender**) to bring a link back. **Show QR code** (**Ver código QR**) opens its QR window to print again.
 A link nobody uses for 90 days expires by itself; turn it on to use it again.
 If it does not work: only one link per site and form can be live, so turning one on is refused while another for the same pair is live. Turn the other off first.
 Words people use for this: disable the QR code, stop the survey, turn off a link, reactivate a link, expired link, apagar el enlace.
-Last checked: 2026-09-28
+Last checked: 2026-10-02
 
 ## Read a customer's filing (admin dashboard)
 Who can do this: admins, and supervisors the form lets read filed reports
@@ -757,13 +759,13 @@ Last checked: 2026-10-01
 ## See what people ask Help (admin dashboard)
 Who can do this: admins, and anyone an admin gives See Help insights
 1. Click **Help insights** (**Estadísticas de la Ayuda**) in the Reports group of the side panel.
-2. Pick the date range (the last 30 days to start) and, if you like, a site, a role, a language or an app.
+2. Pick the date range (the last 30 days to start) and, if you like, a site, a role, a language (English, Español or Français) or an app.
 3. The tiles show **Questions** (**Preguntas**), **People asking** (**Personas que preguntan**), **Answered** (**Respondidas**), **Missed** (**Sin respuesta**), **Rated helpful** (**Útiles**), **Rated not helpful** (**No útiles**) and **Typical reply time** (**Tiempo típico de respuesta**). **Questions by day** (**Preguntas por día**) charts them, and **What people ask about** (**De qué preguntan**) lists the top topics.
 4. **Questions Help could not answer** (**Preguntas que la Ayuda no pudo responder**) lists every miss and every answer rated not helpful, with **What was missing** (**Lo que faltó**). This is the list to improve the guides and the training from.
 5. **Everyone who asked** (**Todos los que preguntaron**) lists each person. Click one to see **Their questions** (**Sus preguntas**) and Help's answers; **Opening this is recorded.** (**Abrir esto queda registrado.**)
 If it does not work: **No questions in this range.** (**No hay preguntas en este periodo.**) means nobody asked in those dates. If the page is missing from the side panel, you do not have the permission.
 Words people use for this: help report, what are people asking, help analytics, questions help missed, help insights, estadísticas de la ayuda.
-Last checked: 2026-09-28
+Last checked: 2026-10-02
 
 ## Correct the Spanish a person sees (admin dashboard)
 Who can do this: anyone who can edit checklist items or pick lists
@@ -831,13 +833,13 @@ Last checked: 2026-09-30
 
 ## Set when a site's client gets the satisfaction survey (admin dashboard)
 Who can do this: admins who can change settings
-1. Click **Sites** (**Sitios**) in the side panel and pick the site, then click the **Client survey** (**Encuesta del cliente**) tab. Or click **Forms** (**Formularios**), **Filed forms** (**Formularios presentados**), then **Customer links** (**Enlaces para clientes**), and click **Survey schedule** (**Calendario de la encuesta**) beside the site's survey link.
+1. Click **Sites** (**Sitios**) in the side panel and pick the site, then click the **Client survey** (**Encuesta del cliente**) tab. Or click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab, and click **Survey schedule** (**Calendario de la encuesta**) beside the site's survey link.
 2. Under **Contacts** (**Contactos**), type a name and an email and click **Add contact** (**Agregar contacto**). Click **Remove** (**Quitar**) to take a contact off.
 3. Pick **How often** (**Con qué frecuencia**): **Every month** (**Cada mes**), **Every three months** (**Cada tres meses**) or **Off** (**Desactivado**).
 4. Pick the **Day of the month** (**Día del mes**), from 1 to 28, and click **Save** (**Guardar**). **Last sent** (**Último envío**) and **Next send** (**Próximo envío**) show the dates.
 If it does not work: a schedule that is not Off needs at least one contact, and the line under the field says what to fix.
 Words people use for this: send the survey automatically, survey schedule, client survey contacts, email the survey every month, calendario de la encuesta.
-Last checked: 2026-09-29
+Last checked: 2026-10-02
 
 ## Bring back a removed supply (admin dashboard)
 Who can do this: people who manage supplies
@@ -1545,4 +1547,36 @@ Who can do this: anyone who can change a site's tasks
 3. Tick **Touchpoint** (**Punto de contacto frecuente**): a high-touch surface disinfected on schedule, such as a door handle or a rail.
 4. Click **Save Changes**, or **Create** for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and prints on the disinfection coverage log.
 Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, punto de contacto frecuente.
+Last checked: 2026-10-02
+
+## Make a site's concern link, so a client can report a problem (admin dashboard)
+Who can do this: admins who can change settings
+A concern link lets a client report a problem from their phone by scanning a QR code posted in the building. It files a **Customer Complaint Log** (**Registro de quejas de clientes**) for that site, and the site's supervisors, the Field Lead and the admins are told at once.
+1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. Or click **Sites** (**Sitios**), open the site, and use its **Customer links** (**Enlaces para clientes**) card.
+2. Under **Make a link** (**Crear un enlace**), pick **Customer Complaint Log** (**Registro de quejas de clientes**) and the site, then click **Make a link** (**Crear un enlace**).
+3. Click **Print sheet** (**Imprimir la hoja**). Under the code the sheet reads **Scan to report a problem to OCSA.** (**Escanee para informar un problema a OCSA.**), in English and in Spanish. Post it where the client will see it.
+What the client sees: a short form for what happened and where, with photos if they like, and a reference number once it is sent.
+If it does not work: when **Customer Complaint Log** (**Registro de quejas de clientes**) is not offered, the system does not take a client's concern from a link yet. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
+Words people use for this: report a concern, complaint qr code, client complaint link, report a problem, concern poster, informar un problema.
+Last checked: 2026-10-02
+
+## Make or print a site's customer links from the site (admin dashboard)
+Who can do this: admins who can change settings
+1. Click **Sites** (**Sitios**) and open the site. The **Customer links** (**Enlaces para clientes**) card is on **General Info** (**Información general**), under **Client Contact** (**Contacto del cliente**).
+2. Each of the site's links shows its form, its state, **Uses** (**Usos**) and **Last used** (**Último uso**), with **Show QR code** (**Ver código QR**), **Print sheet** (**Imprimir la hoja**), **Copy link** (**Copiar enlace**), and **Turn off** (**Apagar**) or **Turn on** (**Encender**).
+3. **Make a link** (**Crear un enlace**) offers each customer form the site has no link for yet. Pick one and click **Make a link** (**Crear un enlace**); its QR window opens.
+4. **All links** (**Todos los enlaces**) opens the **Customer links** (**Enlaces para clientes**) tab on Forms with this site picked.
+If it does not work: if printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
+Words people use for this: site qr codes, print the site's qr code, site survey link, site links, códigos qr del sitio.
+Last checked: 2026-10-02
+
+## Answer a client's concern on time (admin dashboard)
+Who can do this: supervisors and admins
+A concern a client reports from a customer link is due an answer within five working days, Monday to Friday. The client gets a written receipt when they gave an email.
+1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab, and set **Form** (**Formulario**) to **Customer Complaint Log** (**Registro de quejas de clientes**).
+2. A concern from a link shows **From a client** (**De un cliente**). **Due** (**Vence**) shows the day the answer is due: orange with one working day or less left, red once it is late, and the day it was answered once the office answers.
+3. A concern about how a member of staff treated someone shows **For the Controller** (**Para el Contralor**). Only the admins are told of it, and nothing about it is decided at the site.
+4. Click the concern to open it, then write what was done and close it as for any customer complaint.
+5. A notice that a client reported a concern opens the report. A second notice comes when one working day is left, and a third when it is late.
+Words people use for this: client concern, complaint deadline, five working days, late complaint, controller, staff complaint, queja de un cliente.
 Last checked: 2026-10-02
