@@ -23590,9 +23590,15 @@ const lessonContentOf = (c) => {
     title: l3(x.title),
     blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => ({ key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
     questions: (Array.isArray(x.questions) ? x.questions : []).map((q, i) => ({ key: q.key || "q" + (i + 1), text: l3(q.text), options: (Array.isArray(q.options) ? q.options : []).map(o => ({ value: String(o.value), text: l3(o.text) })), correct: q.correct == null ? null : String(q.correct) })),
+    // An observation checklist's steps (Step 263, STEP262_CONTRACT.md section 3).
+    steps: (Array.isArray(x.steps) ? x.steps : []).map((st, i) => ({ key: st.key || "s" + (i + 1), text: l3(st.text) })),
     acknowledgement: l3(x.acknowledgement),
   };
 };
+// A lesson's kind, since the API's Step 262: a quiz the person reads and answers, or an observation
+// checklist a trainer ticks step by step while watching the person on the job.
+const LESSON_TYPES = [{ v: "quiz", l: "Quiz" }, { v: "observation", l: "Observation checklist" }];
+const lessonTypeWord = (k) => { const x = LESSON_TYPES.find(o => o.v === (k || "quiz")); return x ? tr(x.l) : String(k || ""); };
 
 function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard }) {
   const [draft, setDraft] = useState(null);
@@ -23627,11 +23633,12 @@ function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard 
   const cols = [
     { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
     { header: tr("Status"), render: v => <Bdg l={lessonStatusWord(v.status)} c={lessonStatusColor(v.status)} /> },
+  ].concat((versions || []).some(v => v && v.kind) ? [{ header: tr("Kind|lesson"), tdStyle: { color: t.textSec }, render: v => <span data-lesson-version-kind={v.kind || "quiz"}>{lessonTypeWord(v.kind)}</span> }] : [], [
     { header: tr("Published"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => stampDay(v.publishedAt) },
     { header: tr("By"), tdStyle: { color: t.textSec }, render: v => (v.publishedBy && v.publishedBy.name) || "" },
     { header: tr("Change note"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: v => v.changeNote || "" },
     { header: tr("Attempts"), align: "right", tdStyle: { color: t.textSec }, render: v => String(Number(v.attempts) || 0) },
-  ];
+  ]);
   return (<div data-topic-lesson="">
     {!live && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("No lesson is live for this topic.")}</div>}
     <DataTable t={t} columns={cols} rows={versions || []} rowKey={v => v.id} onRowClick={isAdmin ? (v => { if (v.status === "draft") openDraft(v.id); }) : undefined} empty={tr("No lesson written yet.")} />
@@ -23668,7 +23675,9 @@ function LessonText({ t, path, value, onChange, probs, multiline = false, label 
 // The draft editor. Saving is explicit (Save draft); Translate, Publish and Discard save what changed
 // first; leaving the window or the draft with changes not saved asks first, and so does closing the tab.
 function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
-  const take = (d) => ({ content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical, checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
+  const take = (d) => ({ kind: d.kind || "quiz", content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical || d.kind === "observation", checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
+  // The Kind choice is drawn once the draft's read carries kind (the API's Step 262).
+  const kindLive = !!(initial.draft && Object.prototype.hasOwnProperty.call(initial.draft, "kind"));
   const [draft, setDraft] = useState(initial.draft);
   const [f, setF] = useState(() => take(initial.draft));
   const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
@@ -23689,10 +23698,14 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     return () => { window.removeEventListener("beforeunload", warn); if (guard) guard.current = null; };
   }, [guard]);
   const c = f.content;
+  const obs = kindLive && f.kind === "observation";
+  // Needs a trainer is locked on for a safety-critical topic and for an observation checklist.
+  const locked = !!tp.safetyCritical || obs;
   const edit = (next) => { setF(next); setDirty(true); };
   const setC = (fn) => edit({ ...f, content: fn(f.content) });
   const setBlock = (i, b) => setC(x => ({ ...x, blocks: x.blocks.map((y, j) => (j === i ? b : y)) }));
   const setQ = (i, q) => setC(x => ({ ...x, questions: x.questions.map((y, j) => (j === i ? q : y)) }));
+  const setStep = (i, st) => setC(x => ({ ...x, steps: x.steps.map((y, j) => (j === i ? st : y)) }));
   const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
   const byPath = useMemo(() => { const m = {}; problems.forEach(pr => { const k = lessonPathOf(pr.path); (m[k] = m[k] || []).push(pr); }); return m; }, [problems]);
   const probs = (path) => (byPath[path] || []).map((pr, i) => <div key={i} role="alert" data-lesson-field-problem={path} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{lessonProblemText(pr)}</div>);
@@ -23703,7 +23716,11 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
     content.blocks.forEach(b => { if (b.source && b.source.docCode) { const k = b.source.docCode + "|" + b.source.sectionRef; if (!seen.has(k)) seen.set(k, { docCode: b.source.docCode, sectionRef: b.source.sectionRef, docVersion: versionsRef.current[k] || null }); } });
     return Array.from(seen.values());
   };
-  const body = () => ({ content: c, passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || !!tp.safetyCritical, sources: sourcesOf(c), checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
+  // The content sent is the kind's own: a quiz's blocks and questions, or a checklist's steps.
+  const body = () => Object.assign(kindLive ? { kind: f.kind } : {}, {
+    content: obs ? { title: c.title, steps: c.steps, acknowledgement: c.acknowledgement } : { title: c.title, blocks: c.blocks, questions: c.questions, acknowledgement: c.acknowledgement },
+    passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || locked, sources: obs ? [] : sourcesOf(c),
+    checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
   const fail = (e) => {
     const fields = trainingKeysOf(e).concat(e && e.code === "training.translationUnchecked" ? ["checkedEsBy"] : []);
     if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems);
@@ -23748,9 +23765,36 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
       {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
     </div>}
 
+    {kindLive && <div data-lesson-path="kind">
+      {head(tr("Kind|lesson"))}
+      <div role="group" aria-label={tr("Kind|lesson")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {LESSON_TYPES.map(k => <button key={k.v} type="button" data-lesson-kind={k.v} aria-pressed={f.kind === k.v} onClick={() => { if (f.kind !== k.v) edit({ ...f, kind: k.v, needsTrainer: k.v === "observation" ? true : f.needsTrainer }); }} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (f.kind === k.v ? GO : t.border), background: f.kind === k.v ? t.goldBg : "transparent", color: f.kind === k.v ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr(k.l)}</button>)}
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{obs ? tr("A trainer watches the person do each step on the job and ticks it. It has no questions.") : tr("The person reads the lesson and answers 5 to 10 questions.")}</div>
+      {probs("kind")}
+    </div>}
+
     {head(tr("Title"))}
     <LessonText t={t} path="title" value={c.title} onChange={v => setC(x => ({ ...x, title: v }))} probs={probs} />
 
+    {obs && <>
+      {head(tr("Steps"), <span data-lesson-step-count={c.steps.length} style={{ fontSize: 12, color: c.steps.length < 1 || c.steps.length > 30 ? RD : t.textMut }}>{tr("{0} of 1 to 30", c.steps.length)}</span>)}
+      <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("Each step is one thing the trainer watches the person do.")}</div>
+      <div data-lesson-path="steps">{probs("steps")}
+        {c.steps.map((st, i) => <div key={st.key} data-lesson-step={i} style={card}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Step {0}", i + 1)}</span>
+            <button style={small} disabled={i === 0} onClick={() => setC(x => ({ ...x, steps: move(x.steps, i, -1) }))}>{tr("Move up")}</button>
+            <button style={small} disabled={i === c.steps.length - 1} onClick={() => setC(x => ({ ...x, steps: move(x.steps, i, 1) }))}>{tr("Move down")}</button>
+            <button style={{ ...small, color: RD, marginLeft: "auto" }} onClick={() => setC(x => ({ ...x, steps: x.steps.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+          </div>
+          <LessonText t={t} path={"steps." + i + ".text"} value={st.text} onChange={v => setStep(i, { ...st, text: v })} probs={probs} />
+        </div>)}
+        {c.steps.length < 30 && <Btn t={t} v="ghost" data-lesson-add-step="" onClick={() => setC(x => ({ ...x, steps: x.steps.concat([{ key: lessonKey("s", x.steps), text: L3E() }]) }))}>{tr("Add a step")}</Btn>}
+      </div>
+    </>}
+
+    {!obs && <>
     {head(tr("Blocks"))}
     <div data-lesson-path="blocks">{probs("blocks")}
       {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} style={card}>
@@ -23803,22 +23847,23 @@ function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
       </div>)}
       {nq < 10 && <Btn t={t} v="ghost" data-lesson-add-question="" onClick={() => setC(x => ({ ...x, questions: x.questions.concat([{ key: lessonKey("q", x.questions), text: L3E(), options: [{ value: "a", text: L3E() }, { value: "b", text: L3E() }], correct: null }]) }))}>{tr("Add a question")}</Btn>}
     </div>
+    </>}
 
     {head(tr("Acknowledgement"))}
-    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("The line the person signs under once they pass.")}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{obs ? tr("The line the person signs once the trainer has watched every step.") : tr("The line the person signs under once they pass.")}</div>
     <LessonText t={t} path="acknowledgement" value={c.acknowledgement} onChange={v => setC(x => ({ ...x, acknowledgement: v }))} probs={probs} />
 
     {head(tr("Taking it"))}
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+    {!obs && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
       <div data-lesson-path="passPercent"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Pass mark (percent)")}</div>
         <Inp t={t} type="number" min={50} max={100} aria-label={tr("Pass mark (percent)")} value={f.passPercent} onChange={e => edit({ ...f, passPercent: e.target.value })} />{bad("passPercent")}{probs("passPercent")}</div>
       <div data-lesson-path="maxAttempts"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Tries")}</div>
         <Inp t={t} type="number" min={1} max={10} aria-label={tr("Tries")} value={f.maxAttempts} onChange={e => edit({ ...f, maxAttempts: e.target.value })} />{bad("maxAttempts")}{probs("maxAttempts")}</div>
-    </div>
+    </div>}
     <div data-lesson-path="needsTrainer" style={{ marginTop: 8 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 13, color: t.text, cursor: tp.safetyCritical ? "default" : "pointer" }}>
-        <input type="checkbox" data-lesson-needs-trainer="" checked={!!f.needsTrainer || !!tp.safetyCritical} disabled={!!tp.safetyCritical} onChange={e => edit({ ...f, needsTrainer: e.target.checked })} style={{ width: 20, height: 20, accentColor: GO }} />{tr("Needs a trainer")}</label>
-      <div style={{ fontSize: 11, color: t.textMut }}>{tp.safetyCritical ? tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).") : tr("A trainer signs off after watching the person do it.")}</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 13, color: t.text, cursor: locked ? "default" : "pointer" }}>
+        <input type="checkbox" data-lesson-needs-trainer="" checked={!!f.needsTrainer || locked} disabled={locked} onChange={e => edit({ ...f, needsTrainer: e.target.checked })} style={{ width: 20, height: 20, accentColor: GO }} />{tr("Needs a trainer")}</label>
+      <div style={{ fontSize: 11, color: t.textMut }}>{obs ? tr("An observation checklist always needs a trainer, who watches the person do each step.") : tp.safetyCritical ? tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).") : tr("A trainer signs off after watching the person do it.")}</div>
       {probs("needsTrainer")}
     </div>
 
