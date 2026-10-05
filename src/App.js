@@ -14231,6 +14231,133 @@ function TrustedDevices({ af, t, showToast }) {
   </div>);
 }
 
+// ===== HOLIDAYS (Step 248) =====
+// OCSA-HR-002 8.2 (STEP247_CONTRACT.md version 2, section 1): the eleven federal holidays, each on the
+// day the federal government observes it, and the office's own days, the two Eids among them, whose
+// dates OCSA confirms each year. GET /api/holidays?year= answers a year's list, federal and office, by
+// date; includeRetired=1 adds the office days retired. A federal day is the handbook's and is not
+// changed here. An office day is added with POST /api/holidays and edited or retired with PATCH
+// /api/holidays/:id; nothing is ever deleted. A refusal is drawn word for word under the field its
+// keys name, and anything else at the top. A day is read from its YYYY-MM-DD parts, never as a Date
+// made from the string, so it is the same day wherever the computer is set.
+const holidaysOf = (d) => (d && Array.isArray(d.holidays) ? d.holidays.filter(h => h && typeof h.date === "string") : null);
+const holidayDay = (d) => localDate(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+const HOLIDAY_FIELDS = ["date", "name", "note"];
+function HolidaysPanel({ af, t, showToast, initial }) {
+  // This year and next, by the browser's own calendar day.
+  const thisYear = new Date().getFullYear();
+  const years = [thisYear, thisYear + 1];
+  const [year, setYear] = useState(thisYear);
+  const [retired, setRetired] = useState(false);
+  const [list, setList] = useState(() => holidaysOf(initial));
+  const [failed, setFailed] = useState("");
+  // The Add or Edit window: { mode, id, date, name, note }.
+  const [win, setWin] = useState(null);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [busy, setBusy] = useState("");
+  const [rowError, setRowError] = useState({});
+  // The answer the page already read is this year's list without the retired days, so the first
+  // draw uses it, and only a later switch reads again. A slower answer to an earlier switch is dropped.
+  const firstRef = useRef(!!holidaysOf(initial));
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    setFailed("");
+    af("/api/holidays?year=" + year + (retired ? "&includeRetired=1" : ""))
+      .then(d => { if (seq.current !== mine) return; const l = holidaysOf(d); if (l) setList(l); else { setList([]); setFailed(tr("This did not load.")); } })
+      .catch(e => { if (seq.current === mine) { setList([]); setFailed(e.message || tr("This did not load.")); } });
+  }, [af, year, retired]);
+  useEffect(() => { if (firstRef.current) { firstRef.current = false; return; } setList(null); load(); }, [load]);
+  const open = (h) => { setRefusal({ text: "", field: "" }); setWin(h ? { mode: "edit", id: h.id, date: h.date, name: h.name || "", note: h.note || "" } : { mode: "add", id: null, date: "", name: "", note: "" }); };
+  const set = (k, v) => setWin(w => ({ ...w, [k]: v }));
+  const ready = !!(win && /^\d{4}-\d{2}-\d{2}$/.test(win.date) && win.name.trim());
+  const send = async () => {
+    if (savingRef.current || !ready) return;
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    const body = { date: win.date, name: win.name.trim(), note: win.note.trim() || null };
+    try {
+      if (win.mode === "add") await af("/api/holidays", { method: "POST", body });
+      else await af("/api/holidays/" + encodeURIComponent(win.id), { method: "PATCH", body });
+      showToast(win.mode === "add" ? tr("Holiday added.") : tr("Holiday saved."));
+      // A day saved in the other year on the switch opens that year.
+      const y = Number(win.date.slice(0, 4));
+      setWin(null);
+      if (y !== year && years.indexOf(y) >= 0) setYear(y); else load();
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => HOLIDAY_FIELDS.indexOf(k) >= 0) || "" });
+    }
+    savingRef.current = false; setSaving(false);
+  };
+  const retire = async (h) => {
+    if (busy || !window.confirm(tr("Retire {0}? It stops counting as a holiday and stays on record.", h.name || holidayDay(h.date)))) return;
+    setBusy(h.id); setRowError({});
+    try { await af("/api/holidays/" + encodeURIComponent(h.id), { method: "PATCH", body: { active: false } }); showToast(tr("Holiday retired.")); load(); }
+    catch (e) { setRowError({ [h.id]: e.message || tr("Request failed") }); }
+    setBusy("");
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-holiday-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.text && refusal.field === k ? { borderColor: RD } : {});
+  const isRetired = (h) => h.active === false;
+  const cols = [
+    { header: tr("Date"), tdStyle: { whiteSpace: "nowrap" }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text }}>{holidayDay(h.date)}
+      {h.kind === "federal" && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
+    { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
+      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired")} c={RD} /></span> : null}</span>) },
+    { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => (h.kind === "federal" ? tr("Federal") : tr("Office|holiday")) },
+    { header: tr("Note"), tdStyle: { minWidth: 140, color: t.textSec, overflowWrap: "anywhere" }, render: h => h.note || "" },
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (h.kind === "federal"
+      ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("Set by the handbook")}</span>
+      : isRetired(h) ? null
+      : <span>
+        <span style={{ display: "inline-flex", gap: 8 }}>
+          <Btn t={t} v="ghost" onClick={() => open(h)} disabled={!!busy} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" onClick={() => retire(h)} disabled={!!busy} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12, color: RD }}>{busy === h.id ? tr("Saving...") : tr("Retire")}</Btn>
+        </span>
+        {rowError[h.id] ? <div data-holiday-row-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4, whiteSpace: "normal" }}>{rowError[h.id]}</div> : null}
+      </span>) },
+  ];
+  const sw = (y) => (<button key={y} onClick={() => setYear(y)} aria-pressed={year === y} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (year === y ? GO : t.border), background: year === y ? t.goldBg : "transparent", color: year === y ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{String(y)}</button>);
+  const brand = clientConfig.company.brandTag;
+  return (<div data-holidays="">
+    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("{0} observes the eleven federal holidays and the two Eids. Federal days follow the handbook. Enter each year's Eid dates here once {0} confirms them, and any other day {0} closes.", brand)}</div>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8 }}>{years.map(sw)}</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.textSec }}>
+        <span style={chkWrap}><input type="checkbox" checked={retired} onChange={e => setRetired(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+        {tr("Show retired")}
+      </label>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} onClick={() => open(null)} style={{ minHeight: 44 }} data-holiday-add="">{tr("Add a holiday")}</Btn></div>
+    </div>
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={list} rowKey={h => (h.id || h.key || "") + ":" + h.date} empty={tr("No holidays this year.")} />}
+    {win && <Mdl t={t} onClose={() => { if (!saving) setWin(null); }}><div style={{ padding: 20 }} data-holiday-window={win.mode}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{win.mode === "add" ? tr("Add a holiday") : tr("Edit holiday")}</div>
+        <button onClick={() => setWin(null)} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      {refusal.text && !refusal.field && <div data-holiday-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+      <div style={{ marginBottom: 12, maxWidth: 260 }}>
+        <Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} value={win.date} onChange={e => set("date", e.target.value)} style={box("date")} />{under("date")}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Holiday")}</Lbl><Inp t={t} maxLength={120} aria-label={tr("Holiday")} value={win.name} onChange={e => set("name", e.target.value)} style={box("name")} />{under("name")}
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={win.note} onChange={e => set("note", e.target.value)} style={box("note")} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional.")}</div>{under("note")}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" onClick={() => setWin(null)} disabled={saving} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={send} disabled={saving || !ready} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : win.mode === "add" ? tr("Add holiday") : tr("Save")}</Btn>
+      </div>
+    </div></Mdl>}
+  </div>);
+}
+
 function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap, devicesOn = false }) {
   const [cats, setCats] = useState([]);
   // Quote defaults (Step 208) is an admin's who holds build_quotes, and shows once GET
@@ -14242,8 +14369,17 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     af("/api/quotes/defaults").then(d => { if (alive) setQuoteDefaults(d && typeof d === "object" ? d : null); }).catch(e => { if (alive) setQuoteDefaults(null); console.warn("Quote defaults:", e.message); });
     return () => { alive = false; };
   }, [af, canSetQuoteDefaults]);
+  // Holidays (Step 248) is a holder's of manage settings, and shows once GET /api/holidays answers
+  // this year's list; a 404 or a refusal leaves it off. The answer is handed to the tab.
+  const [holidays, setHolidays] = useState(null);
+  useEffect(() => {
+    if (!canManageSettings) { setHolidays(null); return undefined; }
+    let alive = true;
+    af("/api/holidays?year=" + new Date().getFullYear()).then(d => { if (alive) setHolidays(holidaysOf(d) ? d : null); }).catch(e => { if (alive) setHolidays(null); console.warn("Holidays:", e.message); });
+    return () => { alive = false; };
+  }, [af, canManageSettings]);
   const [selCat, setSelCat] = useState(null);
-  // Each tab is a capability's: Company and Who gets told are manage settings, the two lookups
+  // Each tab is a capability's: Company, Who gets told and Holidays are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
   // tabs this person holds and starts on the first of them.
   const TABS = [
@@ -14253,6 +14389,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
     { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
     { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
+    { id: "holidays", label: tr("Holidays"), open: canManageSettings && !!holidays },
     { id: "devices", label: tr("Trusted devices"), open: devicesOn },
   ];
   const tabs = TABS.filter(x => x.open);
@@ -14408,6 +14545,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "quotes" && canSetQuoteDefaults && quoteDefaults && <QuoteDefaultsPanel af={af} t={t} showToast={showToast} initial={quoteDefaults} />}
+
+      {tab === "holidays" && canManageSettings && holidays && <HolidaysPanel af={af} t={t} showToast={showToast} initial={holidays} />}
 
       {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
 
