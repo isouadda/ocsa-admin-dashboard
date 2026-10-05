@@ -1345,12 +1345,40 @@ function EmploymentCard({ t, data, onRecord, staffHref }) {
 // reason for someone already ended or on leave, which the same route records without changing
 // anything. A refusal is drawn word for word under the field its keys name, and anything else at
 // the top. Each window says what will happen before it is sent.
+//
+// A rehire also lists the sites to restore (Step 248, STEP247_CONTRACT.md version 2, section 3): the
+// employment answer's pastSites, one checkbox row a site with its role, its shift and the shift's
+// days, the ones held when the person left ticked to start. The window takes pastSites from the
+// answer it was given, and reads GET /api/users/:id/employment itself when it was given none. The
+// send carries restoreAssignmentIds only when the answer carried pastSites, so an API before Step 247
+// is sent what it was always sent. A refusal of the school site guard names its site with siteId and
+// is drawn under that site's row; employment.badSites is drawn at the group.
 const EMPLOYMENT_SEND = { end: "End employment", leave: "Put on leave", "return": "Return from leave", rehire: "Rehire" };
-function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast, initialReason = "" }) {
+const ASSIGNMENT_DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const ASSIGNMENT_DAY_WORDS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const assignmentDaysShown = (v) => (Array.isArray(v) ? v : typeof v === "string" && v ? v.split(",") : []).map(x => {
+  const i = ASSIGNMENT_DAYS.indexOf(String(x).trim().slice(0, 3).toLowerCase());
+  return i >= 0 ? tr(ASSIGNMENT_DAY_WORDS[i]) : String(x).trim();
+}).filter(Boolean).join(", ");
+function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onClose, onSaved, showToast, initialReason = "", lkMap }) {
   const today = toISO(new Date());
   const [reasons, setReasons] = useState(null);
   const [f, setF] = useState({ reason: initialReason || "", lastDay: "", rehireEligible: "", expectedReturn: "", hireDate: "", note: "" });
-  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [refusal, setRefusal] = useState({ text: "", field: "", siteId: "" });
+  const [read, setRead] = useState(null);
+  useEffect(() => {
+    if (mode !== "rehire" || data) return undefined;
+    let alive = true;
+    af("/api/users/" + encodeURIComponent(userId) + "/employment").then(d => { if (alive) setRead(employmentAnswerOf(d)); }).catch(e => { console.warn("Employment:", e.message); });
+    return () => { alive = false; };
+  }, [af, mode, data, userId]);
+  const known = data || read;
+  const pastSites = mode === "rehire" && known && Array.isArray(known.pastSites) ? known.pastSites.filter(p => p && p.assignmentId != null) : null;
+  const [ticks, setTicks] = useState(null);
+  const ticked = ticks || (pastSites ? pastSites.filter(p => p.endedWithEmployment === true).map(p => String(p.assignmentId)) : []);
+  const tick = (id, on) => setTicks((on ? ticked.concat([id]) : ticked.filter(x => x !== id)).filter((x, i, a) => a.indexOf(x) === i));
+  const roleShown = lkMap ? lkMap("site_roles", true) : {};
+  const shiftShown = lkMap ? lkMap("shift_names", true) : {};
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   useEffect(() => {
@@ -1360,24 +1388,28 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     return () => { alive = false; };
   }, [af, mode]);
   const set = (k, v) => setF(p => ({ ...p, [k]: v }));
-  const FIELDS = ["reason", "lastDay", "rehireEligible", "expectedReturn", "hireDate", "note"];
+  const FIELDS = ["reason", "lastDay", "rehireEligible", "expectedReturn", "hireDate", "note", "restoreAssignmentIds"];
   const fieldOf = (e) => { const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []; return keys.find(k => FIELDS.indexOf(k) >= 0) || ""; };
+  // A guard refusal names the site it refused with siteId, drawn under that site's row when it is one
+  // of the rows; anything else falls to the field its keys name, or the top.
+  const siteOf = (e) => { const id = e && e.body && e.body.siteId != null ? String(e.body.siteId) : ""; return id && pastSites && pastSites.some(p => String(p.siteId) === id) ? id : ""; };
   const noteNeeded = f.reason === "other";
   const ready = mode === "end" ? !!(f.reason && f.lastDay && f.rehireEligible && (!noteNeeded || f.note.trim()))
     : mode === "leave" ? !!(f.reason && (!noteNeeded || f.note.trim()))
     : mode === "rehire" ? !!f.hireDate : true;
   const send = async () => {
     if (savingRef.current || !ready) return;
-    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "", siteId: "" });
     const note = f.note.trim() || null;
     const body = mode === "end" ? { reason: f.reason, lastDay: f.lastDay, rehireEligible: f.rehireEligible === "yes", note }
       : mode === "leave" ? { reason: f.reason, expectedReturn: f.expectedReturn || null, note }
-      : mode === "rehire" ? { hireDate: f.hireDate, note } : { note };
+      : mode === "rehire" ? Object.assign({ hireDate: f.hireDate, note }, pastSites ? { restoreAssignmentIds: ticked } : {}) : { note };
     try {
       const d = await af("/api/users/" + encodeURIComponent(userId) + "/employment/" + mode, { method: "POST", body });
-      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : tr("Employment updated."));
+      const restored = mode === "rehire" && d && Array.isArray(d.restoredSites) ? d.restoredSites.length : 0;
+      if (showToast) showToast(d && d.changed === false ? tr("Reason recorded.") : restored > 0 ? trn("Rehired. {0} sites restored.|count", restored) : tr("Employment updated."));
       onSaved(d);
-    } catch (e) { setRefusal({ text: e.message || tr("Request failed"), field: fieldOf(e) }); }
+    } catch (e) { const site = siteOf(e); setRefusal({ text: e.message || tr("Request failed"), field: site ? "" : fieldOf(e), siteId: site }); }
     savingRef.current = false; setSaving(false);
   };
   const under = (k) => (refusal.text && refusal.field === k ? <div data-employment-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
@@ -1390,7 +1422,8 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     : mode === "end" ? tr("End the employment of {0}? Every site they are assigned to ends with it.", who)
     : mode === "leave" ? tr("Put {0} on leave? They cannot sign in while on leave, and they keep their sites.", who)
     : mode === "return" ? tr("Bring {0} back from leave? They can sign in again.", who)
-    : tr("Rehire {0}? They can sign in again, and their history stays.", who);
+    : tr("Rehire {0}? They can sign in again, and their history stays.", who)
+      + (pastSites ? " " + (ticked.length > 0 ? trn("{0} sites will be restored.|count", ticked.length) : tr("No sites will be restored.")) : "");
   const title = record ? tr("Record the reason") : tr(EMPLOYMENT_SEND[mode]);
   return (<Mdl t={t} onClose={() => { if (!saving) onClose(); }}><div style={{ padding: 20 }} data-employment-window={record ? "record-" + mode : mode}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
@@ -1400,7 +1433,7 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
       </div>
       <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
     </div>
-    {refusal.text && !refusal.field && <div data-employment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    {refusal.text && !refusal.field && !refusal.siteId && <div data-employment-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
     {(mode === "end" || mode === "leave") && <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("Reason")}</Lbl>
       <Sel t={t} aria-label={tr("Reason")} value={f.reason} onChange={e => set("reason", e.target.value)} options={reasonOpts} style={box("reason")} />
@@ -1419,6 +1452,30 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     </div>}
     {mode === "rehire" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
       <Lbl>{tr("New hire date")}</Lbl><Inp t={t} type="date" aria-label={tr("New hire date")} value={f.hireDate} onChange={e => set("hireDate", e.target.value)} style={box("hireDate")} />{under("hireDate")}
+    </div>}
+    {pastSites && pastSites.length > 0 && <div data-restore-sites="" role="group" aria-labelledby="restore-sites-label" style={{ marginBottom: 12 }}>
+      <Lbl><span id="restore-sites-label">{tr("Sites to restore")}</span></Lbl>
+      <div style={{ border: "1px solid " + (refusal.field === "restoreAssignmentIds" ? RD : t.border), borderRadius: R.sm }}>
+        {pastSites.map((p, i) => {
+          const id = String(p.assignmentId);
+          const shift = [p.shiftName ? (shiftShown[p.shiftName] || p.shiftName) : "", p.shiftStart ? tr("{0} to {1}", patternTime(p.shiftStart), patternTime(p.shiftEnd)) : "", assignmentDaysShown(p.daysOfWeek)].filter(Boolean).join(", ");
+          const sub = [p.roleAtSite ? (roleShown[p.roleAtSite] || p.roleAtSite) : "", shift].filter(Boolean).join(" | ");
+          return (<div key={id} data-restore-site={id} style={{ borderTop: i ? "1px solid " + t.border : "none" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, padding: "4px 10px 4px 0", cursor: "pointer" }}>
+              <span style={chkWrap}><input type="checkbox" checked={ticked.indexOf(id) >= 0} onChange={e => tick(id, e.target.checked)} disabled={saving} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+              <span style={{ minWidth: 0, flex: 1 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.siteName || tr("Site")}</span>
+                  {p.endedWithEmployment === true ? <span style={{ fontSize: 11, color: t.textMut }}>{tr("Held when they left")}</span> : null}
+                </span>
+                {sub ? <span style={{ display: "block", fontSize: 11, color: t.textSec, marginTop: 2 }}>{sub}</span> : null}
+              </span>
+            </label>
+            {refusal.text && refusal.siteId && refusal.siteId === String(p.siteId) ? <div data-employment-refusal={"site:" + p.siteId} style={{ fontSize: 12, color: RD, padding: "0 10px 8px 50px" }}>{refusal.text}</div> : null}
+          </div>);
+        })}
+      </div>
+      {under("restoreAssignmentIds")}
     </div>}
     <div style={{ marginBottom: 12 }}>
       <Lbl>{tr("Note")}</Lbl>
@@ -2017,7 +2074,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
         </>}
       />
 
-      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
+      {empWin && <EmploymentWindow af={af} t={t} userId={u.id} name={(u.firstName + " " + (u.lastName || "")).trim()} mode={empWin.mode} record={empWin.record} data={employment} lkMap={lkMap} showToast={showToast} onClose={() => setEmpWin(null)} onSaved={() => { setEmpWin(null); refreshProfile(u.id); }} />}
 
       {/* Sub-tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 16, borderBottom: "1px solid " + t.border, paddingBottom: 0 }}>
@@ -2568,6 +2625,9 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const [st, setSt] = useState([]);
   // Step 239: the Touchpoint switch, once the site's items answer a touchpoint of their own.
   const touchLive = st.some(tk => tk && typeof tk.touchpoint === "boolean");
+  // Step 248: the Critical switch under it, once the items answer a critical of their own. The API
+  // stores critical only on a touchpoint, so turning Touchpoint off turns Critical off on screen too.
+  const critLive = touchLive && st.some(tk => tk && typeof tk.critical === "boolean");
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
@@ -2803,7 +2863,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const submitTask = async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}) } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -2812,7 +2872,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}) } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -3127,12 +3187,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })}>
-              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}</div>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
+              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}{tk.critical === true && <Bdg l={tr("Critical|touchpoint")} c={RD} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -3384,7 +3444,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
-        {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v })} />}
+        {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
+        {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
 
@@ -3407,7 +3468,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             <TArea t={t} value={taskEs.description} onChange={e => setTaskEs({ ...taskEs, description: e.target.value })} aria-label={tr("Detailed Instructions")} placeholder={tr("Detailed Instructions")} rows={2} />
           </>}
         </div>}
-        {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v })} />}
+        {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v, crit: v ? editTask.crit : false })} />}
+        {critLive && editTask.touch && <CriticalToggle t={t} on={editTask.crit} onChange={v => setEditTask({ ...editTask, crit: v })} />}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -8005,9 +8067,11 @@ function keptZonePages(rec, site, range) {
 }
 
 // OCSA-FRM-021, one log for each day and shift, from the touchpoint items of the checklist record. An
-// item of high, critical or urgent priority is a critical touchpoint; the rest are standard. Pass 1 is
-// the day's first check and Pass 2 its second, where there is one.
-const keptCritical = (i) => ["critical", "high", "urgent"].indexOf(i.priority) >= 0;
+// item is a critical touchpoint when the record says so: since the API's Step 247 each item carries
+// critical, set in the checklist editor, and the log reads it whenever it is true or false. An item
+// without it is critical when its priority is high, critical or urgent, as before. The rest are
+// standard. Pass 1 is the day's first check and Pass 2 its second, where there is one.
+const keptCritical = (i) => (typeof i.critical === "boolean" ? i.critical : ["critical", "high", "urgent"].indexOf(i.priority) >= 0);
 // The form's response levels, each with what triggers it and what the log must then show.
 const KEPT_LEVELS = [
   ["Level 1", "Normal conditions", "Critical and standard touchpoints treated daily, recorded item by item in Sections 3 and 4"],
@@ -8786,6 +8850,15 @@ const TouchpointToggle = ({ t, on, onChange }) => (<div data-touchpoint-toggle="
   </label>
   <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("High-touch surfaces disinfected on schedule. They print on the Disinfection Coverage Log.")}</div>
 </div>);
+// The Critical switch under Touchpoint (Step 248), drawn the way the Touchpoint switch is and set in
+// under it, shown while the item is a touchpoint.
+const CriticalToggle = ({ t, on, onChange }) => (<div data-critical-toggle="" style={{ marginBottom: 12, marginLeft: 30 }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer" }}>
+    <span style={chkWrap}><input type="checkbox" checked={!!on} onChange={e => onChange(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+    <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Critical|touchpoint")}</span>
+  </label>
+  <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3.")}</div>
+</div>);
 
 // ===== THE MANAGEMENT REVIEW EVIDENCE PACK (Step 245) =====
 // OCSA-QMS-018, the Continuous Improvement Plan (ocsa-mis make-qms018.js, approved at 1.0), holds a
@@ -8859,7 +8932,9 @@ const reviewBySite = (rows, idOf, nameOf) => {
   rows.forEach(r => { const id = String(idOf(r) || ""); if (!m.has(id)) m.set(id, { id, name: nameOf(r) || tr("No site"), rows: [] }); m.get(id).rows.push(r); });
   return Array.from(m.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag()));
 };
-// The day a corrective action was signed closed, from the report read whole: its Closure sign-off.
+// The day a corrective action was signed closed, from the report read whole: its Closure sign-off. Since
+// the API's Step 247 (STEP247_CONTRACT.md version 2, section 6.2) each row of the list carries closedAt
+// itself, and the pack reads a report whole only when its row does not.
 const reviewClosedOn = (rep) => {
   const f = rep && Array.isArray(rep.fields) ? rep.fields.find(x => x && x.key === "closed") : null;
   const v = (f && f.value) || (rep && rep.draft && rep.draft.answers && rep.draft.answers.closed) || null;
@@ -8881,7 +8956,9 @@ async function reviewSections(af, value) {
     settle(insp(range)), settle(insp(prev)),
     settle(reviewFilings(af, "OCSA-FRM-009", range.start)),
     settle(af("/api/reports/client-ratings?from=" + range.start + "&to=" + range.end)),
-    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) })))))),
+    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => (Object.prototype.hasOwnProperty.call(r, "closedAt")
+      ? Promise.resolve({ r, closed: r.closedAt ? keptDayOf(r.closedAt) : "" })
+      : af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) }))))))),
     settle(reviewFilings(af, "OCSA-FRM-016", range.start)), settle(reviewFilings(af, "OCSA-FRM-017", range.start)),
     settle(Promise.all(years.map(y => af("/api/injury-log?year=" + y))).then(list => [].concat(...list.map(d => (d && Array.isArray(d.cases) ? d.cases : []))))),
     settle(af("/api/hr/training").then(d => (Array.isArray(d) ? d : []))),
@@ -14231,6 +14308,133 @@ function TrustedDevices({ af, t, showToast }) {
   </div>);
 }
 
+// ===== HOLIDAYS (Step 248) =====
+// OCSA-HR-002 8.2 (STEP247_CONTRACT.md version 2, section 1): the eleven federal holidays, each on the
+// day the federal government observes it, and the office's own days, the two Eids among them, whose
+// dates OCSA confirms each year. GET /api/holidays?year= answers a year's list, federal and office, by
+// date; includeRetired=1 adds the office days retired. A federal day is the handbook's and is not
+// changed here. An office day is added with POST /api/holidays and edited or retired with PATCH
+// /api/holidays/:id; nothing is ever deleted. A refusal is drawn word for word under the field its
+// keys name, and anything else at the top. A day is read from its YYYY-MM-DD parts, never as a Date
+// made from the string, so it is the same day wherever the computer is set.
+const holidaysOf = (d) => (d && Array.isArray(d.holidays) ? d.holidays.filter(h => h && typeof h.date === "string") : null);
+const holidayDay = (d) => localDate(d).toLocaleDateString(localeTag(), { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+const HOLIDAY_FIELDS = ["date", "name", "note"];
+function HolidaysPanel({ af, t, showToast, initial }) {
+  // This year and next, by the browser's own calendar day.
+  const thisYear = new Date().getFullYear();
+  const years = [thisYear, thisYear + 1];
+  const [year, setYear] = useState(thisYear);
+  const [retired, setRetired] = useState(false);
+  const [list, setList] = useState(() => holidaysOf(initial));
+  const [failed, setFailed] = useState("");
+  // The Add or Edit window: { mode, id, date, name, note }.
+  const [win, setWin] = useState(null);
+  const [refusal, setRefusal] = useState({ text: "", field: "" });
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [busy, setBusy] = useState("");
+  const [rowError, setRowError] = useState({});
+  // The answer the page already read is this year's list without the retired days, so the first
+  // draw uses it, and only a later switch reads again. A slower answer to an earlier switch is dropped.
+  const firstRef = useRef(!!holidaysOf(initial));
+  const seq = useRef(0);
+  const load = useCallback(() => {
+    const mine = ++seq.current;
+    setFailed("");
+    af("/api/holidays?year=" + year + (retired ? "&includeRetired=1" : ""))
+      .then(d => { if (seq.current !== mine) return; const l = holidaysOf(d); if (l) setList(l); else { setList([]); setFailed(tr("This did not load.")); } })
+      .catch(e => { if (seq.current === mine) { setList([]); setFailed(e.message || tr("This did not load.")); } });
+  }, [af, year, retired]);
+  useEffect(() => { if (firstRef.current) { firstRef.current = false; return; } setList(null); load(); }, [load]);
+  const open = (h) => { setRefusal({ text: "", field: "" }); setWin(h ? { mode: "edit", id: h.id, date: h.date, name: h.name || "", note: h.note || "" } : { mode: "add", id: null, date: "", name: "", note: "" }); };
+  const set = (k, v) => setWin(w => ({ ...w, [k]: v }));
+  const ready = !!(win && /^\d{4}-\d{2}-\d{2}$/.test(win.date) && win.name.trim());
+  const send = async () => {
+    if (savingRef.current || !ready) return;
+    savingRef.current = true; setSaving(true); setRefusal({ text: "", field: "" });
+    const body = { date: win.date, name: win.name.trim(), note: win.note.trim() || null };
+    try {
+      if (win.mode === "add") await af("/api/holidays", { method: "POST", body });
+      else await af("/api/holidays/" + encodeURIComponent(win.id), { method: "PATCH", body });
+      showToast(win.mode === "add" ? tr("Holiday added.") : tr("Holiday saved."));
+      // A day saved in the other year on the switch opens that year.
+      const y = Number(win.date.slice(0, 4));
+      setWin(null);
+      if (y !== year && years.indexOf(y) >= 0) setYear(y); else load();
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => HOLIDAY_FIELDS.indexOf(k) >= 0) || "" });
+    }
+    savingRef.current = false; setSaving(false);
+  };
+  const retire = async (h) => {
+    if (busy || !window.confirm(tr("Retire {0}? It stops counting as a holiday and stays on record.", h.name || holidayDay(h.date)))) return;
+    setBusy(h.id); setRowError({});
+    try { await af("/api/holidays/" + encodeURIComponent(h.id), { method: "PATCH", body: { active: false } }); showToast(tr("Holiday retired.")); load(); }
+    catch (e) { setRowError({ [h.id]: e.message || tr("Request failed") }); }
+    setBusy("");
+  };
+  const under = (k) => (refusal.text && refusal.field === k ? <div data-holiday-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (refusal.text && refusal.field === k ? { borderColor: RD } : {});
+  const isRetired = (h) => h.active === false;
+  const cols = [
+    { header: tr("Date"), tdStyle: { whiteSpace: "nowrap" }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text }}>{holidayDay(h.date)}
+      {h.kind === "federal" && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
+    { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
+      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|holiday")} c={RD} /></span> : null}</span>) },
+    { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => (h.kind === "federal" ? tr("Federal") : tr("Office|holiday")) },
+    { header: tr("Note"), tdStyle: { minWidth: 140, color: t.textSec, overflowWrap: "anywhere" }, render: h => h.note || "" },
+    { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (h.kind === "federal"
+      ? <span style={{ fontSize: 12, color: t.textMut }}>{tr("Set by the handbook")}</span>
+      : isRetired(h) ? null
+      : <span>
+        <span style={{ display: "inline-flex", gap: 8 }}>
+          <Btn t={t} v="ghost" onClick={() => open(h)} disabled={!!busy} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Edit")}</Btn>
+          <Btn t={t} v="ghost" onClick={() => retire(h)} disabled={!!busy} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12, color: RD }}>{busy === h.id ? tr("Saving...") : tr("Retire")}</Btn>
+        </span>
+        {rowError[h.id] ? <div data-holiday-row-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4, whiteSpace: "normal" }}>{rowError[h.id]}</div> : null}
+      </span>) },
+  ];
+  const sw = (y) => (<button key={y} onClick={() => setYear(y)} aria-pressed={year === y} style={{ minHeight: 44, padding: "0 16px", borderRadius: 8, border: "1px solid " + (year === y ? GO : t.border), background: year === y ? t.goldBg : "transparent", color: year === y ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{String(y)}</button>);
+  const brand = clientConfig.company.brandTag;
+  return (<div data-holidays="">
+    <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginBottom: 12 }}>{tr("{0} observes the eleven federal holidays and the two Eids. Federal days follow the handbook. Enter each year's Eid dates here once {0} confirms them, and any other day {0} closes.", brand)}</div>
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 8 }}>{years.map(sw)}</div>
+      <label style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.textSec }}>
+        <span style={chkWrap}><input type="checkbox" checked={retired} onChange={e => setRetired(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+        {tr("Show retired")}
+      </label>
+      <div style={{ marginLeft: "auto" }}><Btn t={t} onClick={() => open(null)} style={{ minHeight: 44 }} data-holiday-add="">{tr("Add a holiday")}</Btn></div>
+    </div>
+    {list === null ? <Crd t={t}><div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div></Crd> :
+      failed ? <Crd t={t}><LoadFailed t={t} text={failed} onRetry={load} /></Crd> :
+      <DataTable t={t} columns={cols} rows={list} rowKey={h => (h.id || h.key || "") + ":" + h.date} empty={tr("No holidays this year.")} />}
+    {win && <Mdl t={t} onClose={() => { if (!saving) setWin(null); }}><div style={{ padding: 20 }} data-holiday-window={win.mode}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{win.mode === "add" ? tr("Add a holiday") : tr("Edit holiday")}</div>
+        <button onClick={() => setWin(null)} aria-label={tr("Close")} style={xBtn} disabled={saving}><XI sz={18} c={t.textMut} /></button>
+      </div>
+      {refusal.text && !refusal.field && <div data-holiday-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+      <div style={{ marginBottom: 12, maxWidth: 260 }}>
+        <Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} value={win.date} onChange={e => set("date", e.target.value)} style={box("date")} />{under("date")}
+      </div>
+      <div style={{ marginBottom: 12 }}>
+        <Lbl>{tr("Holiday")}</Lbl><Inp t={t} maxLength={120} aria-label={tr("Holiday")} value={win.name} onChange={e => set("name", e.target.value)} style={box("name")} />{under("name")}
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={win.note} onChange={e => set("note", e.target.value)} style={box("note")} />
+        <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional.")}</div>{under("note")}
+      </div>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" onClick={() => setWin(null)} disabled={saving} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+        <Btn t={t} onClick={send} disabled={saving || !ready} style={{ minHeight: 44, minWidth: 96 }}>{saving ? tr("Saving...") : win.mode === "add" ? tr("Add holiday") : tr("Save")}</Btn>
+      </div>
+    </div></Mdl>}
+  </div>);
+}
+
 function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSettings = false, canManageLookups = false, canManagePermissions = false, canManageAdmins = false, canSetQuoteDefaults = false, selfId = "", lkMap, devicesOn = false }) {
   const [cats, setCats] = useState([]);
   // Quote defaults (Step 208) is an admin's who holds build_quotes, and shows once GET
@@ -14242,8 +14446,17 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     af("/api/quotes/defaults").then(d => { if (alive) setQuoteDefaults(d && typeof d === "object" ? d : null); }).catch(e => { if (alive) setQuoteDefaults(null); console.warn("Quote defaults:", e.message); });
     return () => { alive = false; };
   }, [af, canSetQuoteDefaults]);
+  // Holidays (Step 248) is a holder's of manage settings, and shows once GET /api/holidays answers
+  // this year's list; a 404 or a refusal leaves it off. The answer is handed to the tab.
+  const [holidays, setHolidays] = useState(null);
+  useEffect(() => {
+    if (!canManageSettings) { setHolidays(null); return undefined; }
+    let alive = true;
+    af("/api/holidays?year=" + new Date().getFullYear()).then(d => { if (alive) setHolidays(holidaysOf(d) ? d : null); }).catch(e => { if (alive) setHolidays(null); console.warn("Holidays:", e.message); });
+    return () => { alive = false; };
+  }, [af, canManageSettings]);
   const [selCat, setSelCat] = useState(null);
-  // Each tab is a capability's: Company and Who gets told are manage settings, the two lookups
+  // Each tab is a capability's: Company, Who gets told and Holidays are manage settings, the two lookups
   // tabs are manage lookups, and Roles and Permissions is manage permissions. The page draws the
   // tabs this person holds and starts on the first of them.
   const TABS = [
@@ -14253,6 +14466,7 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
     { id: "permissions", label: tr("Roles and Permissions"), open: canManagePermissions },
     { id: "recipients", label: tr("Who gets told"), open: canManageSettings, style: { fontFamily: FONT_BODY } },
     { id: "quotes", label: tr("Quote defaults"), open: canSetQuoteDefaults && !!quoteDefaults },
+    { id: "holidays", label: tr("Holidays"), open: canManageSettings && !!holidays },
     { id: "devices", label: tr("Trusted devices"), open: devicesOn },
   ];
   const tabs = TABS.filter(x => x.open);
@@ -14408,6 +14622,8 @@ function SettingsPage({ af, showToast, t, sites, uf, allStaff = [], canManageSet
       {tab === "recipients" && canManageSettings && <WhoGetsToldPanel af={af} showToast={showToast} t={t} allStaff={allStaff} lkMap={lkMap} />}
 
       {tab === "quotes" && canSetQuoteDefaults && quoteDefaults && <QuoteDefaultsPanel af={af} t={t} showToast={showToast} initial={quoteDefaults} />}
+
+      {tab === "holidays" && canManageSettings && holidays && <HolidaysPanel af={af} t={t} showToast={showToast} initial={holidays} />}
 
       {tab === "devices" && devicesOn && <TrustedDevices af={af} t={t} showToast={showToast} />}
 
@@ -14982,7 +15198,15 @@ function SignatureImage({ t, token, responseId, signKey, path }) {
   return <img src={url} alt={tr("Signature")} data-signature-image={signKey} style={{ display: "block", height: 48, maxWidth: "100%", objectFit: "contain", background: "#FFFFFF", borderRadius: 6, border: "1px solid " + t.border, marginBottom: 6 }} />;
 }
 
-function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null }) {
+// A client's concern acknowledged by hand (Step 248, STEP247_CONTRACT.md version 2, section 6.1).
+// OCSA-MGT-005 gives a client's complaint one working day to be acknowledged, and a client who left
+// only a phone gets no receipt mail. When the read says canAcknowledge, Mark acknowledged sits above
+// the desk: How and an optional note, sent to POST /api/forms/responses/:id/acknowledge, refusals
+// word for word under the field their keys name. Once acknowledged the report says when, by whom and
+// how, or by the receipt mail when nobody sent it by hand. A read without the keys shows none of it.
+const ACK_METHODS = [{ v: "phone", l: "Phone call", said: "phone call|acknowledged" }, { v: "text", l: "Text message", said: "text message|acknowledged" }, { v: "email", l: "Email", said: "email|acknowledged" }, { v: "in_person", l: "In person", said: "in person|acknowledged" }];
+const ACK_FIELDS = ["method", "note"];
+function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -15011,6 +15235,12 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // Step 203: a supervisor write refused with forms.fieldNotYours names the questions this person may
   // not write in keys, and the refusal is drawn under each of them.
   const [fieldRefusal, setFieldRefusal] = useState({ text: "", keys: [] });
+  // Mark acknowledged (Step 248): the open form, what it holds, and one send at a time.
+  const [ackOpen, setAckOpen] = useState(false);
+  const [ack, setAck] = useState({ method: "", note: "" });
+  const [ackRefusal, setAckRefusal] = useState({ text: "", field: "" });
+  const [acking, setAcking] = useState(false);
+  const ackRef = useRef(false);
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -15105,6 +15335,23 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     sendingRef.current = false; setSending(false);
   };
 
+  const acknowledge = async () => {
+    if (ackRef.current || !ack.method) return;
+    ackRef.current = true; setAcking(true); setAckRefusal({ text: "", field: "" });
+    const note = ack.note.trim();
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/acknowledge", { method: "POST", body: Object.assign({ method: ack.method }, note ? { note } : {}) });
+      const done = { acknowledgedAt: (d && d.acknowledgedAt) || new Date().toISOString(), acknowledgedMethod: (d && d.acknowledgedMethod) || ack.method, acknowledgedBy: (d && d.acknowledgedBy) || null, canAcknowledge: false };
+      setData(prev => (prev ? Object.assign({}, prev, { canAcknowledge: false, draft: Object.assign({}, prev.draft, done) }) : prev));
+      setAckOpen(false); setAck({ method: "", note: "" });
+      if (onAcknowledged) onAcknowledged(id);
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setAckRefusal({ text: e.message || tr("Request failed"), field: keys.find(k => ACK_FIELDS.indexOf(k) >= 0) || "" });
+    }
+    ackRef.current = false; setAcking(false);
+  };
+
   const doVoid = async () => {
     if (voidRef.current) return;
     voidRef.current = true; setVoidBusy(true); setActionError(""); setSentLine("");
@@ -15124,6 +15371,20 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // control draws.
   const canVoid = !!(data && data.canVoid);
   const canResend = !!(data && data.canResend);
+  // The acknowledgement keys, read off the report, or off the read where the API puts them there.
+  const ackKey = (k) => (draft && Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : data && Object.prototype.hasOwnProperty.call(data, k) ? data[k] : undefined);
+  const canAcknowledge = ackKey("canAcknowledge") === true;
+  const ackMethod = ackKey("acknowledgedMethod");
+  const ackAt = ackKey("acknowledgedAt");
+  const ackBy = ackKey("acknowledgedBy");
+  const ackWho = ackBy && typeof ackBy === "object" ? String(ackBy.name || "") : "";
+  const ackHow = ACK_METHODS.find(m => m.v === ackMethod);
+  // Before the API's Step 247 only the receipt mail set acknowledgedAt, so one with no method and no
+  // person is the receipt too.
+  const ackLine = ackMethod === undefined || !ackAt ? ""
+    : ackWho ? tr("Acknowledged {0} by {1}, {2}.", irWhen(ackAt), ackWho, ackHow ? tr(ackHow.said) : String(ackMethod || ""))
+    : (ackMethod === "email" || ackMethod == null) ? tr("Acknowledged {0} by email receipt.", irWhen(ackAt))
+    : tr("Acknowledged {0}.", irWhen(ackAt));
   const isVoid = !!(draft && draft.status === "void");
   const fields = data && Array.isArray(data.fields) ? data.fields : [];
   // Step 203: a question that carries appliesWhen shows only while its rule holds, read by the one
@@ -15436,6 +15697,33 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
         {grouped(agentFields, fieldRow)}
         {averages}
       </div>
+      {(ackLine || canAcknowledge) && <div data-acknowledge="" style={{ marginBottom: 18, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (canAcknowledge ? t.orangeBorder : t.border) }}>
+        {ackLine && <div data-acknowledged="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{ackLine}</div>}
+        {canAcknowledge && !ackOpen && <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Bdg l={tr("Not acknowledged")} c={OR} />
+          <Btn t={t} v="ghost" onClick={() => { setAckOpen(true); setAckRefusal({ text: "", field: "" }); }} style={{ minHeight: 44 }} data-mark-acknowledged="">{tr("Mark acknowledged")}</Btn>
+        </div>}
+        {canAcknowledge && ackOpen && <div data-acknowledge-form="">
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 10 }}>{tr("Mark acknowledged")}</div>
+          {ackRefusal.text && !ackRefusal.field && <div data-acknowledge-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{ackRefusal.text}</div>}
+          <div style={{ marginBottom: 12, maxWidth: 280 }}>
+            <Lbl>{tr("How")}</Lbl>
+            <Sel t={t} aria-label={tr("How")} value={ack.method} onChange={e => setAck(a => ({ ...a, method: e.target.value }))} style={ackRefusal.field === "method" ? { borderColor: RD } : {}}
+              options={[{ v: "", l: tr("Choose") }].concat(ACK_METHODS.map(m => ({ v: m.v, l: tr(m.l) })))} />
+            {ackRefusal.text && ackRefusal.field === "method" && <div data-acknowledge-refusal="method" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{ackRefusal.text}</div>}
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <Lbl>{tr("Note")}</Lbl>
+            <TArea t={t} rows={2} maxLength={500} aria-label={tr("Note")} value={ack.note} onChange={e => setAck(a => ({ ...a, note: e.target.value }))} style={ackRefusal.field === "note" ? { borderColor: RD } : {}} />
+            <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("Optional.")}</div>
+            {ackRefusal.text && ackRefusal.field === "note" && <div data-acknowledge-refusal="note" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{ackRefusal.text}</div>}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => { setAckOpen(false); setAckRefusal({ text: "", field: "" }); }} disabled={acking} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={acknowledge} disabled={acking || !ack.method} style={{ minHeight: 44 }}>{acking ? tr("Saving...") : tr("Mark acknowledged")}</Btn>
+          </div>
+        </div>}
+      </div>}
       <div>
         <Lbl>{tr("Supervisor section")}</Lbl>
         {canWriteSupervisor
@@ -16710,19 +16998,26 @@ const customerFormsOf = (list) => {
   if (flagged.length === 0) return CUSTOMER_FORM_CODES.map(code => ({ code, title: FORM_TITLE_LABELS[code] ? tr(FORM_TITLE_LABELS[code]) : code }));
   return flagged.filter(f => f.apps.indexOf("customer") !== -1);
 };
+// The line under the QR code names the company as {0} (Step 248), the name every printed page takes
+// from the company's settings.
 const CUSTOMER_SCAN_LABELS = {
-  "OCSA-FRM-006": "Scan to tell OCSA how the building is being kept.",
-  "OCSA-FRM-007": "Scan to tell OCSA how we are doing.",
-  "OCSA-FRM-009": "Scan to report a problem to OCSA.",
+  "OCSA-FRM-006": "Scan to tell {0} how the building is being kept.",
+  "OCSA-FRM-007": "Scan to tell {0} how we are doing.",
+  "OCSA-FRM-009": "Scan to report a problem to {0}.",
 };
-// The table's word for a key in a named language, for a line drawn in both languages at once. The
-// English is the key itself, which is what tr falls back to.
-function wordIn(lang, key) {
+// The company's name the way the printed pages read it: the settings' display name, else the legal
+// name, else the client config's, which is also the name when the settings say not to apply them.
+const companyNameOf = (settings) => (settings && settings.use_company_settings !== false && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
+const sheetCompanyFor = (af) => af("/api/settings").then(companyNameOf).catch(e => { console.warn("Settings:", e.message); return clientConfig.company.name; });
+// The table's word for a key in a named language, for a line drawn in both languages at once, with
+// any values filled in. The English is the key itself, which is what tr falls back to.
+function wordIn(lang, key, ...values) {
   const bar = String(key).lastIndexOf("|");
   const english = bar > 0 ? String(key).slice(0, bar) : String(key);
-  if (lang === "en") return english;
+  const fill = (text) => String(text).replace(/\{(\d+)\}/g, (m, i) => (values[Number(i)] == null ? "" : String(values[Number(i)])));
+  if (lang === "en") return fill(english);
   const entry = WORDS[key];
-  return entry && typeof entry[lang] === "string" && entry[lang] !== "" ? entry[lang] : tr(key);
+  return entry && typeof entry[lang] === "string" && entry[lang] !== "" ? fill(entry[lang]) : tr(key, ...values);
 }
 // A form's title in every language the dashboard speaks, the screen's first, for a form the table
 // names; the API's title alone for one it does not.
@@ -16753,21 +17048,24 @@ async function sheetTitlesFor(af, link) {
   const all = read.map(x => x || first);
   return all.filter((v, i) => all.indexOf(v) === i);
 }
-// The line under the QR code, in every language, for the form the link opens.
-function customerScanLines(link) {
-  if (!CUSTOMER_SCAN_LABELS[link.formCode]) return [];
+// The line under the QR code, in every language, for the form the link opens, with the company named.
+function customerScanLines(link, company) {
+  const key = CUSTOMER_SCAN_LABELS[link.formCode];
+  if (!key) return [];
+  const name = company || clientConfig.company.name;
   const others = LOCALES.filter(l => l !== getLang());
-  return [tr(CUSTOMER_SCAN_LABELS[link.formCode])].concat(others.map(l => wordIn(l, CUSTOMER_SCAN_LABELS[link.formCode])));
+  return [tr(key, name)].concat(others.map(l => wordIn(l, key, name)));
 }
 const linkStateWord = (s) => (s === "live" ? tr("On|link") : s === "disabled" ? tr("Off|link") : s === "expired" ? tr("Expired|link") : String(s || ""));
 const linkStateColor = (s) => (s === "live" ? GR : s === "expired" ? OR : RD);
 
 // The sheet Print puts in a new window: the logo, the site, the form's title in each language, the
 // QR code at its full size, the scan line in each language and the address in small type, in the
-// window the caller opened in the click when it did. False when the browser would not open one.
-function printCustomerLinkSheet({ link, qr, titles, scanLines, w: opened }) {
+// window the caller opened in the click when it did. False when the browser would not open one. The
+// company is named as the scan line names it.
+function printCustomerLinkSheet({ link, qr, titles, scanLines, company, w: opened }) {
   const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const cName = clientConfig.company.name;
+  const cName = company || clientConfig.company.name;
   const siteName = link.site && link.site.name ? link.site.name : tr("No site");
   const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222;text-align:center}.brand{border-bottom:3px solid ' + GOLD + ';padding-bottom:10px;margin-bottom:18px}.brand img{height:56px}.co{font-size:20px;font-weight:700;color:' + NAVY + '}h1{color:' + NAVY + ';font-size:26px;margin:8px 0 4px}.form{font-size:18px;margin:2px 0;color:#333}.qr{display:block;width:512px;height:512px;margin:22px auto 18px}.scan{font-size:20px;font-weight:700;color:' + NAVY + ';margin:6px 0}.url{font-size:11px;color:#666;margin-top:16px;word-break:break-all}.footer{margin-top:24px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
   const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Customer link")) + '</title>' + style + '</head><body>'
@@ -16984,8 +17282,8 @@ function useLinkActions(af, token, onLink) {
     if (!w) { say(link.id, tr("Allow pop-ups to print the sheet")); return; }
     setPrinting(link.id);
     try {
-      const [qr, titles] = await Promise.all([linkQrDataUrl(link.id, token), sheetTitlesFor(af, link)]);
-      printCustomerLinkSheet({ link, qr, titles, scanLines: customerScanLines(link), w });
+      const [qr, titles, company] = await Promise.all([linkQrDataUrl(link.id, token), sheetTitlesFor(af, link), sheetCompanyFor(af)]);
+      printCustomerLinkSheet({ link, qr, titles, scanLines: customerScanLines(link, company), company, w });
     } catch (e) {
       try { w.close(); } catch (x) { /* already closed */ }
       if (mounted.current) say(link.id, e.message || tr("Request failed"));
@@ -17053,6 +17351,7 @@ function TurnOffLinkWindow({ t, link, onCancel, onConfirm }) {
 function LinkQrWindow({ af, t, token, link, acts, onClose }) {
   const [qr, setQr] = useState("");
   const [sheetTitles, setSheetTitles] = useState(null);
+  const [company, setCompany] = useState("");
   const [qrError, setQrError] = useState("");
   const [printError, setPrintError] = useState("");
   const id = link.id;
@@ -17070,11 +17369,16 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
     sheetTitlesFor(af, { formCode, formTitle }).then(x => { if (alive) setSheetTitles(x); });
     return () => { alive = false; };
   }, [af, formCode, formTitle]);
+  useEffect(() => {
+    let alive = true;
+    sheetCompanyFor(af).then(x => { if (alive) setCompany(x); });
+    return () => { alive = false; };
+  }, [af]);
   useEscape(onClose);
   const print = () => {
-    if (!qr || !sheetTitles) return;
+    if (!qr || !sheetTitles || !company) return;
     setPrintError("");
-    if (!printCustomerLinkSheet({ link, qr, titles: sheetTitles, scanLines: customerScanLines(link) })) setPrintError(tr("Allow pop-ups to print the sheet"));
+    if (!printCustomerLinkSheet({ link, qr, titles: sheetTitles, scanLines: customerScanLines(link, company), company })) setPrintError(tr("Allow pop-ups to print the sheet"));
   };
   return (<Mdl t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
@@ -17095,7 +17399,7 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
     <LinkRefusal text={acts.rowError[link.id]} />
     {printError && <div style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{printError}</div>}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 16 }}>
-      <Btn t={t} onClick={print} disabled={!qr || !sheetTitles} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
+      <Btn t={t} onClick={print} disabled={!qr || !sheetTitles || !company} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
       <Btn t={t} v="ghost" onClick={() => acts.copy(link)} style={{ minHeight: 44, minWidth: 96 }}>{acts.copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
     </div>
@@ -17291,6 +17595,8 @@ const isComplaint = (r) => !!r && r.formCode === COMPLAINT_FORM_CODE;
 const complaintFromLink = (r) => isComplaint(r) && r.source === "customer";
 const complaintForController = (r) => isComplaint(r) && (r.forController === true || r.staffConduct === true);
 const complaintTimed = (r) => isComplaint(r) && Object.prototype.hasOwnProperty.call(r, "answeredAt");
+// A client's concern that carries acknowledgedAt, still empty (Step 248).
+const complaintUnacknowledged = (r) => complaintFromLink(r) && Object.prototype.hasOwnProperty.call(r, "acknowledgedAt") && !r.acknowledgedAt;
 // Working days, Monday to Friday, after today up to and including the day due: 0 on the day itself.
 function workingDaysUntil(due, now) {
   const last = new Date(due);
@@ -17303,8 +17609,19 @@ function workingDaysUntil(due, now) {
   return n;
 }
 // The Due cell's words and color: answered clears it, past the time is late in red, one working day
-// or less left is orange, and anything further off is the day it is due.
+// or less left is orange, and anything further off is the day it is due. Since the API's Step 247
+// (STEP247_CONTRACT.md version 2, section 1) a 009 row carries dueState, counted by the API on
+// OCSA's working days with its holidays, and the cell reads that: answered, late, dueSoon, onTime,
+// or null for a row with no deadline. A row without the key keeps the count below, Monday to Friday.
+const hasDueState = (r) => !!r && Object.prototype.hasOwnProperty.call(r, "dueState");
 function complaintDue(r) {
+  if (hasDueState(r)) {
+    if (r.dueState === "answered") return { text: tr("Answered {0}", irDay(r.answeredAt)), color: null };
+    if (r.dueState === "late") return { text: tr("Past due {0}", irDay(r.dueAt)), color: RD };
+    if (r.dueState === "dueSoon") return { text: irDay(r.dueAt), color: OR };
+    if (r.dueState === "onTime") return { text: irDay(r.dueAt), color: null };
+    return { text: "--", color: null };
+  }
   if (r.answeredAt) return { text: tr("Answered {0}", irDay(r.answeredAt)), color: null };
   if (!r.dueAt) return { text: "--", color: null };
   if (new Date(r.dueAt).getTime() < Date.now()) return { text: tr("Past due {0}", irDay(r.dueAt)), color: RD };
@@ -17465,28 +17782,30 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   const customerCell = (r) => (<span>{tr("Customer")}{r.userName ? <div style={{ fontSize: 10, color: t.textMut }}>{r.userName}</div> : null}</span>);
   // Where a filing came from, under its form name, when the API says. A complaint a client filed from
   // a link says From a client, and one about how a member of staff treated someone says For the
-  // Controller (Step 243).
+  // Controller (Step 243). A client's complaint the list says no one has acknowledged yet says Not
+  // acknowledged (Step 248).
   const formCell = (r) => (<span style={{ color: t.text }}>{r.formName}
     {complaintFromLink(r) || complaintForController(r)
-      ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{complaintFromLink(r) && <Bdg l={tr("From a client")} c={BL} />}{complaintForController(r) && <Bdg l={tr("For the Controller")} c={PU} />}</div>
+      ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{complaintFromLink(r) && <Bdg l={tr("From a client")} c={BL} />}{complaintForController(r) && <Bdg l={tr("For the Controller")} c={PU} />}{complaintUnacknowledged(r) && <span data-not-acknowledged=""><Bdg l={tr("Not acknowledged")} c={OR} /></span>}</div>
       : r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
   // A complaint's deadline, on a list that holds one the API times.
-  const timed = rows.some(complaintTimed);
-  const dueCell = (r) => { if (!complaintTimed(r)) return null; const d = complaintDue(r); return <span data-complaint-due="" style={{ color: d.color || t.textSec, fontWeight: d.color ? 600 : 400 }}>{d.text}</span>; };
+  const timed = rows.some(r => complaintTimed(r) || hasDueState(r));
+  const dueCell = (r) => { if (!complaintTimed(r) && !hasDueState(r)) return null; const d = complaintDue(r); return <span data-complaint-due="" data-due-state={hasDueState(r) ? String(r.dueState) : undefined} style={{ color: d.color || t.textSec, fontWeight: d.color ? 600 : 400 }}>{d.text}</span>; };
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: tr("Form"), render: formCell },
+    { header: tr("Form"), tdStyle: { minWidth: 170 }, render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => (r.userId === null ? customerCell(r) : (r.userName || "--")) },
     ...(timed ? [{ header: tr("Due"), tdStyle: { whiteSpace: "nowrap" }, render: dueCell }] : []),
   ];
   const draftCols = [
     { header: tr("Started"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.createdAt) },
-    { header: tr("Form"), render: formCell },
+    { header: tr("Form"), tdStyle: { minWidth: 170 }, render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Started by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
     { header: tr("Answered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => tr("{0} of {1}", Number(r.answered) || 0, (Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
     { header: tr("Due"), tdStyle: { whiteSpace: "nowrap" }, render: r => {
+      if (hasDueState(r)) return dueCell(r);
       if (!r.dueAt) return <span style={{ color: t.textSec }}>--</span>;
       const past = new Date(r.dueAt).getTime() < Date.now();
       return past ? <span style={{ color: RD, fontWeight: 600 }}>{tr("Past due {0}", irDay(r.dueAt))}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
@@ -17500,7 +17819,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
   // Continue would be.
   const voidCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
-    { header: tr("Form"), render: formCell },
+    { header: tr("Form"), tdStyle: { minWidth: 170 }, render: formCell },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || tr("No site") },
     { header: tr("Filed by"), tdStyle: { color: t.textSec }, render: r => (r.userId === null ? customerCell(r) : (r.userName || "--")) },
     { header: tr("Status"), render: () => <Bdg l={tr("Void|status")} c={RD} /> },
@@ -17523,7 +17842,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     {!loading && error && error.status !== 403 && <div style={{ padding: 30, textAlign: "center", fontSize: 13, color: t.textSec }}>{error.message} <button onClick={() => load(null)} style={{ minHeight: 44, background: "none", border: "none", color: t.goldText, fontWeight: 600, fontSize: 13, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Try again")}</button></div>}
     {!loading && !error && <DataTable t={t} columns={status === "submitted" ? submittedCols : status === "void" ? voidCols : draftCols} rows={rows} rowKey={r => r.id} onRowClick={r => onOpen(r.id, r)} empty={status === "submitted" ? tr("No reports filed yet.") : status === "void" ? tr("No void reports.") : tr("No unfinished reports.")} />}
     {!loading && !error && hasMore && <div style={{ padding: 10, textAlign: "center" }}><button onClick={loadMore} disabled={paging} style={{ minHeight: 44, padding: "0 16px", background: "none", border: "none", color: t.goldText, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{paging ? tr("Loading...") : tr("Load more")}</button></div>}
-    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} />}
+    {openId && <IncidentReportWindow af={af} token={token} t={t} id={openId} row={openRow} onClose={onClose} people={allStaff} onVoided={() => { load(null); setVoidProbe(n => n + 1); }} onAcknowledged={() => load(null)} />}
     {picker && (<Mdl t={t} onClose={() => setPicker(null)}><div style={{ padding: 20 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Pick a form to start")}</div>

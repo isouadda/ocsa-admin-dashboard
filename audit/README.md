@@ -33,10 +33,16 @@ Then it checks, one line a check:
 - Reports opens one card of each group, a filed form opens, Customer links opens, and Help answers;
 - at 1280 in English a supervisor sees only the admin items the seed gives them, and every item they
   see opens the same way.
+- at 1280 in English and in Spanish, against the stub's answers for the API's Step 247, which the
+  smoke check arms with `setStep247`: Settings, Holidays lists the year and adds a day; the Rehire
+  window lists the sites to restore, the ones held when the person left ticked; a client's concern
+  past due draws its Due in red; and that concern is marked acknowledged by phone. Every other run
+  of the stub answers as it did before Step 247.
 
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
 after it still run. Any failure, or a run of three minutes or more, exits non-zero. It finds the side
-panel's items by `data-nav-item` and Reports' groups by `data-report-group`.
+panel's items by `data-nav-item` and Reports' groups by `data-report-group`, and Step 248's screens by
+`data-holidays`, `data-restore-sites`, `data-due-state` and `data-mark-acknowledged`.
 
 ## What comes out
 
