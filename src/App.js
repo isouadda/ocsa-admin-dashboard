@@ -1647,6 +1647,10 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Step 243 review: whether the API keeps an account in French, read once from GET /api/languages.
   const frenchKept = useFrenchKept(af);
   const [hrDocs, setHrDocs] = useState([]); const [hrTraining, setHrTraining] = useState([]);
+  // Step 257: the person's training items from GET /api/training/gaps/people/:userId once the route
+  // answers, or null before then.
+  const gapsLive = useTrainingLive(af, "gaps");
+  const [hrItems, setHrItems] = useState(null);
   const [hrOnboarding, setHrOnboarding] = useState([]); const [hrLoading, setHrLoading] = useState(false);
   // Step 187: the filed reports about this person, the source form items of their HR folder, and
   // the one open in its review window.
@@ -1736,6 +1740,8 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
   // Load HR data for the HR Files tab
   const loadHrData = async (userId) => {
     setHrLoading(true);
+    setHrItems(null);
+    if (gapsLive) af("/api/training/gaps/people/" + encodeURIComponent(userId)).then(d => setHrItems(d && Array.isArray(d.items) ? d.items : [])).catch(e => { console.warn("Training items:", e.message); setHrItems(null); });
     try {
       const [docs, train] = await Promise.all([
         af("/api/hr/documents?user_id=" + userId),
@@ -1747,7 +1753,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
     } catch (e) { showToast(e.message, "error"); }
     setHrLoading(false);
   };
-  useEffect(() => { if (profile && profileTab === "hr") loadHrData(profile.user.id); }, [profileTab, profile?.user?.id]);
+  useEffect(() => { if (profile && profileTab === "hr") loadHrData(profile.user.id); }, [profileTab, profile?.user?.id, gapsLive]);
 
   // Session 25 Phase 3: open a private-bucket document via the authenticated streaming endpoint.
   // Same pattern used in HRRecordsPage.
@@ -2158,6 +2164,12 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
             </div>)}
           </Crd>
           <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
+            {/* Step 257: the person's items, each in its status's words, once the gaps route answers; the
+                records follow, with no status of their own, since the table keeps none. */}
+            {hrItems && <div data-profile-training-items="" style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Required training ({0})", hrItems.length)}</div>
+              <TrainingItemsList t={t} items={hrItems} compact />
+            </div>}
             <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 10 }}>{tr("Training Records ({0})", hrTraining.length)}</div>
             {hrTraining.length === 0 && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No training records")}</div>}
             {hrTraining.map((rec, i) => <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: t.hover, borderRadius: 6, marginBottom: 4 }}>
@@ -2165,7 +2177,7 @@ function StaffPage({ af, token, showToast, t, sites, allStaff, loadStaff, getOpt
                 <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{rec.training_name}</div>
                 <div style={{ fontSize: 10, color: t.textMut, marginTop: 2 }}>{rec.training_type ? (trainingTypeShown[rec.training_type] || rec.training_type) : tr("Training")}{rec.completed_date ? " | " + tr("Completed: {0}", fmtDate(rec.completed_date)) : ""}{rec.score ? " | " + tr("Score: {0}", rec.score) : ""}</div>
               </div>
-              <Bdg l={trainingStateOf(rec.status || "completed")} c={rec.status === "failed" ? RD : GR} />
+              {!hrItems && <Bdg l={trainingStateOf(rec.status || "completed")} c={rec.status === "failed" ? RD : GR} />}
             </div>)}
           </Crd>
           <Crd t={t} style={{ marginBottom: 12, padding: 16 }}>
@@ -8860,13 +8872,15 @@ function inspectionWordsOf(lkMap, lkColorMap) {
 // and in which language, the form's other fields as lines to fill, everyone logged for it with a line to
 // sign and to initial Understood, and the trainer's attestation. The training panel, the window that
 // logs a session and the kept record all print it. False when the browser would not open the window.
+// Since Step 257 docNo fills Related Document No. with the topic's document and section, where the
+// session's topic is known.
 const ROSTER_ATTESTATION = "I confirm that I delivered the training described in Section 1, that each person listed in Section 3 attended for the full duration, and that the session was delivered in a format and language each attendee was able to understand. I confirm that attendees had the opportunity to ask questions and that questions raised were answered.";
-function attendanceRosterPage({ name, day, rows, typeWords = {}, site = "", staff = [] }) {
+function attendanceRosterPage({ name, day, rows, typeWords = {}, site = "", staff = [], docNo = "" }) {
   const people = (rows || []).slice().sort((a, b) => String(a.user_name || "").localeCompare(String(b.user_name || ""), localeTag()));
   const types = keptOnce((rows || []).map((r) => typeWords[r.training_type] || r.training_type || ""));
   const trainers = keptOnce((rows || []).map((r) => String(r.administered_by || "").trim()));
   return { code: "OCSA-FRM-033", site, range: day ? { start: day, end: day } : null, parts: [
-    { h: "Session Details", fields: [["Training Title or Topic", name], ["Training Type", types.join(", ")], ["Related Document No.", ""], ["Date", trainingDayWords(day, true)], ["Start Time / End Time", ""], ["Site or Location", site], ["Delivery Method", ""], ["Language(s) Delivered In", trainingGivenIn(rows).join(", ")], ["Translation Method", ""], ["Understanding Verified By", ""], ["Materials or Equipment Used", ""]] },
+    { h: "Session Details", fields: [["Training Title or Topic", name], ["Training Type", types.join(", ")], ["Related Document No.", docNo || ""], ["Date", trainingDayWords(day, true)], ["Start Time / End Time", ""], ["Site or Location", site], ["Delivery Method", ""], ["Language(s) Delivered In", trainingGivenIn(rows).join(", ")], ["Translation Method", ""], ["Understanding Verified By", ""], ["Materials or Equipment Used", ""]] },
     { h: "Trainer", fields: [["Trainer Name", trainers.join(", ")], ["Trainer Role", ""], ["Qualification Held", ""], ["Trainer Signature", ""]] },
     { h: "Attendance", note: "Every attendee signs their own line. A supervisor may not sign on an employee's behalf.", cols: ["#", "Employee Name (print)", "Employee ID", "Signature", "Understood"], rows: people.map((r) => ["", r.user_name || "", rosterEmployeeId(staff, r.user_id), "", ""]), least: 20 },
     { fields: [["Total attendees this session", String(people.length)]] },
@@ -8940,14 +8954,20 @@ const KEPT_RECORDS = {
       const done = full.filter(x => x && x.result).sort((a, b) => String(a.result.completed_at || "").localeCompare(String(b.result.completed_at || "")));
       await printInspections(w, done, { token: c.token, words: c.words, range: c.range });
     } },
+  // Since Step 257 the catalog is read beside the records once it answers, so each roster's Related
+  // Document No. names its topic's document and section.
   "kept-033": { live: ["record", "training"], codes: "OCSA-FRM-033", name: "Training Attendance Roster", line: "A roster for each training session at the site in the range.", ranged: true,
-    load: async (af) => { const d = await af("/api/hr/training"); return Array.isArray(d) ? d : []; },
-    pages: (d, c) => {
+    load: async (af) => {
+      const [d, topics] = await Promise.all([af("/api/hr/training"), probeTraining(af, "topics").then(on => (on ? af("/api/training/topics?active=all").then(x => (x && Array.isArray(x.topics) ? x.topics : [])) : [])).catch(() => [])]);
+      return { rows: Array.isArray(d) ? d : [], topics };
+    },
+    pages: (data, c) => {
+      const d = data.rows;
       const mine = d.filter(r => keptInRange(trainingDay(r.completed_date), c.range) && (trainingSiteOf(r) ? trainingSiteOf(r) === String(c.siteId) : !!(c.atSite && c.atSite.has(String(r.user_id)))));
       const sessions = new Map();
       mine.forEach(r => { const k = trainingKey(r.training_name) + "|" + trainingDay(r.completed_date); if (!sessions.has(k)) sessions.set(k, []); sessions.get(k).push(r); });
       return Array.from(sessions.values()).sort((a, b) => trainingDay(a[0].completed_date).localeCompare(trainingDay(b[0].completed_date)) || String(a[0].training_name).localeCompare(String(b[0].training_name)))
-        .map(rows => attendanceRosterPage({ name: String(rows[0].training_name || "").trim(), day: trainingDay(rows[0].completed_date), rows, typeWords: c.typeWords, site: c.site, staff: c.allStaff }));
+        .map(rows => attendanceRosterPage({ name: String(rows[0].training_name || "").trim(), day: trainingDay(rows[0].completed_date), rows, typeWords: c.typeWords, site: c.site, staff: c.allStaff, docNo: topicDocLine(topicOfRecord(data.topics, rows[0])) }));
     },
     summary: (d, c, pages) => trn("{0} session to print|count", pages.length) },
 };
@@ -21965,6 +21985,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
   }, [route]);
   const topicsLive = useTrainingLive(af, "topics");
+  const gapsLive = useTrainingLive(af, "gaps");
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -22161,7 +22182,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22272,6 +22293,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
@@ -22280,7 +22302,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             <Btn t={t} onClick={() => { setForm({ user_id: selUser }); setShowModal("training"); }}>{tr("+ Add Training")}</Btn>
           </div>
         </div>
-        <TrainingGapsPanel af={af} t={t} sites={sites} staff={allStaff} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />
+        {!gapsLive && <TrainingGapsPanel af={af} t={t} sites={sites} staff={allStaff} refreshKey={training} typeWords={trainingTypeMap} showToast={showToast} />}
         <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ flex: 1, minWidth: 200, position: "relative" }}><Ic d="M21 21l-4.35-4.35 M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" sz={16} c={t.textMut} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} /><input value={trQ} onChange={e => { setTrQ(e.target.value); setTrPage(1); }} placeholder={tr("Search employee, training, type, administered by")} style={{ width: "100%", boxSizing: "border-box", padding: "9px 12px 9px 36px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13 }} /></div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ fontSize: 12, color: t.textMut }}>{tr("Show")}</span><select value={hrPerPage} onChange={e => { setHrPerPage(Number(e.target.value)); setTrPage(1); }} style={{ padding: "9px 10px", borderRadius: R.sm, border: "1px solid " + t.inputBorder, background: t.inputBg, color: t.text, fontFamily: FONT_BODY, fontSize: 13, cursor: "pointer" }}>{[10, 25, 50, 100].map(nn => <option key={nn} value={nn}>{nn}</option>)}</select></div>
@@ -22543,7 +22565,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       </Mdl>}
 
       {/* LOG TRAINING FOR SEVERAL PEOPLE */}
-      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
+      {roomOpen && <LogTrainingWindow af={af} t={t} sites={sites} staff={allStaff} typeOpts={trainingTypeOpts} typeWords={trainingTypeMap} topicsLive={topicsLive} onClose={() => setRoomOpen(false)} onSaved={() => { loadTraining(); if (compliance) loadCompliance(); }} />}
 
       {/* ONBOARDING STEP MODAL */}
       {showModal === "onbStep" && <Mdl t={t} onClose={() => { setShowModal(null); setForm({}); }}>
@@ -22668,7 +22690,14 @@ function useSitePeople(af, siteId) {
 // training name on the same day is left out and named, so a second press logs nobody twice. The people
 // are everyone active, or the active people a site's record lists as assigned there, which is how
 // Shift Pickup reads a site's people.
-function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords, onClose, onSaved }) {
+//
+// Since Step 257, once the catalog answers (topicsLive), the session is of a topic picked from it rather
+// than a typed name and type, with its trainer picked or typed, and a note; it keeps the language, the
+// site and the people, and is sent once, to POST /api/hr/training/sessions, which writes every record in
+// one go and says who already had the topic that day. A refusal is drawn under the field its keys name.
+// The typed names stay only until the catalog answers.
+const SESSION_FIELDS = ["topicId", "day", "siteId", "locale", "trainerId", "administeredBy", "people", "note"];
+function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords, topicsLive = false, onClose, onSaved }) {
   const [people, peopleError] = useActivePeople(af);
   const [known, setKnown] = useState([]);
   const [form, setForm] = useState(() => ({ name: "", type: "", date: todayISO(), by: "", lang: "" }));
@@ -22681,16 +22710,34 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
   const [progress, setProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
+  // The session of a topic: the catalog's active topics, the one picked, the trainer picked from the
+  // people (or typed, with none picked), the note, and a refusal with the fields its keys name.
+  const [topics, setTopics] = useState(null);
+  const [topicId, setTopicId] = useState("");
+  const [trainerId, setTrainerId] = useState("");
+  const [note, setNote] = useState("");
+  const [refusal, setRefusal] = useState(null);
   // A second press while a run is going sends nothing. State would reach the handler too late, since
   // both presses can land before the page draws again.
   const running = useRef(false);
+  // What a save says is brought into view, since the people list pushes it below the fold.
+  const saidRef = useRef(null);
+  useEffect(() => { if (result && saidRef.current && saidRef.current.scrollIntoView) saidRef.current.scrollIntoView({ block: "nearest" }); }, [result]);
 
   // The names already used, offered as a name is typed.
   useEffect(() => {
+    if (topicsLive) return undefined;
     let alive = true;
     af("/api/hr/training").then((rows) => { if (alive) setKnown(rows || []); }).catch(() => {});
     return () => { alive = false; };
-  }, [af]);
+  }, [af, topicsLive]);
+  useEffect(() => {
+    if (!topicsLive) return undefined;
+    let alive = true;
+    af("/api/training/topics").then((d) => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) : []); })
+      .catch((e) => { if (alive) { setTopics([]); setError(e.message); } });
+    return () => { alive = false; };
+  }, [af, topicsLive]);
 
   const names = useMemo(() => trainingNames(known), [known]);
   const typed = trainingKey(form.name);
@@ -22708,6 +22755,9 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
   const toggle = (id) => setPicked((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const pickListed = () => setPicked((prev) => { const next = new Set(prev); listed.forEach((p) => next.add(p.id)); return next; });
   const close = () => { if (!running.current) onClose(); };
+  const siteName = ((sites || []).find((x) => String(x.id) === siteId) || {}).name || "";
+  const topic = (topics || []).find((x) => String(x.id) === topicId) || null;
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "");
 
   // `only` is the people Try again sends, the ones the last run could not save.
   const save = async (only) => {
@@ -22744,7 +22794,7 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
         }
         setProgress({ saved: saved.length, total: queue.length });
       }
-      setResult({ name, day: form.date, already, failed, rows: had.concat(saved), site: ((sites || []).find((x) => String(x.id) === siteId) || {}).name || "" });
+      setResult({ name, day: form.date, already, failed, rows: had.concat(saved), site: siteName });
       if (saved.length) { setKnown((k) => saved.concat(k)); onSaved(); }
     } catch (e) {
       setError(e.message);
@@ -22754,13 +22804,52 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
     }
   };
 
+  // The session of a topic, sent once. The roster afterwards lists everyone the session names who has
+  // the topic that day, the ones saved now and the ones who already had it.
+  const saveSession = async () => {
+    if (running.current) return;
+    const lang = TRAINING_LANGUAGES.find((l) => l.id === form.lang);
+    const who = (people || []).filter((p) => picked.has(p.id));
+    const trainer = (people || []).find((p) => p.id === trainerId) || null;
+    if (!topic) { setError(tr("Pick a topic")); return; }
+    if (!form.date) { setError(tr("Pick the date it was given")); return; }
+    if (!lang) { setError(tr("Pick the language it was given in")); return; }
+    if (!trainer && !form.by.trim()) { setError(tr("Pick the trainer or type their name")); return; }
+    if (who.length === 0) { setError(tr("Tick at least one person")); return; }
+    running.current = true;
+    setBusy(true); setError(""); setRefusal(null); setResult(null);
+    try {
+      const d = await af("/api/hr/training/sessions", { method: "POST", body: { topicId: topic.id, day: form.date, siteId: siteId || null, locale: lang.id, trainerId: trainer ? trainer.id : null, administeredBy: trainer ? null : form.by.trim(), people: who.map((p) => p.id), note: note.trim() || null } });
+      const savedIds = new Set(((d && d.saved) || []).map((x) => String(x.userId)));
+      const alreadyIds = new Set(((d && d.already) || []).map(String));
+      const by = trainer ? trainer.name : form.by.trim();
+      const rows = who.filter((p) => savedIds.has(p.id) || alreadyIds.has(p.id)).map((p) => ({ user_id: p.id, user_name: p.name, training_type: topic.safetyCritical ? "safety" : "onboarding", administered_by: by, notes: lang.note, completed_date: form.date }));
+      setResult({ name: topic.name, day: form.date, saved: who.filter((p) => savedIds.has(p.id)), already: who.filter((p) => alreadyIds.has(p.id)), failed: [], rows, site: siteName, docNo: topicDocLine(topic) });
+      if (savedIds.size) onSaved();
+    } catch (e) {
+      const keys = trainingKeysOf(e).filter((k) => SESSION_FIELDS.indexOf(k) >= 0);
+      const fields = keys.length ? keys : e && e.code === "training.topicNotFound" ? ["topicId"] : e && (e.code === "training.tooManyPeople" || e.code === "training.personNotFound") ? ["people"] : [];
+      setRefusal({ text: e.message || tr("Request failed"), fields });
+    } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+
   const field = { fontSize: 11, color: t.textMut, marginBottom: 4 };
   const tall = { minHeight: 44, minWidth: 44 };
   const choice = (on) => ({ minWidth: 44, minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  const badLine = (k) => (bad(k) ? <div role="alert" data-session-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad(k)}</div> : null);
+  const unplaced = refusal && refusal.fields.length === 0 ? refusal.text : "";
   return (
     <Mdl t={t} onClose={close}>
-      <div style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div data-session-window="" style={{ padding: 20 }}><div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Log training for several people")}</div>
+        {topicsLive ? <div data-session-field="topicId"><div style={field}>{tr("Topic")}</div>
+          <Sel t={t} aria-label={tr("Topic")} options={[{ v: "", l: topics === null ? tr("Loading...") : tr("Pick a topic...") }].concat((topics || []).map((x) => ({ v: String(x.id), l: x.name })))} value={topicId} onChange={(e) => setTopicId(e.target.value)} style={tall} />
+          {topic && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{[topicDocLine(topic), trainingFrequencyWord(topic.frequency), topic.safetyCritical ? tr("Safety critical") : ""].filter(Boolean).join(" . ")}</div>}
+          {badLine("topicId")}
+        </div> : <>
         <div><div style={field}>{tr("Training Name")}</div>
           <Inp t={t} aria-label={tr("Training Name")} placeholder={tr("e.g. General Cleaning Training")} value={form.name} onChange={(e) => { setForm({ ...form, name: e.target.value }); setOfferNames(true); }} style={tall} />
           {offered.length > 0 && <div role="group" aria-label={tr("Names already used")} style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
@@ -22769,18 +22858,24 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
         </div>
         <div><div style={field}>{tr("Training Type")}</div>
           <Sel t={t} aria-label={tr("Training Type")} options={typeOpts} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={tall} /></div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div><div style={field}>{tr("Completed Date")}</div>
-            <Inp t={t} type="date" aria-label={tr("Completed Date")} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={tall} /></div>
-          <div><div style={field}>{tr("Administered By")}</div>
-            <Inp t={t} aria-label={tr("Administered By")} value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} style={tall} /></div>
+        </>}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+          <div data-session-field="day"><div style={field}>{tr("Completed Date")}</div>
+            <Inp t={t} type="date" aria-label={tr("Completed Date")} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} style={tall} />{badLine("day")}</div>
+          {topicsLive ? <div data-session-field="trainerId"><div style={field}>{tr("Trainer")}</div>
+            <Sel t={t} aria-label={tr("Trainer")} options={[{ v: "", l: tr("Type a name") }].concat((people || []).map((p) => ({ v: p.id, l: p.name })))} value={trainerId} onChange={(e) => setTrainerId(e.target.value)} style={tall} />
+            {!trainerId && <Inp t={t} aria-label={tr("Trainer's name")} placeholder={tr("Trainer's name")} value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} style={{ ...tall, marginTop: 8 }} />}
+            {badLine("trainerId")}{badLine("administeredBy")}
+          </div> : <div><div style={field}>{tr("Administered By")}</div>
+            <Inp t={t} aria-label={tr("Administered By")} value={form.by} onChange={(e) => setForm({ ...form, by: e.target.value })} style={tall} /></div>}
         </div>
-        <div><div style={field}>{tr("Language it was given in")}</div>
+        <div data-session-field="locale"><div style={field}>{tr("Language it was given in")}</div>
           <div role="group" aria-label={tr("Language it was given in")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {TRAINING_LANGUAGES.map((l) => <button key={l.id} type="button" aria-pressed={form.lang === l.id} onClick={() => setForm({ ...form, lang: l.id })} style={choice(form.lang === l.id)}>{tr(l.word)}</button>)}
-          </div></div>
-        <div><div style={field}>{tr("Who attended")}</div>
+          </div>{badLine("locale")}</div>
+        <div data-session-field="people"><div style={field}>{tr("Who attended")}</div>
           <Sel t={t} aria-label={tr("Who attended")} options={[{ v: "", l: tr("Everyone active") }, ...sites.map((s) => ({ v: String(s.id), l: s.name }))]} value={siteId} onChange={(e) => setSiteId(e.target.value)} style={tall} />
+          {badLine("siteId")}
           <Inp t={t} aria-label={tr("Search by name")} placeholder={tr("Search by name")} value={q} onChange={(e) => setQ(e.target.value)} style={{ ...tall, marginTop: 8 }} />
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
             {!allListedPicked && listed.length > 0 && <Btn t={t} v="ghost" onClick={pickListed} style={tall}>{tr("Select all")}</Btn>}
@@ -22790,17 +22885,24 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
           <div style={{ marginTop: 8, border: "1px solid " + t.border, borderRadius: R.sm, overflow: "hidden" }}>
             {people === null || (siteId && atSite === null) ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>
               : listed.length === 0 ? <div style={{ padding: 12, fontSize: 13, color: t.textMut }}>{needle ? tr("No staff match that search") : tr("No staff assigned")}</div>
-              : listed.map((p) => <label key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, cursor: "pointer" }}>
+              : listed.map((p) => <label key={p.id} data-session-person={p.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, padding: "6px 12px", borderBottom: "1px solid " + t.border, color: t.text, fontSize: 13, cursor: "pointer" }}>
                 <input type="checkbox" checked={picked.has(p.id)} onChange={() => toggle(p.id)} style={{ width: 20, height: 20, flexShrink: 0, accentColor: GO, cursor: "pointer" }} />
                 <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
                 <span style={{ marginLeft: "auto", fontSize: 11, color: t.textMut, textAlign: "right" }}>{roleWord(p.role)}</span>
               </label>)}
           </div>
+          {badLine("people")}
         </div>
-        {(error || peopleError || siteError) && <div role="alert" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{error || peopleError || siteError}</div>}
+        {topicsLive && <div data-session-field="note"><div style={field}>{tr("Notes (optional)")}</div>
+          <TArea t={t} rows={2} aria-label={tr("Notes (optional)")} value={note} onChange={(e) => setNote(e.target.value)} />{badLine("note")}</div>}
+        {(error || peopleError || siteError || unplaced) && <div role="alert" style={{ fontSize: 13, color: RD, overflowWrap: "anywhere" }}>{error || unplaced || peopleError || siteError}</div>}
         {progress && progress.total > 0 && <div role="status" style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{trn("{1} of {0} saved|count", progress.total, progress.saved)}</div>}
-        {result && result.already.length > 0 && <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{tr("Already logged, not sent again")}</div>
+        {result && result.saved && <div data-session-saved={result.saved.length}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: result.saved.length ? GR : t.textSec, marginBottom: 4 }}>{trn("Saved for {0} person|count", result.saved.length)}</div>
+          {result.saved.map((p) => <div key={p.id} style={{ fontSize: 13, color: t.textSec }}>{p.name}</div>)}
+        </div>}
+        {result && result.already.length > 0 && <div data-session-already={result.already.length}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{result.saved ? tr("Already had it that day") : tr("Already logged, not sent again")}</div>
           {result.already.map((p) => <div key={p.id} style={{ fontSize: 13, color: t.textSec }}>{p.name}</div>)}
         </div>}
         {result && result.failed.length > 0 && <div>
@@ -22811,13 +22913,13 @@ function LogTrainingWindow({ af, t, sites = [], staff = [], typeOpts, typeWords,
           </div>)}
           <Btn t={t} v="ghost" disabled={busy} onClick={() => save(result.failed.map((f) => f.person))} style={tall}>{tr("Try again")}</Btn>
         </div>}
-        {result && result.rows.length > 0 && <div>
-          <Btn t={t} v="ghost" disabled={busy} onClick={() => { if (!printAttendanceSheet({ name: result.name, day: result.day, rows: result.rows, typeWords, site: result.site, staff })) setError(tr("Allow pop-ups to print the sheet")); }} style={tall}>{tr("Print attendance sheet")}</Btn>
+        {result && result.rows.length > 0 && <div ref={saidRef}>
+          <Btn t={t} v="ghost" data-session-print="" disabled={busy} onClick={() => { if (!printAttendanceSheet({ name: result.name, day: result.day, rows: result.rows, typeWords, site: result.site, staff, docNo: result.docNo || "" })) setError(tr("Allow pop-ups to print the sheet")); }} style={tall}>{tr("Print attendance sheet")}</Btn>
         </div>}
       </div></div>
       <div style={{ position: "sticky", bottom: 0, background: t.card, borderTop: "1px solid " + t.border, padding: "12px 20px", display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
         <Btn t={t} v="ghost" disabled={busy} onClick={close} style={tall}>{result ? tr("Close") : tr("Cancel")}</Btn>
-        <Btn t={t} disabled={busy} onClick={() => save()} style={{ ...tall, opacity: busy ? 0.6 : 1 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+        <Btn t={t} data-session-save="" disabled={busy} onClick={() => (topicsLive ? saveSession() : save())} style={{ ...tall, opacity: busy ? 0.6 : 1 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
       </div>
     </Mdl>
   );
@@ -22895,14 +22997,18 @@ function TrainingGapsPanel({ af, t, sites = [], staff = [], refreshKey, typeWord
 
 // ===== TRAINING BY ROLE (Step 257, against the API's Step 256) =====
 // STEP256_CONTRACT.md version 2: a catalog of the trainings the procedures require and who each is
-// for. Each piece is drawn once its route answers and not before: the Catalog tab once
-// GET /api/training/topics answers. Until then HR Records' Training area is what it was.
+// for, and the gaps, person by person and site by site, the catalog leaves. Each piece is drawn once
+// its route answers and not before: the Catalog tab, the session window's topic and its one call once
+// GET /api/training/topics answers (the session route ships with it); the Gaps tab, in place of Who
+// has no record, and a person's own list once GET /api/training/gaps answers. Until then HR Records'
+// Training area is what it was.
 //
 // Whether a route of the API's Step 256 answers: one read each, asked once a session and shared by
 // every screen that waits on it, the way the Client requests tab waits on Step 250. A refusal or an
 // older API's answer reads as not yet, and the next screen that asks asks again.
 const TRAINING_PROBES = {
   topics: ["/api/training/topics", (d) => !!(d && Array.isArray(d.topics))],
+  gaps: ["/api/training/gaps", (d) => !!(d && Array.isArray(d.topics) && Array.isArray(d.people))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23218,4 +23324,183 @@ function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
       <Btn t={t} data-who-save="" disabled={busy || count > 30} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
     </div>
   </div>);
+}
+
+// The topic a record counts for: the topic it names since the API's Step 256, else the topic whose
+// English name or one of whose older names it carries (case and outer spaces ignored), else null.
+function topicOfRecord(topics, r) {
+  const list = Array.isArray(topics) ? topics : [];
+  if (!r) return null;
+  if (r.topic_id != null) { const hit = list.find(tp => String(tp.id) === String(r.topic_id)); if (hit) return hit; }
+  const k = trainingKey(r.training_name);
+  return list.find(tp => trainingKey(tp.names && tp.names.en) === k || (tp.recordNames || []).some(n => trainingKey(n) === k)) || null;
+}
+
+// A gap item's status in Scout 147's words, and its color. Each filter sends the code.
+const GAP_STATUSES = [
+  { v: "missing", l: "Missing|training" },
+  { v: "expired", l: "Expired|training" },
+  { v: "refresherDue", l: "Refresher due" },
+  { v: "dueSoon", l: "Due soon|training" },
+  { v: "current", l: "Current|training" },
+];
+const gapStatusWord = (s) => { const x = GAP_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
+const gapStatusColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : BL);
+// An item as a chip: its topic, the site of a per-site topic, and its status.
+function GapChip({ item, withName = true }) {
+  const t = useT();
+  const c = gapStatusColor(item.status);
+  return <span data-gap-chip={item.status} title={[item.name, item.siteName].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
+    {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span style={{ whiteSpace: "nowrap" }}>{gapStatusWord(item.status)}</span></span>;
+}
+
+// Gaps, in place of Who has no record: the items the catalog asks of each active person, filtered by
+// site, role, topic and status; each topic's counts; the people with the most open first, each item a
+// chip in the status's words; a person opens their own list. With a topic picked, the days it was
+// given are listed with their rosters. Print gives a page per site.
+function TrainingGaps({ af, t, sites = [], staff = [], typeWords = {}, showToast }) {
+  const [f, setF] = useState({ siteId: "", role: "", topicId: "", status: "" });
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [topics, setTopics] = useState([]);
+  const [records, setRecords] = useState(null);
+  const [person, setPerson] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics : []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [af]);
+  const load = useCallback(async () => {
+    setFailed(false);
+    const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+    try { const d = await af("/api/training/gaps" + (q ? "?" + q : "")); setData(d && Array.isArray(d.people) ? d : { asOf: "", site: null, topics: [], people: [] }); }
+    catch (e) { setData({ asOf: "", site: null, topics: [], people: [] }); setFailed(true); showToast(e.message, "error"); }
+  }, [af, f, showToast]);
+  useEffect(() => { setData(null); load(); }, [load]);
+  // The records, read once a topic is picked, for the days it was given.
+  useEffect(() => {
+    if (!f.topicId) return undefined;
+    let alive = true;
+    af("/api/hr/training").then(d => { if (alive) setRecords(Array.isArray(d) ? d : []); }).catch(() => { if (alive) setRecords([]); });
+    return () => { alive = false; };
+  }, [af, f.topicId]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const topic = topics.find(tp => String(tp.id) === f.topicId) || null;
+  const sessions = useMemo(() => {
+    if (!topic || !records) return [];
+    const byDay = new Map();
+    records.filter(r => trainingDay(r.completed_date) && topicOfRecord([topic], r)).forEach(r => { const day = trainingDay(r.completed_date); if (!byDay.has(day)) byDay.set(day, []); byDay.get(day).push(r); });
+    return Array.from(byDay.keys()).sort().reverse().map(day => ({ day, rows: byDay.get(day) }));
+  }, [topic, records]);
+  const siteName = (id) => ((sites || []).find(x => String(x.id) === String(id)) || {}).name || "";
+  const printSession = (s) => { if (!printAttendanceSheet({ name: topic.name, day: s.day, rows: s.rows, typeWords, site: siteName(f.siteId), staff, docNo: topicDocLine(topic) })) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
+  const print = () => { if (!data || !printKeptRecord(trainingGapPages(data, f, topics, sites), tr("Training gaps"))) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
+  const num = (v) => (Number(v) > 0 ? <span style={{ fontWeight: 600 }}>{v}</span> : <span style={{ color: t.textMut }}>0</span>);
+  const counts = [["required", "Required|training"], ["current", "Current|training"], ["dueSoon", "Due soon|training"], ["expired", "Expired|training"], ["missing", "Missing|training"], ["refresherDue", "Refresher due"]];
+  const topicCols = [{ header: tr("Topic"), tdStyle: { minWidth: 160 }, render: x => <span style={{ color: t.text, fontWeight: 600 }}>{x.name}</span> }].concat(counts.map(([k, l]) => ({ header: tr(l), align: "right", tdStyle: { whiteSpace: "nowrap", color: k === "required" || k === "current" ? t.textSec : gapStatusColor(k) }, render: x => num(x[k]) })));
+  return (<div data-training-gaps="">
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <Sel t={t} aria-label={tr("Site")} data-gaps-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Sel t={t} aria-label={tr("Role")} data-gaps-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
+      <Sel t={t} aria-label={tr("Topic")} data-gaps-filter="topicId" value={f.topicId} onChange={set("topicId")} options={[{ v: "", l: tr("All topics") }].concat(topics.map(tp => ({ v: String(tp.id), l: tp.name })))} />
+      <Sel t={t} aria-label={tr("Status")} data-gaps-filter="status" value={f.status} onChange={set("status")} options={[{ v: "", l: tr("All statuses") }].concat(GAP_STATUSES.map(o => ({ v: o.v, l: tr(o.l) })))} />
+    </div>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      {data && data.asOf && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{tr("As of {0}", fdLong(data.asOf))}{data.site ? " . " + data.site.name : ""}</span>}
+      <Btn t={t} v="ghost" data-gaps-print="" disabled={!data || data.people.length === 0} onClick={print} style={{ marginLeft: "auto" }}>{tr("Print")}</Btn>
+    </div>
+    {data === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div> : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd> : <>
+      <div data-gaps-topics="" style={{ marginBottom: 16 }}>
+        <DataTable t={t} columns={topicCols} rows={data.topics} rowKey={x => x.id} onRowClick={x => setF({ ...f, topicId: f.topicId === String(x.id) ? "" : String(x.id) })} empty={tr("No topic asks anything of these people.")} />
+      </div>
+      {topic && sessions.length > 0 && <Crd t={t} style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: t.goldText, marginBottom: 4 }}>{tr("Sessions")}</div>
+        <div role="list" aria-label={tr("Sessions")}>{sessions.map(s0 => <div key={s0.day} role="listitem" data-gaps-session={s0.day} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid " + t.border }}>
+          <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{trainingDayWords(s0.day)}</div>
+            <div style={{ fontSize: 12, color: t.textSec }}>{[trn("{0} person logged|count", s0.rows.length)].concat(trainingGivenIn(s0.rows)).join(" . ")}</div>
+          </div>
+          <Btn t={t} v="ghost" onClick={() => printSession(s0)} style={{ minHeight: 44, minWidth: 44 }}>{tr("Print attendance sheet")}</Btn>
+        </div>)}</div>
+      </Crd>}
+      <div style={{ fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 8 }}>{trn("{0} person|count", data.people.length)}</div>
+      {data.people.length === 0 ? <Crd t={t}><div style={{ textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Nobody matches these filters.")}</div></Crd>
+        : <div role="list" data-gaps-people="" style={{ border: "1px solid " + t.border, borderRadius: R.lg, overflow: "hidden", background: t.card }}>
+          {data.people.map(p => <div key={p.id} role="listitem" data-gaps-person={p.id} onClick={() => setPerson(p)} style={{ padding: "10px 14px", borderBottom: "1px solid " + t.border, cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.name}</span>
+              <span style={{ fontSize: 12, color: t.textMut }}>{[roleWord(p.role)].concat((p.sites || []).map(x => x.name)).filter(Boolean).join(" . ")}</span>
+              <span data-gaps-open={p.open} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: p.open ? OR : GR }}>{trn("{0} open|training", p.open)}</span>
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{(p.items || []).map((it, i) => <GapChip key={it.topicId + "|" + (it.siteId || "") + "|" + i} item={it} />)}</div>
+          </div>)}
+        </div>}
+    </>}
+    {person && <PersonTrainingWindow af={af} t={t} userId={person.id} name={person.name} onClose={() => setPerson(null)} />}
+  </div>);
+}
+
+// Gaps on paper, a page per site: everyone the answer lists who works there, and each of their items
+// that applies there, with its status, when it was done and when it expires. Someone with no site is
+// listed on a page of their own.
+function trainingGapPages(data, f, topics, sites) {
+  const filters = [f.role ? roleWord(f.role) : "", f.topicId ? ((topics.find(tp => String(tp.id) === f.topicId) || {}).name || "") : "", f.status ? gapStatusWord(f.status) : ""].filter(Boolean).join(", ");
+  const bySite = new Map();
+  (data.people || []).forEach(p => {
+    const ss = (p.sites || []).length ? p.sites : [{ id: "", name: tr("No site assigned") }];
+    ss.forEach(s0 => { const k = String(s0.id || ""); if (!bySite.has(k)) bySite.set(k, { name: s0.name, people: [] }); bySite.get(k).people.push(p); });
+  });
+  const order = Array.from(bySite.keys()).sort((a, b) => (a === "" ? 1 : b === "" ? -1 : String(bySite.get(a).name).localeCompare(String(bySite.get(b).name), localeTag())));
+  return order.filter(k => !f.siteId || k === String(f.siteId) || k === "").map(k => {
+    const g = bySite.get(k);
+    const rows = [];
+    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapStatusWord(it.status), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn ? keptDay(it.expiresOn) : ""])));
+    return { code: "", title: "Training gaps", site: g.name, asOf: data.asOf || todayISO(), parts: [
+      filters ? { fields: [["Showing", filters]] } : null,
+      { cols: ["Person", "Role", "Topic", "Status", "Completed", "Expires"], rows },
+    ].filter(Boolean) };
+  });
+}
+
+// What one person has to do: GET /api/training/gaps/people/:userId, every item with its status, when it
+// was done and when it expires, its document and its course link.
+function useTrainingItems(af, userId, on = true) {
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState("");
+  const load = useCallback(() => {
+    if (!userId || !on) return;
+    setFailed("");
+    af("/api/training/gaps/people/" + encodeURIComponent(userId)).then(x => setD(x && Array.isArray(x.items) ? x : { person: null, items: [] })).catch(e => { setD({ person: null, items: [] }); setFailed(e.message || tr("This did not load.")); });
+  }, [af, userId, on]);
+  useEffect(() => { setD(null); load(); }, [load]);
+  return [d, failed, load];
+}
+function TrainingItemsList({ t, items = [], compact = false }) {
+  if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
+  return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
+    <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+      <div style={{ fontSize: compact ? 12 : 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{it.name}{it.siteName ? " (" + it.siteName + ")" : ""}</div>
+      <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
+      {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
+    </div>
+    <GapChip item={it} withName={false} />
+  </div>)}</div>;
+}
+function PersonTrainingWindow({ af, t, userId, name = "", onClose }) {
+  const [d, failed, reload] = useTrainingItems(af, userId);
+  const p = (d && d.person) || null;
+  return (<Mdl t={t} tall onClose={onClose}>
+    <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{(p && p.name) || name}</div>
+          {p && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[roleWord(p.role), (p.sites || []).map(x => x.name).join(", "), p.hireDate ? tr("Hired {0}", fdLong(p.hireDate)) : "", p.language ? langLabel(p.language) : ""].filter(Boolean).join(" . ")}</div>}
+        </div>
+        <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} />}
+      </div>
+    </div>
+  </Mdl>);
 }
