@@ -1081,7 +1081,7 @@ export default function AdminDashboard() {
         {page === "overview" && <OverviewPage af={af} showToast={showToast} setPage={setPage} user={user} canManageStaff={hasCap("manage_staff")} t={t} />}
         {page === "staff" && (canOpenPage("staff") ? <StaffPage af={af} token={token} showToast={showToast} t={t} sites={sites} allStaff={allStaff} loadStaff={loadStaff} getOpts={getOpts} lkMap={lkMap} uf={uf} canManageAdmins={canManageAdmins} user={user} route={route} onRoute={replaceRoute} devicesOn={devicesOn} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
         {page === "cases" && (canOpenPage("cases") ? <CasesPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} user={user} onSaved={loadCaseQueue} /> : <AdminOnlyNotice t={t} onBack={() => setPage("overview")} />)}
-        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} />}
+        {page === "hr" && <HRRecordsPage af={af} token={token} showToast={showToast} t={t} allStaff={allStaff} uf={uf} getOpts={getOpts} lkMap={lkMap} sites={sites} route={route} onRoute={replaceRoute} isAdmin={isAdmin} canOpenStaff={canOpenPage("staff")} selfId={user && user.id != null ? String(user.id) : ""} />}
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
@@ -21946,18 +21946,25 @@ function CasesPage({ af, token, showToast, t, allStaff = [], user, onSaved }) {
   </div>);
 }
 
-function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false }) {
-  const [tab, setTab] = useState("employees");
+function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, sites = [], route = [], onRoute, isAdmin = false, canOpenStaff = false, selfId = "" }) {
+  // Step 257: #hr/training opens the Training area, and #hr/training/<view> one of its tabs.
+  const trainingRoute = route[0] === "training";
+  const [tab, setTab] = useState(() => (trainingRoute ? "training" : "employees"));
   // Session 22: when set, the Employees tab shows the folder for this user.
   // When null, the Employees tab shows the card grid.
-  const [folderUserId, setFolderUserId] = useState(() => (route[0] ? String(route[0]) : null));
+  const [folderUserId, setFolderUserId] = useState(() => (route[0] && !trainingRoute ? String(route[0]) : null));
   // #hr/<id> opens that person's record, and #hr/<id>/clearances brings their Clearances into view
   // (Step 211), so a refusal or the Clearances page can send someone straight there.
   const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
+  // The Training area's tabs (Step 257): the records as they always were, and beside them each view
+  // the API's Step 256 brings, once its route answers.
+  const [trView, setTrView] = useState(() => (trainingRoute && route[1] ? String(route[1]) : "records"));
   useEffect(() => {
     if (!route[0]) return;
+    if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(route[1] ? String(route[1]) : "records"); return; }
     setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
   }, [route]);
+  const topicsLive = useTrainingLive(af, "topics");
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -21996,6 +22003,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const hrList = (hrPeople || allStaff).filter(p => p && p.id != null && p.role !== "client_contact")
     .map((p, i) => ({ p, i })).sort((a, b) => statusRank(a.p.status) - statusRank(b.p.status) || a.i - b.i).map(x => x.p);
   const staffOpts = [{ v: "", l: tr("All Employees") }, ...hrList.map(s => ({ v: s.id, l: personLabel(s.firstName, s.lastName, s.status) }))];
+  // Everyone active, by id and name, for the training views that name a person.
+  const activePeople = hrList.filter(p => (p.status || "active") === "active").map(p => ({ id: String(p.id), name: ((p.firstName || "") + " " + (p.lastName || "")).trim() || p.name || "", role: p.role }));
   const trainingPeopleOpts = staffOpts.filter(s => s.v);
   // + Add Document and + Add Training opened from inside a person's folder fill in that person as the
   // Employee and hold them there: the window names them and offers no other. It is let go when the
@@ -22150,6 +22159,11 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
     { id: "other", l: tr("Other|items") },
   ];
 
+  // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
+  // draws the records.
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : []);
+  const trCur = trViews.some(v => v.id === trView) ? trView : "records";
+
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
   const expiryBadge = (d) => {
     if (!d) return null;
@@ -22167,7 +22181,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         {tabs.map(tb => (
           <button key={tb.id} onClick={() => { setTab(tb.id); if (tb.id !== "employees") setFolderUserId(null); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid " + (tab === tb.id ? GO : t.border), background: tab === tb.id ? t.goldBg : "transparent", color: tab === tb.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>{tb.l}</button>
         ))}
-        {tab !== "employees" && (
+        {tab !== "employees" && !(tab === "training" && trCur !== "records") && (
           <div style={{ marginLeft: "auto", minWidth: 200 }}>
             <Sel options={staffOpts} value={selUser} onChange={e => setSelUser(e.target.value)} t={t} />
           </div>
@@ -22253,8 +22267,12 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         })()}
       </div>}
 
-      {/* TRAINING TAB */}
-      {tab === "training" && <div>
+      {/* TRAINING TAB: its own tabs once a route of the API's Step 256 answers (Step 257) */}
+      {tab === "training" && trViews.length > 1 && <div role="tablist" data-training-views="" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
+        {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
+      </div>}
+      {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
+      {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -22873,4 +22891,331 @@ function TrainingGapsPanel({ af, t, sites = [], staff = [], refreshKey, typeWord
       </>)}
     </section>
   );
+}
+
+// ===== TRAINING BY ROLE (Step 257, against the API's Step 256) =====
+// STEP256_CONTRACT.md version 2: a catalog of the trainings the procedures require and who each is
+// for. Each piece is drawn once its route answers and not before: the Catalog tab once
+// GET /api/training/topics answers. Until then HR Records' Training area is what it was.
+//
+// Whether a route of the API's Step 256 answers: one read each, asked once a session and shared by
+// every screen that waits on it, the way the Client requests tab waits on Step 250. A refusal or an
+// older API's answer reads as not yet, and the next screen that asks asks again.
+const TRAINING_PROBES = {
+  topics: ["/api/training/topics", (d) => !!(d && Array.isArray(d.topics))],
+};
+const trainingProbes = {};
+const probeTraining = (af, key) => {
+  if (!trainingProbes[key]) {
+    const [path, test] = TRAINING_PROBES[key];
+    trainingProbes[key] = af(path).then(test).catch(e => { console.warn("Training:", e.message); trainingProbes[key] = null; return false; });
+  }
+  return trainingProbes[key];
+};
+function useTrainingLive(af, key) {
+  const [live, setLive] = useState(false);
+  useEffect(() => { let alive = true; probeTraining(af, key).then(v => { if (alive) setLive(!!v); }); return () => { alive = false; }; }, [af, key]);
+  return live;
+}
+
+// How often a topic is taken again, and when it is due, in plain words. Each choice sends its code.
+const TRAINING_FREQUENCIES = [{ v: "once", l: "Once|training" }, { v: "yearly", l: "Every year" }, { v: "sixty_months", l: "Every five years" }, { v: "on_change", l: "On change|training" }];
+const TRAINING_DUE_RULES = [
+  { v: "first_day", l: "On the first day" },
+  { v: "first_shift", l: "Before the first shift" },
+  { v: "before_unsupervised", l: "Before working without a supervisor" },
+  { v: "before_product", l: "Before handling any product" },
+  { v: "before_task", l: "Before doing the task" },
+  { v: "before_access", l: "Before being given access" },
+  { v: "before_school_shift", l: "Before a shift at a school" },
+  { v: "before_supervising", l: "Before supervising anyone" },
+];
+const trainingFrequencyWord = (f) => { const x = TRAINING_FREQUENCIES.find(o => o.v === f); return x ? tr(x.l) : String(f || ""); };
+const trainingDueWord = (r) => { const x = TRAINING_DUE_RULES.find(o => o.v === r); return x ? tr(x.l) : String(r || ""); };
+// The roles a requirement can name, in the order the role table holds them.
+const TRAINING_ROLES = Object.keys(RL);
+// A topic's document and section, as one line: "OCSA-HR-016 5.5".
+const topicDocLine = (tp) => [tp && tp.docCode, tp && tp.docSection].filter(x => x != null && String(x).trim() !== "").join(" ");
+// The three names a topic carries, for a hover and its window.
+const topicNamesLine = (tp) => { const n = (tp && tp.names) || {}; return [["English", n.en], ["Spanish", n.es], ["French", n.fr]].filter(([, v]) => v).map(([l, v]) => tr(l) + ": " + v).join("\n"); };
+// Who a topic is for, as words: each role with the service lines it is narrowed to, then how many
+// people are named.
+function topicWhoLine(tp) {
+  const reqs = (tp && Array.isArray(tp.requirements)) ? tp.requirements : [];
+  const byRole = new Map();
+  reqs.filter(r => r.role).forEach(r => { if (!byRole.has(r.role)) byRole.set(r.role, []); if (r.serviceLine) byRole.get(r.role).push(r.serviceLine); });
+  const roles = Array.from(byRole.keys()).map(role => { const lines = byRole.get(role); return roleWord(role) + (lines.length ? " (" + lines.map(serviceLineWord).join(", ") + ")" : ""); });
+  const named = reqs.filter(r => r.userId).length;
+  return roles.concat(named ? [trn("{0} named person|count", named)] : []).join(", ");
+}
+// A refusal's keys as the fields they name: names.en, linkUrl, requirements[2] and the rest.
+const trainingKeysOf = (e) => (e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : []);
+// A topic's course link, drawn as a link only when it is an https address, which is all the API keeps;
+// anything else is "".
+const courseLinkOf = (u) => { const x = String(u || "").trim(); return /^https:\/\/\S+$/i.test(x) ? x : ""; };
+
+// The Catalog tab: every topic with its names, document and section, how often, when due, per site,
+// safety critical, the course link and who it is for. Management reads it; an admin adds a topic,
+// edits one, retires and restores it, and says who needs it.
+function TrainingCatalog({ af, t, isAdmin = false, people = [], showToast, onChanged }) {
+  const [which, setWhich] = useState("true");
+  const [topics, setTopics] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [open, setOpen] = useState(null);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/training/topics?active=" + which); setTopics(d && Array.isArray(d.topics) ? d.topics : []); }
+    catch (e) { setTopics([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, which, showToast]);
+  useEffect(() => { setTopics(null); load(); }, [load]);
+  const changed = (tp) => { load(); if (tp) setOpen(o => (o && o !== "new" && o.id === tp.id ? tp : o === "new" ? tp : o)); if (onChanged) onChanged(); };
+  const columns = [
+    { header: tr("Topic"), render: tp => <span title={topicNamesLine(tp)} style={{ color: t.text, fontWeight: 600 }}>{tp.name}{tp.active === false && <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|topic")} c={t.textMut} /></span>}</span> },
+    { header: tr("Document"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: tp => topicDocLine(tp) },
+    { header: tr("How often"), tdStyle: { color: t.textSec }, render: tp => trainingFrequencyWord(tp.frequency) },
+    { header: tr("When due"), tdStyle: { color: t.textSec }, render: tp => trainingDueWord(tp.dueRule) },
+    { header: tr("Per site"), tdStyle: { color: t.textSec }, render: tp => (tp.perSite ? tr("Yes") : "") },
+    { header: tr("Safety critical"), render: tp => (tp.safetyCritical ? <Bdg l={tr("Safety critical")} c={RD} /> : null) },
+    { header: tr("Course link"), render: tp => (courseLinkOf(tp.linkUrl) ? <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a> : null) },
+    { header: tr("Who it is for"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 160 }, render: tp => topicWhoLine(tp) || <span style={{ color: t.textMut }}>{tr("Nobody yet")}</span> },
+  ];
+  return (<div data-training-catalog="">
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+      <div style={{ minWidth: 160 }}><Sel t={t} aria-label={tr("Show")} data-catalog-which="" options={[{ v: "true", l: tr("Active topics") }, { v: "false", l: tr("Retired topics") }, { v: "all", l: tr("All topics") }]} value={which} onChange={e => setWhich(e.target.value)} /></div>
+      {topics && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} topic|count", topics.length)}</span>}
+      {isAdmin && <Btn t={t} data-topic-add="" onClick={() => setOpen("new")} style={{ marginLeft: "auto" }}>{tr("Add a topic")}</Btn>}
+    </div>
+    {topics === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={columns} rows={topics} rowKey={tp => tp.id} onRowClick={tp => setOpen(tp)} empty={which === "true" ? tr("No topics yet.") : tr("No topics here.")} />}
+    {open && <TrainingTopicWindow af={af} t={t} topic={open === "new" ? null : open} isAdmin={isAdmin} people={people} showToast={showToast} onClose={() => setOpen(null)} onSaved={changed} />}
+  </div>);
+}
+
+// The fields a topic's form edits, by the key a refusal names them with.
+const TOPIC_FIELDS = ["key", "names.en", "names.es", "names.fr", "docCode", "docSection", "frequency", "dueRule", "perSite", "safetyCritical", "linkUrl", "evidenceForm", "recordNames"];
+const topicFieldOf = (k) => (k === "names" ? "names.en" : TOPIC_FIELDS.indexOf(k) >= 0 ? k : "");
+const topicFormOf = (tp) => ({
+  key: (tp && tp.key) || "", en: (tp && tp.names && tp.names.en) || "", es: (tp && tp.names && tp.names.es) || "", fr: (tp && tp.names && tp.names.fr) || "",
+  docCode: (tp && tp.docCode) || "", docSection: (tp && tp.docSection) || "", frequency: (tp && tp.frequency) || "yearly", dueRule: (tp && tp.dueRule) || "first_day",
+  perSite: !!(tp && tp.perSite), safetyCritical: !!(tp && tp.safetyCritical), linkUrl: (tp && tp.linkUrl) || "", evidenceForm: (tp && tp.evidenceForm) || "",
+  recordNames: ((tp && tp.recordNames) || []).join("\n"),
+});
+
+// One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
+// on its form, and once saved it is a topic like any other.
+function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showToast, onClose, onSaved }) {
+  const [tp, setTp] = useState(topic);
+  const [view, setView] = useState("details");
+  const [editing, setEditing] = useState(!topic);
+  useEffect(() => { if (topic) setTp(topic); }, [topic]);
+  const saved = (next) => { setTp(next); setEditing(false); if (onSaved) onSaved(next); };
+  const views = tp ? [{ id: "details", l: tr("Details") }, { id: "who", l: tr("Who needs it") }] : [];
+  return (<Mdl t={t} tall onClose={onClose}>
+    <div data-topic-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{tp ? tp.name : tr("Add a topic")}</div>
+            {tp && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[topicDocLine(tp), trainingFrequencyWord(tp.frequency)].filter(Boolean).join(" . ")}</div>}
+            {tp && <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>{tp.safetyCritical && <Bdg l={tr("Safety critical")} c={RD} />}{tp.active === false && <Bdg l={tr("Retired|topic")} c={t.textMut} />}</div>}
+          </div>
+          <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
+        </div>
+        {views.length > 1 && <div role="tablist" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+          {views.map(v => <button key={v.id} role="tab" aria-selected={view === v.id} data-topic-tab={v.id} onClick={() => setView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (view === v.id ? GO : t.border), background: view === v.id ? t.goldBg : "transparent", color: view === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
+        </div>}
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+        {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
+        {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
+        {tp && view === "who" && <TopicWhoNeedsIt af={af} t={t} tp={tp} isAdmin={isAdmin} people={people} onSaved={saved} />}
+      </div>
+    </div>
+  </Mdl>);
+}
+
+function TopicDetails({ af, t, tp, isAdmin, onEdit, onSaved, showToast }) {
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const setActive = async (active) => {
+    setBusy(true); setRefusal("");
+    try { const d = await af("/api/training/topics/" + encodeURIComponent(tp.id), { method: "PATCH", body: { active } }); if (d && d.topic) { onSaved(d.topic); showToast(active ? tr("Topic restored") : tr("Topic retired")); } }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  const n = tp.names || {};
+  const row = (label, value) => <div style={{ display: "flex", gap: 12, padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, flexWrap: "wrap" }}>
+    <div style={{ flex: "0 0 160px", color: t.textMut }}>{label}</div><div style={{ flex: "1 1 200px", minWidth: 0, color: t.text, overflowWrap: "anywhere", whiteSpace: "pre-line" }}>{value}</div></div>;
+  return (<div data-topic-details="">
+    {row(tr("Name in English"), n.en || "")}
+    {row(tr("Name in Spanish"), n.es || <span style={{ color: t.textMut }}>{tr("Not written yet")}</span>)}
+    {row(tr("Name in French"), n.fr || <span style={{ color: t.textMut }}>{tr("Not written yet")}</span>)}
+    {row(tr("Document"), topicDocLine(tp))}
+    {row(tr("How often"), trainingFrequencyWord(tp.frequency))}
+    {row(tr("When due"), trainingDueWord(tp.dueRule))}
+    {row(tr("Per site"), tp.perSite ? tr("Yes") : tr("No"))}
+    {row(tr("Safety critical"), tp.safetyCritical ? tr("Yes") : tr("No"))}
+    {courseLinkOf(tp.linkUrl) && row(tr("Course link"), <a href={courseLinkOf(tp.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ color: BL, fontWeight: 600 }}>{courseLinkOf(tp.linkUrl)}</a>)}
+    {tp.evidenceForm && row(tr("Evidence form"), tp.evidenceForm)}
+    {(tp.recordNames || []).length > 0 && row(tr("Names on older records"), tp.recordNames.join("\n"))}
+    {row(tr("Who it is for"), topicWhoLine(tp) || tr("Nobody yet"))}
+    {refusal && <div role="alert" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
+    {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} data-topic-edit="" onClick={onEdit}>{tr("Edit")}</Btn>
+      {tp.active === false ? <Btn t={t} v="ghost" data-topic-restore="" disabled={busy} onClick={() => setActive(true)}>{tr("Restore")}</Btn>
+        : <Btn t={t} v="ghost" data-topic-retire="" disabled={busy} onClick={() => { if (window.confirm(tr("Retire this topic? Nobody is asked for it while it is retired."))) setActive(false); }}>{tr("Retire")}</Btn>}
+    </div>}
+  </div>);
+}
+
+// Add a topic, or Edit one: the key once, on a new topic, then the three names, the document and
+// section, how often and when due, per site, safety critical, the course link, the evidence form and
+// the names older records carry. A refusal is drawn under the field its keys name.
+function TopicForm({ af, t, topic, onCancel, onSaved }) {
+  const [f, setF] = useState(() => topicFormOf(topic));
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const set = (k) => (e) => setF({ ...f, [k]: e && e.target ? (e.target.type === "checkbox" ? e.target.checked : e.target.value) : e });
+  const bad = (k) => refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "";
+  const save = async () => {
+    setBusy(true); setRefusal(null);
+    const body = {
+      names: { en: f.en.trim(), es: f.es.trim(), fr: f.fr.trim() }, docCode: f.docCode.trim() || null, docSection: f.docSection.trim() || null,
+      frequency: f.frequency, dueRule: f.dueRule, perSite: !!f.perSite, safetyCritical: !!f.safetyCritical, linkUrl: f.linkUrl.trim() || null,
+      evidenceForm: f.evidenceForm.trim() || null, recordNames: f.recordNames.split("\n").map(x => x.trim()).filter(Boolean),
+    };
+    try {
+      const d = topic
+        ? await af("/api/training/topics/" + encodeURIComponent(topic.id), { method: "PATCH", body })
+        : await af("/api/training/topics", { method: "POST", body: { key: f.key.trim(), ...body } });
+      if (d && d.topic) onSaved(d.topic);
+    } catch (e) {
+      const keys = trainingKeysOf(e);
+      const fields = keys.map(topicFieldOf).filter(Boolean).concat(e && e.code === "training.duplicateKey" ? ["key"] : []);
+      setRefusal({ text: e.message || tr("Request failed"), fields });
+    }
+    setBusy(false);
+  };
+  const field = (k, label, input, hint) => <div data-topic-field={k} style={{ marginBottom: 12 }}>
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{label}</div>{input}
+    {hint && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{hint}</div>}
+    {bad(k) && <div data-topic-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad(k)}</div>}</div>;
+  const tick = (k, label, hint) => <div data-topic-field={k} style={{ marginBottom: 10 }}>
+    <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 13, color: t.text, cursor: "pointer" }}><input type="checkbox" checked={!!f[k]} onChange={set(k)} style={{ width: 20, height: 20, accentColor: GO }} />{label}</label>
+    {hint && <div style={{ fontSize: 11, color: t.textMut }}>{hint}</div>}
+    {bad(k) && <div data-topic-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad(k)}</div>}</div>;
+  const unplaced = refusal && refusal.fields.length === 0 ? refusal.text : "";
+  return (<div data-topic-form="">
+    {!topic && field("key", tr("Key"), <Inp t={t} value={f.key} onChange={set("key")} placeholder={tr("e.g. spill_response")} />, tr("Lowercase letters, numbers and underscores, starting with a letter. It cannot change later."))}
+    {field("names.en", tr("Name in English"), <Inp t={t} value={f.en} onChange={set("en")} />)}
+    {field("names.es", tr("Name in Spanish"), <Inp t={t} value={f.es} onChange={set("es")} />)}
+    {field("names.fr", tr("Name in French"), <Inp t={t} value={f.fr} onChange={set("fr")} />)}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+      {field("docCode", tr("Document"), <Inp t={t} value={f.docCode} onChange={set("docCode")} placeholder={tr("e.g. OCSA-HR-016")} />)}
+      {field("docSection", tr("Section"), <Inp t={t} value={f.docSection} onChange={set("docSection")} placeholder={tr("e.g. 5.5")} />)}
+      {field("frequency", tr("How often"), <Sel t={t} value={f.frequency} onChange={set("frequency")} options={TRAINING_FREQUENCIES.map(o => ({ v: o.v, l: tr(o.l) }))} />)}
+      {field("dueRule", tr("When due"), <Sel t={t} value={f.dueRule} onChange={set("dueRule")} options={TRAINING_DUE_RULES.map(o => ({ v: o.v, l: tr(o.l) }))} />)}
+    </div>
+    {tick("perSite", tr("Per site"), tr("One record for each site the person works at."))}
+    {tick("safetyCritical", tr("Safety critical"), tr("A lesson on this topic needs a trainer to watch a demonstration."))}
+    {field("linkUrl", tr("Course link"), <Inp t={t} type="url" value={f.linkUrl} onChange={set("linkUrl")} placeholder="https://" />, tr("An https address for a course taken outside the app. It opens in a new tab."))}
+    {field("evidenceForm", tr("Evidence form"), <Inp t={t} value={f.evidenceForm} onChange={set("evidenceForm")} placeholder={tr("e.g. OCSA-FRM-033")} />, tr("A form filed about the person at the site that counts as a record."))}
+    {field("recordNames", tr("Names on older records"), <TArea t={t} rows={3} value={f.recordNames} onChange={set("recordNames")} />, tr("One name a line. A record under one of these names counts for this topic."))}
+    {unplaced && <div role="alert" data-topic-refusal="" style={{ fontSize: 13, color: RD, marginBottom: 10 }}>{unplaced}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" disabled={busy} onClick={onCancel}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-topic-save="" disabled={busy} onClick={save}>{busy ? tr("Saving...") : topic ? tr("Save") : tr("Add the topic")}</Btn>
+    </div>
+  </div>);
+}
+
+// Who needs a topic: roles as ticks, each narrowed to service lines or none for every site, and people
+// named one by one. An admin saves the whole set at once (PUT .../requirements, up to 30 rows), and a
+// refusal naming requirements[i] is drawn under the role or the person that row came from.
+function TopicWhoNeedsIt({ af, t, tp, isAdmin, people = [], onSaved }) {
+  const fromTopic = useCallback((x) => {
+    const roles = {};
+    const named = [];
+    (x.requirements || []).forEach(r => {
+      if (r.role) { if (!roles[r.role]) roles[r.role] = []; if (r.serviceLine) roles[r.role].push(r.serviceLine); }
+      else if (r.userId) named.push({ id: String(r.userId), name: r.personName || ((people.find(p => String(p.id) === String(r.userId)) || {}).name) || "" });
+    });
+    return { roles, named };
+  }, [people]);
+  const [edit, setEdit] = useState(null);
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const shown = edit || fromTopic(tp);
+  // The rows a save sends, each with the role or person it came from, in the order sent.
+  const rowsOf = (s) => {
+    const rows = [];
+    TRAINING_ROLES.filter(r => s.roles[r]).forEach(role => { const lines = s.roles[role]; if (lines.length === 0) rows.push({ src: "role:" + role, role, serviceLine: null }); else lines.forEach(l => rows.push({ src: "role:" + role, role, serviceLine: l })); });
+    s.named.forEach(p => rows.push({ src: "person:" + p.id, userId: p.id, serviceLine: null }));
+    return rows;
+  };
+  const bad = (src) => (refusal && refusal.src === src ? refusal.text : "");
+  const toggleRole = (role) => setEdit(s => { const roles = { ...s.roles }; if (roles[role]) delete roles[role]; else roles[role] = []; return { ...s, roles }; });
+  const toggleLine = (role, line) => setEdit(s => { const cur = s.roles[role] || []; return { ...s, roles: { ...s.roles, [role]: cur.indexOf(line) >= 0 ? cur.filter(x => x !== line) : cur.concat([line]) } }; });
+  const addPerson = () => { const p = people.find(x => String(x.id) === pick); if (!p) return; setEdit(s => (s.named.some(n => n.id === String(p.id)) ? s : { ...s, named: s.named.concat([{ id: String(p.id), name: p.name }]) })); setPick(""); };
+  const save = async () => {
+    const rows = rowsOf(edit);
+    setBusy(true); setRefusal(null);
+    try {
+      const d = await af("/api/training/topics/" + encodeURIComponent(tp.id) + "/requirements", { method: "PUT", body: { requirements: rows.map(r => (r.role ? { role: r.role, serviceLine: r.serviceLine } : { userId: r.userId, serviceLine: r.serviceLine })) } });
+      if (d && d.topic) { setEdit(null); onSaved(d.topic); }
+    } catch (e) {
+      const m = trainingKeysOf(e).map(k => /^requirements\[(\d+)\]/.exec(k)).find(Boolean);
+      setRefusal({ text: e.message || tr("Request failed"), src: m && rows[Number(m[1])] ? rows[Number(m[1])].src : "" });
+    }
+    setBusy(false);
+  };
+  const count = rowsOf(shown).length;
+  const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0 };
+  const head = (s) => <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, margin: "4px 0 8px" }}>{s}</div>;
+  if (!edit) return (<div data-topic-who="">
+    {head(tr("Roles"))}
+    {Object.keys(shown.roles).length === 0 ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 12 }}>{tr("No role yet.")}</div>
+      : TRAINING_ROLES.filter(r => shown.roles[r]).map(role => <div key={role} data-who-role={role} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13 }}>
+        <div style={{ color: t.text, fontWeight: 600 }}>{roleWord(role)}</div>
+        <div style={{ color: t.textSec, fontSize: 12 }}>{shown.roles[role].length ? tr("Only at sites with: {0}", shown.roles[role].map(serviceLineWord).join(", ")) : tr("At every site")}</div>
+      </div>)}
+    {head(tr("Named people"))}
+    {shown.named.length === 0 ? <div style={{ fontSize: 13, color: t.textMut }}>{tr("Nobody named.")}</div>
+      : shown.named.map(p => <div key={p.id} data-who-person={p.id} style={{ padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text }}>{p.name}</div>)}
+    {isAdmin && <div style={{ marginTop: 14 }}><Btn t={t} data-who-edit="" onClick={() => { setEdit(fromTopic(tp)); setRefusal(null); }}>{tr("Edit who needs it")}</Btn></div>}
+  </div>);
+  const others = people.filter(p => !edit.named.some(n => n.id === String(p.id)));
+  return (<div data-topic-who-form="">
+    {head(tr("Roles"))}
+    {TRAINING_ROLES.map(role => <div key={role} data-who-role={role} style={{ borderBottom: "1px solid " + t.border, padding: "4px 0 8px" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, fontWeight: 600, color: t.text, cursor: "pointer" }}>
+        <input type="checkbox" checked={!!edit.roles[role]} onChange={() => toggleRole(role)} style={tickStyle} />{roleWord(role)}</label>
+      {edit.roles[role] && <div style={{ paddingLeft: 30 }}>
+        <div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Only at sites with these service lines. None ticked means every site.")}</div>
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>{SERVICE_LINES.map(l => <label key={l} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 8px", fontSize: 12, color: t.textSec, cursor: "pointer" }}>
+          <input type="checkbox" checked={edit.roles[role].indexOf(l) >= 0} onChange={() => toggleLine(role, l)} style={tickStyle} />{serviceLineWord(l)}</label>)}</div>
+      </div>}
+      {bad("role:" + role) && <div role="alert" data-who-refusal="" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad("role:" + role)}</div>}
+    </div>)}
+    {head(tr("Named people"))}
+    {edit.named.map(p => <div key={p.id} data-who-person={p.id} style={{ borderBottom: "1px solid " + t.border, padding: "4px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: t.text }}>
+        <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
+        <button onClick={() => setEdit(s => ({ ...s, named: s.named.filter(n => n.id !== p.id) }))} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>
+      </div>
+      {bad("person:" + p.id) && <div role="alert" data-who-refusal="" style={{ fontSize: 12, color: RD }}>{bad("person:" + p.id)}</div>}
+    </div>)}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
+    </div>
+    <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>
+    {refusal && !refusal.src && <div role="alert" data-who-refusal="" style={{ fontSize: 13, color: RD, marginTop: 8 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
+      <Btn t={t} v="ghost" disabled={busy} onClick={() => { setEdit(null); setRefusal(null); }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-who-save="" disabled={busy || count > 30} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div>);
 }
