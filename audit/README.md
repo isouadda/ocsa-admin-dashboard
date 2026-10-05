@@ -45,6 +45,13 @@ Then it checks, one line a check:
   checks run in English alone so the run stays inside its three minutes. Every other run of the stub
   answers as it did before Step 247.
 
+Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
+than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
+opened by its button with no such wait: the stub answers in the same process, so a page has drawn what
+it read once that thing is there. The run went from 171 to 93 seconds with every check still in it, in
+every language it ran in. The pause after a side panel item opens stays at 550 milliseconds, since an
+item has no one thing to wait for.
+
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
 after it still run. Any failure, or a run of three minutes or more, exits non-zero. It finds the side
 panel's items by `data-nav-item` and Reports' groups by `data-report-group`, Step 248's screens by

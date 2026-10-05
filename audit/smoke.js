@@ -138,11 +138,43 @@ async function recover(d, origin, p) {
 }
 
 // The pause after an item opens was 650 ms until Step 254, whose four lines fit the three minutes
-// at 550.
+// at 550. On the phone the drawer is opened by its button and the item clicked once it has slid in,
+// with no wait for the network to go quiet (Step 257).
 async function openNav(d, id) {
-  if (d.phone) await d.openDrawer();
+  if (d.phone && !(await d.drawerOpen())) await d.page.locator('button[title="' + d.say("Menu") + '"], button[title="Menu"]').first().click();
   await d.page.click('[data-nav-item="' + id + '"]');
   await wait(550);
+}
+
+// A page by its hash, the way d.goto opens one (a hop through another page when the hash already
+// names it, so the page mounts anew), then the selector ready names waited for, or a short pause with
+// none. Since Step 257 the smoke check opens a page this way rather than with d.goto, which waits for
+// the network to go quiet for half a second on every page, and then a fixed pause on top: the stub
+// answers in the same process, so a page has drawn what it read once the thing a check reads is there.
+async function go(d, pageId, sub, ready) {
+  const cur = await d.page.evaluate(() => window.location.hash.replace(/^#/, "").split("/")[0]);
+  if (cur === pageId) {
+    await d.page.evaluate((other) => { window.location.hash = other; }, pageId === "overview" ? "help" : "overview");
+    await wait(120);
+  }
+  const hash = "#" + [pageId].concat(sub ? [].concat(sub) : []).join("/");
+  await d.page.evaluate((h) => { window.location.hash = h; }, hash);
+  if (ready) await d.page.locator(ready).first().waitFor();
+  else await wait(300);
+}
+// The selector's first match, waited for, so a count read after it reads a drawn list.
+const until = (d, sel) => d.page.locator(sel).first().waitFor();
+// How many of the selector the page draws, read once the count has held for three reads in a row: a
+// list whose parts each wait on a route of their own, such as Reports' groups, grows as they answer.
+async function settledCount(d, sel) {
+  let n = await d.page.locator(sel).count();
+  for (let same = 0, i = 0; same < 3 && i < 30; i++) {
+    await wait(120);
+    const again = await d.page.locator(sel).count();
+    same = again === n ? same + 1 : 0;
+    n = again;
+  }
+  return n;
 }
 
 // Step 248's screens, each a line.
@@ -155,28 +187,33 @@ async function step248(d, origin, p) {
     await recover(d, origin, p);
   };
   await check("Settings, Holidays lists the year and adds a day", async () => {
-    await d.goto("settings"); await wait(900);
-    await d.page.getByRole("button", { name: d.say("Holidays"), exact: true }).click(); await wait(700);
+    await go(d, "settings");
+    await d.page.getByRole("button", { name: d.say("Holidays"), exact: true }).click();
+    await until(d, "[data-holidays] table tbody tr");
     const list = d.page.locator("[data-holidays] table tbody tr");
     const rows = await list.count();
     if (rows < 11) return "the year lists " + rows + " holidays";
     await d.page.locator("[data-holiday-add]").click();
     await d.page.locator('[data-holiday-window] input[type="date"]').fill(ADDED_HOLIDAY.date);
     await d.page.locator("[data-holiday-window] input").nth(1).fill(ADDED_HOLIDAY.name);
-    await d.page.locator("[data-holiday-window] button").last().click(); await wait(900);
+    await d.page.locator("[data-holiday-window] button").last().click();
+    await d.page.locator("[data-holiday-window]").waitFor({ state: "detached" }).catch(() => {});
     if ((await d.page.locator("[data-holiday-window]").count()) > 0) return "the window stayed open";
+    await list.filter({ hasText: ADDED_HOLIDAY.name }).first().waitFor({ timeout: 2000 }).catch(() => {});
     return (await list.filter({ hasText: ADDED_HOLIDAY.name }).count()) === 1 ? "" : "the day added is not listed";
   });
   await check("the Rehire window lists the sites to restore", async () => {
-    await d.goto("staff", [LEFT_ID]); await wait(1200);
-    await d.page.locator('[data-employment-action="rehire"]').click(); await wait(500);
+    await go(d, "staff", [LEFT_ID]);
+    await d.page.locator('[data-employment-action="rehire"]').click();
+    await until(d, "[data-restore-sites] [data-restore-site]");
     const rows = await d.page.locator("[data-restore-sites] [data-restore-site]").count();
     const ticked = await d.page.locator("[data-restore-sites] input:checked").count();
     await d.page.locator("[data-employment-window] button").filter({ hasText: d.say("Cancel") }).click();
     return rows !== 3 ? "Sites to restore lists " + rows + " sites" : ticked !== 2 ? ticked + " sites start ticked" : "";
   });
   await check("a client's concern past due draws its Due in red", async () => {
-    await d.goto("forms"); await wait(1200);
+    await go(d, "forms", null, "table tbody tr");
+    await until(d, '[data-complaint-due][data-due-state="late"]').catch(() => {});
     const due = d.page.locator('[data-complaint-due][data-due-state="late"]').first();
     if ((await due.count()) === 0) return "no late concern on Filed forms";
     const rgb = await due.evaluate((e) => getComputedStyle(e).color);
@@ -186,10 +223,11 @@ async function step248(d, origin, p) {
   await check("a client's concern is marked acknowledged by phone", async () => {
     const row = d.page.locator("table tbody tr").filter({ has: d.page.locator("[data-not-acknowledged]") }).first();
     if ((await row.count()) === 0) return "no concern reads Not acknowledged";
-    await row.click(); await wait(1200);
+    await row.click();
     await d.page.locator("[data-mark-acknowledged]").click();
     await d.page.locator("[data-acknowledge-form] select").selectOption("phone");
-    await d.page.locator("[data-acknowledge-form] button").last().click(); await wait(800);
+    await d.page.locator("[data-acknowledge-form] button").last().click();
+    await until(d, "[data-acknowledged]").catch(() => {});
     const line = (await d.page.locator("[data-acknowledged]").count()) ? await d.page.locator("[data-acknowledged]").innerText() : "";
     await d.page.keyboard.press("Escape").catch(() => {});
     return !line ? "no line says it was acknowledged" : (await d.page.locator("[data-mark-acknowledged]").count()) ? "Mark acknowledged is still offered" : "";
@@ -209,24 +247,28 @@ async function step250(d, origin, p, stubs) {
   // The two request checks run on the pass that asks for them (English); the sheet check below proves
   // both languages on its own.
   if (p.requestChecks) await check("Client requests lists the waiting requests and approves one", async () => {
-    await d.goto("issues", ["requests"]); await wait(700);
+    await go(d, "issues", ["requests"], "[data-client-requests] table tbody tr");
     const rows = d.page.locator("[data-client-requests] table tbody tr");
     const n = await rows.count();
     if (n < 3) return "the list holds " + n + " requests";
     const waiting = await rows.filter({ hasText: d.say("Waiting for approval") }).count();
     if (waiting < 2) return waiting + " wait for approval";
-    await rows.first().click(); await wait(900);
-    await d.page.locator("[data-request-approve]").click(); await wait(400);
-    await d.page.locator("[data-request-approve-save]").click(); await wait(900);
+    await rows.first().click();
+    await d.page.locator("[data-request-approve]").click();
+    await d.page.locator("[data-request-approve-save]").click();
+    await d.page.locator("[data-request-approve]").waitFor({ state: "detached" }).catch(() => {});
     if ((await d.page.locator("[data-request-approve]").count()) > 0) return "Approve and assign is still offered";
+    await d.page.locator("[data-request-window]").getByText(d.say("Approved|request")).first().waitFor({ timeout: 2000 }).catch(() => {});
     const text = lower(await d.page.locator("[data-request-window]").innerText());
     await d.page.keyboard.press("Escape").catch(() => {});
     return text.indexOf(lower(d.say("Approved|request"))) < 0 ? "the activity does not read Approved" : "";
   });
   if (p.requestChecks) await check("a second approver's refusal is drawn", async () => {
-    await d.goto("issues", ["requests", "rq-2"]); await wait(700);
-    await d.page.locator("[data-request-approve]").click(); await wait(400);
-    await d.page.locator("[data-request-approve-save]").click(); await wait(900);
+    await go(d, "issues", ["requests", "rq-2"]);
+    await d.page.locator("[data-request-approve]").click();
+    await d.page.locator("[data-request-approve-save]").click();
+    await until(d, "[data-request-said]").catch(() => {});
+    await d.page.locator("[data-request-window]").getByText(d.say("Open|request")).first().waitFor({ timeout: 2000 }).catch(() => {});
     const said = (await d.page.locator("[data-request-said]").count()) ? await d.page.locator("[data-request-said]").innerText() : "";
     const text = lower(await d.page.locator("[data-request-window]").innerText());
     await d.page.keyboard.press("Escape").catch(() => {});
@@ -235,14 +277,16 @@ async function step250(d, origin, p, stubs) {
     return text.indexOf(lower(d.say("Open|request"))) < 0 ? "the row did not refresh to Open" : "";
   });
   await check("a request QR is made and its sheet printed", async () => {
-    await d.goto("forms", ["links"]); await wait(700);
+    await go(d, "forms", ["links"]);
     await d.page.locator("[data-link-kind]").selectOption("request");
     await d.page.locator("[data-link-area-input]").fill(SMOKE_AREA);
-    await d.page.getByRole("button", { name: d.say("Make a request QR") }).click(); await wait(1000);
+    await d.page.getByRole("button", { name: d.say("Make a request QR") }).click();
+    await until(d, "[data-qr-screen] [data-link-area]").catch(() => {});
     if ((await d.page.locator("[data-qr-screen] [data-link-area]").count()) === 0) return "the QR window did not open on the request QR";
     const before = (await d.prints()).length;
-    await d.page.locator("[data-qr-screen]").getByRole("button", { name: d.say("Print sheet") }).click(); await wait(900);
-    const prints = await d.prints();
+    await d.page.locator("[data-qr-screen]").getByRole("button", { name: d.say("Print sheet") }).click();
+    let prints = await d.prints();
+    for (let i = 0; i < 20 && prints.length <= before; i++) { await wait(100); prints = await d.prints(); }
     await d.page.keyboard.press("Escape").catch(() => {});
     if (prints.length <= before) return "no sheet window opened";
     const html = prints[prints.length - 1].html;
@@ -250,11 +294,15 @@ async function step250(d, origin, p, stubs) {
     return html.indexOf("Ask for help here") < 0 || html.indexOf("Pida ayuda aqu") < 0 ? "the sheet does not carry the title in both languages" : "";
   });
   await check("Print label saves the supply's label", async () => {
-    await d.goto("supplies"); await wait(700);
-    await d.page.locator("[data-supply-card]").first().click(); await wait(600);
+    await go(d, "supplies");
+    await d.page.locator("[data-supply-card]").first().click();
+    await until(d, "[data-supply-print-label]").catch(() => {});
     const btn = d.page.locator("[data-supply-print-label]");
     if ((await btn.count()) === 0) return "Print label is not offered";
-    await btn.click(); await wait(900);
+    await btn.click();
+    const labels = async () => (await d.page.evaluate(() => window.__audit.downloads.map((x) => x.name))).indexOf("labels.pdf") >= 0;
+    for (let i = 0; i < 20 && !(await labels()); i++) await wait(100);
+    await wait(150);
     const call = stubs.calls.find((c) => c.path === "/api/supplies/labels.pdf" && /ids=sp-/.test(c.query));
     if (!call) return "labels.pdf was not asked for";
     if (call.status !== 200) return "labels.pdf answered " + call.status;
@@ -274,29 +322,34 @@ async function step253(d, origin, p, stubs) {
     await recover(d, origin, p);
   };
   await check("the Issue Tracker lists the findings and one is verified by someone other than its fixer", async () => {
-    await d.goto("issues"); await wait(500);
-    await d.page.locator("[data-issue-source]").selectOption("inspection"); await wait(300);
+    await go(d, "issues");
+    await d.page.locator("[data-issue-source]").selectOption("inspection");
+    await until(d, "[data-finding-fixed]").catch(() => {});
     const rows = await d.page.locator("[data-issue-row]").count();
     if (rows < 4) return "the Source Inspection lists " + rows + " findings";
     if ((await d.page.locator("[data-finding-fixed]").count()) === 0) return "no row draws Time to fixed";
-    await d.goto("issues", ["f-3"]); await wait(700);
+    await go(d, "issues", ["f-3"]);
+    await until(d, "[data-verify]").catch(() => {});
     if ((await d.page.locator("[data-verify]").count()) === 0) return "Verify is not offered on the fixed finding";
     await d.page.locator("[data-verify] textarea").fill("Checked in person at the dock.");
-    await d.page.locator("[data-verify-save]").click(); await wait(600);
+    await d.page.locator("[data-verify-save]").click();
+    await until(d, "[data-verified]").catch(() => {});
     const verified = await d.page.locator("[data-verified]").count();
     const still = await d.page.locator("[data-verify]").count();
     await d.page.keyboard.press("Escape").catch(() => {});
     return !verified ? "no line says it was verified" : still ? "Verify is still offered" : "";
   });
   await check("a completed inspection shows its band and findings and asks for a corrective action", async () => {
-    await d.goto("inspections"); await wait(500);
-    await d.page.getByRole("button", { name: d.say("Completed|inspections") }).first().click(); await wait(300);
-    await d.page.locator("table tbody tr").filter({ hasText: "Dock area check" }).first().click(); await wait(700);
+    await go(d, "inspections");
+    await d.page.getByRole("button", { name: d.say("Completed|inspections") }).first().click();
+    await d.page.locator("table tbody tr").filter({ hasText: "Dock area check" }).first().click();
+    await until(d, "[data-inspection-finding]").catch(() => {});
     if ((await d.page.locator("[data-inspection-band]").count()) === 0) return "no band is drawn";
     const n = await d.page.locator("[data-inspection-finding]").count();
     if (n < 1) return "the findings list " + n + " rows";
     if ((await d.page.locator("[data-inspection-corrective-required]").count()) === 0) return "no corrective action is asked for";
-    await d.page.locator("[data-inspection-corrective-start]").click(); await wait(600);
+    await d.page.locator("[data-inspection-corrective-start]").click();
+    await d.page.locator("[data-inspection-corrective-refusal], div[style*='z-index: 500']").first().waitFor({ timeout: 3000 }).catch(() => {});
     const call = stubs.calls.find((c) => c.path === "/api/forms/OCSA-FRM-010/drafts" && c.method === "POST");
     if (!call) return "no corrective action was started";
     if (!call.body || call.body.siteId !== seed.SITES[2].id) return "the start does not name the inspection's site";
@@ -305,26 +358,33 @@ async function step253(d, origin, p, stubs) {
     return drawn ? "" : "neither the form nor a refusal is drawn";
   });
   await check("the corrective action links the open findings at its site and tells the client", async () => {
-    await d.goto("forms"); await wait(800);
+    await go(d, "forms", null, "table tbody tr");
     const row = d.page.locator("table tbody tr").filter({ hasText: "Corrective Action Report" }).first();
     if ((await row.count()) === 0) return "no corrective action on Filed forms";
-    await row.click(); await wait(800);
+    await row.click();
+    await until(d, "[data-link-findings]");
+    await until(d, "[data-linked-finding]").catch(() => {});
     const before = await d.page.locator("[data-linked-finding]").count();
-    await d.page.locator("[data-link-findings]").click(); await wait(500);
+    await d.page.locator("[data-link-findings]").click();
+    await until(d, "[data-link-finding]").catch(() => {});
     const offered = await d.page.locator("[data-link-finding]").count();
     if (offered < 2) return "Link findings offers " + offered + " findings";
     const ticked = await d.page.locator("[data-link-findings-form] input:checked").count();
     if (ticked !== offered) return ticked + " of " + offered + " start ticked";
-    await d.page.locator("[data-link-findings-save]").click(); await wait(500);
+    await d.page.locator("[data-link-findings-save]").click();
+    await d.page.locator("[data-link-findings-form]").waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    await d.page.locator("[data-unlink-finding]").nth(before + offered - 1).waitFor({ timeout: 2000 }).catch(() => {});
     const after = await d.page.locator("[data-linked-finding]").count();
     if (after !== before + offered) return "the window lists " + after + " linked findings after linking " + offered + " to " + before;
     if ((await d.page.locator("[data-unlink-finding]").count()) !== after) return "Unlink is not offered on each";
-    await d.page.locator("[data-tell-client-open]").click(); await wait(300);
+    await d.page.locator("[data-tell-client-open]").click();
+    await until(d, "[data-tell-client-form] input:checked").catch(() => {});
     if ((await d.page.locator("[data-tell-client-form] input:checked").count()) < 1) return "no recipient starts ticked";
     await d.page.locator('[data-tell-client-field="whatHappened"]').fill("The inspection found the dock markings worn and the glass streaked.");
     await d.page.locator('[data-tell-client-field="whatWasDone"]').fill("The markings were repainted and the glass cleaned on both sides.");
     await d.page.locator('[data-tell-client-field="prevention"]').fill("The dock is now on the weekly walk.");
-    await d.page.locator("[data-tell-client-send]").click(); await wait(700);
+    await d.page.locator("[data-tell-client-send]").click();
+    await until(d, "[data-client-told]").catch(() => {});
     const told = await d.page.locator("[data-client-told]").count();
     const call = stubs.calls.find((c) => /\/tell-client$/.test(c.path) && c.method === "POST");
     await d.page.keyboard.press("Escape").catch(() => {});
@@ -332,8 +392,9 @@ async function step253(d, origin, p, stubs) {
     return !call || !call.body || !Array.isArray(call.body.to) || !call.body.to.length ? "the send names no recipient" : "";
   });
   await check("the evidence pack prints the finding measures", async () => {
-    await d.goto("reports"); await wait(700);
-    await d.page.locator("text=OCSA-QMS-018").locator("xpath=../..").getByRole("button").first().click(); await wait(500);
+    await go(d, "reports", null, "[data-report-group]");
+    await d.page.locator("text=OCSA-QMS-018").locator("xpath=../..").getByRole("button").first().click();
+    await until(d, "[data-management-review]").catch(() => {});
     if ((await d.page.locator("[data-management-review]").count()) === 0) return "Management review did not open";
     const before = (await d.prints()).length;
     await d.page.locator("[data-management-review]").getByRole("button", { name: d.say("Print the evidence pack") }).click();
@@ -385,8 +446,8 @@ async function runPass(browser, origin, p) {
 
     if (p.who === "admin") {
       // Reports: one card of each group, and back.
-      await d.goto("reports"); await wait(900);
-      const groups = await d.page.locator("[data-report-group]").count();
+      await go(d, "reports", null, "[data-report-group]");
+      const groups = await settledCount(d, "[data-report-group]");
       say(groups > 0, p.name, "Reports shows " + groups + " groups");
       for (let i = 0; i < groups; i++) {
         const g = d.page.locator("[data-report-group]").nth(i);
@@ -399,15 +460,20 @@ async function runPass(browser, origin, p) {
           say(!why, p.name, "Reports opens a card of " + heading, why);
         } catch (e) { say(false, p.name, "Reports opens a card of " + heading, e.message.split("\n")[0]); }
         await recover(d, origin, p);
-        await d.goto("reports"); await wait(700);
+        await go(d, "reports", null, "[data-report-group]");
       }
       // A filed form, from Filed forms.
       {
-        await d.goto("forms"); await wait(1200);
+        await go(d, "forms", null, "table tbody tr");
         const mark = d.pageErrors.length;
         const row = d.page.locator("table tbody tr").first();
         let why = (await row.count()) === 0 ? "no filed form listed" : "";
-        if (!why) { await row.click(); await wait(1200); why = (await d.page.locator("div[style*='z-index: 500']").count()) === 0 ? "the report did not open" : await trouble(d, mark); }
+        if (!why) {
+          await row.click();
+          await until(d, "div[style*='z-index: 500']").catch(() => {});
+          await wait(400);
+          why = (await d.page.locator("div[style*='z-index: 500']").count()) === 0 ? "the report did not open" : await trouble(d, mark);
+        }
         say(!why, p.name, "a filed form opens", why);
         await d.page.keyboard.press("Escape").catch(() => {});
         await recover(d, origin, p);
@@ -415,7 +481,9 @@ async function runPass(browser, origin, p) {
       // Customer links.
       {
         const mark = d.pageErrors.length;
-        await d.goto("forms", ["links"]); await wait(1200);
+        await go(d, "forms", ["links"]);
+        await until(d, "[data-customer-links-tab]").catch(() => {});
+        await wait(200);
         const why = (await d.page.locator("[data-customer-links-tab]").count()) === 0 ? "the tab did not open" : await trouble(d, mark);
         say(!why, p.name, "Customer links opens", why);
         await recover(d, origin, p);
@@ -428,7 +496,7 @@ async function runPass(browser, origin, p) {
     // Help, asked one question.
     {
       const mark = d.pageErrors.length;
-      await d.goto("help"); await wait(900);
+      await go(d, "help", null, 'button[aria-label="' + d.say("Send") + '"]');
       const send = d.page.locator('button[aria-label="' + d.say("Send") + '"]').first();
       let why = (await send.count()) === 0 ? "no Send button" : "";
       if (!why) {
