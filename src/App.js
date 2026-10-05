@@ -3904,8 +3904,59 @@ function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = 
 // either gets no picker here, only the way to that tab.
 const isClientIssue = (iss) => !!iss && iss.source === "client_request";
 const ISSUE_STATUS_CHOICES = ["open", "in_progress", "escalated", "resolved", "closed"];
-const issueStatusChoices = (iss) => (isClientIssue(iss) && (iss.status === "awaiting_approval" || iss.status === "declined") ? [] : ISSUE_STATUS_CHOICES);
+const issueStatusChoices = (iss) => (isClientIssue(iss) && (iss.status === "awaiting_approval" || iss.status === "declined") ? [] : isFinding(iss) ? ISSUE_STATUS_CHOICES.filter(x => x !== "closed") : ISSUE_STATUS_CHOICES);
 const openRequest = (id) => { window.location.hash = "issues/requests/" + encodeURIComponent(String(id)); };
+
+// ===== INSPECTION FINDINGS (Step 254, against the API's Step 253) =====
+// Every deficient card of a completed inspection opens a ticket with an owner, a due date by the
+// site's band and a second person's check (STEP253_CONTRACT.md, sections 2 to 5). The Issue Tracker
+// draws them as a Source with their Due, First response and Time to fixed, and opens one from
+// GET /api/issues/:id, whose canVerify offers Verify, which is POST /api/issues/:id/verify. An
+// inspection ticket is closed only by Verify, so the status picker offers it no close. Nothing here
+// draws until the API's Step 253 answers: one POST /api/issues/link-corrective-action naming nothing,
+// which that API refuses with issues.badDetails, or with 403 for a caller without view_reports, and
+// which an older API, with no such route, answers any other way. Nothing is written by it. The list's
+// ?source=inspection proves nothing, since the API's Step 250 already takes the filter.
+let findingsLiveProbe = null;
+const FINDINGS_PROBE_CODES = ["issues.badDetails", "issues.notFound", "forms.reportNotFound", "forms.notACorrectiveAction"];
+const probeFindingsLive = (af) => {
+  if (!findingsLiveProbe) findingsLiveProbe = af("/api/issues/link-corrective-action", { method: "POST", body: {} }).then(() => false)
+    .catch(e => { if (e && (e.status === 403 || FINDINGS_PROBE_CODES.indexOf(e.code) >= 0)) return true; if (!e || e.status == null) { console.warn("Inspection findings:", e && e.message); findingsLiveProbe = null; } return false; });
+  return findingsLiveProbe;
+};
+function useFindingsLive(af) {
+  const requestsOn = useRequestsLive(af);
+  const [live, setLive] = useState(false);
+  useEffect(() => { if (!requestsOn) return undefined; let alive = true; probeFindingsLive(af).then(v => { if (alive) setLive(v); }); return () => { alive = false; }; }, [af, requestsOn]);
+  return requestsOn && live;
+}
+const isFinding = (iss) => !!iss && iss.source === "inspection";
+const issueHas = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+// Minutes as the words a person reads: 45 m, 2 h 15 m, 3 d 4 h. Nothing reads as a dash.
+const minutesWords = (m) => {
+  if (m == null || m === "" || !isFinite(Number(m))) return "--";
+  const n = Math.max(0, Math.round(Number(m)));
+  if (n < 60) return tr("{0} m|minutes", n);
+  const h = Math.floor(n / 60);
+  if (h < 24) return tr("{0} h {1} m", h, n % 60);
+  return tr("{0} d {1} h", Math.floor(h / 24), h % 24);
+};
+// The band OCSA-QMS-014 5.2 gives a score: meets standard at 90 and above, below standard from 80,
+// failed from 70, a serious failure under 70. The API answers band on completion; a read is judged
+// here from its percent by the same lines.
+const BAND_WORDS = { meets: "Meets standard", below: "Below standard", failed: "Failed|band", serious: "Serious failure" };
+const bandOf = (pct) => (pct == null || pct === "" || !isFinite(Number(pct)) ? "" : Number(pct) >= 90 ? "meets" : Number(pct) >= 80 ? "below" : Number(pct) >= 70 ? "failed" : "serious");
+const bandWord = (band) => (BAND_WORDS[band] ? tr(BAND_WORDS[band]) : String(band || ""));
+const bandColor = (band) => ({ meets: GR, below: OR, failed: RD, serious: RD })[band] || null;
+const openFinding = (id) => { window.location.hash = "issues/" + encodeURIComponent(String(id)); };
+const openFiledReport = (id) => { window.location.hash = "forms/reports/" + encodeURIComponent(String(id)); };
+// The single read's camelCase view laid over the list's snake_case row, so the window draws one shape.
+const issueOfView = (v) => ({
+  id: v.id, title: v.title, description: v.description, zone: v.zone, severity: v.severity, status: v.status, source: v.source, reference: v.reference,
+  site_name: v.siteName, site_id: v.siteId, reported_at: v.reportedAt, reported_by_name: nameOf(v.reportedBy) || null, assigned_to: v.assignedTo ? v.assignedTo.id : null, assigned_to_name: nameOf(v.assignedTo) || null,
+  due_at: v.dueAt, due_state: v.dueState, first_response_at: v.firstResponseAt, resolved_at: v.resolvedAt, resolved_by_name: nameOf(v.resolvedBy) || null,
+  verified_at: v.verifiedAt, verified_by_name: nameOf(v.verifiedBy) || null, minutes_to_first_response: v.minutesToFirstResponse, minutes_to_fixed: v.minutesToFixed, fixed_by_due: v.fixedByDue,
+});
 function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
   // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
   // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
@@ -3922,6 +3973,16 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const pickTab = (id) => { setTab(id); if (onRoute) onRoute(id === "requests" ? ["requests"] : []); };
   const onRequests = requestsOn && tab === "requests";
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
+  // Step 254: inspection findings, once GET /api/issues?source=inspection answers. An issue opened
+  // while they answer is read whole from GET /api/issues/:id, whose view sits in view; the window
+  // draws the view laid over the row, so a ticket opened from a notice, #issues/<id>, draws before
+  // the list holds it.
+  const findingsOn = useFindingsLive(af);
+  const [view, setView] = useState(null);
+  const [verify, setVerify] = useState({ note: "", refusal: "", busy: false });
+  const verifyRef = useRef(false);
+  const routeId = route[0] && route[0] !== "requests" ? String(route[0]) : "";
+  const openedRouteRef = useRef("");
   const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
   const [issuesFailed, setIssuesFailed] = useState(false);
@@ -3933,7 +3994,36 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   // API's words; any other refusal is toasted as before.
   const [statusDraft, setStatusDraft] = useState("");
   const [statusRefusal, setStatusRefusal] = useState("");
-  const openIssue = async (iss) => { setSel(iss); setStatusDraft(iss.status || ""); setStatusRefusal(""); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
+  const openIssue = async (iss) => {
+    setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
+    if (findingsOn) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
+    try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(Array.isArray(a) ? a : []); } catch (e) { setActivity([]); }
+    try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
+  };
+  const closeSel = () => { setSel(null); setView(null); if (routeId && onRoute) onRoute([]); };
+  // #issues/<id>, the office's link in a finding's notice: the row once the list holds it, else the
+  // id alone, which the single read fills in.
+  useEffect(() => {
+    if (!routeId || openedRouteRef.current === routeId) return;
+    const row = issues.find(i => String(i.id) === routeId);
+    if (!row && !findingsOn) return;
+    openedRouteRef.current = routeId;
+    openIssue(row || { id: routeId, status: "" });
+  }, [routeId, issues, findingsOn]);
+  const doVerify = async () => {
+    if (verifyRef.current || !sel) return;
+    verifyRef.current = true; setVerify(v => ({ ...v, busy: true, refusal: "" }));
+    const note = verify.note.trim();
+    try {
+      const d = await af("/api/issues/" + encodeURIComponent(sel.id) + "/verify", { method: "POST", body: note ? { note } : {} });
+      if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); }
+      setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load();
+    } catch (e) {
+      const code = String((e && e.code) || "");
+      setVerify(v => ({ ...v, busy: false, refusal: code === "issues.cannotVerifyOwn" ? tr("Someone other than the person who fixed it checks it.") : (e && e.message) || tr("Request failed") }));
+    }
+    verifyRef.current = false;
+  };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: PU, awaiting_approval: OR, declined: t.textMut };
   // The words for the codes an issue carries. The code is what the API sent and what is sent back;
@@ -3945,13 +4035,17 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const sevOf = (s) => sevWord[s] || s;
   const upd = async (id, s) => {
     setStatusRefusal("");
-    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); setSel(null); }
+    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); closeSel(); }
     catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
   };
   // The reporter line: a staff issue names who reported it; a client request names none, so it reads
   // Client request, and its reference follows.
   const reporterLine = (iss) => [isClientIssue(iss) ? tr("Client request") : iss.reported_by_name, ff(iss.reported_at)].filter(Boolean).join(" | ");
-  const sourceOptions = [{ v: "", l: tr("All sources") }, { v: "staff", l: tr("Staff|source") }, { v: "client_request", l: tr("Client requests") }];
+  const sourceOptions = [{ v: "", l: tr("All sources") }, { v: "staff", l: tr("Staff|source") }].concat(findingsOn ? [{ v: "inspection", l: tr("Inspection|source") }] : [], [{ v: "client_request", l: tr("Client requests") }]);
+  // The window's shape: the single read's view over the row it opened from.
+  const shown = sel ? (view ? Object.assign({}, sel, issueOfView(view)) : sel) : null;
+  const photos = view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos;
+  const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
@@ -3963,46 +4057,68 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
     {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
     {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
-      <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: "1 1 200px", minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}</div>
+      <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: "1 1 200px", minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}{isFinding(iss) && <Bdg l={tr("Inspection|source")} c={GO} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}{issueHas(iss, "minutes_to_first_response") && timed(iss) && <span data-finding-first-response="">{tr("First response")}: {minutesWords(iss.minutes_to_first_response)}</span>}{issueHas(iss, "minutes_to_fixed") && timed(iss) && <span data-finding-fixed="">{tr("Time to fixed")}: {minutesWords(iss.minutes_to_fixed)}</span>}</div>
         <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Start|work")}</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Resolve")}</button>}</div></div>
       {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>{tr("Photo attached")}</div>}
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
-    {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => setSel(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.title}</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(sel.severity)} c={sC[sel.severity]} /><Bdg l={stateOf(sel.status)} c={stC[sel.status] || t.textMut} /></div>
-      {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
+    {shown && <Mdl t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => closeSel()} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{shown.title}</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(shown.severity)} c={sC[shown.severity]} /><Bdg l={stateOf(shown.status)} c={stC[shown.status] || t.textMut} /></div>
+      {shown.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{shown.description}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.zone || tr("General")}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{isClientIssue(sel) ? tr("Client request") : sel.reported_by_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
-        {sel.reference && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reference")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontFamily: "monospace" }}>{sel.reference}</div></div>}
-        {(isClientIssue(sel) || sel.respond_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Respond by")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(sel.respond_state, sel.respond_by, tr("Responded|request"))} name="respond" /></div></div>}
-        {(isClientIssue(sel) || sel.due_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(sel.due_state, sel.due_at, tr("Done|request"))} name="due" /></div></div>}
-        {sel.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name}</div></div>}
-        {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{shown.site_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{shown.zone || tr("General")}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{isClientIssue(shown) ? tr("Client request") : shown.reported_by_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(shown.reported_at)}</div></div>
+        {shown.reference && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reference")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontFamily: "monospace" }}>{shown.reference}</div></div>}
+        {(isClientIssue(shown) || shown.respond_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Respond by")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(shown.respond_state, shown.respond_by, tr("Responded|request"))} name="respond" /></div></div>}
+        {(isClientIssue(shown) || shown.due_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(shown.due_state, shown.due_at, tr("Done|request"))} name="due" /></div></div>}
+        {shown.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{shown.assigned_to_name}</div></div>}
+        {shown.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(shown.resolved_at)}</div></div>}
       </div>
-      {sel.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{sel.assignment_note}</div>}
-      {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", allPhotos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
-      {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={sel.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {view && view.inspection && <div data-finding-inspection="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("From an inspection")}</div>
+        <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{view.inspection.templateName || tr("Inspection")}{view.inspection.completedAt ? ", " + tr("completed {0}", irWhen(view.inspection.completedAt)) : ""}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginTop: 4 }}><span>{tr("Scored {0} percent", view.inspection.scorePct == null ? "--" : String(view.inspection.scorePct))}</span>{(view.inspection.band || bandOf(view.inspection.scorePct)) && <Bdg l={bandWord(view.inspection.band || bandOf(view.inspection.scorePct))} c={bandColor(view.inspection.band || bandOf(view.inspection.scorePct)) || t.textMut} />}</div>
+        {view.inspection.itemLabel && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Item: {0}, scored {1} of {2}", view.inspection.itemLabel, view.inspection.itemScore == null ? "--" : String(view.inspection.itemScore), view.inspection.itemMaxScore == null ? "--" : String(view.inspection.itemMaxScore))}</div>}
+      </div>}
+      {view && issueHas(view, "correctiveAction") && isFinding(shown) && <div data-finding-corrective="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Corrective action")}</div>
+        {view.correctiveAction ? <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{view.correctiveAction.closedAt ? tr("OCSA-FRM-010, closed {0}.", irDay(view.correctiveAction.closedAt)) : tr("OCSA-FRM-010, still open.")}{view.correctiveAction.clientToldAt ? " " + tr("Client told {0}.", irDay(view.correctiveAction.clientToldAt)) : ""}</span>
+          <Btn t={t} v="ghost" onClick={() => { closeSel(); openFiledReport(view.correctiveAction.id); }} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open the corrective action")}</Btn>
+        </div> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Not linked to a corrective action yet. Link it from the corrective action's window on Forms.")}</div>}
+      </div>}
+      {shown.verified_at && <div data-verified="" style={{ fontSize: 12, color: GR, fontWeight: 600, marginBottom: 12 }}>{tr("Verified {0} by {1}.", irWhen(shown.verified_at), shown.verified_by_name || "--")}</div>}
+      {view && view.canVerify && <div data-verify="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.orangeBorder }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Verify")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Someone other than the person who fixed it checks it.")} {tr("Verifying closes the finding.")}</div>
+        <Lbl>{tr("Note")}</Lbl>
+        <TArea t={t} rows={2} maxLength={2000} aria-label={tr("Note")} value={verify.note} onChange={e => setVerify(v => ({ ...v, note: e.target.value, refusal: "" }))} />
+        {verify.refusal && <div data-verify-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{verify.refusal}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><Btn t={t} onClick={doVerify} disabled={verify.busy} data-verify-save="" style={{ minHeight: 44 }}>{verify.busy ? tr("Saving...") : tr("Verify")}</Btn></div>
+      </div>}
+      {shown.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{shown.assignment_note}</div>}
+      {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
+      {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={shown.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
         {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : requestActivityWord(a); const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span>{a.user_name ? <span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span> : null}</div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && a.action !== "client_mailed" && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>{tr("Start Work")}</Btn>}
-        {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
-        {sel.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
-        {(sel.status === "open" || sel.status === "in_progress" || sel.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
-        {isClientIssue(sel) && requestsOn && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setSel(null); openRequest(sel.id); }}>{tr("Open in Client requests")}</Btn>}
-        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
+        {shown.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "in_progress")}>{tr("Start Work")}</Btn>}
+        {shown.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "resolved")}>{tr("Resolve")}</Btn>}
+        {shown.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "resolved")}>{tr("Resolve")}</Btn>}
+        {(shown.status === "open" || shown.status === "in_progress" || shown.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: shown.id, userId: "", note: "", isReassign: !!shown.assigned_to }); closeSel(); }}>{shown.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
+        {isClientIssue(shown) && requestsOn && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { closeSel(); openRequest(shown.id); }}>{tr("Open in Client requests")}</Btn>}
+        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => closeSel()}>{tr("Close")}</Btn>
       </div>
-      {issueStatusChoices(sel).length > 0 && <div data-issue-status="" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
-        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(sel).map(x => ({ v: x, l: stateOf(x) }))} /></div>
-        <Btn t={t} v="ghost" onClick={() => upd(sel.id, statusDraft)} disabled={!statusDraft || statusDraft === sel.status} style={{ minHeight: 44 }}>{tr("Set status")}</Btn>
+      {issueStatusChoices(shown).length > 0 && <div data-issue-status="" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(shown).map(x => ({ v: x, l: stateOf(x) }))} /></div>
+        <Btn t={t} v="ghost" onClick={() => upd(shown.id, statusDraft)} disabled={!statusDraft || statusDraft === shown.status} style={{ minHeight: 44 }}>{tr("Set status")}</Btn>
       </div>}
-      {issueStatusChoices(sel).length === 0 && isClientIssue(sel) && <div style={{ fontSize: 12, color: t.textMut, marginTop: 12, lineHeight: 1.5 }}>{tr("A request waiting for approval or declined is decided on the Client requests tab.")}</div>}
+      {issueStatusChoices(shown).length === 0 && isClientIssue(shown) && <div style={{ fontSize: 12, color: t.textMut, marginTop: 12, lineHeight: 1.5 }}>{tr("A request waiting for approval or declined is decided on the Client requests tab.")}</div>}
       {statusRefusal && <div data-issue-status-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{statusRefusal}</div>}
       </div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
@@ -6651,6 +6767,10 @@ const notifTarget = (link) => {
   // section 9); here it opens the Issue Tracker's Client requests tab on that request.
   const req = /^\/requests\/([^/]+)\/?$/.exec(u.pathname || "");
   if (req) return { kind: "page", page: "issues", hash: "issues/requests/" + req[1] };
+  // A finding's notice links /issues/<id> (Step 254, STEP253_CONTRACT.md section 4), which opens the
+  // Issue Tracker on that ticket.
+  const fin = /^\/issues\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (fin && fin[1] !== "requests") return { kind: "page", page: "issues", hash: "issues/" + fin[1] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6744,6 +6864,8 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (n.subjectType === "customer_concern" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
     // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
     if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
+    // Step 254: a finding's notice opens the Issue Tracker on that ticket.
+    if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
