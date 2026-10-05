@@ -44,12 +44,21 @@ Then it checks, one line a check:
   area and the title in both languages, and Print label saves a supply's labels.pdf. The two request
   checks run in English alone so the run stays inside its three minutes. Every other run of the stub
   answers as it did before Step 247.
+- against the stub's answers for the API's Step 256, which the smoke check arms with `setStep256` over
+  whichever earlier step a pass arms: at 1280 in English and in Spanish, the training catalog lists
+  its topics and adds an invented one, refused once under its field, and says who needs it; Gaps
+  lists the people with their items, prints a page per site and opens a person's own list; a session
+  is saved for three people in one call, one of whom already had it that day, and its roster names
+  the topic's document; a lesson draft is refused for want of its Spanish checker and then published;
+  and a trainer signs off an attempt they watched, never their own, and its record prints with both
+  signatures. At 390 in English the catalog and Gaps lines run again, and at 1280 in English a
+  supervisor reads the catalog with no Add a topic and is never offered their own attempt.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
 opened by its button with no such wait: the stub answers in the same process, so a page has drawn what
 it read once that thing is there. The run went from 171 to 93 seconds with every check still in it, in
-every language it ran in. The pause after a side panel item opens stays at 550 milliseconds, since an
+every language it ran in, and is 108 with Step 257's sixteen lines. The pause after a side panel item opens stays at 550 milliseconds, since an
 item has no one thing to wait for.
 
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
@@ -57,7 +66,11 @@ after it still run. Any failure, or a run of three minutes or more, exits non-ze
 panel's items by `data-nav-item` and Reports' groups by `data-report-group`, Step 248's screens by
 `data-holidays`, `data-restore-sites`, `data-due-state` and `data-mark-acknowledged`, and Step 250's by
 `data-client-requests`, `data-request-approve`, `data-request-said`, `data-link-kind`, `data-link-area`
-and `data-supply-print-label`.
+and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-topic-add`,
+`data-topic-field`, `data-topic-refusal`, `data-who-role`, `data-gaps-person`, `data-gap-word`,
+`data-gaps-print`, `data-session-field`, `data-session-saved`, `data-session-already`,
+`data-lesson-new`, `data-lesson-publish`, `data-lesson-refusal`, `data-signoff-open` and
+`data-signoff-watched`.
 
 ## What comes out
 

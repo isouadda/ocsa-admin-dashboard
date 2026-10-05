@@ -420,18 +420,17 @@ Last checked: 2026-09-17
 
 ## Log training for several people at once (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **HR Records** in the menu, then the **Training** tab.
-2. Click **Log training for several people**.
-3. Type the **Training Name**. Names already used show under it as you type; click one to use exactly that name, so every session of the same training is logged under one name.
-4. Pick the **Training Type**. The **Completed Date** is today; change it if the session was on another day.
-5. Type who gave it under **Administered By**.
-6. Under **Language it was given in**, click **English**, **Spanish** or **French**.
-7. Under **Who attended**, pick a site to list its people, or keep **Everyone active** and use **Search by name**. Tick each person who attended, or click **Select all**. People ticked stay ticked when you switch sites.
-8. Click **Save**. The line under the list counts the records as they are saved, one person after another.
-9. Right after saving, **Print attendance sheet** prints the training attendance roster: the session, every person with a line to sign and a box for **Understood** (**Entendido**), and the trainer's attestation. A site picked under **Who attended** is saved with each record and printed on the roster.
-If it does not work: anyone under **Not saved** shows the reason; click **Try again** to send just those people. Anyone under **Already logged, not sent again** already has that training on that day, and is never logged twice.
-Words people use for this: log training, training attendance, sign in sheet, log a session, record who attended, orientation, skills sign-off.
-Last checked: 2026-10-02
+1. Click **HR Records** (**Expedientes de personal**) in the menu, then the **Training** (**Capacitación**) tab, and on **Records** (**Registros**) click **Log training for several people** (**Registrar capacitación de varias personas**).
+2. Pick the **Topic** (**Tema**) from the training catalog. The line under it names the topic's document and section and how often it is taken. The **Completed Date** (**Fecha de finalización**) is today; change it if the session was on another day.
+3. Pick the **Trainer** (**Instructor**), or leave **Type a name** (**Escribir un nombre**) and type who gave it.
+4. Under **Language it was given in** (**Idioma en que se impartió**), click **English** (**Inglés**), **Spanish** (**Español**) or **French** (**Francés**).
+5. Under **Who attended** (**Quiénes asistieron**), pick the site the session was given at to list its people, or keep **Everyone active** (**Todas las personas activas**) and use **Search by name** (**Buscar por nombre**). Tick each person who attended, or click **Select all** (**Seleccionar todo**). People ticked stay ticked when you switch sites, and the site picked is saved with each record.
+6. Add **Notes (optional)** (**Notas (opcional)**) if you like, and click **Save** (**Guardar**). The whole session is saved in one go.
+7. The window then lists who it was saved for, and under **Already had it that day** (**Ya la tenía ese día**) anyone who already had the topic on that day. Nobody is logged twice.
+8. **Print attendance sheet** (**Imprimir la hoja de asistencia**) prints the training attendance roster: the session, with **Related Document No.** (**Número de documento relacionado**) filled in with the topic's document and section, every person with a line to sign and a box for **Understood** (**Entendido**), and the trainer's attestation.
+If it does not work: a refusal is shown under the field it names. Before the training catalog is in, the window asks for a typed **Training Name** (**Nombre de la capacitación**) and a **Training Type** (**Tipo de capacitación**) in place of the topic and saves one person after another; anyone under **Not saved** (**Sin guardar**) is sent again with **Try again** (**Intentar de nuevo**).
+Words people use for this: log training, training attendance, sign in sheet, log a session, record who attended, orientation, skills sign-off, training session.
+Last checked: 2026-10-05
 
 ## See who has no record of a training (admin dashboard)
 Who can do this: admins and supervisors
@@ -439,18 +438,19 @@ Who can do this: admins and supervisors
 2. Under **Who has no record**, pick the training in **Pick a training...**.
 3. To see one site, pick it in **All sites**.
 4. The line under the pickers counts the active people with no record of that training, such as **7 of 10 have no record**, and each of them is listed by name.
+5. Once the Training tab shows **Gaps** (**Brechas**), it takes the place of **Who has no record** (**Quién no tiene registro**): see training gaps by role and site.
 Words people use for this: who still needs training, who is missing training, who has not been trained, training gaps.
-Last checked: 2026-09-26
+Last checked: 2026-10-05
 
 ## Print a training attendance sheet (admin dashboard)
 Who can do this: admins and supervisors
 1. Click **HR Records** in the menu, then the **Training** tab.
-2. Under **Who has no record**, pick the training in **Pick a training...**.
-3. Under **Sessions**, find the day and click **Print attendance sheet**. It prints the approved **Training Attendance Roster** (**Lista de asistencia a la capacitación**), OCSA-FRM-033: the training, the day, the type, who gave it and the language, the form's other fields as lines to fill in, every person logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign. The site picked above is printed on it.
+2. Under **Who has no record**, pick the training in **Pick a training...**. Once the tab shows **Gaps** (**Brechas**), open it and pick the topic in **All topics** (**Todos los temas**).
+3. Under **Sessions**, find the day and click **Print attendance sheet**. It prints the approved **Training Attendance Roster** (**Lista de asistencia a la capacitación**), OCSA-FRM-033: the training, the day, the type, who gave it and the language, the form's other fields as lines to fill in, every person logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign. The site picked above is printed on it. A session of a topic from the training catalog prints its document and section under **Related Document No.** (**Número de documento relacionado**).
 4. To print every session at a site over a range of dates, use **Kept records** (**Registros conservados**) on **Reports** (**Informes**).
 If it does not work: allow pop-ups for the dashboard in the browser, then click **Print attendance sheet** again.
 Words people use for this: attendance sheet, print sign in sheet, training roster, payroll list for training.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Write what was done and close a customer complaint (admin dashboard)
 Who can do this: any supervisor or admin other than the person who logged the complaint
@@ -1492,9 +1492,9 @@ Last checked: 2026-10-02
 Who can do this: admins and supervisors
 1. Click **Reports** (**Informes**). Under **Kept records** (**Registros conservados**), find **Training Attendance Roster** (**Lista de asistencia a la capacitación**) and click **Open** (**Abrir**).
 2. Pick the **Site** (**Sitio**) and the dates. A record saved with a site counts for that site; one saved before records carried a site counts for the site its person is assigned to.
-3. Click **Print** (**Imprimir**). One roster prints for each session, a training on one day, on the approved form, OCSA-FRM-033: the session, the trainer, everyone logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign.
+3. Click **Print** (**Imprimir**). One roster prints for each session, a training on one day, on the approved form, OCSA-FRM-033: the session, the trainer, everyone logged with their Employee ID, a line to sign and a box for **Understood** (**Entendido**), and the attestation for the trainer, the Field Lead and the Controller to sign. A session of a topic from the training catalog prints its document and section under **Related Document No.** (**Número de documento relacionado**).
 Words people use for this: attendance sheet, sign in sheet, training roster, training records, binder, records, lista de asistencia.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Issue PPE to someone (admin dashboard)
 Who can do this: admins and supervisors
@@ -1749,4 +1749,74 @@ OCSA-MGT-005 has the client told what happened, what was done and what will prev
 4. Click **Send** (**Enviar**). The email goes in English and then in Spanish, the way the monthly report does. The window then reads who told the client and when, and the form's own answer on whether the customer was told becomes yes.
 If it does not work: the button is offered only once the verification is answered and until the client is told; a refusal is shown under the field it names. Nothing is recorded when the email fails to send.
 Words people use for this: tell the client, notify the customer, what happened what was done, client letter, corrective action email, informar al cliente.
+Last checked: 2026-10-05
+
+## Read and change the training catalog (admin dashboard)
+Who can do this: admins and supervisors read it; admins add, edit, retire and restore topics
+1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Catalog** (**Catálogo**).
+2. Each topic shows its **Document** (**Documento**) and section, **How often** (**Con qué frecuencia**), **When due** (**Cuándo se requiere**), **Per site** (**Por sitio**), **Safety critical** (**Crítico para la seguridad**), its **Course link** (**Enlace del curso**) and **Who it is for** (**Para quién es**). Point at a topic's name to read it in English, Spanish and French. Pick **Retired topics** (**Temas dados de baja**) or **All topics** (**Todos los temas**) to see the others.
+3. To add one, click **Add a topic** (**Agregar un tema**). Type the **Key** (**Clave**) in lowercase letters, numbers and underscores; it never changes. Type the **Name in English** (**Nombre en inglés**), the **Name in Spanish** (**Nombre en español**) and the **Name in French** (**Nombre en francés**), the **Document** (**Documento**) and the **Section** (**Sección**), and pick **How often** (**Con qué frecuencia**) and **When due** (**Cuándo se requiere**).
+4. Tick **Per site** (**Por sitio**) when each site a person works at needs its own record, and **Safety critical** (**Crítico para la seguridad**) for a safety topic. A **Course link** (**Enlace del curso**) is the https address of a course taken outside the app, which opens in a new tab. Under **Names on older records** (**Nombres en registros anteriores**), list the names older records were saved under, one a line, so they count for the topic. Click **Add the topic** (**Agregar el tema**).
+5. To change one, click it, then **Edit** (**Editar**), and **Save** (**Guardar**). **Retire** (**Dar de baja**) stops asking anyone for the topic; **Restore** (**Restaurar**) brings it back.
+If it does not work: a refusal is shown under the field it names, such as a key another topic already uses. The catalog shows once the system answers it.
+Words people use for this: training catalog, required trainings, training topics, add a training topic, course link, mandated training, catálogo de capacitación.
+Last checked: 2026-10-05
+
+## Say who needs a training topic (admin dashboard)
+Who can do this: admins
+1. Open the topic from **Catalog** (**Catálogo**) and click **Who needs it** (**Quién la necesita**). It lists the roles, with the service lines a role is narrowed to, and the people named.
+2. Click **Edit who needs it** (**Editar quién la necesita**).
+3. Tick each role that needs the topic. Under a role, tick service lines to ask for it only at sites with those lines, such as schools; with none ticked, the role needs it at every site.
+4. To name one person, pick them in **Name a person...** (**Nombrar a una persona...**) and click **Add** (**Agregar**).
+5. Click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and **Gaps** (**Brechas**) counts from it.
+If it does not work: a refusal is shown under the role or the person it names.
+Words people use for this: who needs this training, training by role, required for a role, assign training to a role, training requirement, quién necesita la capacitación.
+Last checked: 2026-10-05
+
+## See training gaps by role and site (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Gaps** (**Brechas**). It takes the place of **Who has no record** (**Quién no tiene registro**).
+2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**), **All topics** (**Todos los temas**) and **All statuses** (**Todos los estados**). The line above the table names the day the list is as of.
+3. The table counts each topic's people as **Current** (**Vigente**), **Due soon** (**Vence pronto**), **Expired** (**Vencida**), **Missing** (**Falta**), **Refresher due** (**Repaso pendiente**), **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**). Click a topic to narrow the list to it; **Sessions** (**Sesiones**) then lists the days it was given, each with its attendance sheet.
+4. Below the table, the people with the most open items come first, each item a chip in its status's words. An online lesson with no tries left reads **Needs an in-person session** (**Necesita una sesión en persona**).
+5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**).
+6. **Print** (**Imprimir**) at the top gives a page per site.
+7. The same items show in **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab.
+If it does not work: Gaps shows once the system answers it; until then **Who has no record** (**Quién no tiene registro**) stays.
+Words people use for this: training gaps, who needs training, who is missing training, expired training, training due soon, training by site, brechas de capacitación.
+Last checked: 2026-10-05
+
+## Write and publish a training lesson (admin dashboard)
+Who can do this: admins write and publish; admins and supervisors read the versions
+1. Open the topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). Each version shows its status, when it was published and by whom, its **Change note** (**Nota del cambio**) and the **Attempts** (**Intentos**) taken on it. **Stale** (**Desactualizada**) means a passage it cites has changed since.
+2. Click **New draft from the live lesson** (**Nuevo borrador a partir de la lección vigente**) or **New blank draft** (**Nuevo borrador en blanco**). A draft already started opens with **Open the draft** (**Abrir el borrador**).
+3. Write the **Title** (**Título**) in English, with the Spanish and the French under it.
+4. Under **Blocks** (**Bloques**), click **Add a block** (**Agregar un bloque**) and pick **Text** (**Texto**), **List** (**Lista**) or **Warning** (**Advertencia**), and write it in all three languages. **Cite a passage** (**Citar un pasaje**) finds the section of the procedure it comes from; click **Cite** (**Citar**) beside it.
+5. Write 5 to 10 questions with **Add a question** (**Agregar una pregunta**), each with 2 to 5 answers through **Add an answer** (**Agregar una respuesta**), and tick the right answer.
+6. Write the **Acknowledgement** (**Declaración**) the person signs once they pass. Set the **Pass mark (percent)** (**Nota para aprobar (porcentaje)**), 80 to start, and the **Tries** (**Intentos**), 3 to start. **Needs a trainer** (**Necesita un instructor**) is ticked and locked for a safety topic.
+7. **Translate** (**Traducir**) fills the Spanish and the French left empty. Have someone fluent check them and type their name under **Spanish checked by** (**Español revisado por**) and **French checked by** (**Francés revisado por**). A safety lesson is published only with its Spanish checker named, and its French reaches staff once a French checker is named.
+8. Click **Save draft** (**Guardar borrador**). The problems still to fix are listed at the top, and each one is drawn under its field; click one to go to it.
+9. Click **Publish** (**Publicar**). The version live until then is retired and staff take the new one. **Discard** (**Descartar**) drops the draft, and **Retire the live lesson** (**Dar de baja la lección vigente**) stops the lesson being offered.
+If it does not work: a refusal is shown at the top or under the field it names. Leaving the draft with changes not saved asks first.
+Words people use for this: write a lesson, online training, training quiz, training questions, publish a lesson, translate a lesson, lección en línea.
+Last checked: 2026-10-05
+
+## Sign off training after a demonstration (admin dashboard)
+Who can do this: admins and supervisors, for anyone other than themselves
+OCSA-HR-016 5.5 has a trainer watch the person do a safety task before the training counts.
+1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Awaiting sign-off** (**Por firmar**). Each row is a person who passed a lesson and signed it, with the topic, the site, the score and when they signed. Your own attempts are never listed for you.
+2. Watch the person do the task.
+3. Click **Sign off** (**Firmar como instructor**). Sign in the box and click **Sign** (**Firmar**).
+4. Tick **I watched them do it** (**Vi a la persona hacerlo**), which is required, and add a note on what they showed you.
+5. Click **Sign off** (**Firmar como instructor**). The training record is saved, and **Print the record** (**Imprimir el registro**) prints it.
+If it does not work: a refusal is shown under the signature or the tick. The tab shows once the system answers it.
+Words people use for this: sign off training, trainer sign-off, demonstration, watched them do it, safety sign-off, firmar capacitación.
+Last checked: 2026-10-05
+
+## Print a training record for an assessor (admin dashboard)
+Who can do this: admins and supervisors
+1. On **Awaiting sign-off** (**Por firmar**), click **Print** (**Imprimir**) on the row. Or on **Gaps** (**Brechas**), click the person and click **Print** (**Imprimir**) beside the attempt under its topic.
+2. One page prints the **Training record** (**Registro de capacitación**): the lesson's title and version, the person, the score and the pass mark, the day, the language, the person's signature and, once signed off, the trainer's name, signature and note.
+If it does not work: allow pop-ups for the dashboard in the browser, then click **Print** (**Imprimir**) again.
+Words people use for this: training record, print a training record, assessor, proof of training, training certificate, quiz result, registro de capacitación.
 Last checked: 2026-10-05

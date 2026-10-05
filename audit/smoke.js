@@ -25,7 +25,16 @@
 //     finding is verified by someone other than its fixer; a completed inspection shows its band and
 //     its findings and asks for a corrective action, whose start names the inspection's site; the
 //     corrective action's window links the open findings at its site and tells the client; and the
-//     evidence pack prints the finding measures.
+//     evidence pack prints the finding measures;
+//   - against the stub's answers for the API's Step 256 (Step 257), at 1280 in English and in Spanish:
+//     the training catalog lists its topics and adds an invented one, refused once under its field,
+//     and says who needs it; Gaps lists the people with their items, prints a page per site and opens
+//     a person's own list; a session is saved for three people in one call, one of whom already had
+//     it that day, and its roster names the topic's document; a lesson draft is refused for want of
+//     its Spanish checker and then published; and a trainer signs off an attempt they watched, never
+//     their own, and its record prints with both signatures. At 390 in English the catalog and Gaps
+//     lines run again, and at 1280 in English a supervisor reads the catalog with no Add a topic and
+//     is never offered their own attempt to sign off.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -47,11 +56,16 @@ const LEFT_ID = "u-staff-12";
 const ADDED_HOLIDAY = { date: "2026-04-03", name: "Office closed for training" };
 // The area the request QR check makes a QR for.
 const SMOKE_AREA = "Loading dock restroom";
+// The topic the catalog check adds, and the topic and people the session check logs (audit/stubs.js,
+// Step 256): the first person already has the topic today.
+const SMOKE_TOPIC = { key: "glass_care", en: "Glass care", es: "Cuidado del vidrio" };
+const SESSION_TOPIC = "tp-1";
+const SESSION_PEOPLE = ["u-staff-7", "u-staff-5", "u-staff-6"];
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin" },
-  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone" },
+  { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor" },
 ];
 
 const started = Date.now();
@@ -408,11 +422,146 @@ async function step253(d, origin, p, stubs) {
   });
 }
 
+// Step 256's screens, each a line, against the stub armed with setStep256 (audit/stubs.js). The phone
+// pass runs the catalog and Gaps lines; the supervisor's pass its own line.
+async function step256(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const closeTopic = () => d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click();
+  const printed = async (before) => { for (let i = 0; i < 40; i++) { const pr = await d.prints(); if (pr.length > before && pr[pr.length - 1].html) return pr[pr.length - 1].html; await wait(100); } return ""; };
+  if (p.step256 === "supervisor") {
+    await check("a supervisor reads the catalog with no Add a topic and is never offered their own attempt", async () => {
+      await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+      if ((await settledCount(d, "[data-training-catalog] table tbody tr")) < 4) return "the catalog lists too few topics";
+      if ((await d.page.locator("[data-topic-add]").count()) > 0) return "Add a topic is offered";
+      await go(d, "hr", ["training", "awaiting"], "[data-training-awaiting] tbody tr");
+      if ((await d.page.locator('[data-signoff-open="at-2"]').count()) > 0) return "the supervisor's own attempt is offered";
+      return (await d.page.locator('[data-signoff-open="at-8"]').count()) === 1 ? "" : "the admin's attempt is not offered";
+    });
+    return;
+  }
+  await check("the training catalog adds an invented topic and says who needs it", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    const before = await settledCount(d, "[data-training-catalog] table tbody tr");
+    if (before < 4) return "the catalog lists " + before + " topics";
+    await d.page.locator("[data-topic-add]").click();
+    await d.page.locator('[data-topic-field="key"] input').fill(SMOKE_TOPIC.key);
+    await d.page.locator('[data-topic-field="names.en"] input').fill(SMOKE_TOPIC.en);
+    await d.page.locator('[data-topic-field="names.es"] input').fill(SMOKE_TOPIC.es);
+    await d.page.locator('[data-topic-field="linkUrl"] input').fill("http://training.example.invalid/glass");
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, '[data-topic-refusal="linkUrl"]').catch(() => {});
+    if ((await d.page.locator('[data-topic-refusal="linkUrl"]').count()) === 0) return "the address that is not https is not refused under its field";
+    await d.page.locator('[data-topic-field="linkUrl"] input').fill("https://training.example.invalid/glass");
+    await d.page.locator("[data-topic-save]").click();
+    await until(d, "[data-topic-details]");
+    await d.page.locator('[data-topic-tab="who"]').click();
+    await d.page.locator("[data-who-edit]").click();
+    await d.page.locator('[data-who-role="day_porter"] input').first().check();
+    await d.page.locator("[data-who-save]").click();
+    await until(d, '[data-topic-who] [data-who-role="day_porter"]').catch(() => {});
+    const call = stubs.calls.filter((c) => /\/requirements$/.test(c.path) && c.method === "PUT").pop();
+    if (!call || !call.body || !(call.body.requirements || []).some((r) => r.role === "day_porter")) return "who needs it was not saved";
+    await closeTopic();
+    await d.page.locator("[data-training-catalog] table tbody tr").nth(before).waitFor({ timeout: 3000 }).catch(() => {});
+    const after = await d.page.locator("[data-training-catalog] table tbody tr").count();
+    return after === before + 1 ? "" : "the catalog lists " + after + " topics after adding one to " + before;
+  });
+  await check("Gaps lists each person's items, prints a page per site and opens a person's list", async () => {
+    await go(d, "hr", ["training", "gaps"], "[data-gaps-person]");
+    const people = await settledCount(d, "[data-gaps-person]");
+    if (people < 5) return "Gaps lists " + people + " people";
+    if ((await d.page.locator("[data-gaps-topics] tbody tr").count()) < 3) return "Gaps counts too few topics";
+    if ((await d.page.locator('[data-gap-word="inPerson"]').count()) === 0) return "no item reads Needs an in-person session";
+    if ((await d.page.locator('[data-gap-word="awaitingTrainer"]').count()) === 0) return "no item reads Waiting for trainer";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-gaps-print]").click();
+    const html = await printed(before);
+    if ((html.match(/class="kept/g) || []).length < 2) return "the print is not a page per site";
+    await d.page.locator("[data-gaps-person]").first().click();
+    await until(d, "[data-person-training] [data-training-item]").catch(() => {});
+    const items = await d.page.locator("[data-person-training] [data-training-item]").count();
+    await d.page.locator('[data-person-training] button[aria-label="' + d.say("Close") + '"]').click();
+    return items > 0 ? "" : "the person's list holds no item";
+  });
+  if (p.step256 !== "all") return;
+  await check("a session is saved for three people in one call, one of whom already had it", async () => {
+    await go(d, "hr", ["training"]);
+    await d.page.getByRole("button", { name: d.say("Log training for several people") }).click();
+    await d.page.locator('[data-session-field="topicId"] select option[value="' + SESSION_TOPIC + '"]').waitFor({ state: "attached" });
+    await d.page.locator('[data-session-field="topicId"] select').selectOption(SESSION_TOPIC);
+    await d.page.locator('[data-session-field="trainerId"] select').selectOption(seed.PEOPLE.supervisor.id);
+    await d.page.locator('[data-session-field="locale"] button').nth(1).click();
+    for (const id of SESSION_PEOPLE) await d.page.locator('[data-session-person="' + id + '"] input').check();
+    const singles = stubs.calls.filter((c) => c.path === "/api/hr/training" && c.method === "POST").length;
+    await d.page.locator("[data-session-save]").click();
+    await until(d, "[data-session-saved]");
+    const saved = await d.page.locator("[data-session-saved]").getAttribute("data-session-saved");
+    const already = (await d.page.locator("[data-session-already]").count()) ? await d.page.locator("[data-session-already]").getAttribute("data-session-already") : "0";
+    const calls = stubs.calls.filter((c) => c.path === "/api/hr/training/sessions" && c.method === "POST");
+    if (calls.length !== 1 || (calls[0].body.people || []).length !== 3) return "the session was not sent once with three people";
+    if (stubs.calls.filter((c) => c.path === "/api/hr/training" && c.method === "POST").length !== singles) return "records were sent one by one";
+    if (saved !== "2" || already !== "1") return "the window says " + saved + " saved and " + already + " already had it";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-session-print]").click();
+    const html = await printed(before);
+    await d.page.locator("[data-session-window]").locator("..").locator("..").getByRole("button", { name: d.say("Close") }).click().catch(() => {});
+    return html.indexOf("OCSA-TRN-901 3.2") < 0 ? "the roster's Related Document No. does not name the topic's document" : "";
+  });
+  await check("a lesson draft is refused for its Spanish checker, then published", async () => {
+    await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+    await d.page.locator("[data-training-catalog] table tbody tr").first().click();
+    await d.page.locator('[data-topic-tab="lesson"]').click();
+    await until(d, "[data-topic-lesson]");
+    if ((await d.page.locator("[data-lesson-stale]").count()) === 0) return "no version reads Stale";
+    await d.page.locator('[data-lesson-new="published"]').click();
+    await until(d, "[data-lesson-editor]");
+    await d.page.locator("[data-lesson-publish]").click();
+    await until(d, '[data-lesson-refusal="checkedEsBy"]').catch(() => {});
+    if ((await d.page.locator('[data-lesson-refusal="checkedEsBy"]').count()) === 0) return "the refusal is not drawn under Spanish checked by";
+    await d.page.locator("[data-lesson-checked=es]").fill("Checked in the office");
+    await d.page.locator("[data-lesson-publish]").click();
+    await until(d, "[data-topic-lesson]").catch(() => {});
+    const first = (await d.page.locator("[data-topic-lesson] tbody tr").count()) ? (await d.page.locator("[data-topic-lesson] tbody tr").first().innerText()) : "";
+    await closeTopic();
+    return /^\s*3\b/.test(first) && first.toLowerCase().indexOf(d.say("Published|lesson").toLowerCase()) >= 0 ? "" : "version 3 is not listed as published";
+  });
+  await check("a trainer signs off an attempt they watched, never their own, and its record prints", async () => {
+    await go(d, "hr", ["training", "awaiting"], "[data-training-awaiting] tbody tr");
+    if ((await d.page.locator('[data-signoff-open="at-8"]').count()) > 0) return "the admin's own attempt is offered";
+    const rows = await d.page.locator("[data-training-awaiting] tbody tr").count();
+    await d.page.locator('[data-signoff-open="at-1"]').click();
+    await d.drawSignature();
+    await d.page.locator("[data-signoff-window] [data-signature-box] button").first().click();
+    await d.page.locator("[data-signoff-watched]").check();
+    await d.page.locator("[data-signoff-note]").fill("Contained a spill with pads at the dock.");
+    await d.page.locator("[data-signoff-send]").click();
+    await until(d, "[data-signoff-done]");
+    const call = stubs.calls.filter((c) => /\/signoff$/.test(c.path) && c.method === "POST").pop();
+    if (!call || call.body.demonstrated !== true || !/^data:image\/png/.test(String(call.body.signature || ""))) return "the sign-off was not sent with the signature and the tick";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-signoff-print]").click();
+    const html = await printed(before);
+    await d.page.locator("[data-signoff-window]").getByRole("button", { name: d.say("Close") }).click();
+    if ((html.match(/<img/g) || []).length < 2 || html.indexOf("Contained a spill") < 0) return "the record does not print both signatures and the note";
+    await d.page.locator('[data-signoff-open="at-1"]').waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+    const left = await d.page.locator("[data-training-awaiting] tbody tr").count();
+    return left === rows - 1 ? "" : "Awaiting sign-off lists " + left + " after signing off one of " + rows;
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
   // sees Step 247's alone.
   if (p.step253) stubs.setStep253(true); else if (p.step250) stubs.setStep250(true); else stubs.setStep247(true);
+  // Step 256's answers are laid over whichever of those the pass arms.
+  if (p.step256) stubs.setStep256(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -492,6 +641,7 @@ async function runPass(browser, origin, p) {
       if (p.step250) await step250(d, origin, p, stubs);
       if (p.step253) await step253(d, origin, p, stubs);
     }
+    if (p.step256) await step256(d, origin, p, stubs);
 
     // Help, asked one question.
     {
