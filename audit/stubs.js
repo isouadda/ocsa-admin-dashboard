@@ -2529,6 +2529,195 @@ function createStubs() {
     }
     return base();
   }
+  // ---- Step 253 (STEP253_CONTRACT.md) ----------------------------------------------------------------
+  // The quality loop, answered only once a run arms it with setStep253, which brings Step 250 and 247
+  // with it. Six inspection findings as tickets (section 3.3 and 3.4): five from the first completed
+  // inspection, one late, one due soon, one in progress and late, one fixed by the supervisor and
+  // waiting for a check, one verified; and one from the third inspection, late. The first is linked to a corrective action
+  // (OCSA-FRM-010) at the first site, whose read carries linkedIssues, suggestedRecipients and
+  // canTellClient (3.7); Verify (3.5), Link and Unlink (3.6) and Tell the client (3.8) in the API's
+  // refusals; each completed inspection's read gains findings and correctiveAction (3.1). Every value
+  // is invented.
+  let step253 = false;
+  const CA_ID = "fr-ca-1";
+  const RESULT_IDS = { "insp-1": "res-1", "insp-3": "res-3" };
+  const F = (d, hm) => seed.shift(d) + "T" + hm + ":00Z";
+  const inspectionOf = (id, item, score) => ({ scheduledInspectionId: id, resultId: RESULT_IDS[id] || null, templateName: id === "insp-3" ? "Dock area check" : "Monthly quality walk", completedAt: F(id === "insp-3" ? -26 : -70, "18:00"), scorePct: 73.3, band: "failed", itemLabel: item.label, itemScore: score, itemMaxScore: item.max_score });
+  const findingRows = () => [
+    { id: "f-1", siteId: S[0].id, title: "Stairwell handrails need a wipe", zone: "Stairwell", severity: "high", status: "open", description: "Handrail sticky on the second landing.", reportedAt: F(-70, "18:00"), reportedBy: who("supervisor"), assignedTo: null, dueAt: F(-56, "18:00"), firstResponseAt: null, resolvedAt: null, resolvedBy: null, verifiedAt: null, verifiedBy: null, itemScoreId: "is-1", correctiveActionId: CA_ID, inspection: inspectionOf("insp-1", INSPECTION_ITEMS[1], 6), photos: [] },
+    { id: "f-2", siteId: S[0].id, title: "Lobby glass streaked", zone: "Lobby", severity: "high", status: "in_progress", description: "Fingerprints on the entrance doors.", reportedAt: F(-70, "18:00"), reportedBy: who("supervisor"), assignedTo: who("supervisor"), dueAt: F(1, "23:59"), firstResponseAt: F(-69, "09:00"), resolvedAt: null, resolvedBy: null, verifiedAt: null, verifiedBy: null, itemScoreId: "is-2", correctiveActionId: null, inspection: inspectionOf("insp-1", INSPECTION_ITEMS[2], 7), photos: [] },
+    { id: "f-3", siteId: S[0].id, title: "Dock floor markings faded", zone: "Dock", severity: "high", status: "resolved", description: "Yellow lines worn through by the roller door.", reportedAt: F(-70, "18:00"), reportedBy: who("supervisor"), assignedTo: who("supervisor"), dueAt: F(-56, "18:00"), firstResponseAt: F(-69, "09:30"), resolvedAt: F(-60, "16:00"), resolvedBy: who("supervisor"), verifiedAt: null, verifiedBy: null, itemScoreId: "is-3", correctiveActionId: null, inspection: inspectionOf("insp-1", INSPECTION_ITEMS[0], 9), photos: [{ id: "fp-1", url: "/api/issues/f-3/photos/fp-1" }] },
+    { id: "f-4", siteId: S[0].id, title: "Break room counter sticky", zone: "Break Room", severity: "medium", status: "closed", description: "Coffee residue along the back edge.", reportedAt: F(-70, "18:00"), reportedBy: who("supervisor"), assignedTo: who("supervisor"), dueAt: F(-56, "18:00"), firstResponseAt: F(-69, "10:00"), resolvedAt: F(-62, "11:00"), resolvedBy: who("supervisor"), verifiedAt: F(-61, "10:00"), verifiedBy: who("admin"), itemScoreId: "is-4", correctiveActionId: null, inspection: inspectionOf("insp-1", INSPECTION_ITEMS[2], 5), photos: [] },
+    { id: "f-6", siteId: S[0].id, title: "Stairwell landing dusty", zone: "Stairwell", severity: "medium", status: "in_progress", description: "Dust along the skirting on the third landing.", reportedAt: F(-70, "18:00"), reportedBy: who("supervisor"), assignedTo: who("supervisor"), dueAt: F(-56, "18:00"), firstResponseAt: F(-69, "11:00"), resolvedAt: null, resolvedBy: null, verifiedAt: null, verifiedBy: null, itemScoreId: "is-6", correctiveActionId: null, inspection: inspectionOf("insp-1", INSPECTION_ITEMS[1], 7), photos: [] },
+    { id: "f-5", siteId: S[2].id, title: "Dock floor markings faded", zone: "Dock", severity: "high", status: "open", description: "Lane markings gone by the loading bay.", reportedAt: F(-26, "18:00"), reportedBy: who("supervisor"), assignedTo: null, dueAt: F(-12, "18:00"), firstResponseAt: null, resolvedAt: null, resolvedBy: null, verifiedAt: null, verifiedBy: null, itemScoreId: "is-5", correctiveActionId: null, inspection: inspectionOf("insp-3", INSPECTION_ITEMS[0], 4), photos: [] },
+  ];
+  const findings = () => { if (!state.findings) state.findings = findingRows(); return state.findings; };
+  let caTold = null;
+  const siteNameOf = (siteId) => (state.sites.find((x) => x.id === siteId) || {}).name || null;
+  const minutesBetween = (a, b) => (a && b ? Math.round((new Date(a) - new Date(b)) / 60000) : null);
+  const findingView = (f) => {
+    const me = person();
+    return {
+      id: f.id, siteId: f.siteId, siteName: siteNameOf(f.siteId), title: f.title, description: f.description, zone: f.zone, severity: f.severity, status: f.status, source: "inspection", reference: null,
+      reportedAt: f.reportedAt, reportedBy: f.reportedBy, assignedTo: f.assignedTo, dueAt: f.dueAt, dueState: clockState(!!f.resolvedAt, f.dueAt, f.reportedAt), firstResponseAt: f.firstResponseAt,
+      resolvedAt: f.resolvedAt, resolvedBy: f.resolvedBy, verifiedAt: f.verifiedAt, verifiedBy: f.verifiedBy,
+      minutesToFirstResponse: minutesBetween(f.firstResponseAt, f.reportedAt), minutesToFixed: minutesBetween(f.resolvedAt, f.reportedAt), fixedByDue: f.resolvedAt && f.dueAt ? new Date(f.resolvedAt) <= new Date(f.dueAt) : null,
+      inspection: f.inspection, correctiveAction: f.correctiveActionId ? { id: f.correctiveActionId, closedAt: null, clientToldAt: caTold ? caTold.clientToldAt : null } : null, photos: f.photos.slice(),
+      canVerify: f.status === "resolved" && me.role === "admin" && !(f.resolvedBy && f.resolvedBy.id === me.id), canAssign: f.status !== "closed", canReopen: f.status === "resolved" || f.status === "closed",
+    };
+  };
+  // The Issue Tracker's row for a finding, in the snake_case GET /api/issues keeps (3.3).
+  const findingIssueRow = (f) => { const v = findingView(f); return {
+    id: f.id, title: f.title, site_name: v.siteName, site_id: f.siteId, zone: f.zone, severity: f.severity, status: f.status, reported_by_name: f.reportedBy ? f.reportedBy.name : null, reported_at: f.reportedAt,
+    assigned_to: f.assignedTo ? f.assignedTo.id : null, assigned_to_name: f.assignedTo ? f.assignedTo.name : null, description: f.description, resolved_at: f.resolvedAt, photo_url: null,
+    source: "inspection", reference: null, request_category: null, due_at: f.dueAt, respond_by: null, due_state: v.dueState, respond_state: null, first_response_at: f.firstResponseAt, approved_at: null, declined_at: null, reports_count: null, has_email: false,
+    verified_at: f.verifiedAt, verified_by_name: f.verifiedBy ? f.verifiedBy.name : null, minutes_to_first_response: v.minutesToFirstResponse, minutes_to_fixed: v.minutesToFixed, item_score_id: f.itemScoreId, corrective_action_id: f.correctiveActionId,
+  }; };
+  // A staff issue or a client request in the single read's shape, with inspection null (3.4).
+  const plainIssueView = (id) => {
+    const r = requests().find((x) => x.id === id);
+    if (r) return Object.assign(requestView(r, "en"), { inspection: null, correctiveAction: null, verifiedAt: null, verifiedBy: null, minutesToFirstResponse: null, minutesToFixed: null, fixedByDue: null, canVerify: false, canAssign: true, canReopen: false });
+    const i = state.issues.find((x) => x.id === id);
+    if (!i) return null;
+    return { id: i.id, siteId: i.site_id, siteName: i.site_name, title: i.title, description: i.description || null, zone: i.zone, severity: i.severity, status: i.status, source: "staff", reference: null, reportedAt: i.reported_at, reportedBy: i.reported_by_name ? { id: null, name: i.reported_by_name } : null,
+      assignedTo: i.assigned_to_name ? { id: i.assigned_to || null, name: i.assigned_to_name } : null, dueAt: null, dueState: null, firstResponseAt: null, resolvedAt: i.resolved_at || null, resolvedBy: null, verifiedAt: null, verifiedBy: null,
+      minutesToFirstResponse: null, minutesToFixed: null, fixedByDue: null, inspection: null, correctiveAction: null, photos: [], canVerify: false, canAssign: i.status !== "closed", canReopen: false };
+  };
+  const FINDING_WORDS = {
+    "issues.notFound": ["Issue not found.", "No se encontr\u00f3 la incidencia."],
+    "issues.notFixed": ["The finding is not fixed yet.", "El hallazgo todav\u00eda no est\u00e1 corregido."],
+    "issues.cannotVerifyOwn": ["Someone other than the person who fixed it checks it.", "Alguien distinto de quien lo corrigi\u00f3 lo revisa."],
+    "issues.noAccess": ["You cannot do this to this issue.", "No puede hacer esto con esta incidencia."],
+    "issues.useVerify": ["An inspection finding is closed by Verify.", "Un hallazgo de inspecci\u00f3n se cierra con Verificar."],
+    "issues.badDetails": ["Name 1 to 50 findings.", "Indique de 1 a 50 hallazgos."],
+    "issues.otherSite": ["That finding is at another site.", "Ese hallazgo es de otro sitio."],
+    "issues.alreadyLinked": ["That finding is already linked to a corrective action.", "Ese hallazgo ya est\u00e1 vinculado a una acci\u00f3n correctiva."],
+    "forms.reportNotFound": ["Report not found", "No se encontr\u00f3 el reporte"],
+    "forms.notACorrectiveAction": ["That report is not a corrective action.", "Ese reporte no es una acci\u00f3n correctiva."],
+    "forms.noRecipients": ["Name at least one recipient.", "Indique al menos un destinatario."],
+    "forms.badEmail": ["One of the addresses is not an email.", "Una de las direcciones no es un correo."],
+    "forms.badDetails": ["Each box holds 1 to 2000 characters.", "Cada cuadro admite de 1 a 2000 caracteres."],
+    "forms.clientAlreadyTold": ["The client was already told.", "El cliente ya fue informado."],
+  };
+  const findingRefusal = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: FINDING_WORDS[code] ? FINDING_WORDS[code][lang === "es" ? 1 : 0] : code }, extra || {}) });
+  const caRow = (lang) => ({
+    id: CA_ID, formCode: "OCSA-FRM-010", formName: lang === "es" ? "Informe de acci\u00f3n correctiva" : "Corrective Action Report", status: "submitted", source: "admin", userId: seed.PEOPLE.admin.id, userName: ADMIN_NAME,
+    siteId: S[0].id, siteName: S[0].name, answered: 8, remaining: 0, closedAt: null, createdAt: F(-68, "15:00"), submittedAt: F(-68, "15:30"),
+  });
+  const caLinked = () => findings().filter((f) => f.correctiveActionId === CA_ID).map((f) => { const v = findingView(f); return { id: f.id, title: f.title, zone: f.zone, status: f.status, dueAt: f.dueAt, dueState: v.dueState, verifiedAt: f.verifiedAt }; });
+  const caRead = (lang) => {
+    const es = lang === "es";
+    const row = caRow(lang);
+    return {
+      injuryLogCase: null, draft: Object.assign({}, row, { version: 1 }),
+      fields: [
+        { key: "nonconformity", label: es ? "No conformidad" : "Nonconformity", type: "textarea", half: "agent", section: "1", value: "Inspection scored 73 percent at the site.", displayValue: "Inspection scored 73 percent at the site." },
+        { key: "root_cause", label: es ? "Causa ra\u00edz" : "Root cause", type: "textarea", half: "agent", section: "1", value: "Night crew short one person for two weeks.", displayValue: "Night crew short one person for two weeks." },
+        { key: "verification", label: es ? "Verificaci\u00f3n" : "Verification", type: "signoff", half: "supervisor", section: "3", value: { name: ADMIN_NAME, at: F(-61, "10:00") }, displayValue: ADMIN_NAME },
+        { key: "closed", label: es ? "Cierre" : "Closure", type: "signoff", half: "supervisor", section: "4", value: null },
+      ],
+      sections: [{ key: "1", title: es ? "El problema" : "The problem" }, { key: "3", title: es ? "Verificaci\u00f3n" : "Verification" }, { key: "4", title: es ? "Cierre" : "Closure" }],
+      canSign: [], canWriteSupervisor: false, supervisorMissing: [], canVoid: false, canResend: false,
+      linkedIssues: caLinked(), clientToldAt: caTold ? caTold.clientToldAt : null, clientToldBy: caTold ? caTold.clientToldBy : null, canTellClient: !caTold,
+      suggestedRecipients: [{ name: "Imogen Thackeray", email: "imogen.thackeray@example.invalid", from: "survey" }, { name: "", email: "facilities@example.invalid", from: "site" }],
+    };
+  };
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  // The routes above, ahead of Step 250's; base is the answer the stub gave before Step 253.
+  function step253Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const b = body || {};
+    const me = person();
+    const meName = () => ({ id: me.id, name: me.firstName + " " + me.lastName });
+    if (path === "/api/issues" && method === "GET") {
+      const src = query.get("source");
+      const rid = query.get("inspection_result_id");
+      const rows = findings().filter((f) => !rid || (f.inspection && f.inspection.resultId === rid)).map(findingIssueRow);
+      if (src === "inspection") return ok(rows);
+      const a = base();
+      if (!src && a && a.status === 200 && Array.isArray(a.json)) a.json = rows.concat(a.json);
+      return a;
+    }
+    if (path === "/api/issues/link-corrective-action" && method === "POST") {
+      const ids = Array.isArray(b.issueIds) ? b.issueIds.map(String) : [];
+      if (!ids.length || ids.length > 50) return findingRefusal("issues.badDetails", 400, lang, { keys: ["issueIds"] });
+      if (String(b.responseId || "") !== CA_ID) return anyReport(String(b.responseId || "")) ? findingRefusal("forms.notACorrectiveAction", 409, lang) : findingRefusal("forms.reportNotFound", 404, lang);
+      const rows = ids.map((x) => findings().find((f) => f.id === x));
+      if (rows.some((f) => !f)) return findingRefusal("issues.notFound", 404, lang);
+      if (rows.some((f) => f.siteId !== S[0].id)) return findingRefusal("issues.otherSite", 409, lang, { keys: rows.filter((f) => f.siteId !== S[0].id).map((f) => f.id) });
+      if (rows.some((f) => f.correctiveActionId)) return findingRefusal("issues.alreadyLinked", 409, lang, { keys: rows.filter((f) => f.correctiveActionId).map((f) => f.id) });
+      rows.forEach((f) => { f.correctiveActionId = CA_ID; });
+      return ok({ correctiveAction: { id: CA_ID, siteId: S[0].id, closedAt: null }, issues: rows.map((f) => ({ id: f.id, title: f.title, status: f.status })) });
+    }
+    const one = /^\/api\/issues\/([^/]+)(?:\/(verify|corrective-action|activity|photos))?$/.exec(path);
+    if (one && one[1] !== "requests") {
+      const f = findings().find((x) => x.id === decodeURIComponent(one[1]));
+      if (!one[2] && method === "GET") {
+        if (f) return ok({ issue: findingView(f) });
+        const plain = plainIssueView(decodeURIComponent(one[1]));
+        return plain ? ok({ issue: plain }) : findingRefusal("issues.notFound", 404, lang);
+      }
+      if (f && one[2] === "verify" && method === "POST") {
+        if (me.role !== "admin") return findingRefusal("issues.noAccess", 403, lang);
+        if (f.status !== "resolved") return findingRefusal("issues.notFixed", 409, lang);
+        if (f.resolvedBy && f.resolvedBy.id === me.id) return findingRefusal("issues.cannotVerifyOwn", 403, lang);
+        f.status = "closed"; f.verifiedAt = seed.NOW_ISO; f.verifiedBy = meName();
+        return ok({ issue: findingView(f) });
+      }
+      if (f && one[2] === "corrective-action" && method === "DELETE") { f.correctiveActionId = null; return ok({ issue: findingView(f) }); }
+      if (f && one[2] === "activity" && method === "GET") return ok([{ id: "fa-" + f.id, action: "reported", created_at: f.reportedAt, user_name: f.reportedBy ? f.reportedBy.name : null, details: "Opened by the inspection." }]);
+      if (f && one[2] === "photos" && method === "GET") return ok(f.photos.map((p) => ({ id: p.id, photo_url: p.url })));
+      if (f && !one[2] && (method === "PATCH" || method === "PUT")) {
+        if (b.status === "closed") return findingRefusal("issues.useVerify", 409, lang);
+        if (b.status !== undefined && STAFF_STATUSES.indexOf(b.status) < 0) return requestRefusal("issues.badStatus", 400, lang, { keys: ["status"] });
+        if (b.status) {
+          f.status = b.status;
+          if (!f.firstResponseAt) { f.firstResponseAt = seed.NOW_ISO; }
+          if (b.status === "resolved") { f.resolvedAt = seed.NOW_ISO; f.resolvedBy = meName(); } else if (b.status === "open" || b.status === "in_progress") { f.resolvedAt = null; f.resolvedBy = null; }
+        }
+        return ok({ message: "Issue updated", code: "issues.updated", issue: findingView(f) });
+      }
+      if (f) return findingRefusal("issues.notFound", 404, lang);
+    }
+    if (/^\/api\/inspections\/scheduled\/[^/]+$/.test(path) && method === "GET") {
+      const a = base();
+      const id = path.split("/")[4];
+      if (a && a.status === 200 && a.json && a.json.result) {
+        const mine = findings().filter((f) => f.inspection && f.inspection.scheduledInspectionId === id);
+        a.json.result = Object.assign({ id: RESULT_IDS[id] || null }, a.json.result);
+        a.json.scores = (a.json.scores || []).map((sc) => Object.assign({}, sc, { deficient: mine.some((f) => f.inspection.itemLabel === (INSPECTION_ITEMS.find((it) => it.id === sc.template_item_id) || {}).label) }));
+        a.json.owners = seed.STAFF.filter((p) => p.status === "active").slice(0, 4).map((p) => ({ id: p.id, name: p.name, role: p.role }));
+        a.json.findings = mine.map((f) => { const v = findingView(f); return { issueId: f.id, templateItemId: (INSPECTION_ITEMS.find((it) => it.label === f.inspection.itemLabel) || {}).id || null, label: f.title, zone: f.zone, status: f.status, dueAt: f.dueAt, dueState: v.dueState, owner: f.assignedTo, resolvedAt: f.resolvedAt, verifiedAt: f.verifiedAt }; });
+        a.json.correctiveAction = id === "insp-1" ? { id: CA_ID, closedAt: null } : null;
+      }
+      return a;
+    }
+    if (path === "/api/forms/responses/" + CA_ID && method === "GET") return ok(caRead(lang));
+    if (path === "/api/forms/responses/" + CA_ID + "/tell-client" && method === "POST") {
+      if (caTold) return findingRefusal("forms.clientAlreadyTold", 409, lang);
+      const to = Array.isArray(b.to) ? b.to : [];
+      if (!to.length || to.length > 20) return findingRefusal("forms.noRecipients", 400, lang, { keys: ["to"] });
+      if (to.some((x) => !x || !EMAIL_RE.test(String(x.email || "")))) return findingRefusal("forms.badEmail", 400, lang, { keys: ["to"] });
+      const bad = ["whatHappened", "whatWasDone", "prevention"].filter((k) => { const v = String(b[k] == null ? "" : b[k]).trim(); return !v || v.length > 2000; });
+      if (bad.length) return findingRefusal("forms.badDetails", 400, lang, { keys: bad });
+      caTold = { clientToldAt: seed.NOW_ISO, clientToldBy: { name: me.firstName + " " + me.lastName } };
+      return ok({ clientToldAt: caTold.clientToldAt, clientToldBy: caTold.clientToldBy, sent: to.length, failed: 0 });
+    }
+    const answer = base();
+    // The corrective action heads the submitted list wherever the list is not narrowed to another form
+    // or site, and the catalog offers OCSA-FRM-010 to the dashboard, startable by an admin.
+    if (path === "/api/forms/responses" && method === "GET" && answer && answer.status === 200 && answer.json && Array.isArray(answer.json.responses)
+      && String(query.get("status") || "submitted") === "submitted" && (!query.get("formCode") || query.get("formCode") === "OCSA-FRM-010")
+      && (!query.get("siteId") || query.get("siteId") === S[0].id) && !query.get("before")) {
+      answer.json = Object.assign({}, answer.json, { responses: [caRow(lang)].concat(answer.json.responses) });
+    }
+    if (path === "/api/forms" && method === "GET" && answer && answer.status === 200 && answer.json && Array.isArray(answer.json.forms)) {
+      const forms = answer.json.forms.filter((f) => f.code !== "OCSA-FRM-010");
+      forms.push({ code: "OCSA-FRM-010", title: lang === "es" ? "Informe de acci\u00f3n correctiva" : "Corrective Action Report", apps: ["portal", "dashboard"], fillers: me.role === "admin" ? ["admin"] : [], fields: [] });
+      answer.json = Object.assign({}, answer.json, { forms });
+    }
+    return answer;
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -4168,7 +4357,8 @@ function createStubs() {
     const under = () => (step247
       ? step247Route(method, path, u.searchParams, body, record.language, () => route(method, path, u.searchParams, body, record.language))
       : route(method, path, u.searchParams, body, record.language));
-    const answer = step250 ? step250Route(method, path, u.searchParams, body, record.language, under) : under();
+    const over250 = () => (step250 ? step250Route(method, path, u.searchParams, body, record.language, under) : under());
+    const answer = step253 ? step253Route(method, path, u.searchParams, body, record.language, over250) : over250();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -4227,6 +4417,8 @@ function createStubs() {
     setStep247: (v) => { step247 = v !== false; },
     // The routes and keys of the API's Step 250, on or off; on brings Step 247's with it.
     setStep250: (v) => { step250 = v !== false; if (step250) step247 = true; },
+    // The routes and keys of the API's Step 253, on or off; on brings Step 250's and 247's with it.
+    setStep253: (v) => { step253 = v !== false; if (step253) { step250 = true; step247 = true; } },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -4271,6 +4463,8 @@ function createStubs() {
       step247 = false; officeHolidays = OFFICE_HOLIDAYS(); holidaySeq = 2; leftRehired = false; concernAck = null;
       // Step 250 off, and its requests and request links as they started.
       step250 = false; state.requests = null; state.requestActivity = null; requestSeq = 0;
+      // Step 253 off, and its findings and corrective action as they started.
+      step253 = false; state.findings = null; caTold = null;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

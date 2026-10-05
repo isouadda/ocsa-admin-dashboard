@@ -177,7 +177,8 @@ Who can do this: admins and supervisors
 2. Click the issue to open it.
 3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words.
 4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person, and click **Assign Task**. It appears on their **Assigned** tab in the portal.
-5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
+5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**), **Inspection** (**Inspección**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
+6. A finding an inspection opened carries an **Inspection** (**Inspección**) chip, its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**). It is closed by **Verify** (**Verificar**) alone; see the entry on verifying a finding.
 Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, incidencias.
 Last checked: 2026-10-05
 
@@ -491,10 +492,11 @@ Who can do this: any supervisor or admin other than the person who raised it
 3. Under **Supervisor section** (**Sección del supervisor**), the box **Still needed in the supervisor section** (**Pendiente en la sección del supervisor**) lists everything Closed still waits for. Fill it in as the action moves, tapping **Save** (**Guardar**) each time: first the approval, whether it was escalated, and a target date; later what was completed; then verification in person, by someone other than the owner; then, thirty to ninety days after verification, the effectiveness check and whether the customer was told.
 4. **Sign** (**Firmar**) beside **Closed** (**Cerrada**) appears only when every required question is answered; pressed early, the answer names what is still empty. It signs once.
 5. **Download PDF** (**Descargar el PDF**) keeps a copy. **Send again** (**Enviar de nuevo**) sends it to everyone set for the form once more.
+6. **Linked findings** (**Hallazgos vinculados**) lists the inspection findings this action covers, and **Tell the client** (**Informar al cliente**) sends the client what was done once the verification is answered; see the entries on linking findings to a corrective action and on telling the client what was done.
 The tables **What was completed** (**Qué se concluyó**) and **Actions confirmed in place** (**Acciones confirmadas en su lugar**) take rows with **Add row** (**Agregar fila**), one per action, and **Remove row** (**Quitar fila**) takes one out; the five parts of the section sit under their own headings, **Approval** (**Aprobación**), **Completion** (**Conclusión**), **Verification** (**Verificación**), **Effectiveness check** (**Comprobación de eficacia**) and **Closure** (**Cierre**).
 If it does not work: the person who raised the action is refused both the section and the sign-off.
 Words people use for this: close a corrective action, approve a corrective action, effectiveness check, verify an action, cerrar la acción correctiva, comprobación de eficacia.
-Last checked: 2026-09-28
+Last checked: 2026-10-05
 
 ## Verify and sign an environmental audit (admin dashboard)
 Who can do this: any supervisor or admin other than the person who performed the audit
@@ -1110,9 +1112,10 @@ Who can do this: anyone who can open Inspections
 4. **Signature** (**Firma**) shows the inspector's signature with **Signed by {0}, {1}** (**Firmado por {0}, {1}**) under it: their name, then the day and time. An inspection with no signature says **Not signed** (**Sin firmar**).
 5. **Review** (**Revisión**) lists the review lines the inspection needs, each signed or waiting; see the entry on signing an inspection's review line.
 6. **Export PDF** (**Exportar PDF**) prints the report with every photo and the signatures, each signature with its line, headed by its form: OCSA-FRM-001 for a supervisor inspection, OCSA-FRM-002 for an audit. **CSV** (**CSV**) saves the scores, with the address of every photo on an item in its Photo URLs column.
+7. Beside the score, **Band** (**Banda**) reads the inspection's band under OCSA-QMS-014 5.2, and **Findings** (**Hallazgos**) lists the tickets the inspection opened; see the entry on reading an inspection's findings and band.
 If it does not work: an inspection the server answers without photos and signatures shows one photo on an item and no signature.
 Words people use for this: inspection photos, inspection signature, completed inspection, inspection report, print an inspection, frm-001, frm-002, fotos de la inspección.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Check who is still working with the roster check (admin dashboard)
 Who can do this: admins who manage staff
@@ -1599,9 +1602,10 @@ The evidence pack is what a management review reads before it meets. The improve
 3. Click **Print the evidence pack** (**Imprimir el paquete de evidencias**). The pack opens in a new window, ready to print or to save as a PDF.
 4. A quarter prints every item of the review's agenda in its order, each on its own page, then **What the review must produce** (**Lo que la revisión debe producir**). A month prints **Service quality** (**Calidad del servicio**), **Customers** (**Clientes**), **Corrective actions** (**Acciones correctivas**), **Health and safety** (**Salud y seguridad**) and **Resources** (**Recursos**), then **Follow ups** (**Seguimientos**).
 5. For every site, the pack fills in inspection scores against the period before, complaints, client survey results, corrective actions, incident reports, recordable cases, training sessions, staff, warnings, equipment and periodic work. Everything else prints as lines to fill in at the review.
+6. Under **Corrective actions** (**Acciones correctivas**), **Inspection findings** (**Hallazgos de inspección**) prints the finding measures of OCSA-FRM-011 version 2 for the period and for the year to date: **Findings opened** (**Hallazgos abiertos**), **First response (h, median)** (**Primera respuesta (h, mediana)**), **Time to fixed (h, median)** (**Tiempo hasta la corrección (h, mediana)**), **Fixed by due** (**Corregidos a tiempo**) and **Open at the end of the period** (**Abiertos al final del período**). Each corrective action's close is read from its row, so the pack no longer opens every report.
 If it does not work: a section that reads **The data for this was not available when the pack was printed.** (**Estos datos no estaban disponibles al imprimir el paquete.**) could not be read; print again later, or fill its lines in by hand. If nothing opens, allow pop-ups for this site and click **Print the evidence pack** (**Imprimir el paquete de evidencias**) again.
 Words people use for this: management review, monthly review, quarterly review, evidence pack, kpis, review pack, revisión por la dirección, paquete de evidencias.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Enter the year's holidays (admin dashboard)
 Who can do this: admins who can change settings
@@ -1704,4 +1708,45 @@ A supply's label carries its name, its QR code and its code. Scanned, the code o
 3. For every supply a site holds, pick the site under **Print labels for a site** (**Imprimir las etiquetas de un sitio**) at the top of the inventory and click **Print labels for a site** (**Imprimir las etiquetas de un sitio**). One PDF holds a label for each.
 If it does not work: the buttons show once the system makes the labels. The reason for a refusal is shown under the button.
 Words people use for this: supply label, print the qr label, label for a bottle, safety sheet qr, sds label, etiqueta del suministro.
+Last checked: 2026-10-05
+
+## Verify a finding someone else fixed (admin dashboard)
+Who can do this: admins. The person who fixed the finding cannot verify it.
+Every deficient item of a completed inspection opens a ticket with an owner and a due date. The owner marks it fixed; a second person checks the fix in person and closes it, as OCSA-QMS-014 8 requires.
+1. Click **Issues** (**Incidencias**). Pick **Inspection** (**Inspección**) at the right of the filters to see the findings alone. Each row shows its **Due** (**Vence**) time, its **First response** (**Primera respuesta**) and its **Time to fixed** (**Tiempo hasta la corrección**).
+2. Click the finding. **From an inspection** (**De una inspección**) names the inspection, its score and band, and the item with its score. **Corrective action** (**Acción correctiva**) says whether it is linked to one; **Open the corrective action** (**Abrir la acción correctiva**) opens that report.
+3. On a finding marked fixed by someone else, **Verify** (**Verificar**) is offered. Check the fix in person, write a **Note** (**Nota**) if you like, and click **Verify** (**Verificar**). The finding closes and the window says who verified it and when.
+4. A finding's notice in the bell opens the finding here.
+If it does not work: a finding that is not fixed yet, or one you fixed yourself, is refused with the reason under the button: **Someone other than the person who fixed it checks it.** (**Alguien distinto de quien lo corrigió lo revisa.**). An inspection finding cannot be closed from the status picker; only **Verify** (**Verificar**) closes it.
+Words people use for this: verify a finding, check a fix, close a finding, inspection ticket, second person check, verificar un hallazgo.
+Last checked: 2026-10-05
+
+## Read an inspection's findings and band (admin dashboard)
+Who can do this: anyone who can open Inspections
+1. Click **Inspections** (**Inspecciones**), then the **Completed** (**Completadas**) tab, and click the inspection.
+2. Beside the score, **Band** (**Banda**) reads **Meets standard** (**Cumple el estándar**) at 90 percent and above, **Below standard** (**Por debajo del estándar**) from 80, **Failed** (**Reprobada**) from 70, or **Serious failure** (**Falla grave**) under 70, the bands of OCSA-QMS-014 5.2.
+3. **Findings** (**Hallazgos**) lists each deficient item as the ticket the inspection opened: the finding, its **Zone** (**Zona**), its **Owner** (**Responsable**), its **Due** (**Vence**) time, when it was **Fixed** (**Corregido**) and **Checked** (**Verificado**), and its **Status** (**Estado**). Click a row to open it in **Issues** (**Incidencias**).
+4. **Corrective action** (**Acción correctiva**) names the corrective action the inspection's findings are linked to; **Open the corrective action** (**Abrir la acción correctiva**) opens it. An inspection under 80 percent with none reads **A corrective action (OCSA-FRM-010) is required** (**Se requiere una acción correctiva (OCSA-FRM-010)**); click **Start a corrective action** (**Iniciar una acción correctiva**) to start one for the site, which opens the form the way **Forms** (**Formularios**) starts one.
+If it does not work: the band and the findings show once the system answers them for the inspection; an inspection completed before then shows neither. A refusal to start the corrective action is shown under the button.
+Words people use for this: inspection findings, inspection band, failed inspection, below standard, corrective action required, hallazgos de la inspección.
+Last checked: 2026-10-05
+
+## Link findings to a corrective action (admin dashboard)
+Who can do this: anyone who can read reports
+1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab, set **Form** (**Formulario**) to **Corrective Action Report** (**Reporte de acción correctiva**) and click the action.
+2. **Linked findings** (**Hallazgos vinculados**) lists the findings this action already covers, each with its state and its **Due** (**Vence**) time. **Unlink** (**Desvincular**) takes one off the action; the finding itself stays.
+3. Click **Link findings** (**Vincular hallazgos**). The open findings at the report's site are listed, every one ticked. Untick any this action does not cover and click **Link** (**Vincular**).
+If it does not work: a finding at another site, or one already linked to a corrective action, is refused in the system's own words under the list. The list shows once the system answers the report with its findings.
+Words people use for this: link a finding, attach findings, corrective action findings, unlink a finding, vincular hallazgos.
+Last checked: 2026-10-05
+
+## Tell the client what was done (admin dashboard)
+Who can do this: anyone who can read the corrective action, once its verification is answered and before it is closed
+OCSA-MGT-005 has the client told what happened, what was done and what will prevent it, by a person, from the corrective action.
+1. Open the corrective action from **Filed forms** (**Formularios presentados**) on **Forms** (**Formularios**). While the client has not been told, the window shows **Client not told yet** (**Cliente sin informar**).
+2. Click **Tell the client** (**Informar al cliente**). Under **Recipients** (**Destinatarios**), the site's survey contacts and its client contact start ticked; untick any, or type a name and an email and click **Add an address** (**Agregar una dirección**).
+3. Fill in **What happened** (**Qué pasó**), **What was done** (**Qué se hizo**) and **What will prevent it** (**Qué lo evitará**). Name no employee: the client hears what the company did.
+4. Click **Send** (**Enviar**). The email goes in English and then in Spanish, the way the monthly report does. The window then reads who told the client and when, and the form's own answer on whether the customer was told becomes yes.
+If it does not work: the button is offered only once the verification is answered and until the client is told; a refusal is shown under the field it names. Nothing is recorded when the email fails to send.
+Words people use for this: tell the client, notify the customer, what happened what was done, client letter, corrective action email, informar al cliente.
 Last checked: 2026-10-05

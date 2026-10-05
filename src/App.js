@@ -3904,8 +3904,64 @@ function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = 
 // either gets no picker here, only the way to that tab.
 const isClientIssue = (iss) => !!iss && iss.source === "client_request";
 const ISSUE_STATUS_CHOICES = ["open", "in_progress", "escalated", "resolved", "closed"];
-const issueStatusChoices = (iss) => (isClientIssue(iss) && (iss.status === "awaiting_approval" || iss.status === "declined") ? [] : ISSUE_STATUS_CHOICES);
+const issueStatusChoices = (iss) => (isClientIssue(iss) && (iss.status === "awaiting_approval" || iss.status === "declined") ? [] : isFinding(iss) ? ISSUE_STATUS_CHOICES.filter(x => x !== "closed") : ISSUE_STATUS_CHOICES);
 const openRequest = (id) => { window.location.hash = "issues/requests/" + encodeURIComponent(String(id)); };
+
+// ===== INSPECTION FINDINGS (Step 254, against the API's Step 253) =====
+// Every deficient card of a completed inspection opens a ticket with an owner, a due date by the
+// site's band and a second person's check (STEP253_CONTRACT.md, sections 2 to 5). The Issue Tracker
+// draws them as a Source with their Due, First response and Time to fixed, and opens one from
+// GET /api/issues/:id, whose canVerify offers Verify, which is POST /api/issues/:id/verify. An
+// inspection ticket is closed only by Verify, so the status picker offers it no close. Nothing here
+// draws until the API's Step 253 answers: one POST /api/issues/link-corrective-action naming nothing,
+// which that API refuses with issues.badDetails, or with 403 for a caller without view_reports, and
+// which an older API, with no such route, answers any other way. Nothing is written by it. The list's
+// ?source=inspection proves nothing, since the API's Step 250 already takes the filter.
+let findingsLiveProbe = null;
+const FINDINGS_PROBE_CODES = ["issues.badDetails", "issues.notFound", "forms.reportNotFound", "forms.notACorrectiveAction"];
+const probeFindingsLive = (af) => {
+  if (!findingsLiveProbe) findingsLiveProbe = af("/api/issues/link-corrective-action", { method: "POST", body: {} }).then(() => false)
+    .catch(e => { if (e && (e.status === 403 || FINDINGS_PROBE_CODES.indexOf(e.code) >= 0)) return true; if (!e || e.status == null) { console.warn("Inspection findings:", e && e.message); findingsLiveProbe = null; } return false; });
+  return findingsLiveProbe;
+};
+function useFindingsLive(af) {
+  const requestsOn = useRequestsLive(af);
+  const [live, setLive] = useState(false);
+  useEffect(() => { if (!requestsOn) return undefined; let alive = true; probeFindingsLive(af).then(v => { if (alive) setLive(v); }); return () => { alive = false; }; }, [af, requestsOn]);
+  return requestsOn && live;
+}
+const isFinding = (iss) => !!iss && iss.source === "inspection";
+const issueHas = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+// Minutes as the words a person reads: 45 m, 2 h 15 m, 3 d 4 h. Nothing reads as a dash.
+const minutesWords = (m) => {
+  if (m == null || m === "" || !isFinite(Number(m))) return "--";
+  const n = Math.max(0, Math.round(Number(m)));
+  if (n < 60) return tr("{0} m|minutes", n);
+  const h = Math.floor(n / 60);
+  if (h < 24) return tr("{0} h {1} m", h, n % 60);
+  return tr("{0} d {1} h", Math.floor(h / 24), h % 24);
+};
+// The band OCSA-QMS-014 5.2 gives a score: meets standard at 90 and above, below standard from 80,
+// failed from 70, a serious failure under 70. The API answers band on completion; a read is judged
+// here from its percent by the same lines.
+const BAND_WORDS = { meets: "Meets standard", below: "Below standard", failed: "Failed|band", serious: "Serious failure" };
+const bandOf = (pct) => (pct == null || pct === "" || !isFinite(Number(pct)) ? "" : Number(pct) >= 90 ? "meets" : Number(pct) >= 80 ? "below" : Number(pct) >= 70 ? "failed" : "serious");
+const bandWord = (band) => (BAND_WORDS[band] ? tr(BAND_WORDS[band]) : String(band || ""));
+const bandColor = (band) => ({ meets: GR, below: OR, failed: RD, serious: RD })[band] || null;
+const openFinding = (id) => { window.location.hash = "issues/" + encodeURIComponent(String(id)); };
+// Whether an inspection's read carries its findings (STEP253_CONTRACT.md, section 3.1).
+const findingsIn = (d) => !!d && Array.isArray(d.findings);
+const FINDING_STATE_WORDS = { open: "open|issue", in_progress: "in progress", escalated: "escalated|issue", resolved: "resolved|issue", closed: "closed|issue" };
+const findingStateWord = (st) => (FINDING_STATE_WORDS[st] ? tr(FINDING_STATE_WORDS[st]) : String(st || "").replace(/_/g, " "));
+const findingStateColor = (st, t) => ({ open: RD, in_progress: OR, escalated: PU, resolved: GR, closed: t.textMut })[st] || t.textMut;
+const openFiledReport = (id) => { window.location.hash = "forms/reports/" + encodeURIComponent(String(id)); };
+// The single read's camelCase view laid over the list's snake_case row, so the window draws one shape.
+const issueOfView = (v) => ({
+  id: v.id, title: v.title, description: v.description, zone: v.zone, severity: v.severity, status: v.status, source: v.source, reference: v.reference,
+  site_name: v.siteName, site_id: v.siteId, reported_at: v.reportedAt, reported_by_name: nameOf(v.reportedBy) || null, assigned_to: v.assignedTo ? v.assignedTo.id : null, assigned_to_name: nameOf(v.assignedTo) || null,
+  due_at: v.dueAt, due_state: v.dueState, first_response_at: v.firstResponseAt, resolved_at: v.resolvedAt, resolved_by_name: nameOf(v.resolvedBy) || null,
+  verified_at: v.verifiedAt, verified_by_name: nameOf(v.verifiedBy) || null, minutes_to_first_response: v.minutesToFirstResponse, minutes_to_fixed: v.minutesToFixed, fixed_by_due: v.fixedByDue,
+});
 function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
   // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
   // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
@@ -3922,6 +3978,16 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const pickTab = (id) => { setTab(id); if (onRoute) onRoute(id === "requests" ? ["requests"] : []); };
   const onRequests = requestsOn && tab === "requests";
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
+  // Step 254: inspection findings, once GET /api/issues?source=inspection answers. An issue opened
+  // while they answer is read whole from GET /api/issues/:id, whose view sits in view; the window
+  // draws the view laid over the row, so a ticket opened from a notice, #issues/<id>, draws before
+  // the list holds it.
+  const findingsOn = useFindingsLive(af);
+  const [view, setView] = useState(null);
+  const [verify, setVerify] = useState({ note: "", refusal: "", busy: false });
+  const verifyRef = useRef(false);
+  const routeId = route[0] && route[0] !== "requests" ? String(route[0]) : "";
+  const openedRouteRef = useRef("");
   const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
   const [issuesFailed, setIssuesFailed] = useState(false);
@@ -3933,7 +3999,36 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   // API's words; any other refusal is toasted as before.
   const [statusDraft, setStatusDraft] = useState("");
   const [statusRefusal, setStatusRefusal] = useState("");
-  const openIssue = async (iss) => { setSel(iss); setStatusDraft(iss.status || ""); setStatusRefusal(""); try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(a); } catch (e) { setActivity([]); } try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(p); } catch (e) { setAllPhotos([]); } };
+  const openIssue = async (iss) => {
+    setSel(iss); setView(null); setVerify({ note: "", refusal: "", busy: false }); setStatusDraft(iss.status || ""); setStatusRefusal("");
+    if (findingsOn) { try { const d = await af("/api/issues/" + encodeURIComponent(iss.id)); if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); } } catch (e) { console.warn("Issue:", e.message); } }
+    try { const a = await af("/api/issues/" + iss.id + "/activity"); setActivity(Array.isArray(a) ? a : []); } catch (e) { setActivity([]); }
+    try { const p = await af("/api/issues/" + iss.id + "/photos"); setAllPhotos(Array.isArray(p) ? p : []); } catch (e) { setAllPhotos([]); }
+  };
+  const closeSel = () => { setSel(null); setView(null); if (routeId && onRoute) onRoute([]); };
+  // #issues/<id>, the office's link in a finding's notice: the row once the list holds it, else the
+  // id alone, which the single read fills in.
+  useEffect(() => {
+    if (!routeId || openedRouteRef.current === routeId) return;
+    const row = issues.find(i => String(i.id) === routeId);
+    if (!row && !findingsOn) return;
+    openedRouteRef.current = routeId;
+    openIssue(row || { id: routeId, status: "" });
+  }, [routeId, issues, findingsOn]);
+  const doVerify = async () => {
+    if (verifyRef.current || !sel) return;
+    verifyRef.current = true; setVerify(v => ({ ...v, busy: true, refusal: "" }));
+    const note = verify.note.trim();
+    try {
+      const d = await af("/api/issues/" + encodeURIComponent(sel.id) + "/verify", { method: "POST", body: note ? { note } : {} });
+      if (d && d.issue) { setView(d.issue); setStatusDraft(d.issue.status || ""); }
+      setVerify({ note: "", refusal: "", busy: false }); showToast(tr("Verified")); load();
+    } catch (e) {
+      const code = String((e && e.code) || "");
+      setVerify(v => ({ ...v, busy: false, refusal: code === "issues.cannotVerifyOwn" ? tr("Someone other than the person who fixed it checks it.") : (e && e.message) || tr("Request failed") }));
+    }
+    verifyRef.current = false;
+  };
   const filtered = filter === "all" ? issues : issues.filter(i => i.status === filter);
   const sC = { low: GR, medium: OR, high: RD }; const stC = { open: RD, in_progress: OR, resolved: GR, closed: t.textMut, escalated: PU, awaiting_approval: OR, declined: t.textMut };
   // The words for the codes an issue carries. The code is what the API sent and what is sent back;
@@ -3945,13 +4040,17 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
   const sevOf = (s) => sevWord[s] || s;
   const upd = async (id, s) => {
     setStatusRefusal("");
-    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); setSel(null); }
+    try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); closeSel(); }
     catch (e) { if (e && (e.code === "issues.badStatus" || e.code === "issues.cannotClose")) setStatusRefusal(e.message || tr("Request failed")); else showToast(e.message, "error"); }
   };
   // The reporter line: a staff issue names who reported it; a client request names none, so it reads
   // Client request, and its reference follows.
   const reporterLine = (iss) => [isClientIssue(iss) ? tr("Client request") : iss.reported_by_name, ff(iss.reported_at)].filter(Boolean).join(" | ");
-  const sourceOptions = [{ v: "", l: tr("All sources") }, { v: "staff", l: tr("Staff|source") }, { v: "client_request", l: tr("Client requests") }];
+  const sourceOptions = [{ v: "", l: tr("All sources") }, { v: "staff", l: tr("Staff|source") }].concat(findingsOn ? [{ v: "inspection", l: tr("Inspection|source") }] : [], [{ v: "client_request", l: tr("Client requests") }]);
+  // The window's shape: the single read's view over the row it opened from.
+  const shown = sel ? (view ? Object.assign({}, sel, issueOfView(view)) : sel) : null;
+  const photos = view && Array.isArray(view.photos) && view.photos.length ? view.photos.map(p => ({ photo_url: p.url })) : allPhotos;
+  const timed = (iss) => isFinding(iss) || iss.minutes_to_first_response != null || iss.minutes_to_fixed != null;
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
     {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
@@ -3963,46 +4062,68 @@ function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = f
     {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
     {issues.length > 0 && filtered.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No issues in this state.")}</div>}
     {filtered.map(iss => <Crd key={iss.id} t={t} style={{ marginBottom: 8, padding: 14, borderLeft: "3px solid " + (sC[iss.severity] || t.textMut) }} onClick={() => openIssue(iss)}>
-      <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: "1 1 200px", minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}</div>
+      <div data-issue-row={iss.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8, flexWrap: "wrap" }}><div style={{ flex: "1 1 200px", minWidth: 0 }}><div style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{iss.title}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 3 }}>{iss.site_name} | {iss.zone}</div></div><div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>{isClientIssue(iss) && <Bdg l={tr("Client request")} c={BL} />}{isFinding(iss) && <Bdg l={tr("Inspection|source")} c={GO} />}<Bdg l={sevOf(iss.severity)} c={sC[iss.severity]} /><Bdg l={stateOf(iss.status)} c={stC[iss.status] || t.textMut} /></div></div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}><div style={{ fontSize: 10, color: t.textMut, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}><span>{reporterLine(iss)}</span>{iss.reference && <span style={{ fontFamily: "monospace", fontSize: 10 }}>{iss.reference}</span>}{(isClientIssue(iss) || iss.due_state) && <span>{tr("Due")}: <ClockCell t={t} cell={requestClock(iss.due_state, iss.due_at, tr("Done|request"))} name="due" /></span>}{issueHas(iss, "minutes_to_first_response") && timed(iss) && <span data-finding-first-response="">{tr("First response")}: {minutesWords(iss.minutes_to_first_response)}</span>}{issueHas(iss, "minutes_to_fixed") && timed(iss) && <span data-finding-fixed="">{tr("Time to fixed")}: {minutesWords(iss.minutes_to_fixed)}</span>}</div>
         <div style={{ display: "flex", gap: 4 }} onClick={e => e.stopPropagation()}>{iss.status === "open" && <button onClick={() => upd(iss.id, "in_progress")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + OR, background: "transparent", color: OR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Start|work")}</button>}{iss.status === "in_progress" && <button onClick={() => upd(iss.id, "resolved")} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GR, background: "transparent", color: GR, fontSize: 9, cursor: "pointer", fontWeight: 600 }}>{tr("Resolve")}</button>}</div></div>
       {iss.photo_url && <div style={{ fontSize: 10, color: BL, marginTop: 6 }}>{tr("Photo attached")}</div>}
       {iss.assigned_to_name && <div style={{ fontSize: 10, color: BL, marginTop: 4 }}>{tr("Assigned to: {0}", iss.assigned_to_name)}</div>}
     </Crd>)}
-    {sel && <Mdl t={t} onClose={() => setSel(null)}><div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => setSel(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
-      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{sel.title}</div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(sel.severity)} c={sC[sel.severity]} /><Bdg l={stateOf(sel.status)} c={stC[sel.status] || t.textMut} /></div>
-      {sel.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{sel.description}</div>}
+    {shown && <Mdl t={t} onClose={() => closeSel()}><div style={{ padding: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue Detail")}</div><button onClick={() => closeSel()} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, marginBottom: 8, color: t.text }}>{shown.title}</div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}><Bdg l={sevOf(shown.severity)} c={sC[shown.severity]} /><Bdg l={stateOf(shown.status)} c={stC[shown.status] || t.textMut} /></div>
+      {shown.description && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12, lineHeight: 1.5 }}>{shown.description}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.site_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{sel.zone || tr("General")}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{isClientIssue(sel) ? tr("Client request") : sel.reported_by_name}</div></div>
-        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.reported_at)}</div></div>
-        {sel.reference && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reference")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontFamily: "monospace" }}>{sel.reference}</div></div>}
-        {(isClientIssue(sel) || sel.respond_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Respond by")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(sel.respond_state, sel.respond_by, tr("Responded|request"))} name="respond" /></div></div>}
-        {(isClientIssue(sel) || sel.due_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(sel.due_state, sel.due_at, tr("Done|request"))} name="due" /></div></div>}
-        {sel.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{sel.assigned_to_name}</div></div>}
-        {sel.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(sel.resolved_at)}</div></div>}
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Site")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{shown.site_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Zone")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{shown.zone || tr("General")}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported By")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{isClientIssue(shown) ? tr("Client request") : shown.reported_by_name}</div></div>
+        <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reported At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(shown.reported_at)}</div></div>
+        {shown.reference && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Reference")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2, fontFamily: "monospace" }}>{shown.reference}</div></div>}
+        {(isClientIssue(shown) || shown.respond_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Respond by")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(shown.respond_state, shown.respond_by, tr("Responded|request"))} name="respond" /></div></div>}
+        {(isClientIssue(shown) || shown.due_state) && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Due")}<div style={{ fontWeight: 500, marginTop: 2 }}><ClockCell t={t} cell={requestClock(shown.due_state, shown.due_at, tr("Done|request"))} name="due" /></div></div>}
+        {shown.assigned_to_name && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Assigned To")}<div style={{ color: BL, fontWeight: 600, marginTop: 2 }}>{shown.assigned_to_name}</div></div>}
+        {shown.resolved_at && <div style={{ fontSize: 11, color: t.textMut }}>{tr("Resolved At")}<div style={{ color: t.text, fontWeight: 500, marginTop: 2 }}>{ff(shown.resolved_at)}</div></div>}
       </div>
-      {sel.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{sel.assignment_note}</div>}
-      {allPhotos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", allPhotos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{allPhotos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: allPhotos.length === 1 ? "100%" : 140, height: allPhotos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
-      {allPhotos.length === 0 && sel.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={sel.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
+      {view && view.inspection && <div data-finding-inspection="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("From an inspection")}</div>
+        <div style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{view.inspection.templateName || tr("Inspection")}{view.inspection.completedAt ? ", " + tr("completed {0}", irWhen(view.inspection.completedAt)) : ""}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 12, color: t.textSec, marginTop: 4 }}><span>{tr("Scored {0} percent", view.inspection.scorePct == null ? "--" : String(view.inspection.scorePct))}</span>{(view.inspection.band || bandOf(view.inspection.scorePct)) && <Bdg l={bandWord(view.inspection.band || bandOf(view.inspection.scorePct))} c={bandColor(view.inspection.band || bandOf(view.inspection.scorePct)) || t.textMut} />}</div>
+        {view.inspection.itemLabel && <div style={{ fontSize: 12, color: t.textSec, marginTop: 4 }}>{tr("Item: {0}, scored {1} of {2}", view.inspection.itemLabel, view.inspection.itemScore == null ? "--" : String(view.inspection.itemScore), view.inspection.itemMaxScore == null ? "--" : String(view.inspection.itemMaxScore))}</div>}
+      </div>}
+      {view && issueHas(view, "correctiveAction") && isFinding(shown) && <div data-finding-corrective="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Corrective action")}</div>
+        {view.correctiveAction ? <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{view.correctiveAction.closedAt ? tr("OCSA-FRM-010, closed {0}.", irDay(view.correctiveAction.closedAt)) : tr("OCSA-FRM-010, still open.")}{view.correctiveAction.clientToldAt ? " " + tr("Client told {0}.", irDay(view.correctiveAction.clientToldAt)) : ""}</span>
+          <Btn t={t} v="ghost" onClick={() => { closeSel(); openFiledReport(view.correctiveAction.id); }} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open the corrective action")}</Btn>
+        </div> : <div style={{ fontSize: 12, color: t.textMut }}>{tr("Not linked to a corrective action yet. Link it from the corrective action's window on Forms.")}</div>}
+      </div>}
+      {shown.verified_at && <div data-verified="" style={{ fontSize: 12, color: GR, fontWeight: 600, marginBottom: 12 }}>{tr("Verified {0} by {1}.", irWhen(shown.verified_at), shown.verified_by_name || "--")}</div>}
+      {view && view.canVerify && <div data-verify="" style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.orangeBorder }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Verify")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("Someone other than the person who fixed it checks it.")} {tr("Verifying closes the finding.")}</div>
+        <Lbl>{tr("Note")}</Lbl>
+        <TArea t={t} rows={2} maxLength={2000} aria-label={tr("Note")} value={verify.note} onChange={e => setVerify(v => ({ ...v, note: e.target.value, refusal: "" }))} />
+        {verify.refusal && <div data-verify-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{verify.refusal}</div>}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 8 }}><Btn t={t} onClick={doVerify} disabled={verify.busy} data-verify-save="" style={{ minHeight: 44 }}>{verify.busy ? tr("Saving...") : tr("Verify")}</Btn></div>
+      </div>}
+      {shown.assignment_note && <div style={{ padding: "8px 12px", borderRadius: 6, background: t.blueSubtle, border: "1px solid " + t.blueBorder, fontSize: 11, color: BL, marginBottom: 12 }}>{shown.assignment_note}</div>}
+      {photos.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photos ({0})", photos.length)}</div><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p.photo_url} alt={tr("Photo {0}", i + 1)} style={{ width: photos.length === 1 ? "100%" : 140, height: photos.length === 1 ? "auto" : 100, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /><div style={{ position: "absolute", bottom: 4, left: 4, fontSize: 8, background: "rgba(0,0,0,0.7)", color: "#F8F7F4", padding: "2px 6px", borderRadius: 4 }}>{i === 0 ? tr("Original") : tr("Resolution")}</div></div>)}</div></div>}
+      {photos.length === 0 && shown.photo_url && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 6 }}>{tr("Photo")}</div><img src={shown.photo_url} alt={tr("Issue")} style={{ width: "100%", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></div>}
       {activity.length > 0 && <div style={{ marginBottom: 16 }}><div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
         {activity.map((a, i) => { const actColor = a.action === "reported" ? BL : a.action === "assigned" ? GO : a.action === "reassigned" ? OR : a.action === "started_work" ? BL : a.action === "resolved" ? GR : a.action === "unable_to_resolve" ? RD : a.action === "status_changed" ? t.textSec : a.action === "resolution_photo" ? GR : a.action === "photo_added" ? BL : t.textMut; const actLabel = a.action === "reported" ? tr("Reported") : a.action === "assigned" ? tr("Assigned|issue") : a.action === "reassigned" ? tr("Reassigned") : a.action === "started_work" ? tr("Work Started") : a.action === "resolved" ? tr("Resolved") : a.action === "unable_to_resolve" ? tr("Unable to Resolve") : a.action === "status_changed" ? tr("Status Changed") : a.action === "resolution_photo" ? tr("Resolution Photo") : a.action === "photo_added" ? tr("Photo Added") : requestActivityWord(a); const timeStr = new Date(a.created_at).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }); return <TimelineRow key={i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + actColor, padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={a.user_name || tr("System")} sz={26} /></div>}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: actColor }}>{actLabel}</span>{a.user_name ? <span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", a.user_name)}</span> : null}</div><span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr}</span></div>{a.details && a.action !== "client_mailed" && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4 }}>{a.details}</div>}</TimelineRow>; })}</div>}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        {sel.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "in_progress")}>{tr("Start Work")}</Btn>}
-        {sel.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
-        {sel.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(sel.id, "resolved")}>{tr("Resolve")}</Btn>}
-        {(sel.status === "open" || sel.status === "in_progress" || sel.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: sel.id, userId: "", note: "", isReassign: !!sel.assigned_to }); setSel(null); }}>{sel.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
-        {isClientIssue(sel) && requestsOn && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setSel(null); openRequest(sel.id); }}>{tr("Open in Client requests")}</Btn>}
-        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => setSel(null)}>{tr("Close")}</Btn>
+        {shown.status === "open" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "in_progress")}>{tr("Start Work")}</Btn>}
+        {shown.status === "in_progress" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "resolved")}>{tr("Resolve")}</Btn>}
+        {shown.status === "escalated" && <Btn t={t} style={{ flex: 1 }} onClick={() => upd(shown.id, "resolved")}>{tr("Resolve")}</Btn>}
+        {(shown.status === "open" || shown.status === "in_progress" || shown.status === "escalated") && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { setAssignTask({ issueId: shown.id, userId: "", note: "", isReassign: !!shown.assigned_to }); closeSel(); }}>{shown.assigned_to ? tr("Reassign") : tr("Assign as Task")}</Btn>}
+        {isClientIssue(shown) && requestsOn && <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => { closeSel(); openRequest(shown.id); }}>{tr("Open in Client requests")}</Btn>}
+        <Btn t={t} v="ghost" style={{ flex: 1 }} onClick={() => closeSel()}>{tr("Close")}</Btn>
       </div>
-      {issueStatusChoices(sel).length > 0 && <div data-issue-status="" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
-        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(sel).map(x => ({ v: x, l: stateOf(x) }))} /></div>
-        <Btn t={t} v="ghost" onClick={() => upd(sel.id, statusDraft)} disabled={!statusDraft || statusDraft === sel.status} style={{ minHeight: 44 }}>{tr("Set status")}</Btn>
+      {issueStatusChoices(shown).length > 0 && <div data-issue-status="" style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap", marginTop: 14, paddingTop: 12, borderTop: "1px solid " + t.border }}>
+        <div style={{ flex: "1 1 180px", minWidth: 0 }}><Lbl>{tr("Status")}</Lbl><Sel t={t} aria-label={tr("Status")} value={statusDraft} onChange={e => { setStatusDraft(e.target.value); setStatusRefusal(""); }} options={issueStatusChoices(shown).map(x => ({ v: x, l: stateOf(x) }))} /></div>
+        <Btn t={t} v="ghost" onClick={() => upd(shown.id, statusDraft)} disabled={!statusDraft || statusDraft === shown.status} style={{ minHeight: 44 }}>{tr("Set status")}</Btn>
       </div>}
-      {issueStatusChoices(sel).length === 0 && isClientIssue(sel) && <div style={{ fontSize: 12, color: t.textMut, marginTop: 12, lineHeight: 1.5 }}>{tr("A request waiting for approval or declined is decided on the Client requests tab.")}</div>}
+      {issueStatusChoices(shown).length === 0 && isClientIssue(shown) && <div style={{ fontSize: 12, color: t.textMut, marginTop: 12, lineHeight: 1.5 }}>{tr("A request waiting for approval or declined is decided on the Client requests tab.")}</div>}
       {statusRefusal && <div data-issue-status-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{statusRefusal}</div>}
       </div></Mdl>}
     {assignTask && <Mdl t={t} onClose={() => setAssignTask(null)}><div style={{ padding: 20 }}>
@@ -6651,6 +6772,10 @@ const notifTarget = (link) => {
   // section 9); here it opens the Issue Tracker's Client requests tab on that request.
   const req = /^\/requests\/([^/]+)\/?$/.exec(u.pathname || "");
   if (req) return { kind: "page", page: "issues", hash: "issues/requests/" + req[1] };
+  // A finding's notice links /issues/<id> (Step 254, STEP253_CONTRACT.md section 4), which opens the
+  // Issue Tracker on that ticket.
+  const fin = /^\/issues\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (fin && fin[1] !== "requests") return { kind: "page", page: "issues", hash: "issues/" + fin[1] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6744,6 +6869,8 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (n.subjectType === "customer_concern" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
     // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
     if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
+    // Step 254: a finding's notice opens the Issue Tracker on that ticket.
+    if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -9382,14 +9509,30 @@ const reviewBySite = (rows, idOf, nameOf) => {
   rows.forEach(r => { const id = String(idOf(r) || ""); if (!m.has(id)) m.set(id, { id, name: nameOf(r) || tr("No site"), rows: [] }); m.get(id).rows.push(r); });
   return Array.from(m.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag()));
 };
-// The day a corrective action was signed closed, from the report read whole: its Closure sign-off. Since
-// the API's Step 247 (STEP247_CONTRACT.md version 2, section 6.2) each row of the list carries closedAt
-// itself, and the pack reads a report whole only when its row does not.
-const reviewClosedOn = (rep) => {
-  const f = rep && Array.isArray(rep.fields) ? rep.fields.find(x => x && x.key === "closed") : null;
-  const v = (f && f.value) || (rep && rep.draft && rep.draft.answers && rep.draft.answers.closed) || null;
-  return v && typeof v === "object" && v.at ? keptDayOf(v.at) : "";
-};
+// The day a corrective action was signed closed: since the API's Step 247 (STEP247_AS_BUILT.md) each
+// row of the list carries closedAt itself, so the pack reads no report whole for it (Step 254). A row
+// with no closedAt is still open.
+const reviewClosedDay = (r) => (r && r.closedAt ? keptDayOf(r.closedAt) : "");
+// The finding measures of OCSA-FRM-011 version 2 (STEP253_CONTRACT.md, section 3.9), from the
+// inspection tickets GET /api/issues?source=inspection lists: opened in the range, the median hours
+// to their first response and to their fix, how many of the fixed were fixed by their due date, and
+// how many were still unfixed at the range's end.
+const reviewMedian = (list) => { const v = list.filter(x => x != null && x !== "" && isFinite(Number(x))).map(Number).sort((a, b) => a - b); if (!v.length) return null; const mid = Math.floor(v.length / 2); return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2; };
+const reviewHours = (minutes) => (minutes == null ? "--" : (minutes / 60).toFixed(1));
+function reviewFindingMeasures(rows, range) {
+  const opened = rows.filter(r => keptInRange(keptDayOf(r.reported_at), range));
+  const fixed = opened.filter(r => r.resolved_at);
+  const byDue = fixed.filter(r => r.due_at && new Date(r.resolved_at) <= new Date(r.due_at)).length;
+  const openAtEnd = rows.filter(r => keptDayOf(r.reported_at) <= range.end && (!r.resolved_at || keptDayOf(r.resolved_at) > range.end)).length;
+  return {
+    opened: String(opened.length),
+    firstResponse: reviewHours(reviewMedian(opened.map(r => r.minutes_to_first_response))),
+    fixed: reviewHours(reviewMedian(opened.map(r => r.minutes_to_fixed))),
+    byDue: fixed.length ? byDue + "/" + fixed.length + " (" + Math.round(byDue / fixed.length * 100) + "%)" : "--",
+    openAtEnd: String(openAtEnd),
+  };
+}
+const REVIEW_FINDING_COLS = ["Measure", "This period", "Year to date"];
 const REVIEW_UNAVAILABLE = "The data for this was not available when the pack was printed.";
 
 // The sections the platform holds, each read on its own; a failed read leaves that section's note
@@ -9402,13 +9545,11 @@ async function reviewSections(af, value) {
   const settle = (p) => p.then(v => ({ ok: true, v }), e => { console.warn("Management review:", e.message); return { ok: false }; });
   const insp = (r) => af("/api/inspections/scheduled?status=completed&from=" + r.start + "&to=" + r.end).then(d => (Array.isArray(d) ? d : []).filter(x => !x.completed_at || keptInRange(keptDayOf(x.completed_at), r)));
   const years = keptOnce([range.start.slice(0, 4), range.end.slice(0, 4)]);
-  const [now, before, complaints, ratings, actions, safety, bio, injury, training, people, warnings, equipment, periodic] = await Promise.all([
+  const [now, before, complaints, ratings, actions, safety, bio, injury, training, people, warnings, equipment, periodic, findings] = await Promise.all([
     settle(insp(range)), settle(insp(prev)),
     settle(reviewFilings(af, "OCSA-FRM-009", range.start)),
     settle(af("/api/reports/client-ratings?from=" + range.start + "&to=" + range.end)),
-    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => (Object.prototype.hasOwnProperty.call(r, "closedAt")
-      ? Promise.resolve({ r, closed: r.closedAt ? keptDayOf(r.closedAt) : "" })
-      : af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) }))))))),
+    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => ({ r, closed: reviewClosedDay(r) })))),
     settle(reviewFilings(af, "OCSA-FRM-016", range.start)), settle(reviewFilings(af, "OCSA-FRM-017", range.start)),
     settle(Promise.all(years.map(y => af("/api/injury-log?year=" + y))).then(list => [].concat(...list.map(d => (d && Array.isArray(d.cases) ? d.cases : []))))),
     settle(af("/api/hr/training").then(d => (Array.isArray(d) ? d : []))),
@@ -9420,6 +9561,7 @@ async function reviewSections(af, value) {
     settle(af("/api/discipline?from=" + range.start + "&to=" + range.end)),
     settle(af("/api/equipment").then(d => equipmentList(d) || [])),
     settle(af("/api/periodic-work?state=overdue").then(d => (d && Array.isArray(d.items) ? d.items : []))),
+    settle(af("/api/issues?source=inspection").then(d => (Array.isArray(d) ? d : []))),
   ]);
   const S = {};
 
@@ -9465,6 +9607,13 @@ async function reviewSections(af, value) {
     const open = actions.v.filter(x => !x.closed || x.closed > range.end).length;
     S[5].push({ fields: [["Opened in the period", String(opened)], ["Closed in the period", String(closed)], ["Still open at the end of the period", String(open)]] });
   } else S[5].push({ note: REVIEW_UNAVAILABLE }, { fields: [["Opened in the period", ""], ["Closed in the period", ""], ["Still open at the end of the period", ""]] });
+  // Step 254: the finding measures OCSA-FRM-011 version 2 carries, for the period and the year to date.
+  S[5].push({ h: "Inspection findings", num: "", note: "Findings opened by inspections, the median hours to their first response and to their fix, how many of the fixed were fixed by their due date, and how many were still unfixed at the end of the period, as OCSA-FRM-011 version 2 counts them." });
+  if (findings.ok) {
+    const ytd = { start: range.end.slice(0, 4) + "-01-01", end: range.end };
+    const a = reviewFindingMeasures(findings.v, range), b = reviewFindingMeasures(findings.v, ytd);
+    S[5].push({ cols: REVIEW_FINDING_COLS, rows: [[tr("Findings opened"), a.opened, b.opened], [tr("First response (h, median)"), a.firstResponse, b.firstResponse], [tr("Time to fixed (h, median)"), a.fixed, b.fixed], [tr("Fixed by due"), a.byDue, b.byDue], [tr("Open at the end of the period"), a.openAtEnd, b.openAtEnd]] });
+  } else S[5].push({ note: REVIEW_UNAVAILABLE }, { cols: REVIEW_FINDING_COLS, rows: [], least: 5 });
   S[5].push({ h: "Overdue, reopened, and any cause appearing at more than one site", num: "", lines: 4 });
 
   // 6. Health and safety: incident reports filed, recordable cases, training sessions held.
@@ -12229,6 +12378,26 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
   const [detailView, setDetailView] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
+  // Step 254: a completed inspection under 80 percent with no corrective action offers to start one
+  // for its site, the way Filed forms starts a form: OCSA-FRM-010 from the catalog this account may
+  // start, POST /api/forms/OCSA-FRM-010/drafts with the site, and the form window every desk form
+  // uses. A refusal is drawn under the button.
+  const [caStart, setCaStart] = useState({ busy: false, refusal: "" });
+  const [caFill, setCaFill] = useState(null);
+  const startCorrectiveAction = async (d) => {
+    if (caStart.busy) return;
+    setCaStart({ busy: true, refusal: "" });
+    try {
+      const list = await af("/api/forms?app=dashboard");
+      const form = (list && Array.isArray(list.forms) ? list.forms : []).find(f => f && String(f.code) === "OCSA-FRM-010" && formStartable(f)) || null;
+      if (!form) { setCaStart({ busy: false, refusal: tr("This account cannot start a corrective action from here.") }); return; }
+      const body = { source: "admin" };
+      if (d && d.site_id != null && d.site_id !== "") body.siteId = String(d.site_id);
+      const r = await af("/api/forms/OCSA-FRM-010/drafts", { method: "POST", body });
+      setCaFill({ form, draft: formDraftOf(r) });
+      setCaStart({ busy: false, refusal: "" });
+    } catch (e) { setCaStart({ busy: false, refusal: (e && e.message) || tr("Request failed") }); }
+  };
   const [editInspModal, setEditInspModal] = useState(null);
   const [editInspForm, setEditInspForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
   const [schedQ, setSchedQ] = useState(""); const [schedStatus, setSchedStatus] = useState("all"); const [schedPage, setSchedPage] = useState(1);
@@ -12419,6 +12588,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const isComplete = !!d.result;
     const pct = isComplete && d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : null;
     const scoreColor = pct === null ? t.textMut : pct >= 80 ? GR : pct >= 60 ? OR : RD;
+    // The band by QMS-014 5.2, from the exact percent, as the API judges it at completion.
+    const band = isComplete && d.result.max_possible_score > 0 ? bandOf((d.result.total_score / d.result.max_possible_score) * 100) : "";
 
     return (
       <div>
@@ -12460,6 +12631,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed At")}</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed By")}</div><div style={{ fontWeight: 600, color: t.text }}>{d.result.completed_by_name}</div></Crd>
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Overall Score")}</div><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", d.result.total_score, d.result.max_possible_score)}</div></Crd>
+            {findingsIn(d) && band && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Band")}</div><div data-inspection-band={band} style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: bandColor(band) || t.text, lineHeight: 1.3 }}>{bandWord(band)}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("OCSA-QMS-014 5.2")}</div></Crd>}
           </>}
         </div>
 
@@ -12469,6 +12641,38 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5 }}>{d.result.overall_notes}</div>
           </Crd>
         )}
+
+        {/* Step 254: the findings the API opened as tickets, and the corrective action, once the answer carries findings. */}
+        {isComplete && findingsIn(d) && <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Findings")}</div>
+          {d.findings.length === 0 && <div data-inspection-findings="" style={{ fontSize: 13, color: t.textMut }}>{tr("No deficient item. No finding was opened.")}</div>}
+          {d.findings.length > 0 && <div data-inspection-findings="" style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr>{[tr("Finding"), tr("Zone"), tr("Owner|finding"), tr("Due"), tr("Fixed|finding"), tr("Checked|finding"), tr("Status")].map((h, i) => <th key={i} style={{ textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, padding: "6px 8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>{d.findings.map((f, i) => <tr key={f.issueId || i} data-inspection-finding={f.issueId || ""} onClick={() => { if (f.issueId != null) openFinding(f.issueId); }} style={{ cursor: f.issueId != null ? "pointer" : "default" }}>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.text, fontWeight: 600 }}>{f.label || "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec }}>{f.zone || "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: f.owner && f.owner.name ? t.text : t.textMut }}>{f.owner && f.owner.name ? f.owner.name : tr("Unassigned")}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}><ClockCell t={t} cell={requestClock(f.dueState, f.dueAt, tr("Fixed|finding"))} name="finding-due" /></td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec, whiteSpace: "nowrap" }}>{f.resolvedAt ? fmtDT(f.resolvedAt) : "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec, whiteSpace: "nowrap" }}>{f.verifiedAt ? fmtDT(f.verifiedAt) : "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border }}><Bdg l={findingStateWord(f.status)} c={findingStateColor(f.status, t)} /></td>
+            </tr>)}</tbody>
+          </table></div>}
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("A finding opens in the Issue Tracker, where it is verified.")}</div>
+        </Crd>}
+        {isComplete && findingsIn(d) && Object.prototype.hasOwnProperty.call(d, "correctiveAction") && (d.correctiveAction || pct < 80) && <Crd t={t} style={{ marginBottom: 16, border: "1px solid " + (d.correctiveAction ? t.border : t.orangeBorder) }}>
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Corrective action")}</div>
+          {d.correctiveAction && <div data-inspection-corrective="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: t.text }}>{d.correctiveAction.closedAt ? tr("OCSA-FRM-010, closed {0}.", irDay(d.correctiveAction.closedAt)) : tr("OCSA-FRM-010, still open.")}</span>
+            <Btn t={t} v="ghost" onClick={() => openFiledReport(d.correctiveAction.id)} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open the corrective action")}</Btn>
+          </div>}
+          {!d.correctiveAction && <div data-inspection-corrective-required="">
+            <div style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("A corrective action (OCSA-FRM-010) is required")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The site scored under 80 percent. Start the corrective action for the site and link its findings from the report's window.")}</div>
+            <Btn t={t} onClick={() => startCorrectiveAction(d)} disabled={caStart.busy} data-inspection-corrective-start="" style={{ minHeight: 44 }}>{caStart.busy ? tr("Opening...") : tr("Start a corrective action")}</Btn>
+            {caStart.refusal && <div data-inspection-corrective-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{caStart.refusal}</div>}
+          </div>}
+        </Crd>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(d.items || []).map(item => {
@@ -12570,6 +12774,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           {d.lines.map(ln => <InspectionReviewLine key={ln.line} af={af} t={t} token={token} resultId={inspectionResultIdOf(d)} line={ln} signature={(Array.isArray(d.signatures) ? d.signatures : []).find(sg => sg && sg.line === ln.line) || null} fmtDT={fmtDT} onSigned={() => { openDetail(d.id); loadScheduled(); }} />)}
         </Crd>}
 
+        {caFill && <FormFillWindow af={af} token={token} t={t} form={caFill.form} draft={caFill.draft} onLeave={() => { setCaFill(null); openDetail(d.id); }} people={allStaff} />}
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>
@@ -15656,6 +15861,7 @@ function SignatureImage({ t, token, responseId, signKey, path }) {
 // how, or by the receipt mail when nobody sent it by hand. A read without the keys shows none of it.
 const ACK_METHODS = [{ v: "phone", l: "Phone call", said: "phone call|acknowledged" }, { v: "text", l: "Text message", said: "text message|acknowledged" }, { v: "email", l: "Email", said: "email|acknowledged" }, { v: "in_person", l: "In person", said: "in person|acknowledged" }];
 const ACK_FIELDS = ["method", "note"];
+const TELL_FIELDS = ["whatHappened", "whatWasDone", "prevention"];
 function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15691,6 +15897,19 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   const [ackRefusal, setAckRefusal] = useState({ text: "", field: "" });
   const [acking, setAcking] = useState(false);
   const ackRef = useRef(false);
+  // Step 254: a corrective action's findings and Tell the client (STEP253_CONTRACT.md, sections 3.6
+  // to 3.8), drawn only when the read of an OCSA-FRM-010 carries linkedIssues. Link findings lists
+  // the open findings at the report's site from GET /api/issues?source=inspection, ticked, and sends
+  // POST /api/issues/link-corrective-action; Unlink is DELETE /api/issues/:id/corrective-action,
+  // the link alone. Tell the client, when the read says canTellClient, takes the recipients ticked
+  // from suggestedRecipients plus typed addresses, the way the monthly report's send does, and the
+  // three boxes OCSA-MGT-005 4 step 10 asks for, to POST /api/forms/responses/:id/tell-client; a
+  // refusal is drawn under the field its code or keys name.
+  const [linked, setLinked] = useState(null);
+  const [linking, setLinking] = useState(null);
+  const [unlinking, setUnlinking] = useState("");
+  const [telling, setTelling] = useState(null);
+  const tellRef = useRef(false);
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -15802,6 +16021,65 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     ackRef.current = false; setAcking(false);
   };
 
+  const topKey = (k) => (data && data.draft && Object.prototype.hasOwnProperty.call(data.draft, k) ? data.draft[k] : data && Object.prototype.hasOwnProperty.call(data, k) ? data[k] : undefined);
+  useEffect(() => { const got = data ? topKey("linkedIssues") : undefined; setLinked(Array.isArray(got) ? got.slice() : null); setLinking(null); setTelling(null); }, [data]);
+  const openLink = async () => {
+    setLinking({ loading: true, rows: [], ticked: {}, refusal: "", busy: false });
+    try {
+      const list = await af("/api/issues?source=inspection");
+      const site = data && data.draft && data.draft.siteId != null ? String(data.draft.siteId) : "";
+      const already = new Set((linked || []).map(x => String(x.id)));
+      const rows = (Array.isArray(list) ? list : []).filter(i => i && i.status !== "closed" && (!site || String(i.site_id) === site) && !i.corrective_action_id && !already.has(String(i.id)));
+      setLinking({ loading: false, rows, ticked: rows.reduce((m, r) => Object.assign(m, { [r.id]: true }), {}), refusal: "", busy: false });
+    } catch (e) { setLinking({ loading: false, rows: [], ticked: {}, refusal: (e && e.message) || tr("Request failed"), busy: false }); }
+  };
+  const saveLink = async () => {
+    if (!linking || linking.busy) return;
+    const ids = linking.rows.filter(r => linking.ticked[r.id]).map(r => r.id);
+    if (!ids.length) return;
+    setLinking(l => ({ ...l, busy: true, refusal: "" }));
+    try {
+      const d = await af("/api/issues/link-corrective-action", { method: "POST", body: { issueIds: ids, responseId: id } });
+      const got = d && Array.isArray(d.issues) ? d.issues : [];
+      setLinked(prev => (prev || []).concat(ids.map(x => {
+        const row = linking.rows.find(r => String(r.id) === String(x)) || {};
+        const ans = got.find(g => String(g.id) === String(x)) || {};
+        return { id: x, title: ans.title || row.title || "", zone: row.zone || "", status: ans.status || row.status || "", dueAt: row.due_at || null, dueState: row.due_state || null, verifiedAt: row.verified_at || null };
+      })));
+      setLinking(null);
+    } catch (e) { setLinking(l => ({ ...l, busy: false, refusal: (e && e.message) || tr("Request failed") })); }
+  };
+  const unlink = async (issueId) => {
+    if (unlinking) return;
+    setUnlinking(String(issueId)); setActionError("");
+    try { await af("/api/issues/" + encodeURIComponent(issueId) + "/corrective-action", { method: "DELETE" }); setLinked(prev => (prev || []).filter(x => String(x.id) !== String(issueId))); }
+    catch (e) { setActionError((e && e.message) || tr("Request failed")); }
+    setUnlinking("");
+  };
+  const openTell = () => {
+    const got = topKey("suggestedRecipients");
+    const offered = (Array.isArray(got) ? got : []).filter(c => c && c.email).map(c => ({ name: String(c.name || ""), email: String(c.email), from: String(c.from || "") }));
+    setTelling({ offered, picked: offered.reduce((m, c) => Object.assign(m, { [c.email]: true }), {}), added: [], draft: { name: "", email: "" }, whatHappened: "", whatWasDone: "", prevention: "", refusal: { text: "", field: "", keys: [] }, busy: false });
+  };
+  const tellTo = () => (telling ? telling.offered.filter(c => telling.picked[c.email]).map(c => ({ name: c.name, email: c.email })).concat(telling.added) : []);
+  const tellClient = async () => {
+    if (tellRef.current || !telling) return;
+    const to = tellTo();
+    tellRef.current = true; setTelling(x => ({ ...x, busy: true, refusal: { text: "", field: "", keys: [] } }));
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/tell-client", { method: "POST", body: { to, whatHappened: telling.whatHappened.trim(), whatWasDone: telling.whatWasDone.trim(), prevention: telling.prevention.trim() } });
+      const told = { clientToldAt: (d && d.clientToldAt) || new Date().toISOString(), clientToldBy: (d && d.clientToldBy) || null, canTellClient: false };
+      setData(prev => (prev ? Object.assign({}, prev, told, { draft: Object.assign({}, prev.draft, told) }) : prev));
+      setSentLine(d && Number(d.failed) > 0 ? tr("Sent to {0}; {1} did not go.", Number(d.sent) || 0, Number(d.failed)) : tr("Sent to {0}.", d && d.sent != null ? Number(d.sent) : to.length));
+    } catch (e) {
+      const code = String((e && e.code) || "");
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      const field = code === "forms.noRecipients" || code === "forms.badEmail" ? "to" : keys.find(k => TELL_FIELDS.indexOf(k) >= 0) || "";
+      setTelling(x => (x ? { ...x, busy: false, refusal: { text: (e && e.message) || tr("Request failed"), field, keys } } : x));
+    }
+    tellRef.current = false;
+  };
+
   const doVoid = async () => {
     if (voidRef.current) return;
     voidRef.current = true; setVoidBusy(true); setActionError(""); setSentLine("");
@@ -15824,6 +16102,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // The acknowledgement keys, read off the report, or off the read where the API puts them there.
   const ackKey = (k) => (draft && Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : data && Object.prototype.hasOwnProperty.call(data, k) ? data[k] : undefined);
   const canAcknowledge = ackKey("canAcknowledge") === true;
+  const isCorrective = !!(draft && draft.formCode === "OCSA-FRM-010");
+  const canTellClient = isCorrective && topKey("canTellClient") === true;
+  const toldAt = isCorrective ? topKey("clientToldAt") : undefined;
+  const toldBy = isCorrective ? topKey("clientToldBy") : undefined;
   const ackMethod = ackKey("acknowledgedMethod");
   const ackAt = ackKey("acknowledgedAt");
   const ackBy = ackKey("acknowledgedBy");
@@ -16171,6 +16453,69 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <Btn t={t} v="ghost" onClick={() => { setAckOpen(false); setAckRefusal({ text: "", field: "" }); }} disabled={acking} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
             <Btn t={t} onClick={acknowledge} disabled={acking || !ack.method} style={{ minHeight: 44 }}>{acking ? tr("Saving...") : tr("Mark acknowledged")}</Btn>
+          </div>
+        </div>}
+      </div>}
+      {isCorrective && linked && <div data-linked-findings="" style={{ marginBottom: 18, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Linked findings")}</div>
+        {linked.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 8 }}>{tr("No finding is linked yet.")}</div>}
+        {linked.map(f => (<div key={f.id} data-linked-finding={f.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>{f.title || "--"}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11, color: t.textSec, marginTop: 2 }}>{f.zone ? <span>{f.zone}</span> : null}<Bdg l={findingStateWord(f.status)} c={findingStateColor(f.status, t)} /><span>{tr("Due")}: <ClockCell t={t} cell={requestClock(f.dueState, f.dueAt, tr("Fixed|finding"))} name="linked-due" /></span>{f.verifiedAt ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Verified {0}", irDay(f.verifiedAt))}</span> : null}</div>
+          </div>
+          {!isVoid && <Btn t={t} v="ghost" onClick={() => unlink(f.id)} disabled={!!unlinking} data-unlink-finding={f.id} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{unlinking === String(f.id) ? tr("Saving...") : tr("Unlink")}</Btn>}
+        </div>))}
+        {!isVoid && !linking && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" onClick={openLink} data-link-findings="" style={{ minHeight: 44 }}>{tr("Link findings")}</Btn></div>}
+        {linking && <div data-link-findings-form="" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid " + t.border }}>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("The open findings at this site. Untick any that this corrective action does not cover.")}</div>
+          {linking.loading && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+          {!linking.loading && linking.rows.length === 0 && !linking.refusal && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No open finding at this site is waiting to be linked.")}</div>}
+          {linking.rows.map(r => (<label key={r.id} data-link-finding={r.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <span style={chkWrap}><input type="checkbox" checked={!!linking.ticked[r.id]} onChange={() => setLinking(l => ({ ...l, ticked: Object.assign({}, l.ticked, { [r.id]: !l.ticked[r.id] }) }))} style={{ width: 22, height: 22 }} /></span>
+            <span style={{ minWidth: 0, wordBreak: "break-word" }}>{r.title}{r.zone ? " (" + r.zone + ")" : ""}</span>
+            <Bdg l={findingStateWord(r.status)} c={findingStateColor(r.status, t)} />
+          </label>))}
+          {linking.refusal && <div data-link-findings-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{linking.refusal}</div>}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => setLinking(null)} disabled={linking.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={saveLink} disabled={linking.busy || linking.loading || !linking.rows.some(r => linking.ticked[r.id])} data-link-findings-save="" style={{ minHeight: 44 }}>{linking.busy ? tr("Saving...") : tr("Link|findings")}</Btn>
+          </div>
+        </div>}
+      </div>}
+      {isCorrective && (toldAt || canTellClient) && <div data-tell-client="" style={{ marginBottom: 18, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (canTellClient ? t.orangeBorder : t.border) }}>
+        {toldAt && <div data-client-told="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{tr("Client told {0} by {1}.", irWhen(toldAt), nameOf(toldBy) || "--")}</div>}
+        {canTellClient && !telling && <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Bdg l={tr("Client not told yet")} c={OR} />
+          <Btn t={t} v="ghost" onClick={openTell} data-tell-client-open="" style={{ minHeight: 44 }}>{tr("Tell the client")}</Btn>
+        </div>}
+        {canTellClient && telling && <div data-tell-client-form="">
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Tell the client")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Name no employee. The client hears what {0} did.", clientConfig.company.name)}</div>
+          {telling.refusal.text && !telling.refusal.field && <div data-tell-client-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{telling.refusal.text}</div>}
+          <Lbl>{tr("Recipients")}</Lbl>
+          {telling.offered.map((c, i) => (<label key={"o" + i} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <span style={chkWrap}><input type="checkbox" checked={!!telling.picked[c.email]} onChange={() => setTelling(x => ({ ...x, picked: Object.assign({}, x.picked, { [c.email]: !x.picked[c.email] }) }))} style={{ width: 22, height: 22 }} /></span>
+            <span style={{ minWidth: 0, wordBreak: "break-word" }}>{c.name ? c.name + " (" + c.email + ")" : c.email}{c.from === "survey" ? <span style={{ color: t.textMut }}>{" " + tr("(survey contact)")}</span> : c.from === "site" ? <span style={{ color: t.textMut }}>{" " + tr("(site contact)")}</span> : null}</span>
+          </label>))}
+          {telling.added.map((c, i) => (<div key={"a" + i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.card, borderRadius: 8, marginTop: 6 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: t.text, wordBreak: "break-word" }}>{c.name ? c.name + " (" + c.email + ")" : c.email}</span>
+            <Btn t={t} v="ghost" onClick={() => setTelling(x => ({ ...x, added: x.added.filter((y, j) => j !== i) }))} aria-label={tr("Remove") + ": " + c.email} style={{ minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 }}>{tr("Remove")}</Btn>
+          </div>))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <div style={{ flex: "1 1 140px", minWidth: 0 }}><Inp t={t} aria-label={tr("Name")} placeholder={tr("Name")} value={telling.draft.name} onChange={e => setTelling(x => ({ ...x, draft: { ...x.draft, name: e.target.value } }))} /></div>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={telling.draft.email} onChange={e => setTelling(x => ({ ...x, draft: { ...x.draft, email: e.target.value } }))} /></div>
+            <Btn t={t} v="ghost" onClick={() => setTelling(x => (x.draft.email.trim() ? { ...x, added: x.added.concat([{ name: x.draft.name.trim(), email: x.draft.email.trim() }]), draft: { name: "", email: "" } } : x))} disabled={!telling.draft.email.trim()} style={{ minHeight: 44 }}>{tr("Add an address")}</Btn>
+          </div>
+          {telling.refusal.text && telling.refusal.field === "to" && <div data-tell-client-refusal="to" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{telling.refusal.text}</div>}
+          {[["whatHappened", "What happened"], ["whatWasDone", "What was done"], ["prevention", "What will prevent it"]].map(([k, l]) => (<div key={k} style={{ marginTop: 12 }}>
+            <Lbl>{tr(l)}</Lbl>
+            <TArea t={t} rows={3} maxLength={2000} aria-label={tr(l)} data-tell-client-field={k} value={telling[k]} onChange={e => setTelling(x => ({ ...x, [k]: e.target.value }))} style={telling.refusal.field === k ? { borderColor: RD } : {}} />
+            {telling.refusal.text && telling.refusal.field === k && <div data-tell-client-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{telling.refusal.text}</div>}
+          </div>))}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => setTelling(null)} disabled={telling.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={tellClient} disabled={telling.busy || tellTo().length === 0 || !telling.whatHappened.trim() || !telling.whatWasDone.trim() || !telling.prevention.trim()} data-tell-client-send="" style={{ minHeight: 44, minWidth: 96 }}>{telling.busy ? tr("Sending...") : tr("Send")}</Btn>
           </div>
         </div>}
       </div>}
