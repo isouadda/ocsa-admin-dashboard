@@ -173,11 +173,13 @@ Last checked: 2026-09-30
 
 ## Review a reported problem and assign it (admin dashboard)
 Who can do this: admins and supervisors
-1. Click **Issues**.
+1. Click **Issues** (**Incidencias**). Once client requests are on, the page opens on **Staff issues** (**Incidencias del personal**); the **Client requests** (**Solicitudes de clientes**) tab is beside it.
 2. Click the issue to open it.
-3. Click **Start Work** when someone is on it, or **Resolve** when it is fixed.
-4. To have a staff member handle it, click **Assign as Task**, choose the person, and click **Assign Task**. It appears on their **Assigned** tab in the portal.
-Last checked: 2026-09-16
+3. Click **Start Work** (**Iniciar el trabajo**) when someone is on it, or **Resolve** (**Resolver**) when it is fixed. To set any other state, pick it under **Status** (**Estado**) at the bottom of the window and click **Set status** (**Cambiar el estado**). Only the states an issue may take are offered; a refusal is shown under the picker in the system's own words.
+4. To have a staff member handle it, click **Assign as Task** (**Asignar como tarea**), choose the person, and click **Assign Task**. It appears on their **Assigned** tab in the portal.
+5. A request that came in by a request QR carries a **Client request** (**Solicitud de cliente**) chip, its reference and its **Due** (**Vence**) time, and names no reporter. Pick **All sources** (**Todos los orígenes**), **Staff** (**Personal**) or **Client requests** (**Solicitudes de clientes**) at the right of the filters to see one kind. One waiting for approval or declined is handled on the **Client requests** (**Solicitudes de clientes**) tab; click **Open in Client requests** (**Abrir en Solicitudes de clientes**) to go there.
+Words people use for this: issue tracker, reported problem, assign an issue, start work, resolve an issue, set the status, source filter, incidencias.
+Last checked: 2026-10-05
 
 ## Create a task for a staff member (admin dashboard)
 Who can do this: admins and supervisors
@@ -283,8 +285,9 @@ Who can do this: admins
 1. Click **Inventory**.
 2. Click **Add Supply**.
 3. Fill in the name, category and unit, and the stock and low threshold.
-4. Click **Add Supply** to save. A QR code is made for it automatically.
-Last checked: 2026-09-16
+4. Click **Add Supply** (**Agregar suministro**) to save. A QR code is made for it automatically.
+5. The categories offered are the ones the system allows for a supply. To print the label that opens the supply's safety sheet when scanned, see the entry on printing supply labels.
+Last checked: 2026-10-05
 
 ## Schedule an inspection (admin dashboard)
 Who can do this: admins and supervisors
@@ -626,11 +629,12 @@ Last checked: 2026-09-28
 Who can do this: admins who can change settings. Supervisors do not see Customer links.
 A customer link lets a customer fill a form from their own phone, with no account: they scan the QR code posted in the building and the form opens by itself, in their phone's language.
 1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. The **Customer links** (**Enlaces para clientes**) button on **Filed forms** (**Formularios presentados**) opens the same tab.
-2. Under **Make a link** (**Crear un enlace**), pick the **Form** (**Formulario**) and the **Site** (**Sitio**), then click **Make a link** (**Crear un enlace**). The forms are the ones customers fill: **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**), **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**) and, for a client to report a problem, **Customer Complaint Log** (**Registro de quejas de clientes**).
+2. Under **Make a link** (**Crear un enlace**), pick the **Form** (**Formulario**) and the **Site** (**Sitio**), then click **Make a link** (**Crear un enlace**). Once request QRs are offered, a **Kind** (**Tipo**) choice comes first: keep **A form** (**Un formulario**) here. The forms are the ones customers fill: **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**), **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**) and, for a client to report a problem, **Customer Complaint Log** (**Registro de quejas de clientes**).
 3. The QR window opens with the code, the site, the form's title and the link's address. A site has one link on for each form; when the site already has one on, that one's QR window opens.
 4. Click **Print sheet** (**Imprimir la hoja**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it, naming the company the way **Settings** (**Configuración**), **Company** (**Empresa**) names it. Post it where the customer will see it. A form with a name for clients prints that name under the site: the **Customer Complaint Log** (**Registro de quejas de clientes**) prints as Report a concern and Informar un problema.
 5. **Copy link** (**Copiar enlace**) copies the address, to send by email or text.
 6. A site's own links are also on the site's **General Info** (**Información general**), under **Customer links** (**Enlaces para clientes**).
+7. The sheet's title and its scan line are the link's own words, in English and in Spanish, as the system sends them for that link.
 What the customer sees: OCSA's logo, the site's name and the form, a box for their name and their role, the questions, up to three photos and a signature drawn with a finger, then Send and a thank-you. Nothing else of the app is shown. Their filing arrives under **Filed forms** (**Formularios presentados**) marked **Customer** (**Cliente**).
 If it does not work: the reason is shown under the button. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: QR code, customer survey link, customer feedback, print a QR code, post a survey in the building, satisfaction survey, cleanliness checklist, customer links tab, código QR, encuesta del cliente.
@@ -639,13 +643,13 @@ Last checked: 2026-10-05
 ## Turn a customer link off or on (admin dashboard)
 Who can do this: admins who can change settings
 1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab.
-2. The table shows every link with its **Form** (**Formulario**), **Site** (**Sitio**), **Uses** (**Usos**), **Last used** (**Último uso**) and its state: **On** (**Encendido**), **Off** (**Apagado**) or **Expired** (**Vencido**). Pick a site or a form to narrow it, and **On** (**Encendido**), **Off** (**Apagado**) or **All** (**Todos**) above the table; Off lists the expired links too. On a phone each link is a card.
+2. The table shows every link with its **Form** (**Formulario**), **Site** (**Sitio**), **Uses** (**Usos**), **Last used** (**Último uso**) and its state: **On** (**Encendido**) or **Off** (**Apagado**). Pick a site or a form to narrow it, and **On** (**Encendido**), **Off** (**Apagado**) or **All** (**Todos**) above the table. Once request QRs are offered, a **Kind** (**Tipo**) filter sits beside the site: **All kinds** (**Todos los tipos**), **Forms** (**Formularios**) or **Request QRs** (**QR de solicitud**), and the first column reads **Link** (**Enlace**) with each link's kind under its name. On a phone each link is a card.
 3. Click **Turn off** (**Apagar**) to stop a link. The window asks once; click **Turn off** (**Apagar**) again. Anyone who scans it then sees one line saying the form is closed, with the office number.
 4. Click **Turn on** (**Encender**) to bring a link back. **Show QR code** (**Ver código QR**) opens its QR window to print again.
-A link nobody uses for 90 days expires by itself; turn it on to use it again.
-If it does not work: only one link per site and form can be live, so turning one on is refused while another for the same pair is live. Turn the other off first.
-Words people use for this: disable the QR code, stop the survey, turn off a link, reactivate a link, expired link, apagar el enlace.
-Last checked: 2026-10-02
+A link stays on until someone turns it off. It does not expire by itself.
+If it does not work: only one link per site and form can be live, so turning one on is refused while another for the same pair is live. Turn the other off first. A request QR is refused the same way while another live request QR of the site has the same area.
+Words people use for this: disable the QR code, stop the survey, turn off a link, reactivate a link, apagar el enlace.
+Last checked: 2026-10-05
 
 ## Read a customer's filing (admin dashboard)
 Who can do this: admins, and supervisors the form lets read filed reports
@@ -1569,9 +1573,10 @@ Who can do this: admins who can change settings
 2. Each of the site's links shows its form, its state, **Uses** (**Usos**) and **Last used** (**Último uso**), with **Show QR code** (**Ver código QR**), **Print sheet** (**Imprimir la hoja**), **Copy link** (**Copiar enlace**), and **Turn off** (**Apagar**) or **Turn on** (**Encender**).
 3. **Make a link** (**Crear un enlace**) offers each customer form the site has no link for yet. Pick one and click **Make a link** (**Crear un enlace**); its QR window opens.
 4. **All links** (**Todos los enlaces**) opens the **Customer links** (**Enlaces para clientes**) tab on Forms with this site picked.
+5. Once request QRs are offered, the site's request QRs are listed under **Request QRs** (**QR de solicitud**), each with its area, how many of its requests are open, **Rename** (**Cambiar nombre**) and the same buttons, and **Print all for this site** (**Imprimir todos los de este sitio**) prints one sheet for each live one in one window. See the entry on making a request QR.
 If it does not work: if printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: site qr codes, print the site's qr code, site survey link, site links, códigos qr del sitio.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Answer a client's concern on time (admin dashboard)
 Who can do this: supervisors and admins
@@ -1609,4 +1614,94 @@ OCSA observes the eleven federal holidays in its handbook and the two Eids. The 
 A federal holiday reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
 If it does not work: the reason is shown under the field it is about, such as a date that is already a holiday, or at the top of the window. The tab shows once the system holds the holidays.
 Words people use for this: holiday, holidays, eid, eid al-fitr, eid al-adha, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
+Last checked: 2026-10-05
+
+## Make a request QR, so anyone in the building can ask for help (admin dashboard)
+Who can do this: admins who can change settings
+A request QR lets anyone in a building, with no sign-in, ask OCSA for help: a spill, soap out, something that needs cleaning. They scan the code posted in a restroom or an eating area, pick what is wrong, add a note and photos if they like, and may leave an email to be told as it moves. Every request waits for approval by an admin or one of the site's supervisors.
+1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. Or click **Sites** (**Sitios**), open the site, and use its **Customer links** (**Enlaces para clientes**) card.
+2. Under **Make a link** (**Crear un enlace**), set **Kind** (**Tipo**) to **A request QR** (**Un QR de solicitud**). This choice shows once the system takes requests.
+3. Type the **Area** (**Área**) the code is for, such as **Second floor restroom** (**Baño del segundo piso**), up to 80 characters. Leave it blank for one code for the whole site, whose page asks the person where in the building they are.
+4. Pick the **Site** (**Sitio**) and click **Make a request QR** (**Crear un QR de solicitud**). The QR window opens with the code, the site, the area and the link's address. When that area already has a live code, the line **That area already has a QR. Showing it.** (**Esa área ya tiene un QR. Se muestra.**) appears and that code's window opens instead.
+5. Click **Print sheet** (**Imprimir la hoja**). The sheet carries the site, **Ask for help here** (**Pida ayuda aquí**) in English and Spanish, the area in large type, the code, and a line asking the person to scan it, naming the company the way **Settings** (**Configuración**), **Company** (**Empresa**) names it. Post it where people will see it.
+6. On the **Customer links** (**Enlaces para clientes**) tab a request QR's row reads its area as its name and **Request QR** (**QR de solicitud**) under it. When it has open requests, the row shows how many; click that to open the **Client requests** (**Solicitudes de clientes**) tab on that site.
+7. **Turn off** (**Apagar**) stops a code the way it stops any link. Nothing expires by itself.
+If it does not work: when **Kind** (**Tipo**) is not offered, the system does not take requests yet. The reason for a refusal is shown under the field or the button. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
+Words people use for this: request qr, ask for help qr, restroom qr code, spill qr, help qr, request link, código qr de solicitud, pedir ayuda.
+Last checked: 2026-10-05
+
+## Print every request QR of a site at once (admin dashboard)
+Who can do this: admins who can change settings
+1. Click **Sites** (**Sitios**) and open the site. On **General Info** (**Información general**), the **Customer links** (**Enlaces para clientes**) card lists the site's request QRs under **Request QRs** (**QR de solicitud**).
+2. Click **Print all for this site** (**Imprimir todos los de este sitio**). One window opens with one sheet for each request QR that is on, each on its own page, ready to print.
+If it does not work: the button is off while no request QR of the site is on. If nothing opens, allow pop-ups for this site and click it again. The reason for anything else is shown under the button.
+Words people use for this: print all qr codes, every request qr, site request qrs, imprimir todos los qr.
+Last checked: 2026-10-05
+
+## Rename a request QR's area (admin dashboard)
+Who can do this: admins who can change settings
+1. Open the request QR's row on the **Customer links** (**Enlaces para clientes**) tab of **Forms** (**Formularios**), or on the site's **Customer links** (**Enlaces para clientes**) card.
+2. Click **Rename** (**Cambiar nombre**). Change the **Area** (**Área**), up to 80 characters, or clear it to make the code the site-wide one, and click **Save** (**Guardar**).
+3. The posted code keeps working: only the words change. Print the sheet again if the area printed on it should change.
+If it does not work: the reason is shown under the field, such as another live request QR of the site already having that area.
+Words people use for this: rename the area, change the qr's area, fix the area name, cambiar el área.
+Last checked: 2026-10-05
+
+## See the client requests waiting for approval (admin dashboard)
+Who can do this: admins and supervisors. A supervisor sees the requests of every site; whoever else is signed in sees the ones assigned to them.
+1. Click **Issues** (**Incidencias**), then the **Client requests** (**Solicitudes de clientes**) tab. The number on the tab is how many wait for approval. A notice of a new request opens the tab on that request.
+2. Pick a site, the dates, and **Waiting** (**En espera**), **Open** (**Abiertas**), **Closed** (**Cerradas**) or **All** (**Todas**). Open is the usual view: waiting requests first, the oldest first, then the ones being worked.
+3. Each row shows **Respond** (**Respuesta**), the time the first response is due, and **Due** (**Vence**), the time the work is due, each red once past and orange when close; the **Request** (**Solicitud**), the category and the area; the **Site** (**Sitio**); the **Status** (**Estado**); how many times it was asked for, when more than once; who it is **Assigned to** (**Asignado a**); and its **Reference** (**Referencia**).
+4. Click a row to open the request: the note and photos the person left, whether anyone of ours was on site when it was filed, every time on its clock, who approved it and who has it, and the activity, with each email the system sent to the person who asked.
+5. Whoever can read reports also sees the email left, if any, and **Open the contact log entry** (**Abrir la entrada del registro de contacto**), the Call Intake and Communication Log entry the request wrote.
+If it does not work: the tab shows once the system takes requests. A request waiting for approval shows nothing to a cleaner until it is assigned to them.
+Words people use for this: client requests, requests waiting, waiting for approval, request from a qr, restroom request, solicitudes de clientes, en espera de aprobación.
+Last checked: 2026-10-05
+
+## Approve a client request and assign it (admin dashboard)
+Who can do this: admins, and supervisors of the request's site
+Every request waits for approval. The first to approve and assign takes it.
+1. Open the request on the **Client requests** (**Solicitudes de clientes**) tab of **Issues** (**Incidencias**).
+2. Click **Approve and assign** (**Aprobar y asignar**). Under **Assign to** (**Asignar a**), pick who will do it: the people assigned to the site and the site's approvers, those on shift first and marked **On shift** (**En turno**). You may pick yourself.
+3. Click **Approve and assign** (**Aprobar y asignar**) again. The request becomes **Open** (**Abierta**), the person is told, and the person who asked gets an email saying it is assigned, if they left one.
+4. The assignee, or an approver, clicks **Start** when on it, **Done** (**Hecha**) when finished, with a note if they like, or **Needs someone else** (**Necesita a otra persona**) with a note saying why, which tells the approvers and the Field Lead.
+If it does not work: when the line reads that someone already approved or declined it, another approver got there first; the window shows the request as they left it. A person who is not assigned to the site cannot be picked.
+Words people use for this: approve a request, assign a request, take a request, who is on shift, first to approve, aprobar la solicitud, asignar.
+Last checked: 2026-10-05
+
+## Decline a client request (admin dashboard)
+Who can do this: admins, and supervisors of the request's site
+1. Open the request on the **Client requests** (**Solicitudes de clientes**) tab of **Issues** (**Incidencias**).
+2. Click **Decline** (**Rechazar**). Write the **Reason** (**Motivo**), up to 500 characters. The line above it says so: the reason is emailed to the person who asked, if they left an email, so write it for them.
+3. Click **Decline** (**Rechazar**) again. The request reads **Declined** (**Rechazada**) with the reason and who declined it.
+If it does not work: a reason is required. When the line reads that someone already approved or declined it, another approver got there first.
+Words people use for this: decline a request, refuse a request, not our job, out of scope request, rechazar la solicitud.
+Last checked: 2026-10-05
+
+## Send a note to the person who asked (admin dashboard)
+Who can do this: anyone who can read the request. Sending it to the person who asked needs the reports permission.
+1. Open the request on the **Client requests** (**Solicitudes de clientes**) tab of **Issues** (**Incidencias**) and click **Add a note** (**Agregar una nota**).
+2. Write the note. Tick **Send to the person who asked** (**Enviar a quien lo pidió**) to email it to them; the tick is off and reads **No email was left** (**No se dejó correo**) when they left none.
+3. Click **Save note** (**Guardar la nota**). The note appears in the activity, marked with when it was sent to them.
+4. The system also emails the person by itself, with no name of ours in it: when the request is received, assigned, done or declined. Each of those shows in the activity as **Emailed** and what it was.
+If it does not work: a note cannot be empty. The tick is offered only to those who can read reports.
+Words people use for this: note to the client, tell the person who asked, update the requester, email the client, nota al cliente.
+Last checked: 2026-10-05
+
+## See what is asked for again and again (admin dashboard)
+Who can do this: anyone who can read reports
+1. Click **Issues** (**Incidencias**), then the **Client requests** (**Solicitudes de clientes**) tab.
+2. The panel **Asked three or more times this quarter** (**Pedido tres o más veces este trimestre**) at the top lists each request asked for three or more times at one site in the quarter: the site, the request, the area, the count and the references. Pick a site to narrow it.
+3. The same request three or more times at one site in a quarter raises a change of service with the client.
+Words people use for this: repeated requests, patterns, asked again, change of service, same request, solicitudes repetidas.
+Last checked: 2026-10-05
+
+## Print supply labels (admin dashboard)
+Who can do this: admins who manage supplies
+A supply's label carries its name, its QR code and its code. Scanned, the code opens the supply's safety data sheet, with no sign-in.
+1. Click **Inventory** (**Inventario**).
+2. For one supply, click it to open **Edit Supply** (**Editar el suministro**) and click **Print label** (**Imprimir la etiqueta**) under its QR code. The label saves as a PDF, ready to print.
+3. For every supply a site holds, pick the site under **Print labels for a site** (**Imprimir las etiquetas de un sitio**) at the top of the inventory and click **Print labels for a site** (**Imprimir las etiquetas de un sitio**). One PDF holds a label for each.
+If it does not work: the buttons show once the system makes the labels. The reason for a refusal is shown under the button.
+Words people use for this: supply label, print the qr label, label for a bottle, safety sheet qr, sds label, etiqueta del suministro.
 Last checked: 2026-10-05

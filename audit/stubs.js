@@ -2248,6 +2248,286 @@ function createStubs() {
       canSign: [], canWriteSupervisor: false, supervisorMissing: [], canVoid: false, canResend: false, canAcknowledge: !concernAck,
     };
   }
+  // ---- Step 250 (STEP250_CONTRACT.md) ----------------------------------------------------------------
+  // Client requests by QR, answered only once a run arms it with setStep250, so every other run sees
+  // the API it always saw. Two request QRs among the customer links (section 3), five requests with
+  // their single reads, assignees and activity (section 7), approve, decline, progress, notes and the
+  // route, the patterns panel, the Issue Tracker's new keys (section 2.6), the timing report's null
+  // targets with rows judged Met or Missed (section 2.7), and the supply labels PDF (section 10).
+  // Every value is invented. On rq-2 another approver is always a step ahead: its approve answers 409
+  // issues.request.alreadyDecided, the way the API answers a request already decided.
+  let step250 = false;
+  const REQUEST_LINKS = () => [
+    { id: "cl-4", token: "r4Hq9mT2xW7kP1vL6nB3cJ8yF5dS0gZe", formCode: null, kind: "request", areaLabel: "Second floor restroom", siteId: S[0].id, uses: 3, lastUsedAt: seed.shift(-1) + "T12:10:00Z", createdAt: seed.shift(-12) + "T10:00:00Z", createdBy: seed.PEOPLE.admin.id, disabledAt: null, disabledBy: null, expired: false },
+    { id: "cl-5", token: "w2Lk7nQ4pR9mX1tV6yB8cH3jD5fS0gZu", formCode: null, kind: "request", areaLabel: "", siteId: S[1].id, uses: 1, lastUsedAt: seed.shift(-3) + "T09:00:00Z", createdAt: seed.shift(-10) + "T10:00:00Z", createdBy: seed.PEOPLE.admin.id, disabledAt: null, disabledBy: null, expired: false },
+  ];
+  const CATEGORY_WORDS = { spill: ["Spill or wet floor", "Derrame o piso mojado"], urgent: ["Flood or broken glass", "Inundación o vidrio roto"], supplies: ["Out of paper or soap", "Sin papel o jabón"], cleaning: ["Something needs cleaning", "Algo necesita limpieza"], other: ["Something else", "Otra cosa"] };
+  const ADMIN_NAME = seed.PEOPLE.admin.firstName + " " + seed.PEOPLE.admin.lastName;
+  const SUP_NAME = seed.PEOPLE.supervisor.firstName + " " + seed.PEOPLE.supervisor.lastName;
+  const who = (k) => ({ id: seed.PEOPLE[k].id, name: seed.PEOPLE[k].firstName + " " + seed.PEOPLE[k].lastName });
+  // The clock reads 01:30 UTC (seed.NOW_ISO). rq-1 is a spill filed forty minutes ago, past its
+  // response time; rq-2 is out of soap, filed fifteen minutes ago, its response time close; rq-3 is in
+  // progress, asked twice; rq-4 was declined yesterday; rq-5 was done the day before and routed.
+  const T = (d, hm) => seed.shift(d) + "T" + hm + ":00Z";
+  const requestRows = () => [
+    { id: "rq-1", reference: "OCSA-2026-7A1B2C3D", siteId: S[0].id, area: "Second floor restroom", category: "spill", note: "Water across the floor by the sinks.", severity: "high", status: "awaiting_approval", reportedAt: T(1, "00:50"), lastReportedAt: T(1, "00:50"), reportsCount: 1, attendedAtReport: true, respondBy: T(1, "01:05"), dueAt: T(1, "04:00"), approvedAt: null, approvedBy: null, declinedAt: null, declinedBy: null, declineReason: null, assignedTo: null, firstResponseAt: null, firstResponseBy: null, resolvedAt: null, resolvedBy: null, route: null, absorbedMinutes: null, photos: [{ id: "rp-1", url: "data:image/png;base64," + PNG_BYTES.toString("base64") }], hasEmail: true, requesterEmail: "someone@example.invalid", requesterLocale: "en", contactLogId: "cf-contact-1", linkId: "cl-4" },
+    { id: "rq-2", reference: "OCSA-2026-8B2C3D4E", siteId: S[1].id, area: "Cafeteria", category: "supplies", note: "No soap at either sink.", severity: "medium", status: "awaiting_approval", reportedAt: T(1, "01:15"), lastReportedAt: T(1, "01:15"), reportsCount: 1, attendedAtReport: true, respondBy: T(1, "01:45"), dueAt: T(1, "05:00"), approvedAt: null, approvedBy: null, declinedAt: null, declinedBy: null, declineReason: null, assignedTo: null, firstResponseAt: null, firstResponseBy: null, resolvedAt: null, resolvedBy: null, route: null, absorbedMinutes: null, photos: [], hasEmail: false, requesterEmail: null, requesterLocale: "es", contactLogId: "cf-contact-2", linkId: "cl-5" },
+    { id: "rq-3", reference: "OCSA-2026-9C3D4E5F", siteId: S[0].id, area: "Second floor restroom", category: "cleaning", note: "The trash can by the door is full.", severity: "medium", status: "in_progress", reportedAt: T(0, "20:10"), lastReportedAt: T(0, "22:40"), reportsCount: 2, attendedAtReport: false, respondBy: T(1, "04:00"), dueAt: T(1, "04:00"), approvedAt: T(0, "20:30"), approvedBy: who("admin"), declinedAt: null, declinedBy: null, declineReason: null, assignedTo: who("supervisor"), firstResponseAt: T(0, "21:00"), firstResponseBy: who("supervisor"), resolvedAt: null, resolvedBy: null, route: null, absorbedMinutes: null, photos: [], hasEmail: true, requesterEmail: "another@example.invalid", requesterLocale: "en", contactLogId: "cf-contact-3", linkId: "cl-4" },
+    { id: "rq-4", reference: "OCSA-2026-0D4E5F6A", siteId: S[2].id, area: "Dock office", category: "other", note: "Could someone water the plants?", severity: "low", status: "declined", reportedAt: T(-1, "15:00"), lastReportedAt: T(-1, "15:00"), reportsCount: 1, attendedAtReport: false, respondBy: T(0, "15:00"), dueAt: T(1, "15:00"), approvedAt: null, approvedBy: null, declinedAt: T(-1, "16:20"), declinedBy: who("admin"), declineReason: "Plants are not part of the service at this site.", assignedTo: null, firstResponseAt: T(-1, "16:20"), firstResponseBy: who("admin"), resolvedAt: null, resolvedBy: null, route: "declined", absorbedMinutes: null, photos: [], hasEmail: true, requesterEmail: "third@example.invalid", requesterLocale: "en", contactLogId: "cf-contact-4", linkId: "cl-5" },
+    { id: "rq-5", reference: "OCSA-2026-1E5F6A7B", siteId: S[0].id, area: "Second floor restroom", category: "supplies", note: "", severity: "medium", status: "resolved", reportedAt: T(-2, "18:00"), lastReportedAt: T(-2, "18:00"), reportsCount: 1, attendedAtReport: true, respondBy: T(-2, "18:30"), dueAt: T(-2, "23:00"), approvedAt: T(-2, "18:05"), approvedBy: who("supervisor"), declinedAt: null, declinedBy: null, declineReason: null, assignedTo: who("supervisor"), firstResponseAt: T(-2, "18:12"), firstResponseBy: who("supervisor"), resolvedAt: T(-2, "18:40"), resolvedBy: who("supervisor"), route: "within_scope", absorbedMinutes: 0, photos: [], hasEmail: false, requesterEmail: null, requesterLocale: "en", contactLogId: "cf-contact-5", linkId: "cl-4" },
+  ];
+  const requestActivity = () => ({
+    "rq-1": [{ id: "ra-1", action: "filed", details: null, at: T(1, "00:50"), by: null, sentToClientAt: null }, { id: "ra-2", action: "client_mailed", details: "received", at: T(1, "00:50"), by: null, sentToClientAt: null }],
+    "rq-2": [{ id: "ra-3", action: "filed", details: null, at: T(1, "01:15"), by: null, sentToClientAt: null }],
+    "rq-3": [{ id: "ra-4", action: "filed", details: null, at: T(0, "20:10"), by: null, sentToClientAt: null }, { id: "ra-5", action: "client_mailed", details: "received", at: T(0, "20:10"), by: null, sentToClientAt: null }, { id: "ra-6", action: "approved", details: null, at: T(0, "20:30"), by: { name: ADMIN_NAME }, sentToClientAt: null }, { id: "ra-7", action: "client_mailed", details: "assigned", at: T(0, "20:30"), by: null, sentToClientAt: null }, { id: "ra-8", action: "started", details: null, at: T(0, "21:00"), by: { name: SUP_NAME }, sentToClientAt: null }, { id: "ra-9", action: "joined", details: "Still full.", at: T(0, "22:40"), by: null, sentToClientAt: null }],
+    "rq-4": [{ id: "ra-10", action: "filed", details: null, at: T(-1, "15:00"), by: null, sentToClientAt: null }, { id: "ra-11", action: "declined", details: "Plants are not part of the service at this site.", at: T(-1, "16:20"), by: { name: ADMIN_NAME }, sentToClientAt: null }, { id: "ra-12", action: "client_mailed", details: "declined", at: T(-1, "16:20"), by: null, sentToClientAt: null }],
+    "rq-5": [{ id: "ra-13", action: "filed", details: null, at: T(-2, "18:00"), by: null, sentToClientAt: null }, { id: "ra-14", action: "approved", details: null, at: T(-2, "18:05"), by: { name: SUP_NAME }, sentToClientAt: null }, { id: "ra-15", action: "started", details: null, at: T(-2, "18:12"), by: { name: SUP_NAME }, sentToClientAt: null }, { id: "ra-16", action: "done", details: "Restocked both dispensers.", at: T(-2, "18:40"), by: { name: SUP_NAME }, sentToClientAt: null }],
+  });
+  let requestSeq = 0;
+  const requests = () => { if (!state.requests) { state.requests = requestRows(); state.requestActivity = requestActivity(); } return state.requests; };
+  const requestActivityOf = (id) => { requests(); if (!state.requestActivity[id]) state.requestActivity[id] = []; return state.requestActivity[id]; };
+  const NOW_MS = new Date(seed.NOW_ISO).getTime();
+  // Step 247's words for a clock: answered, late, dueSoon (a quarter of the window or less left), onTime, or null.
+  const clockState = (answered, at, from) => {
+    if (answered) return "answered";
+    if (!at) return null;
+    const end = new Date(at).getTime(); const start = new Date(from).getTime();
+    if (NOW_MS > end) return "late";
+    return end - NOW_MS <= 0.25 * Math.max(1, end - start) ? "dueSoon" : "onTime";
+  };
+  const requestOpen = (r) => ["awaiting_approval", "open", "in_progress", "escalated"].indexOf(r.status) >= 0;
+  const isSiteApprover = (siteId) => { const me = person(); return me.role === "admin" || (state.sites.find((x) => x.id === siteId) || {}).supervisor_id === me.id; };
+  const requestView = (r, lang) => {
+    const es = lang === "es";
+    const me = person();
+    const approver = isSiteApprover(r.siteId);
+    const mine = !!(r.assignedTo && r.assignedTo.id === me.id);
+    const waiting = r.status === "awaiting_approval";
+    const working = r.status === "open" || r.status === "in_progress";
+    return {
+      id: r.id, reference: r.reference, siteId: r.siteId, siteName: (state.sites.find((x) => x.id === r.siteId) || {}).name || null, area: r.area,
+      category: r.category, categoryTitle: CATEGORY_WORDS[r.category][es ? 1 : 0], note: r.note, severity: r.severity, status: r.status,
+      reportedAt: r.reportedAt, lastReportedAt: r.lastReportedAt, reportsCount: r.reportsCount, attendedAtReport: r.attendedAtReport,
+      respondBy: r.respondBy, respondState: clockState(!!r.firstResponseAt, r.respondBy, r.reportedAt), dueAt: r.dueAt, dueState: clockState(!requestOpen(r), r.dueAt, r.reportedAt),
+      approvedAt: r.approvedAt, approvedBy: r.approvedBy, declinedAt: r.declinedAt, declinedBy: r.declinedBy, declineReason: r.declineReason,
+      assignedTo: r.assignedTo, firstResponseAt: r.firstResponseAt, firstResponseBy: r.firstResponseBy, resolvedAt: r.resolvedAt, resolvedBy: r.resolvedBy,
+      responseMinutes: r.firstResponseAt ? Math.round((new Date(r.firstResponseAt) - new Date(r.reportedAt)) / 60000) : null,
+      resolutionMinutes: r.resolvedAt ? Math.round((new Date(r.resolvedAt) - new Date(r.reportedAt)) / 60000) : null,
+      route: r.route, absorbedMinutes: r.absorbedMinutes, photos: r.photos, hasEmail: r.hasEmail, linkId: r.linkId,
+      requesterEmail: r.requesterEmail, contactLogId: r.contactLogId,
+      canApprove: waiting && approver, canDecline: waiting && approver, canStart: r.status === "open" && (mine || approver), canFinish: working && (mine || approver), canCannot: working && (mine || approver),
+      canNote: true, canSendToClient: true, canRoute: true,
+    };
+  };
+  const requestAssignees = (siteId) => {
+    const sup = seed.STAFF.filter((p) => p.status === "active" && (p.site_id === siteId || p.role === "admin"));
+    return sup.map((p) => ({ id: p.id, name: p.name, role: p.role, onShift: p.id === seed.PEOPLE.supervisor.id })).sort((a, b) => (a.onShift !== b.onShift ? (a.onShift ? -1 : 1) : a.name.localeCompare(b.name)));
+  };
+  const requestRefusal = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: {
+    "issues.request.alreadyDecided": lang === "es" ? "Esta solicitud ya fue decidida." : "This request was already decided.",
+    "issues.badAssignee": lang === "es" ? "Elija a alguien asignado a este sitio." : "Pick someone assigned to this site.",
+    "issues.badDetails": lang === "es" ? "El motivo tiene de 1 a 500 caracteres." : "The reason is 1 to 500 characters.",
+    "issues.noteRequired": lang === "es" ? "Escriba una nota." : "Write a note.",
+    "issues.request.wrongState": lang === "es" ? "La solicitud no está en ese estado." : "The request is not in that state.",
+    "issues.notFound": lang === "es" ? "No se encontró la solicitud." : "Request not found.",
+    "issues.badStatus": lang === "es" ? "Ese estado no se puede dar a esta incidencia." : "That status cannot be set on this issue.",
+    "issues.cannotClose": lang === "es" ? "Solo la dirección cierra una incidencia." : "Only management closes an issue.",
+    "customer.badArea": lang === "es" ? "El área tiene hasta 80 caracteres." : "The area is up to 80 characters.",
+    "customer.notARequestLink": lang === "es" ? "Ese enlace abre un formulario y no tiene área." : "That link opens a form and has no area.",
+    "customer.areaTaken": lang === "es" ? "Esa área ya tiene un código QR activo en este sitio." : "That area already has a live QR at this site.",
+    "customer.badKind": lang === "es" ? "El tipo es form o request." : "The kind is form or request.",
+  }[code] || code }, extra || {}) });
+  const areaKey = (v) => String(v || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const openCountFor = (linkId) => requests().filter((r) => r.linkId === linkId && requestOpen(r)).length;
+  const companyName = () => { const st = state.settings || SETTINGS; return st.display_name || st.legal_name; };
+  // The Step 250 view of a link: kind, areaLabel, openRequests, its own customerTitle and scanLine, and
+  // a state that is live or disabled, since no link expires any more.
+  const linkView250 = (l, lang) => {
+    const es = lang === "es";
+    const v = linkView(l, lang);
+    v.state = l.disabledAt ? "disabled" : "live";
+    v.kind = l.kind || "form";
+    v.areaLabel = l.kind === "request" ? (l.areaLabel || null) : null;
+    v.openRequests = l.kind === "request" ? openCountFor(l.id) : 0;
+    if (l.kind === "request") {
+      v.url = PORTAL_BASE + "/r/" + l.token; v.formCode = null; v.formTitle = null;
+      v.customerTitle = es ? "Pida ayuda aquí" : "Ask for help here";
+      v.scanLine = es ? "Escanee para pedir ayuda a " + companyName() + " aquí." : "Scan to ask " + companyName() + " for help here.";
+    } else {
+      v.customerTitle = l.formCode === "OCSA-FRM-009" ? (es ? "Informar un problema" : "Report a concern") : null;
+      v.scanLine = l.formCode === "OCSA-FRM-009" ? (es ? "Escanee para informar un problema a " + companyName() + "." : "Scan to report a problem to " + companyName() + ".") : null;
+    }
+    return v;
+  };
+  const PDF_BYTES = Buffer.from("%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 288 144]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n", "latin1");
+  const pdfAnswer = () => ({ status: 200, bytes: PDF_BYTES, contentType: "application/pdf", json: null, headers: { "Content-Disposition": 'attachment; filename="labels.pdf"' } });
+  // The Issue Tracker's row for a request, in the snake_case GET /api/issues keeps.
+  const requestIssueRow = (r, lang) => { const v = requestView(r, lang); return {
+    id: r.id, title: v.categoryTitle, site_name: v.siteName, site_id: r.siteId, zone: r.area, severity: r.severity, status: r.status, reported_by_name: null, reported_at: r.reportedAt,
+    assigned_to: r.assignedTo ? r.assignedTo.id : null, assigned_to_name: r.assignedTo ? r.assignedTo.name : null, description: r.note || null, resolved_at: r.resolvedAt,
+    source: "client_request", reference: r.reference, request_category: r.category, due_at: r.dueAt, respond_by: r.respondBy, due_state: v.dueState, respond_state: v.respondState,
+    first_response_at: r.firstResponseAt, approved_at: r.approvedAt, declined_at: r.declinedAt, reports_count: r.reportsCount, has_email: r.hasEmail,
+  }; };
+  const STAFF_STATUSES = ["open", "in_progress", "resolved", "closed", "escalated"];
+  // The routes above, ahead of every other; base is the answer the stub gave before Step 250.
+  function step250Route(method, path, query, body, said, base) {
+    // The language on the address first, the way the API reads it, then the one the call carries.
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const es = lang === "es";
+    const b = body || {};
+    const me = person();
+    if (path.startsWith("/api/customer-links")) {
+      if (me.role !== "admin") return base();
+      const all = customerLinks();
+      if (!all.some((l) => l.id === "cl-4")) REQUEST_LINKS().forEach((l) => all.push(l));
+      if (path === "/api/customer-links" && method === "GET") {
+        const siteId = query.get("siteId"); const kind = query.get("kind");
+        const rows = newestFirst(all).filter((l) => (!siteId || l.siteId === siteId) && (!kind || (l.kind || "form") === kind));
+        return ok({ links: rows.map((l) => linkView250(l, lang)) });
+      }
+      if (path === "/api/customer-links" && method === "POST") {
+        if (b.kind === undefined) { const a = base(); if (a && a.json && a.json.link) { const l = all.find((x) => x.id === a.json.link.id); if (l) a.json.link = linkView250(l, lang); } return a; }
+        if (b.kind !== "request") return requestRefusal("customer.badKind", 400, lang);
+        const area = String(b.areaLabel || "").trim();
+        if (area.length > 80) return requestRefusal("customer.badArea", 400, lang, { keys: ["areaLabel"] });
+        if (!state.sites.some((x) => x.id === String(b.siteId || ""))) return linkRefusal("customer.siteNotFound", 404, lang);
+        const live = all.find((l) => l.kind === "request" && l.siteId === String(b.siteId) && !l.disabledAt && areaKey(l.areaLabel) === areaKey(area));
+        if (live) return ok({ link: linkView250(live, lang), created: false });
+        requestSeq += 1;
+        const made = { id: "cl-req-" + requestSeq, token: "q" + requestSeq + "Zt4Mn8Lk2Wv7Rp5Sb9Yh3Cj6Fd0GxAe".slice(0, 31), formCode: null, kind: "request", areaLabel: area, siteId: String(b.siteId), uses: 0, lastUsedAt: null, createdAt: seed.NOW_ISO, createdBy: me.id, disabledAt: null, disabledBy: null, expired: false };
+        all.push(made);
+        return created({ link: linkView250(made, lang), created: true });
+      }
+      const id = decodeURIComponent(path.split("/")[3] || "");
+      const link = all.find((l) => l.id === id);
+      if (!link) return base();
+      if (/^\/api\/customer-links\/[^/]+$/.test(path) && method === "PATCH") {
+        if (link.kind !== "request") return requestRefusal("customer.notARequestLink", 409, lang);
+        const area = String(b.areaLabel || "").trim();
+        if (area.length > 80) return requestRefusal("customer.badArea", 400, lang, { keys: ["areaLabel"] });
+        if (all.some((l) => l.id !== link.id && l.kind === "request" && l.siteId === link.siteId && !l.disabledAt && areaKey(l.areaLabel) === areaKey(area))) return requestRefusal("customer.areaTaken", 409, lang, { keys: ["areaLabel"] });
+        link.areaLabel = area;
+        return ok({ link: linkView250(link, lang) });
+      }
+      if (/\/qr\.png$/.test(path) && method === "GET") return imageAnswer();
+      if (/\/disable$/.test(path) && method === "POST") { if (!link.disabledAt) { link.disabledAt = seed.NOW_ISO; link.disabledBy = me.id; } return ok({ link: linkView250(link, lang) }); }
+      if (/\/enable$/.test(path) && method === "POST") {
+        const other = all.find((l) => l.id !== link.id && l.siteId === link.siteId && !l.disabledAt && (link.kind === "request" ? l.kind === "request" && areaKey(l.areaLabel) === areaKey(link.areaLabel) : l.formCode === link.formCode));
+        if (other) return linkRefusal("customer.anotherLinkLive", 409, lang, { liveId: other.id });
+        link.disabledAt = null; link.disabledBy = null; link.expired = false;
+        return ok({ link: linkView250(link, lang) });
+      }
+      return base();
+    }
+    if (path === "/api/issues/requests" && method === "GET") {
+      const siteId = query.get("siteId"); const st = query.get("state") || "open"; const from = query.get("from"); const to = query.get("to");
+      const rows = requests().filter((r) => (!siteId || r.siteId === siteId)
+        && (st === "all" || (st === "waiting" ? r.status === "awaiting_approval" : st === "closed" ? !requestOpen(r) : requestOpen(r)))
+        && (!from || r.reportedAt.slice(0, 10) >= from) && (!to || r.reportedAt.slice(0, 10) <= to))
+        .sort((a, c) => (a.reportedAt < c.reportedAt ? 1 : -1));
+      return ok({ requests: rows.map((r) => requestView(r, lang)) });
+    }
+    if (path === "/api/issues/requests/patterns" && method === "GET") {
+      const siteId = query.get("siteId");
+      const rows = [{ siteId: S[0].id, siteName: S[0].name, category: "supplies", categoryTitle: CATEGORY_WORDS.supplies[es ? 1 : 0], area: "Second floor restroom", count: 3, quarter: "2026-Q1", references: ["OCSA-2026-1E5F6A7B", "OCSA-2026-2F6A7B8C", "OCSA-2026-3A7B8C9D"] }];
+      return ok({ patterns: rows.filter((p) => !siteId || p.siteId === siteId) });
+    }
+    if (/^\/api\/issues\/requests\/[^/]+$/.test(path) && method === "GET") {
+      const r = requests().find((x) => x.id === decodeURIComponent(path.split("/")[4]));
+      if (!r) return requestRefusal("issues.notFound", 404, lang);
+      const view = requestView(r, lang);
+      return ok(Object.assign({ request: view, activity: requestActivityOf(r.id).slice() }, view.canApprove ? { assignees: requestAssignees(r.siteId) } : {}));
+    }
+    const act = /^\/api\/issues\/([^/]+)\/(approve|decline|progress|notes|request)$/.exec(path);
+    if (act && (method === "POST" || method === "PATCH")) {
+      const r = requests().find((x) => x.id === decodeURIComponent(act[1]));
+      if (!r) return requestRefusal("issues.notFound", 404, lang);
+      const log = (action, details, by, sent) => requestActivityOf(r.id).push({ id: "ra-" + (requestActivityOf(r.id).length + 100), action, details: details || null, at: seed.NOW_ISO, by: by ? { name: by.name } : null, sentToClientAt: sent || null });
+      const decided = () => requestRefusal("issues.request.alreadyDecided", 409, lang, { status: r.status, decidedBy: { name: (r.declinedBy || r.approvedBy || who("supervisor")).name }, decidedAt: r.declinedAt || r.approvedAt || seed.NOW_ISO });
+      if (act[2] === "approve") {
+        if (r.id === "rq-2" && r.status === "awaiting_approval") { r.status = "open"; r.approvedAt = seed.NOW_ISO; r.approvedBy = who("supervisor"); r.assignedTo = who("supervisor"); log("approved", null, who("supervisor")); return decided(); }
+        if (r.status !== "awaiting_approval") return decided();
+        const a = requestAssignees(r.siteId).find((x) => x.id === String(b.assignedTo || ""));
+        if (!a) return requestRefusal("issues.badAssignee", 400, lang, { keys: ["assignedTo"] });
+        r.status = "open"; r.approvedAt = seed.NOW_ISO; r.approvedBy = { id: me.id, name: me.firstName + " " + me.lastName }; r.assignedTo = { id: a.id, name: a.name };
+        log("approved", null, r.approvedBy); if (r.hasEmail) log("client_mailed", "assigned", null);
+        return ok({ request: requestView(r, lang) });
+      }
+      if (act[2] === "decline") {
+        if (r.status !== "awaiting_approval") return decided();
+        const reason = String(b.reason || "").trim();
+        if (!reason || reason.length > 500) return requestRefusal("issues.badDetails", 400, lang, { keys: ["reason"] });
+        r.status = "declined"; r.declinedAt = seed.NOW_ISO; r.declinedBy = { id: me.id, name: me.firstName + " " + me.lastName }; r.declineReason = reason; r.route = "declined"; r.firstResponseAt = seed.NOW_ISO; r.firstResponseBy = r.declinedBy;
+        log("declined", reason, r.declinedBy); if (r.hasEmail) log("client_mailed", "declined", null);
+        return ok({ request: requestView(r, lang) });
+      }
+      if (act[2] === "progress") {
+        const note = String(b.note || "").trim();
+        if (b.action === "start") { if (r.status !== "open") return requestRefusal("issues.request.wrongState", 409, lang, { status: r.status }); r.status = "in_progress"; }
+        else if (b.action === "done") { if (r.status !== "open" && r.status !== "in_progress") return requestRefusal("issues.request.wrongState", 409, lang, { status: r.status }); r.status = "resolved"; r.resolvedAt = seed.NOW_ISO; r.resolvedBy = { id: me.id, name: me.firstName + " " + me.lastName }; }
+        else if (b.action === "cannot") { if (!note) return requestRefusal("issues.noteRequired", 400, lang, { keys: ["note"] }); r.status = "escalated"; }
+        else return requestRefusal("issues.request.badAction", 400, lang);
+        if (!r.firstResponseAt) { r.firstResponseAt = seed.NOW_ISO; r.firstResponseBy = { id: me.id, name: me.firstName + " " + me.lastName }; }
+        log(b.action === "start" ? "started" : b.action === "done" ? "done" : "cannot", note, { name: me.firstName + " " + me.lastName });
+        if (b.action === "done" && r.hasEmail) log("client_mailed", "done", null);
+        return ok({ request: requestView(r, lang) });
+      }
+      if (act[2] === "notes") {
+        const note = String(b.note || "").trim();
+        if (!note) return requestRefusal("issues.noteRequired", 400, lang, { keys: ["note"] });
+        const emailed = !!b.sendToClient && r.hasEmail;
+        const at = seed.NOW_ISO;
+        log("note", note, { name: me.firstName + " " + me.lastName }, emailed ? at : null);
+        if (emailed) log("client_mailed", "note", null);
+        return ok({ note: { id: "rn-" + requestActivityOf(r.id).length, at, by: { name: me.firstName + " " + me.lastName }, text: note, sentToClientAt: emailed ? at : null }, emailed });
+      }
+      if (act[2] === "request") {
+        if (b.route !== undefined) r.route = b.route || null;
+        if (b.absorbedMinutes !== undefined) r.absorbedMinutes = b.absorbedMinutes === null ? null : Number(b.absorbedMinutes);
+        log("routed", r.route, { name: me.firstName + " " + me.lastName });
+        return ok({ request: requestView(r, lang) });
+      }
+    }
+    if (path === "/api/issues" && method === "GET") {
+      const src = query.get("source");
+      if (src && src !== "staff" && src !== "client_request") return requestRefusal("issues.badFilter", 400, lang);
+      const staff = state.issues.map((i) => Object.assign({ source: "staff", reference: null, request_category: null, due_at: null, respond_by: null, due_state: null, respond_state: null, first_response_at: null, approved_at: null, declined_at: null, reports_count: 1, has_email: false }, i));
+      const client = requests().map((r) => requestIssueRow(r, lang));
+      return ok(src === "staff" ? staff : src === "client_request" ? client : client.concat(staff));
+    }
+    if (/^\/api\/issues\/[^/]+$/.test(path) && (method === "PATCH" || method === "PUT")) {
+      const id = path.split("/")[3];
+      const r = requests().find((x) => x.id === id);
+      if (b.status !== undefined && STAFF_STATUSES.indexOf(b.status) < 0) return requestRefusal("issues.badStatus", 400, lang, { keys: ["status"] });
+      if (r) { if (b.status === "closed" && r.status !== "resolved") return requestRefusal("issues.badStatus", 400, lang, { keys: ["status"] }); if (b.status) r.status = b.status; return ok({ message: "Issue updated" }); }
+      return base();
+    }
+    if (/^\/api\/issues\/[^/]+\/activity$/.test(path) && requests().some((x) => x.id === path.split("/")[3])) {
+      return ok(requestActivityOf(path.split("/")[3]).map((a) => ({ id: a.id, action: a.action, created_at: a.at, user_name: a.by ? a.by.name : null, details: a.details })));
+    }
+    if (/^\/api\/issues\/[^/]+\/photos$/.test(path) && method === "GET" && requests().some((x) => x.id === path.split("/")[3])) {
+      return ok(requests().find((x) => x.id === path.split("/")[3]).photos.map((p) => ({ id: p.id, photo_url: p.url })));
+    }
+    if (path === "/api/report-engine/issue-timing") {
+      const a = base();
+      if (a && a.json) {
+        const nul = { first_response_minutes: null, resolution_minutes: null };
+        a.json.sla_targets = { high: Object.assign({}, nul), medium: Object.assign({}, nul), low: Object.assign({}, nul) };
+        a.json.rows = requests().filter((r) => !requestOpen(r) || r.firstResponseAt).map((r) => { const v = requestView(r, lang); return {
+          id: r.id, reference: r.reference, title: v.categoryTitle, site_name: v.siteName, source: "client_request", severity: r.severity, reported_at: r.reportedAt,
+          respondBy: r.respondBy, dueAt: r.dueAt,
+          metResponse: r.firstResponseAt ? new Date(r.firstResponseAt) <= new Date(r.respondBy) : null,
+          metResolution: r.resolvedAt ? new Date(r.resolvedAt) <= new Date(r.dueAt) : (r.status === "declined" ? null : null),
+        }; }).concat(state.issues.slice(0, 2).map((i) => ({ id: i.id, reference: null, title: i.title, site_name: i.site_name, source: "staff", severity: i.severity, reported_at: i.reported_at, respondBy: null, dueAt: null, metResponse: null, metResolution: null })));
+      }
+      return a;
+    }
+    if (path === "/api/supplies/labels.pdf" && method === "GET") {
+      if (!query.get("ids") && !query.get("siteId")) return { status: 400, json: { error: es ? "Nombre los suministros o el sitio." : "Name the supplies or the site.", code: "supplies.badDetails" } };
+      return pdfAnswer();
+    }
+    return base();
+  }
   // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
   function step247Route(method, path, query, body, lang, base) {
     const es = lang === "es";
@@ -3884,9 +4164,10 @@ function createStubs() {
       return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
     }
 
-    const answer = step247
+    const under = () => (step247
       ? step247Route(method, path, u.searchParams, body, record.language, () => route(method, path, u.searchParams, body, record.language))
-      : route(method, path, u.searchParams, body, record.language);
+      : route(method, path, u.searchParams, body, record.language));
+    const answer = step250 ? step250Route(method, path, u.searchParams, body, record.language, under) : under();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -3943,6 +4224,8 @@ function createStubs() {
     setSignedInAs: (k) => { signedInAs = k; },
     // The routes and keys of the API's Step 247, on or off.
     setStep247: (v) => { step247 = v !== false; },
+    // The routes and keys of the API's Step 250, on or off; on brings Step 247's with it.
+    setStep250: (v) => { step250 = v !== false; if (step250) step247 = true; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -3985,6 +4268,8 @@ function createStubs() {
       state.alertSettings = {};
       // Step 247 off, and its holidays, its person and its concern as they started.
       step247 = false; officeHolidays = OFFICE_HOLIDAYS(); holidaySeq = 2; leftRehired = false; concernAck = null;
+      // Step 250 off, and its requests and request links as they started.
+      step250 = false; state.requests = null; state.requestActivity = null; requestSeq = 0;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
