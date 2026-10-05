@@ -21986,6 +21986,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   }, [route]);
   const topicsLive = useTrainingLive(af, "topics");
   const gapsLive = useTrainingLive(af, "gaps");
+  const awaitingLive = useTrainingLive(af, "awaiting");
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -22182,7 +22183,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22293,7 +22294,8 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
-      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
+      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
+      {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
@@ -23000,8 +23002,8 @@ function TrainingGapsPanel({ af, t, sites = [], staff = [], refreshKey, typeWord
 // for, and the gaps, person by person and site by site, the catalog leaves. Each piece is drawn once
 // its route answers and not before: the Catalog tab, the session window's topic and its one call once
 // GET /api/training/topics answers (the session route ships with it); the Gaps tab, in place of Who
-// has no record, and a person's own list once GET /api/training/gaps answers. Until then HR Records'
-// Training area is what it was.
+// has no record, and a person's own list once GET /api/training/gaps answers; Awaiting sign-off once
+// GET /api/training/awaiting answers. Until then HR Records' Training area is what it was.
 //
 // Whether a route of the API's Step 256 answers: one read each, asked once a session and shared by
 // every screen that waits on it, the way the Client requests tab waits on Step 250. A refusal or an
@@ -23009,6 +23011,7 @@ function TrainingGapsPanel({ af, t, sites = [], staff = [], refreshKey, typeWord
 const TRAINING_PROBES = {
   topics: ["/api/training/topics", (d) => !!(d && Array.isArray(d.topics))],
   gaps: ["/api/training/gaps", (d) => !!(d && Array.isArray(d.topics) && Array.isArray(d.people))],
+  awaiting: ["/api/training/awaiting", (d) => !!(d && Array.isArray(d.attempts))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23351,28 +23354,36 @@ function topicOfRecord(topics, r) {
 }
 
 // A gap item's status in Scout 147's words, and its color. Each filter sends the code.
+// Since the lessons, In progress (a try failed with tries left, or one not finished) and Waiting for
+// trainer (signed, waiting for a trainer's sign-off) too; an item with a lesson and no tries left keeps
+// its status and reads Needs an in-person session.
 const GAP_STATUSES = [
   { v: "missing", l: "Missing|training" },
   { v: "expired", l: "Expired|training" },
   { v: "refresherDue", l: "Refresher due" },
   { v: "dueSoon", l: "Due soon|training" },
+  { v: "inProgress", l: "In progress|training" },
+  { v: "awaitingTrainer", l: "Waiting for trainer" },
   { v: "current", l: "Current|training" },
 ];
 const gapStatusWord = (s) => { const x = GAP_STATUSES.find(o => o.v === s); return x ? tr(x.l) : String(s || ""); };
-const gapStatusColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : BL);
+const gapStatusColor = (s) => (s === "current" ? GR : s === "dueSoon" || s === "refresherDue" ? OR : s === "missing" || s === "expired" ? RD : s === "awaitingTrainer" ? PU : BL);
+const gapNeedsSession = (it) => !!(it && it.lesson && it.lesson.attemptsLeft != null && Number(it.lesson.attemptsLeft) === 0 && it.status !== "current" && it.status !== "awaitingTrainer");
+const gapItemWord = (it) => (gapNeedsSession(it) ? tr("Needs an in-person session") : gapStatusWord(it.status));
+const gapItemColor = (it) => (gapNeedsSession(it) ? RD : gapStatusColor(it.status));
 // An item as a chip: its topic, the site of a per-site topic, and its status.
 function GapChip({ item, withName = true }) {
   const t = useT();
-  const c = gapStatusColor(item.status);
+  const c = gapItemColor(item);
   return <span data-gap-chip={item.status} title={[item.name, item.siteName].filter(Boolean).join(", ")} style={{ display: "inline-flex", alignItems: "center", gap: 6, maxWidth: "100%", padding: "4px 10px", borderRadius: R.pill, background: c + "1f", color: goldToText(t, c), fontSize: 12, fontWeight: 600, lineHeight: 1.3 }}>
-    {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span style={{ whiteSpace: "nowrap" }}>{gapStatusWord(item.status)}</span></span>;
+    {withName && <span style={{ color: t.text, fontWeight: 500, overflowWrap: "anywhere" }}>{item.name}{item.siteName ? " (" + item.siteName + ")" : ""}</span>}<span data-gap-word={gapNeedsSession(item) ? "inPerson" : item.status} style={{ whiteSpace: "nowrap" }}>{gapItemWord(item)}</span></span>;
 }
 
 // Gaps, in place of Who has no record: the items the catalog asks of each active person, filtered by
 // site, role, topic and status; each topic's counts; the people with the most open first, each item a
 // chip in the status's words; a person opens their own list. With a topic picked, the days it was
 // given are listed with their rosters. Print gives a page per site.
-function TrainingGaps({ af, t, sites = [], staff = [], typeWords = {}, showToast }) {
+function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, showToast }) {
   const [f, setF] = useState({ siteId: "", role: "", topicId: "", status: "" });
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
@@ -23410,7 +23421,7 @@ function TrainingGaps({ af, t, sites = [], staff = [], typeWords = {}, showToast
   const printSession = (s) => { if (!printAttendanceSheet({ name: topic.name, day: s.day, rows: s.rows, typeWords, site: siteName(f.siteId), staff, docNo: topicDocLine(topic) })) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
   const print = () => { if (!data || !printKeptRecord(trainingGapPages(data, f, topics, sites), tr("Training gaps"))) showToast(tr("Allow pop-ups to print the sheet"), "error"); };
   const num = (v) => (Number(v) > 0 ? <span style={{ fontWeight: 600 }}>{v}</span> : <span style={{ color: t.textMut }}>0</span>);
-  const counts = [["required", "Required|training"], ["current", "Current|training"], ["dueSoon", "Due soon|training"], ["expired", "Expired|training"], ["missing", "Missing|training"], ["refresherDue", "Refresher due"]];
+  const counts = [["required", "Required|training"], ["current", "Current|training"], ["dueSoon", "Due soon|training"], ["expired", "Expired|training"], ["missing", "Missing|training"], ["refresherDue", "Refresher due"], ["inProgress", "In progress|training"], ["awaitingTrainer", "Waiting for trainer"]];
   const topicCols = [{ header: tr("Topic"), tdStyle: { minWidth: 160 }, render: x => <span style={{ color: t.text, fontWeight: 600 }}>{x.name}</span> }].concat(counts.map(([k, l]) => ({ header: tr(l), align: "right", tdStyle: { whiteSpace: "nowrap", color: k === "required" || k === "current" ? t.textSec : gapStatusColor(k) }, render: x => num(x[k]) })));
   return (<div data-training-gaps="">
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, marginBottom: 12 }}>
@@ -23450,7 +23461,7 @@ function TrainingGaps({ af, t, sites = [], staff = [], typeWords = {}, showToast
           </div>)}
         </div>}
     </>}
-    {person && <PersonTrainingWindow af={af} t={t} userId={person.id} name={person.name} onClose={() => setPerson(null)} />}
+    {person && <PersonTrainingWindow af={af} t={t} token={token} sites={sites} userId={person.id} name={person.name} showToast={showToast} onClose={() => setPerson(null)} />}
   </div>);
 }
 
@@ -23468,7 +23479,7 @@ function trainingGapPages(data, f, topics, sites) {
   return order.filter(k => !f.siteId || k === String(f.siteId) || k === "").map(k => {
     const g = bySite.get(k);
     const rows = [];
-    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapStatusWord(it.status), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn ? keptDay(it.expiresOn) : ""])));
+    g.people.forEach(p => (p.items || []).filter(it => !it.siteId || String(it.siteId) === k).forEach(it => rows.push([p.name, roleWord(p.role), it.name, gapItemWord(it), it.completedDate ? keptDay(it.completedDate) : "", it.expiresOn ? keptDay(it.expiresOn) : ""])));
     return { code: "", title: "Training gaps", site: g.name, asOf: data.asOf || todayISO(), parts: [
       filters ? { fields: [["Showing", filters]] } : null,
       { cols: ["Person", "Role", "Topic", "Status", "Completed", "Expires"], rows },
@@ -23489,20 +23500,47 @@ function useTrainingItems(af, userId, on = true) {
   useEffect(() => { setD(null); load(); }, [load]);
   return [d, failed, load];
 }
-function TrainingItemsList({ t, items = [], compact = false }) {
+// Since the lessons, an item with a lesson says how many tries are used, and the person's list shows
+// each attempt behind an item with its Print: attemptsOf gives the attempts read for an item, onPrint
+// prints one.
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
       <div style={{ fontSize: compact ? 12 : 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{it.name}{it.siteName ? " (" + it.siteName + ")" : ""}</div>
       <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
+      {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
+      {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
+        <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
+        {onPrint && <Btn t={t} v="ghost" data-attempt-print={a.id} onClick={() => onPrint(a.id)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Print")}</Btn>}
+      </div>; })}
     </div>
     <GapChip item={it} withName={false} />
   </div>)}</div>;
 }
-function PersonTrainingWindow({ af, t, userId, name = "", onClose }) {
+function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", showToast, onClose }) {
   const [d, failed, reload] = useTrainingItems(af, userId);
   const p = (d && d.person) || null;
+  // The person's records, for the attempt a record written by a lesson names, and each attempt behind
+  // an item, read once.
+  const [records, setRecords] = useState([]);
+  const [attempts, setAttempts] = useState({});
+  useEffect(() => {
+    let alive = true;
+    af("/api/hr/training?user_id=" + encodeURIComponent(userId)).then(r => { if (alive) setRecords(Array.isArray(r) ? r : []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [af, userId]);
+  const idsFor = useCallback((it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return [it.attemptId, rec && rec.attempt_id].filter(Boolean).map(String).filter((x, i, all) => all.indexOf(x) === i); }, [records]);
+  const wanted = ((d && d.items) || []).reduce((all, it) => all.concat(idsFor(it)), []).filter((x, i, all) => all.indexOf(x) === i);
+  const wantedKey = wanted.join(",");
+  useEffect(() => {
+    let alive = true;
+    wanted.forEach(id => af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (alive && x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}));
+    return () => { alive = false; };
+  }, [af, wantedKey]);
+  const attemptsOf = (it) => idsFor(it).map(id => attempts[id]).filter(Boolean);
+  const print = (id) => printTrainingAttempt({ af, token, id, sites }).then(okd => { if (!okd && showToast) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
   return (<Mdl t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -23513,7 +23551,7 @@ function PersonTrainingWindow({ af, t, userId, name = "", onClose }) {
         <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} />}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} />}
       </div>
     </div>
   </Mdl>);
@@ -23838,4 +23876,148 @@ function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
         <Btn t={t} onClick={() => onPick(sec)} style={{ minHeight: 44 }}>{tr("Cite")}</Btn>
       </div>)}</div>}
   </div>;
+}
+
+// ===== SIGN-OFF AND THE TRAINING RECORD (Step 257, slice 2 of the API's Step 256) =====
+// STEP256_CONTRACT.md section 8. Awaiting sign-off is drawn once GET /api/training/awaiting answers:
+// each attempt signed by the person and waiting for a trainer who watched them do it, with the person,
+// the topic, the site, the score and when they signed. A trainer never sees their own attempts there.
+// Sign off takes the trainer's signature, the tick I watched them do it, which is required, and a note,
+// to POST /api/training/attempts/:id/signoff, and the record is written with it.
+const scoreWord = (v) => (v == null || v === "" ? "" : Math.round(Number(v)) + "%");
+const trainingLangWord = (code) => { const l = TRAINING_LANGUAGES.find(x => x.id === langCode(code)); return l ? tr(l.word) : ""; };
+function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) {
+  const [siteId, setSiteId] = useState("");
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [signing, setSigning] = useState(null);
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/training/awaiting" + (siteId ? "?siteId=" + encodeURIComponent(siteId) : "")); setList(d && Array.isArray(d.attempts) ? d.attempts : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, siteId, showToast]);
+  useEffect(() => { setList(null); load(); }, [load]);
+  // Never the trainer's own: the API refuses a sign-off of one's own attempt, so it is not offered.
+  const shown = (list || []).filter(a => !(selfId && a.person && String(a.person.id) === String(selfId)));
+  const siteName = (id) => ((sites || []).find(x => String(x.id) === String(id)) || {}).name || "";
+  const print = (a) => printTrainingAttempt({ af, token, id: a.id, sites }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  const cols = [
+    { header: tr("Person"), tdStyle: { minWidth: 120 }, render: a => <span style={{ color: t.text, fontWeight: 600 }}>{(a.person && a.person.name) || ""}</span> },
+    { header: tr("Topic"), tdStyle: { color: t.textSec, minWidth: 120 }, render: a => a.topicName || "" },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: a => siteName(a.siteId) },
+    { header: tr("Score"), align: "right", tdStyle: { color: t.textSec }, render: a => scoreWord(a.scorePercent) },
+    { header: tr("Signed"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: a => (a.acknowledgedAt ? irWhen(a.acknowledgedAt) : "") },
+    { header: "", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: a => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+      <Btn t={t} data-signoff-open={a.id} onClick={e => { e.stopPropagation(); setSigning(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Sign off")}</Btn>
+      <Btn t={t} v="ghost" data-attempt-print={a.id} onClick={e => { e.stopPropagation(); print(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Print")}</Btn>
+    </div> },
+  ];
+  return (<div data-training-awaiting="">
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ minWidth: 200 }}><Sel t={t} aria-label={tr("Site")} value={siteId} onChange={e => setSiteId(e.target.value)} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} /></div>
+      {list && <span role="status" style={{ fontSize: 13, color: t.textSec }}>{trn("{0} waiting for a trainer|count", shown.length)}</span>}
+    </div>
+    <div style={{ fontSize: 12, color: t.textMut, marginBottom: 12 }}>{tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).")}</div>
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={shown} rowKey={a => a.id} empty={tr("Nobody is waiting for a sign-off.")} />}
+    {signing && <SignOffWindow af={af} t={t} attempt={signing} siteName={siteName(signing.siteId)} onPrint={() => print(signing)} onClose={() => setSigning(null)} onDone={() => { load(); }} showToast={showToast} />}
+  </div>);
+}
+
+function SignOffWindow({ af, t, attempt, siteName = "", onClose, onDone, onPrint, showToast }) {
+  const [sig, setSig] = useState("");
+  const [watched, setWatched] = useState(false);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const [done, setDone] = useState(false);
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? refusal.text : "");
+  const send = async () => {
+    if (!sig) { setRefusal({ text: tr("Sign first."), fields: ["signature"] }); return; }
+    if (!watched) { setRefusal({ text: tr("Tick that you watched them do it."), fields: ["demonstrated"] }); return; }
+    setBusy(true); setRefusal(null);
+    try {
+      await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/signoff", { method: "POST", body: { signature: sig, demonstrated: true, note: note.trim() || null } });
+      setDone(true); showToast(tr("Signed off. The training record is saved.")); onDone();
+    } catch (e) {
+      const keys = trainingKeysOf(e).concat(e && e.code === "training.demonstrationRequired" ? ["demonstrated"] : [], e && e.code === "training.signatureRequired" ? ["signature"] : []);
+      setRefusal({ text: e.message || tr("Request failed"), fields: keys });
+    }
+    setBusy(false);
+  };
+  const unplaced = refusal && refusal.fields.filter(k => k === "signature" || k === "demonstrated" || k === "note").length === 0 ? refusal.text : "";
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+    <div data-signoff-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Sign off training")}</div>
+      <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.6 }}>
+        <div style={{ color: t.text, fontWeight: 600 }}>{(attempt.person && attempt.person.name) || ""}</div>
+        <div>{[attempt.topicName, siteName].filter(Boolean).join(" . ")}</div>
+        <div>{[tr("Score: {0}", scoreWord(attempt.scorePercent)), attempt.acknowledgedAt ? tr("Signed {0}", irWhen(attempt.acknowledgedAt)) : "", trainingLangWord(attempt.locale)].filter(Boolean).join(" . ")}</div>
+      </div>
+      {done ? <div data-signoff-done="" style={{ fontSize: 13, color: GR, fontWeight: 600 }}>{tr("Signed off. The training record is saved.")}</div> : <>
+        {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+          : <SignatureBox t={t} label={tr("Your signature, as the trainer")} busy={busy} refusal={bad("signature")} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+        {sig && bad("signature") && <div role="alert" style={{ fontSize: 12, color: RD }}>{bad("signature")}</div>}
+        <div data-signoff-field="demonstrated">
+          <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 14, fontWeight: 600, color: t.text, cursor: "pointer" }}>
+            <input type="checkbox" data-signoff-watched="" checked={watched} onChange={e => setWatched(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO }} />{tr("I watched them do it")}</label>
+          <div style={{ fontSize: 11, color: t.textMut }}>{tr("Required. Tick it only once you have seen the person do it themselves.")}</div>
+          {bad("demonstrated") && <div role="alert" data-signoff-refusal="demonstrated" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad("demonstrated")}</div>}
+        </div>
+        <div><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Notes (optional)")}</div>
+          <TArea t={t} rows={2} aria-label={tr("Notes (optional)")} data-signoff-note="" value={note} onChange={e => setNote(e.target.value)} placeholder={tr("What they showed you")} />
+          {bad("note") && <div role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{bad("note")}</div>}</div>
+        {unplaced && <div role="alert" data-signoff-refusal="" style={{ fontSize: 13, color: RD }}>{unplaced}</div>}
+      </>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        {done && <Btn t={t} v="ghost" data-signoff-print="" onClick={onPrint}>{tr("Print the record")}</Btn>}
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose}>{done ? tr("Close") : tr("Cancel")}</Btn>
+        {!done && <Btn t={t} data-signoff-send="" disabled={busy || !sig || !watched} onClick={send}>{busy ? tr("Saving...") : tr("Sign off")}</Btn>}
+      </div>
+    </div>
+  </Mdl>);
+}
+
+// An attempt on paper for an assessor (GET /api/training/attempts/:id): the lesson's title and
+// version, the person, the score and the pass mark, the day, the language, the person's signature
+// and, where it was signed off, the trainer's name, signature and note. One page, the company named by
+// the settings rule, the signatures read with the token. The window is opened in the click, so a pop-up
+// blocker lets it through; false when the browser would not open it.
+async function printTrainingAttempt({ af, token, id, sites = [] }) {
+  const w = keptWindow();
+  if (!w) return false;
+  try {
+    const path = "/api/training/attempts/" + encodeURIComponent(id);
+    const [d, company, topics] = await Promise.all([af(path), sheetCompanyFor(af), af("/api/training/topics?active=all").then(x => (x && Array.isArray(x.topics) ? x.topics : [])).catch(() => [])]);
+    const a = (d && d.attempt) || {};
+    const who = (d && d.person) || {};
+    const lesson = (d && d.lesson) || {};
+    const [mine, theirs] = await Promise.all([a.acknowledgedAt ? keptImage(path + "/signature?who=trainee", token) : "", a.trainerSignedAt ? keptImage(path + "/signature?who=trainer", token) : ""]);
+    const topic = topics.find(tp => String(tp.id) === String(a.topicId)) || null;
+    const site = ((sites || []).find(x => String(x.id) === String(a.siteId)) || {}).name || "";
+    const day = a.trainerSignedAt || a.acknowledgedAt || a.scoredAt || a.startedAt;
+    const field = (l, v) => "<tr><th>" + keptEsc(l) + "</th><td>" + keptEsc(v) + "</td></tr>";
+    const sign = (img, lines) => '<div style="margin:8px 0 14px">' + (img ? '<img src="' + keptEsc(img) + '" alt="" style="height:56px;max-width:320px;object-fit:contain;display:block;border-bottom:1px solid #999;margin-bottom:4px" />' : '<div class="ln"></div>') + lines.filter(Boolean).map(x => '<div class="note" style="margin:2px 0">' + keptEsc(x) + "</div>").join("") + "</div>";
+    const result = a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "";
+    const trainerName = (a.trainer && a.trainer.name) || "";
+    const html = '<div class="kept"><div class="hd"><div><div class="co">' + keptEsc(company) + '</div><div class="ti">' + keptEsc(tr("Training record")) + '</div><div class="code">' + keptEsc([topicDocLine(topic), a.topicName].filter(Boolean).join(" . ")) + "</div></div>"
+      + '<div class="meta">' + (site ? keptEsc(tr("Site")) + ": " + keptEsc(site) + "<br>" : "") + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
+      + "<h2>1. " + keptEsc(tr("Lesson")) + '</h2><table class="f"><tbody>' + field(tr("Lesson"), lesson.title || "") + field(tr("Version"), lesson.version != null ? String(lesson.version) : "") + field(tr("Topic"), a.topicName || "") + "</tbody></table>"
+      + "<h2>2. " + keptEsc(tr("Result")) + '</h2><table class="f"><tbody>' + field(tr("Person"), who.name || "") + field(tr("Score"), scoreWord(a.scorePercent)) + field(tr("Pass mark"), scoreWord(lesson.passPercent)) + field(tr("Result"), result)
+      + field(tr("Try"), a.attemptNo != null ? String(a.attemptNo) : "") + field(tr("Date"), day ? stampDay(day) : "") + field(tr("Language"), trainingLangWord(a.locale)) + "</tbody></table>"
+      + "<h2>3. " + keptEsc(tr("Signatures")) + "</h2>"
+      + '<div class="note"><b>' + keptEsc(tr("The person")) + "</b></div>" + sign(mine, [who.name || "", a.acknowledgedAt ? tr("Signed {0}", irWhen(a.acknowledgedAt)) : tr("Not signed")])
+      + (a.trainerSignedAt
+        ? '<div class="note"><b>' + keptEsc(tr("The trainer")) + "</b></div>" + sign(theirs, [trainerName, tr("Signed {0}", irWhen(a.trainerSignedAt)), a.demonstrated ? tr("Watched them do it") : "", a.trainerNote ? tr("Note: {0}", a.trainerNote) : ""])
+        : a.awaitingTrainer ? '<div class="note">' + keptEsc(tr("Waiting for a trainer's sign-off.")) + "</div>" : "")
+      + '<div class="ft">' + keptEsc([company, tr("Training record"), a.topicName].filter(Boolean).join(" . ")) + "</div></div>";
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(tr("Training record")) + "</title>" + KEPT_STYLE + "</head><body>" + html + "</body></html>");
+    w.document.close();
+    setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
+    return true;
+  } catch (e) {
+    try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
+    return true;
+  }
 }
