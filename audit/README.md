@@ -36,13 +36,21 @@ Then it checks, one line a check:
 - at 1280 in English and in Spanish, against the stub's answers for the API's Step 247, which the
   smoke check arms with `setStep247`: Settings, Holidays lists the year and adds a day; the Rehire
   window lists the sites to restore, the ones held when the person left ticked; a client's concern
-  past due draws its Due in red; and that concern is marked acknowledged by phone. Every other run
-  of the stub answers as it did before Step 247.
+  past due draws its Due in red; and that concern is marked acknowledged by phone;
+- against the stub's answers for the API's Step 250, which the smoke check arms with `setStep250`
+  (it brings Step 247's with it): at 1280 in English, the Client requests tab lists the waiting
+  requests and approves one, and a second approver's 409 is drawn as the line naming who decided
+  first; at 1280 in English and in Spanish, a request QR is made and its sheet printed, with the
+  area and the title in both languages, and Print label saves a supply's labels.pdf. The two request
+  checks run in English alone so the run stays inside its three minutes. Every other run of the stub
+  answers as it did before Step 247.
 
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
 after it still run. Any failure, or a run of three minutes or more, exits non-zero. It finds the side
-panel's items by `data-nav-item` and Reports' groups by `data-report-group`, and Step 248's screens by
-`data-holidays`, `data-restore-sites`, `data-due-state` and `data-mark-acknowledged`.
+panel's items by `data-nav-item` and Reports' groups by `data-report-group`, Step 248's screens by
+`data-holidays`, `data-restore-sites`, `data-due-state` and `data-mark-acknowledged`, and Step 250's by
+`data-client-requests`, `data-request-approve`, `data-request-said`, `data-link-kind`, `data-link-area`
+and `data-supply-print-label`.
 
 ## What comes out
 

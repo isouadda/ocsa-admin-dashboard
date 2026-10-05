@@ -59,7 +59,6 @@
 **Putting it in place** (**Puesta en marcha**)
 **Checked after the change** (**Verificaci\u00f3n despu\u00e9s del cambio**)
 **Special request** (**Solicitud especial**)
-**Within scope** (**Dentro del alcance**)
 **Complaint** (**Queja**)
 **Where it goes** (**A d\u00f3nde va**)
 

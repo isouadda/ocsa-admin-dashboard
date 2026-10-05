@@ -14,7 +14,12 @@
 //   - at 1280 in English and in Spanish, against the stub's answers for the API's Step 247 (Step 248):
 //     Settings, Holidays lists the year and adds a day; the Rehire window lists the sites to restore,
 //     the ones held when the person left ticked; a client's concern past due draws its Due in red; and
-//     that concern is marked acknowledged by phone.
+//     that concern is marked acknowledged by phone;
+//   - against the stub's answers for the API's Step 250 (Step 251): at 1280 in English, the Client
+//     requests tab lists the waiting requests and approves one, and a second approver's 409 is drawn;
+//     at 1280 in English and in Spanish, a request QR is made and its sheet printed with the area and
+//     the title in both languages, and Print label saves a supply's labels.pdf. The two request checks
+//     run in English alone to keep the run inside its three minutes.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -34,9 +39,11 @@ const HELP_REPLY = "Here is what the dashboard shows for that.";
 // day the holiday check adds (audit/stubs.js, Step 247).
 const LEFT_ID = "u-staff-12";
 const ADDED_HOLIDAY = { date: "2026-04-03", name: "Office closed for training" };
+// The area the request QR check makes a QR for.
+const SMOKE_AREA = "Loading dock restroom";
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor" },
 ];
@@ -181,9 +188,78 @@ async function step248(d, origin, p) {
   });
 }
 
+// Step 250's screens, each a line, against the stub armed with setStep250 (audit/stubs.js).
+async function step250(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const lower = (v) => String(v || "").toLowerCase();
+  // The two request checks run on the pass that asks for them (English); the sheet check below proves
+  // both languages on its own.
+  if (p.requestChecks) await check("Client requests lists the waiting requests and approves one", async () => {
+    await d.goto("issues", ["requests"]); await wait(700);
+    const rows = d.page.locator("[data-client-requests] table tbody tr");
+    const n = await rows.count();
+    if (n < 3) return "the list holds " + n + " requests";
+    const waiting = await rows.filter({ hasText: d.say("Waiting for approval") }).count();
+    if (waiting < 2) return waiting + " wait for approval";
+    await rows.first().click(); await wait(900);
+    await d.page.locator("[data-request-approve]").click(); await wait(400);
+    await d.page.locator("[data-request-approve-save]").click(); await wait(900);
+    if ((await d.page.locator("[data-request-approve]").count()) > 0) return "Approve and assign is still offered";
+    const text = lower(await d.page.locator("[data-request-window]").innerText());
+    await d.page.keyboard.press("Escape").catch(() => {});
+    return text.indexOf(lower(d.say("Approved|request"))) < 0 ? "the activity does not read Approved" : "";
+  });
+  if (p.requestChecks) await check("a second approver's refusal is drawn", async () => {
+    await d.goto("issues", ["requests", "rq-2"]); await wait(700);
+    await d.page.locator("[data-request-approve]").click(); await wait(400);
+    await d.page.locator("[data-request-approve-save]").click(); await wait(900);
+    const said = (await d.page.locator("[data-request-said]").count()) ? await d.page.locator("[data-request-said]").innerText() : "";
+    const text = lower(await d.page.locator("[data-request-window]").innerText());
+    await d.page.keyboard.press("Escape").catch(() => {});
+    if (!said) return "no line says who decided first";
+    if (said.indexOf(d.say("approved|decided")) < 0) return "the line reads " + JSON.stringify(said);
+    return text.indexOf(lower(d.say("Open|request"))) < 0 ? "the row did not refresh to Open" : "";
+  });
+  await check("a request QR is made and its sheet printed", async () => {
+    await d.goto("forms", ["links"]); await wait(700);
+    await d.page.locator("[data-link-kind]").selectOption("request");
+    await d.page.locator("[data-link-area-input]").fill(SMOKE_AREA);
+    await d.page.getByRole("button", { name: d.say("Make a request QR") }).click(); await wait(1000);
+    if ((await d.page.locator("[data-qr-screen] [data-link-area]").count()) === 0) return "the QR window did not open on the request QR";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-qr-screen]").getByRole("button", { name: d.say("Print sheet") }).click(); await wait(900);
+    const prints = await d.prints();
+    await d.page.keyboard.press("Escape").catch(() => {});
+    if (prints.length <= before) return "no sheet window opened";
+    const html = prints[prints.length - 1].html;
+    if (html.indexOf(SMOKE_AREA) < 0) return "the sheet does not carry the area";
+    return html.indexOf("Ask for help here") < 0 || html.indexOf("Pida ayuda aqu") < 0 ? "the sheet does not carry the title in both languages" : "";
+  });
+  await check("Print label saves the supply's label", async () => {
+    await d.goto("supplies"); await wait(700);
+    await d.page.locator("[data-supply-card]").first().click(); await wait(600);
+    const btn = d.page.locator("[data-supply-print-label]");
+    if ((await btn.count()) === 0) return "Print label is not offered";
+    await btn.click(); await wait(900);
+    const call = stubs.calls.find((c) => c.path === "/api/supplies/labels.pdf" && /ids=sp-/.test(c.query));
+    if (!call) return "labels.pdf was not asked for";
+    if (call.status !== 200) return "labels.pdf answered " + call.status;
+    if ((await d.page.locator("[data-supply-label-refusal]").count()) > 0) return "a refusal is drawn";
+    const downloads = await d.page.evaluate(() => window.__audit.downloads.map((x) => x.name));
+    return downloads.indexOf("labels.pdf") < 0 ? "nothing named labels.pdf was saved" : "";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
-  stubs.setStep247(true);
+  // Step 250 brings Step 247's answers with it; every other pass sees Step 247's alone.
+  if (p.step250) stubs.setStep250(true); else stubs.setStep247(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -253,6 +329,7 @@ async function runPass(browser, origin, p) {
         await recover(d, origin, p);
       }
       if (p.step248) await step248(d, origin, p);
+      if (p.step250) await step250(d, origin, p, stubs);
     }
 
     // Help, asked one question.
