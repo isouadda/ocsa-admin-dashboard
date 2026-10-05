@@ -16922,19 +16922,26 @@ const customerFormsOf = (list) => {
   if (flagged.length === 0) return CUSTOMER_FORM_CODES.map(code => ({ code, title: FORM_TITLE_LABELS[code] ? tr(FORM_TITLE_LABELS[code]) : code }));
   return flagged.filter(f => f.apps.indexOf("customer") !== -1);
 };
+// The line under the QR code names the company as {0} (Step 248), the name every printed page takes
+// from the company's settings.
 const CUSTOMER_SCAN_LABELS = {
-  "OCSA-FRM-006": "Scan to tell OCSA how the building is being kept.",
-  "OCSA-FRM-007": "Scan to tell OCSA how we are doing.",
-  "OCSA-FRM-009": "Scan to report a problem to OCSA.",
+  "OCSA-FRM-006": "Scan to tell {0} how the building is being kept.",
+  "OCSA-FRM-007": "Scan to tell {0} how we are doing.",
+  "OCSA-FRM-009": "Scan to report a problem to {0}.",
 };
-// The table's word for a key in a named language, for a line drawn in both languages at once. The
-// English is the key itself, which is what tr falls back to.
-function wordIn(lang, key) {
+// The company's name the way the printed pages read it: the settings' display name, else the legal
+// name, else the client config's, which is also the name when the settings say not to apply them.
+const companyNameOf = (settings) => (settings && settings.use_company_settings !== false && (settings.display_name || settings.legal_name)) || clientConfig.company.name;
+const sheetCompanyFor = (af) => af("/api/settings").then(companyNameOf).catch(e => { console.warn("Settings:", e.message); return clientConfig.company.name; });
+// The table's word for a key in a named language, for a line drawn in both languages at once, with
+// any values filled in. The English is the key itself, which is what tr falls back to.
+function wordIn(lang, key, ...values) {
   const bar = String(key).lastIndexOf("|");
   const english = bar > 0 ? String(key).slice(0, bar) : String(key);
-  if (lang === "en") return english;
+  const fill = (text) => String(text).replace(/\{(\d+)\}/g, (m, i) => (values[Number(i)] == null ? "" : String(values[Number(i)])));
+  if (lang === "en") return fill(english);
   const entry = WORDS[key];
-  return entry && typeof entry[lang] === "string" && entry[lang] !== "" ? entry[lang] : tr(key);
+  return entry && typeof entry[lang] === "string" && entry[lang] !== "" ? fill(entry[lang]) : tr(key, ...values);
 }
 // A form's title in every language the dashboard speaks, the screen's first, for a form the table
 // names; the API's title alone for one it does not.
@@ -16965,21 +16972,24 @@ async function sheetTitlesFor(af, link) {
   const all = read.map(x => x || first);
   return all.filter((v, i) => all.indexOf(v) === i);
 }
-// The line under the QR code, in every language, for the form the link opens.
-function customerScanLines(link) {
-  if (!CUSTOMER_SCAN_LABELS[link.formCode]) return [];
+// The line under the QR code, in every language, for the form the link opens, with the company named.
+function customerScanLines(link, company) {
+  const key = CUSTOMER_SCAN_LABELS[link.formCode];
+  if (!key) return [];
+  const name = company || clientConfig.company.name;
   const others = LOCALES.filter(l => l !== getLang());
-  return [tr(CUSTOMER_SCAN_LABELS[link.formCode])].concat(others.map(l => wordIn(l, CUSTOMER_SCAN_LABELS[link.formCode])));
+  return [tr(key, name)].concat(others.map(l => wordIn(l, key, name)));
 }
 const linkStateWord = (s) => (s === "live" ? tr("On|link") : s === "disabled" ? tr("Off|link") : s === "expired" ? tr("Expired|link") : String(s || ""));
 const linkStateColor = (s) => (s === "live" ? GR : s === "expired" ? OR : RD);
 
 // The sheet Print puts in a new window: the logo, the site, the form's title in each language, the
 // QR code at its full size, the scan line in each language and the address in small type, in the
-// window the caller opened in the click when it did. False when the browser would not open one.
-function printCustomerLinkSheet({ link, qr, titles, scanLines, w: opened }) {
+// window the caller opened in the click when it did. False when the browser would not open one. The
+// company is named as the scan line names it.
+function printCustomerLinkSheet({ link, qr, titles, scanLines, company, w: opened }) {
   const esc = (v) => String(v == null ? "" : v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const cName = clientConfig.company.name;
+  const cName = company || clientConfig.company.name;
   const siteName = link.site && link.site.name ? link.site.name : tr("No site");
   const style = '<style>body{font-family:Arial,Helvetica,sans-serif;margin:28px;color:#222;text-align:center}.brand{border-bottom:3px solid ' + GOLD + ';padding-bottom:10px;margin-bottom:18px}.brand img{height:56px}.co{font-size:20px;font-weight:700;color:' + NAVY + '}h1{color:' + NAVY + ';font-size:26px;margin:8px 0 4px}.form{font-size:18px;margin:2px 0;color:#333}.qr{display:block;width:512px;height:512px;margin:22px auto 18px}.scan{font-size:20px;font-weight:700;color:' + NAVY + ';margin:6px 0}.url{font-size:11px;color:#666;margin-top:16px;word-break:break-all}.footer{margin-top:24px;border-top:2px solid ' + GOLD + ';padding-top:8px;font-size:10px;color:#888}@media print{body{margin:14px}}</style>';
   const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr("Customer link")) + '</title>' + style + '</head><body>'
@@ -17196,8 +17206,8 @@ function useLinkActions(af, token, onLink) {
     if (!w) { say(link.id, tr("Allow pop-ups to print the sheet")); return; }
     setPrinting(link.id);
     try {
-      const [qr, titles] = await Promise.all([linkQrDataUrl(link.id, token), sheetTitlesFor(af, link)]);
-      printCustomerLinkSheet({ link, qr, titles, scanLines: customerScanLines(link), w });
+      const [qr, titles, company] = await Promise.all([linkQrDataUrl(link.id, token), sheetTitlesFor(af, link), sheetCompanyFor(af)]);
+      printCustomerLinkSheet({ link, qr, titles, scanLines: customerScanLines(link, company), company, w });
     } catch (e) {
       try { w.close(); } catch (x) { /* already closed */ }
       if (mounted.current) say(link.id, e.message || tr("Request failed"));
@@ -17265,6 +17275,7 @@ function TurnOffLinkWindow({ t, link, onCancel, onConfirm }) {
 function LinkQrWindow({ af, t, token, link, acts, onClose }) {
   const [qr, setQr] = useState("");
   const [sheetTitles, setSheetTitles] = useState(null);
+  const [company, setCompany] = useState("");
   const [qrError, setQrError] = useState("");
   const [printError, setPrintError] = useState("");
   const id = link.id;
@@ -17282,11 +17293,16 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
     sheetTitlesFor(af, { formCode, formTitle }).then(x => { if (alive) setSheetTitles(x); });
     return () => { alive = false; };
   }, [af, formCode, formTitle]);
+  useEffect(() => {
+    let alive = true;
+    sheetCompanyFor(af).then(x => { if (alive) setCompany(x); });
+    return () => { alive = false; };
+  }, [af]);
   useEscape(onClose);
   const print = () => {
-    if (!qr || !sheetTitles) return;
+    if (!qr || !sheetTitles || !company) return;
     setPrintError("");
-    if (!printCustomerLinkSheet({ link, qr, titles: sheetTitles, scanLines: customerScanLines(link) })) setPrintError(tr("Allow pop-ups to print the sheet"));
+    if (!printCustomerLinkSheet({ link, qr, titles: sheetTitles, scanLines: customerScanLines(link, company), company })) setPrintError(tr("Allow pop-ups to print the sheet"));
   };
   return (<Mdl t={t} onClose={onClose}><div data-qr-screen="" style={{ padding: 20 }}>
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 14 }}>
@@ -17307,7 +17323,7 @@ function LinkQrWindow({ af, t, token, link, acts, onClose }) {
     <LinkRefusal text={acts.rowError[link.id]} />
     {printError && <div style={{ fontSize: 12, color: RD, marginTop: 10, textAlign: "center" }}>{printError}</div>}
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 16 }}>
-      <Btn t={t} onClick={print} disabled={!qr || !sheetTitles} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
+      <Btn t={t} onClick={print} disabled={!qr || !sheetTitles || !company} style={{ minHeight: 44, minWidth: 96 }}>{tr("Print sheet")}</Btn>
       <Btn t={t} v="ghost" onClick={() => acts.copy(link)} style={{ minHeight: 44, minWidth: 96 }}>{acts.copied === link.id ? tr("Copied") : tr("Copy link")}</Btn>
       <Btn t={t} v="ghost" onClick={onClose} style={{ minHeight: 44, minWidth: 96 }}>{tr("Close")}</Btn>
     </div>
