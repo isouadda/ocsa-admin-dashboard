@@ -10,7 +10,11 @@
 //   - Reports opens one card of each group, a filed form opens, and Customer links opens;
 //   - Help opens and answers the stub;
 //   - at 1280 in English a supervisor signs in, sees no admin-only item, and every item they do see
-//     opens the same way.
+//     opens the same way;
+//   - at 1280 in English and in Spanish, against the stub's answers for the API's Step 247 (Step 248):
+//     Settings, Holidays lists the year and adds a day; the Rehire window lists the sites to restore,
+//     the ones held when the person left ticked; a client's concern past due draws its Due in red; and
+//     that concern is marked acknowledged by phone.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -26,9 +30,13 @@ const LIMIT_MS = 3 * 60 * 1000;
 const ADMIN_ONLY_NAV = ["Staff Management", "Cases", "Forms", "Settings"];
 // The stub's answer to any question Help is asked.
 const HELP_REPLY = "Here is what the dashboard shows for that.";
+// The stub's person whose employment ended, with three past sites, two held when they left, and the
+// day the holiday check adds (audit/stubs.js, Step 247).
+const LEFT_ID = "u-staff-12";
+const ADDED_HOLIDAY = { date: "2026-04-03", name: "Office closed for training" };
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor" },
 ];
@@ -122,8 +130,60 @@ async function openNav(d, id) {
   await wait(650);
 }
 
+// Step 248's screens, each a line.
+async function step248(d, origin, p) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  await check("Settings, Holidays lists the year and adds a day", async () => {
+    await d.goto("settings"); await wait(900);
+    await d.page.getByRole("button", { name: d.say("Holidays"), exact: true }).click(); await wait(700);
+    const list = d.page.locator("[data-holidays] table tbody tr");
+    const rows = await list.count();
+    if (rows < 11) return "the year lists " + rows + " holidays";
+    await d.page.locator("[data-holiday-add]").click();
+    await d.page.locator('[data-holiday-window] input[type="date"]').fill(ADDED_HOLIDAY.date);
+    await d.page.locator("[data-holiday-window] input").nth(1).fill(ADDED_HOLIDAY.name);
+    await d.page.locator("[data-holiday-window] button").last().click(); await wait(900);
+    if ((await d.page.locator("[data-holiday-window]").count()) > 0) return "the window stayed open";
+    return (await list.filter({ hasText: ADDED_HOLIDAY.name }).count()) === 1 ? "" : "the day added is not listed";
+  });
+  await check("the Rehire window lists the sites to restore", async () => {
+    await d.goto("staff", [LEFT_ID]); await wait(1200);
+    await d.page.locator('[data-employment-action="rehire"]').click(); await wait(500);
+    const rows = await d.page.locator("[data-restore-sites] [data-restore-site]").count();
+    const ticked = await d.page.locator("[data-restore-sites] input:checked").count();
+    await d.page.locator("[data-employment-window] button").filter({ hasText: d.say("Cancel") }).click();
+    return rows !== 3 ? "Sites to restore lists " + rows + " sites" : ticked !== 2 ? ticked + " sites start ticked" : "";
+  });
+  await check("a client's concern past due draws its Due in red", async () => {
+    await d.goto("forms"); await wait(1200);
+    const due = d.page.locator('[data-complaint-due][data-due-state="late"]').first();
+    if ((await due.count()) === 0) return "no late concern on Filed forms";
+    const rgb = await due.evaluate((e) => getComputedStyle(e).color);
+    const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
+    return m && Number(m[1]) > 150 && Number(m[2]) < 110 && Number(m[3]) < 110 ? "" : "the late Due draws " + rgb;
+  });
+  await check("a client's concern is marked acknowledged by phone", async () => {
+    const row = d.page.locator("table tbody tr").filter({ has: d.page.locator("[data-not-acknowledged]") }).first();
+    if ((await row.count()) === 0) return "no concern reads Not acknowledged";
+    await row.click(); await wait(1200);
+    await d.page.locator("[data-mark-acknowledged]").click();
+    await d.page.locator("[data-acknowledge-form] select").selectOption("phone");
+    await d.page.locator("[data-acknowledge-form] button").last().click(); await wait(800);
+    const line = (await d.page.locator("[data-acknowledged]").count()) ? await d.page.locator("[data-acknowledged]").innerText() : "";
+    await d.page.keyboard.press("Escape").catch(() => {});
+    return !line ? "no line says it was acknowledged" : (await d.page.locator("[data-mark-acknowledged]").count()) ? "Mark acknowledged is still offered" : "";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
+  stubs.setStep247(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -192,6 +252,7 @@ async function runPass(browser, origin, p) {
         say(!why, p.name, "Customer links opens", why);
         await recover(d, origin, p);
       }
+      if (p.step248) await step248(d, origin, p);
     }
 
     // Help, asked one question.

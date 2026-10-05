@@ -628,13 +628,13 @@ A customer link lets a customer fill a form from their own phone, with no accoun
 1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. The **Customer links** (**Enlaces para clientes**) button on **Filed forms** (**Formularios presentados**) opens the same tab.
 2. Under **Make a link** (**Crear un enlace**), pick the **Form** (**Formulario**) and the **Site** (**Sitio**), then click **Make a link** (**Crear un enlace**). The forms are the ones customers fill: **Facility Cleanliness Evaluation Checklist** (**Lista de evaluación de limpieza del edificio**), **Client Satisfaction Survey** (**Encuesta de satisfacción del cliente**) and, for a client to report a problem, **Customer Complaint Log** (**Registro de quejas de clientes**).
 3. The QR window opens with the code, the site, the form's title and the link's address. A site has one link on for each form; when the site already has one on, that one's QR window opens.
-4. Click **Print sheet** (**Imprimir la hoja**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it. Post it where the customer will see it. A form with a name for clients prints that name under the site: the **Customer Complaint Log** (**Registro de quejas de clientes**) prints as Report a concern and Informar un problema.
+4. Click **Print sheet** (**Imprimir la hoja**) for one clean sheet with OCSA's logo, the site, the form, the QR code and one line in English and Spanish asking the customer to scan it, naming the company the way **Settings** (**Configuración**), **Company** (**Empresa**) names it. Post it where the customer will see it. A form with a name for clients prints that name under the site: the **Customer Complaint Log** (**Registro de quejas de clientes**) prints as Report a concern and Informar un problema.
 5. **Copy link** (**Copiar enlace**) copies the address, to send by email or text.
 6. A site's own links are also on the site's **General Info** (**Información general**), under **Customer links** (**Enlaces para clientes**).
 What the customer sees: OCSA's logo, the site's name and the form, a box for their name and their role, the questions, up to three photos and a signature drawn with a finger, then Send and a thank-you. Nothing else of the app is shown. Their filing arrives under **Filed forms** (**Formularios presentados**) marked **Customer** (**Cliente**).
 If it does not work: the reason is shown under the button. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: QR code, customer survey link, customer feedback, print a QR code, post a survey in the building, satisfaction survey, cleanliness checklist, customer links tab, código QR, encuesta del cliente.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Turn a customer link off or on (admin dashboard)
 Who can do this: admins who can change settings
@@ -1161,10 +1161,12 @@ Who can do this: admins who manage staff, for anyone but themselves
 1. Click **Staff Management** (**Gestión de personal**) and open the profile of the person whose employment ended.
 2. Click **Rehire** (**Recontratar**).
 3. Fill in the **New hire date** (**Nueva fecha de contratación**) and a **Note** (**Nota**) if needed. When they were marked not eligible, the window reads **Marked not eligible for rehire when they left.** (**Se marcó como no elegible para recontratación al salir.**)
-4. Click **Rehire** (**Recontratar**). They can sign in again, and their history stays.
-5. Assign their sites again on the **Assignments** (**Asignaciones**) tab.
-Words people use for this: rehire, hire back, bring someone back, came back to work, recontratar.
-Last checked: 2026-10-01
+4. **Sites to restore** (**Sitios por restablecer**) lists the sites they worked before, each with its role, its shift and the shift's days. The sites they held when they left start ticked and read **Held when they left** (**Lo tenía al irse**). Tick the sites they go back to and untick the rest. The line above the buttons says how many sites will be restored.
+5. Click **Rehire** (**Recontratar**). They can sign in again, their history stays, and each ticked site is assigned again with the role and the shift it had.
+6. Assign any other site on the **Assignments** (**Asignaciones**) tab.
+If it does not work: a school site is refused while their clearances are missing, and the reason is shown under that site. Untick it, or put their clearances on file first, then click **Rehire** (**Recontratar**) again. Nothing is changed until the rehire goes through.
+Words people use for this: rehire, hire back, bring someone back, came back to work, give them their sites back, restore sites, recontratar.
+Last checked: 2026-10-05
 
 ## Record why someone is inactive or left (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1543,22 +1545,23 @@ Last checked: 2026-10-02
 ## Mark a checklist item as a touchpoint (admin dashboard)
 Who can do this: anyone who can change a site's tasks
 1. Click **Sites** (**Sitios**), open the site, and click the **Service Details** (**Detalles del servicio**) tab.
-2. Click a task to edit it, or click **Add Task** to add one.
+2. Click a task to edit it, or click **Add Task** (**Agregar tarea**) to add one.
 3. Tick **Touchpoint** (**Punto de contacto frecuente**): a high-touch surface disinfected on schedule, such as a door handle or a rail.
-4. Click **Save Changes**, or **Create** for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and prints on the disinfection coverage log.
-Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, punto de contacto frecuente.
-Last checked: 2026-10-02
+4. For a surface touched most, tick **Critical** (**Crítico**) under it. A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3. Unticking **Touchpoint** (**Punto de contacto frecuente**) unticks **Critical** (**Crítico**) too.
+5. Click **Save Changes** (**Guardar los cambios**), or **Create** (**Crear**) for a new task. The task shows **Touchpoint** (**Punto de contacto frecuente**) on its row, and **Critical** (**Crítico**) beside it when ticked. It prints on the disinfection coverage log, a critical one under Critical Touchpoints.
+Words people use for this: high touch, touchpoints, door handles, disinfection list, high touch surfaces, critical touchpoint, critical surfaces, punto de contacto frecuente, punto de contacto crítico.
+Last checked: 2026-10-05
 
 ## Make a site's concern link, so a client can report a problem (admin dashboard)
 Who can do this: admins who can change settings
 A concern link lets a client report a problem from their phone by scanning a QR code posted in the building. It files a **Customer Complaint Log** (**Registro de quejas de clientes**) for that site, and the site's supervisors, the Field Lead and the admins are told at once.
 1. Click **Forms** (**Formularios**), then the **Customer links** (**Enlaces para clientes**) tab. Or click **Sites** (**Sitios**), open the site, and use its **Customer links** (**Enlaces para clientes**) card.
 2. Under **Make a link** (**Crear un enlace**), pick **Customer Complaint Log** (**Registro de quejas de clientes**) and the site, then click **Make a link** (**Crear un enlace**).
-3. Click **Print sheet** (**Imprimir la hoja**). Under the site the sheet reads Report a concern and Informar un problema, and under the code **Scan to report a problem to OCSA.** (**Escanee para informar un problema a OCSA.**), in English and in Spanish. Post it where the client will see it. Every screen in the office keeps the form's own name, **Customer Complaint Log** (**Registro de quejas de clientes**).
+3. Click **Print sheet** (**Imprimir la hoja**). Under the site the sheet reads Report a concern and Informar un problema, and under the code a line asking the client to scan it to report a problem, naming the company the way **Settings** (**Configuración**), **Company** (**Empresa**) names it, in English and in Spanish. Post it where the client will see it. Every screen in the office keeps the form's own name, **Customer Complaint Log** (**Registro de quejas de clientes**).
 What the client sees: a short form for what happened and where, with photos if they like, and a reference number once it is sent.
 If it does not work: when **Customer Complaint Log** (**Registro de quejas de clientes**) is not offered, the system does not take a client's concern from a link yet. If printing opens nothing, allow pop-ups for this site and click **Print sheet** (**Imprimir la hoja**) again.
 Words people use for this: report a concern, complaint qr code, client complaint link, report a problem, concern poster, informar un problema.
-Last checked: 2026-10-02
+Last checked: 2026-10-05
 
 ## Make or print a site's customer links from the site (admin dashboard)
 Who can do this: admins who can change settings
@@ -1572,14 +1575,16 @@ Last checked: 2026-10-02
 
 ## Answer a client's concern on time (admin dashboard)
 Who can do this: supervisors and admins
-A concern a client reports from a customer link is due an answer within five working days, Monday to Friday. The client gets a written receipt when they gave an email.
+A concern a client reports from a customer link is acknowledged within one working day and answered within five. A working day is a Monday to Friday that is not one of the holidays under **Settings** (**Configuración**), **Holidays** (**Días festivos**). The client gets a written receipt when they gave an email, and that receipt acknowledges it.
 1. Click **Forms** (**Formularios**), then the **Filed forms** (**Formularios presentados**) tab, and set **Form** (**Formulario**) to **Customer Complaint Log** (**Registro de quejas de clientes**).
-2. A concern from a link shows **From a client** (**De un cliente**). **Due** (**Vence**) shows the day the answer is due: orange with one working day or less left, red once it is late, and the day it was answered once the office answers.
+2. A concern from a link shows **From a client** (**De un cliente**), and **Not acknowledged** (**Recepción sin confirmar**) until it is acknowledged. **Due** (**Vence**) shows the day the answer is due: orange with one working day or less left, red once it is late, and the day it was answered once the office answers.
 3. A concern about how a member of staff treated someone shows **For the Controller** (**Para el Contralor**). Only the admins are told of it, and nothing about it is decided at the site.
-4. Click the concern to open it, then write what was done and close it as for any customer complaint.
-5. A notice that a client reported a concern opens the report. A second notice comes when one working day is left, and a third when it is late.
-Words people use for this: client concern, complaint deadline, five working days, late complaint, controller, staff complaint, queja de un cliente.
-Last checked: 2026-10-02
+4. A client who left only a phone gets no receipt, so call or text them. Then open the concern and click **Mark acknowledged** (**Confirmar la recepción**) above the **Supervisor section** (**Sección del supervisor**). Pick **How** (**Cómo**): **Phone call** (**Llamada telefónica**), **Text message** (**Mensaje de texto**), **Email** (**Correo**) or **In person** (**En persona**), add a **Note** (**Nota**) if you like, and click **Mark acknowledged** (**Confirmar la recepción**). The report then says when it was acknowledged, by whom and how, or that the receipt mail acknowledged it.
+5. Write what was done and close it as for any customer complaint.
+6. A notice that a client reported a concern opens the report. Another comes on the next working day when it is still not acknowledged, one when one working day is left to answer, and one when it is late.
+If it does not work: the reason is shown under the field it is about. **Mark acknowledged** (**Confirmar la recepción**) is not offered once a concern is acknowledged.
+Words people use for this: client concern, complaint deadline, five working days, late complaint, controller, staff complaint, acknowledge, acknowledgement, call the client back, receipt, one working day, queja de un cliente, acusar recibo.
+Last checked: 2026-10-05
 
 ## Print the management review evidence pack (admin dashboard)
 Who can do this: admins
@@ -1592,3 +1597,16 @@ The evidence pack is what a management review reads before it meets. The improve
 If it does not work: a section that reads **The data for this was not available when the pack was printed.** (**Estos datos no estaban disponibles al imprimir el paquete.**) could not be read; print again later, or fill its lines in by hand. If nothing opens, allow pop-ups for this site and click **Print the evidence pack** (**Imprimir el paquete de evidencias**) again.
 Words people use for this: management review, monthly review, quarterly review, evidence pack, kpis, review pack, revisión por la dirección, paquete de evidencias.
 Last checked: 2026-10-02
+
+## Enter the year's holidays (admin dashboard)
+Who can do this: admins who can change settings
+OCSA observes the eleven federal holidays in its handbook and the two Eids. The federal days follow the handbook. The Eid dates, which OCSA confirms each year, and any other day the office is closed are entered here. A holiday is not a working day, so a client's concern filed before one is due a day later.
+1. Click **Settings** (**Configuración**), then the **Holidays** (**Días festivos**) tab.
+2. Pick the year at the top, this year or next. The table shows each holiday's **Date** (**Fecha**), its name under **Holiday** (**Día festivo**), its **Kind** (**Tipo**), **Federal** (**Federal**) or **Office** (**De la oficina**), and its **Note** (**Nota**). A federal holiday that falls on a Saturday is observed the Friday before, and one on a Sunday the Monday after; its date then reads Observed for and the actual day.
+3. Click **Add a holiday** (**Agregar un día festivo**). Fill in the **Date** (**Fecha**), the name under **Holiday** (**Día festivo**), such as Eid al-Fitr, and a **Note** (**Nota**) if you like, such as when OCSA confirmed it. Click **Add holiday** (**Agregar el día festivo**).
+4. To change a day the office entered, click **Edit** (**Editar**) on its row, change it, and click **Save** (**Guardar**).
+5. To take one off, click **Retire** (**Dar de baja**) and confirm. It stops counting as a holiday and stays on record. Tick **Show retired** (**Mostrar los dados de baja**) to see it, marked **Retired** (**Dado de baja**).
+A federal holiday reads **Set by the handbook** (**Fijado por el manual**) and is not changed here.
+If it does not work: the reason is shown under the field it is about, such as a date that is already a holiday, or at the top of the window. The tab shows once the system holds the holidays.
+Words people use for this: holiday, holidays, eid, eid al-fitr, eid al-adha, day off, days off, closed, office closed, observed, federal holiday, días festivos, feriado.
+Last checked: 2026-10-05

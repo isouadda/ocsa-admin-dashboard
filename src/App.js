@@ -14382,7 +14382,7 @@ function HolidaysPanel({ af, t, showToast, initial }) {
     { header: tr("Date"), tdStyle: { whiteSpace: "nowrap" }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text }}>{holidayDay(h.date)}
       {h.kind === "federal" && h.observedFrom ? <div style={{ fontSize: 11, color: t.textMut, marginTop: 2 }}>{tr("Observed for {0}", holidayDay(h.observedFrom))}</div> : null}</span>) },
     { header: tr("Holiday"), tdStyle: { minWidth: 160 }, render: h => (<span style={{ color: isRetired(h) ? t.textMut : t.text, fontWeight: 600 }}>{h.name}
-      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired")} c={RD} /></span> : null}</span>) },
+      {isRetired(h) ? <span style={{ marginLeft: 8 }}><Bdg l={tr("Retired|holiday")} c={RD} /></span> : null}</span>) },
     { header: tr("Kind"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: h => (h.kind === "federal" ? tr("Federal") : tr("Office|holiday")) },
     { header: tr("Note"), tdStyle: { minWidth: 140, color: t.textSec, overflowWrap: "anywhere" }, render: h => h.note || "" },
     { header: "", tdStyle: { whiteSpace: "nowrap", textAlign: "right" }, render: h => (h.kind === "federal"

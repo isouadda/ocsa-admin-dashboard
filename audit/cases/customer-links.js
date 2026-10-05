@@ -226,7 +226,9 @@ async function run({ d, results, inventory, stubs, lang }) {
     const printed = (await d.prints()).pop();
     const html = printed ? printed.html : "";
     const lines = printLines(html);
-    const scan006 = ["Scan to tell OCSA how the building is being kept.", "Escanee para decirle a OCSA c\u00f3mo se mantiene el edificio."];
+    // The line names the company the way the printed pages do, the settings' display name (Step 248).
+    const company = stubs.fixtures.SETTINGS.display_name;
+    const scan006 = ["Scan to tell " + company + " how the building is being kept.", "Escanee para decirle a " + company + " c\u00f3mo se mantiene el edificio."];
     check("customer-links/the-print-sheet",
       !!printed && printed.printed && /<img[^>]*src="[^"]*ocsa-logo\.png"/.test(html) && lines.indexOf(SITE(0)) >= 0 && titles006.every((x) => lines.indexOf(x) >= 0)
         && /<img class="qr" width="512" height="512" alt="[^"]*" src="data:image\/png;base64,/.test(html)

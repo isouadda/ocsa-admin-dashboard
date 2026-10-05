@@ -2158,6 +2158,166 @@ function createStubs() {
   }
 
   // `lang` is the language the call asked for, which is the language the API answers in.
+  // ---- Step 247 (STEP247_CONTRACT.md version 2) -----------------------------------------------------
+  // What the API's Step 247 adds, answered only once a run arms it with setStep247, so every other run
+  // sees the API it always saw. Holidays (section 1): the eleven federal days worked out for any year
+  // and observed the federal way, Saturday to the Friday before and Sunday to the Monday after, and
+  // the office's own days, which start as two invented Eid dates. One person whose employment ended,
+  // with three past sites (section 3), the second of them a school site the guard refuses. A client's
+  // concern past due that no receipt acknowledged (section 6.1), which Mark acknowledged records.
+  let step247 = false;
+  const HOLIDAY_NAMES = {
+    newYear: ["New Year's Day", "D\u00eda de A\u00f1o Nuevo"], mlk: ["Birthday of Martin Luther King, Jr.", "Natalicio de Martin Luther King, Jr."],
+    washington: ["Washington's Birthday", "Natalicio de Washington"], memorial: ["Memorial Day", "D\u00eda de los Ca\u00eddos"],
+    juneteenth: ["Juneteenth National Independence Day", "D\u00eda Nacional de la Independencia de Juneteenth"], independence: ["Independence Day", "D\u00eda de la Independencia"],
+    labor: ["Labor Day", "D\u00eda del Trabajo"], columbus: ["Columbus Day", "D\u00eda de Col\u00f3n"], veterans: ["Veterans Day", "D\u00eda de los Veteranos"],
+    thanksgiving: ["Thanksgiving Day", "D\u00eda de Acci\u00f3n de Gracias"], christmas: ["Christmas Day", "D\u00eda de Navidad"],
+  };
+  const dayOf = (y, m, d) => { const x = new Date(Date.UTC(y, m - 1, d)); return x.toISOString().slice(0, 10); };
+  const weekdayOf = (y, m, d) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const nthMonday = (y, m, wd, n) => 1 + ((wd - weekdayOf(y, m, 1) + 7) % 7) + (n - 1) * 7;
+  const lastMonday = (y, m) => { const days = new Date(Date.UTC(y, m, 0)).getUTCDate(); return days - ((weekdayOf(y, m, days) - 1 + 7) % 7); };
+  const observedOf = (y, m, d) => { const w = weekdayOf(y, m, d); return dayOf(y, m, d + (w === 6 ? -1 : w === 0 ? 1 : 0)); };
+  // A year's federal holidays, by the day each is observed, New Year's Day of the year after included
+  // when it is observed on December 31.
+  function federalHolidays(y, lang) {
+    const name = (k) => HOLIDAY_NAMES[k][lang === "es" ? 1 : 0];
+    const fixed = [["newYear", y, 1, 1], ["juneteenth", y, 6, 19], ["independence", y, 7, 4], ["veterans", y, 11, 11], ["christmas", y, 12, 25], ["newYear", y + 1, 1, 1]];
+    const moving = [["mlk", 1, nthMonday(y, 1, 1, 3)], ["washington", 2, nthMonday(y, 2, 1, 3)], ["memorial", 5, lastMonday(y, 5)], ["labor", 9, nthMonday(y, 9, 1, 1)], ["columbus", 10, nthMonday(y, 10, 1, 2)], ["thanksgiving", 11, nthMonday(y, 11, 4, 4)]];
+    const out = fixed.map(([k, yy, m, d]) => { const o = observedOf(yy, m, d); return { date: o, name: name(k), kind: "federal", key: k, id: null, note: null, observedFrom: o === dayOf(yy, m, d) ? null : dayOf(yy, m, d) }; })
+      .concat(moving.map(([k, m, d]) => ({ date: dayOf(y, m, d), name: name(k), kind: "federal", key: k, id: null, note: null, observedFrom: null })));
+    return out.filter((h) => h.date.slice(0, 4) === String(y));
+  }
+  const OFFICE_HOLIDAYS = () => [
+    { id: "hol-1", date: "2026-03-20", name: "Eid al-Fitr", note: "Confirmed in writing", active: true },
+    { id: "hol-2", date: "2026-05-27", name: "Eid al-Adha", note: null, active: true },
+  ];
+  let officeHolidays = OFFICE_HOLIDAYS();
+  let holidaySeq = 2;
+  const realDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || "")) && dayOf(Number(v.slice(0, 4)), Number(v.slice(5, 7)), Number(v.slice(8, 10))) === v;
+  const holidayRefusal = (code, status, error, keys) => ({ status, json: Object.assign({ error, code }, keys ? { keys } : {}) });
+  // The holiday a POST or PATCH would write, or the refusal section 1 gives it.
+  function holidayCheck(h, lang) {
+    const es = lang === "es";
+    if (!realDay(h.date)) return holidayRefusal("holidays.badDetails", 400, es ? "Elija una fecha v\u00e1lida." : "Choose a real date.", ["date"]);
+    if (!String(h.name || "").trim() || String(h.name).trim().length > 120) return holidayRefusal("holidays.badDetails", 400, es ? "Escriba un nombre de hasta 120 caracteres." : "Enter a name of up to 120 characters.", ["name"]);
+    if (h.note != null && String(h.note).length > 500) return holidayRefusal("holidays.badDetails", 400, es ? "La nota admite hasta 500 caracteres." : "A note holds up to 500 characters.", ["note"]);
+    const fed = federalHolidays(Number(h.date.slice(0, 4)), lang).find((x) => x.date === h.date);
+    if (fed) return holidayRefusal("holidays.federal", 409, (es ? "Ese d\u00eda ya es un d\u00eda festivo federal: " : "That day is already a federal holiday: ") + fed.name + ".");
+    if (h.active !== false && officeHolidays.some((x) => x.active && x.date === h.date && x.id !== h.id)) return holidayRefusal("holidays.duplicate", 409, es ? "Ya hay un d\u00eda festivo de la oficina en esa fecha." : "An office holiday is already on that date.");
+    return null;
+  }
+  const PAST_SITES = () => [
+    { assignmentId: "ssa-past-1", siteId: S[0].id, siteName: S[0].name, roleAtSite: "cleaner", shiftName: "Night", shiftStart: "18:00:00", shiftEnd: "23:00:00", daysOfWeek: ["mon", "tue", "wed", "thu", "fri"], assignedAt: "2025-06-02T12:00:00Z", endedWithEmployment: true },
+    { assignmentId: "ssa-past-2", siteId: S[2].id, siteName: S[2].name, roleAtSite: "lead", shiftName: "Day", shiftStart: "07:00:00", shiftEnd: "15:30:00", daysOfWeek: ["sat", "sun"], assignedAt: "2025-03-10T12:00:00Z", endedWithEmployment: true },
+    { assignmentId: "ssa-past-3", siteId: S[1].id, siteName: S[1].name, roleAtSite: null, shiftName: null, shiftStart: null, shiftEnd: null, daysOfWeek: null, assignedAt: "2024-11-04T12:00:00Z", endedWithEmployment: false },
+  ];
+  // The person, the one whose employment ended, and the school site among their past sites.
+  const LEFT_ID = "u-staff-12";
+  const SCHOOL_PAST = "ssa-past-2";
+  const LEFT_EVENT = { id: "ee-left-1", kind: "ended", reason: "resigned", reasonLabel: "Resigned", lastDay: "2026-01-30", rehireEligible: true, note: null, recordedAt: "2026-01-30T21:00:00Z", recordedBy: { name: "Dana Whitlock" } };
+  let leftRehired = false;
+  const leftEmployment = () => (leftRehired
+    ? { status: "active", hireDate: "2026-03-23", terminationDate: null, current: LEFT_EVENT, events: [LEFT_EVENT], pastSites: [] }
+    : { status: "terminated", hireDate: "2024-10-01", terminationDate: "2026-01-30", current: LEFT_EVENT, events: [LEFT_EVENT], pastSites: PAST_SITES() });
+  // The client's concern: filed from a link three days ago, due yesterday, and no receipt went.
+  const CONCERN_ID = "cf-concern-1";
+  let concernAck = null;
+  function concernRow(lang) {
+    return {
+      id: CONCERN_ID, formCode: "OCSA-FRM-009", formName: lang === "es" ? "Registro de quejas de clientes" : "Customer Complaint Log", status: "submitted", source: "customer", userId: null,
+      userName: "Imogen Thackeray, Facilities manager", siteId: S[0].id, siteName: S[0].name, answered: 6, remaining: 0,
+      dueAt: seed.shift(-1) + "T21:00:00Z", answeredAt: null, forController: false, acknowledgedAt: concernAck ? concernAck.acknowledgedAt : null, dueState: "late",
+      createdAt: seed.shift(-3) + "T14:00:00Z", submittedAt: seed.shift(-3) + "T14:05:00Z",
+    };
+  }
+  function concernRead(lang) {
+    const es = lang === "es";
+    const row = concernRow(lang);
+    const draft = Object.assign({}, row, { version: 2, customer: { name: "Imogen Thackeray", role: es ? "Gerente de instalaciones" : "Facilities manager" },
+      acknowledgedMethod: concernAck ? concernAck.acknowledgedMethod : null, acknowledgedBy: concernAck ? concernAck.acknowledgedBy : null, canAcknowledge: !concernAck });
+    return {
+      injuryLogCase: null, draft,
+      fields: [
+        { key: "client_name", label: es ? "Su nombre" : "Your name", type: "text", half: "agent", section: "1", value: "Imogen Thackeray", displayValue: "Imogen Thackeray" },
+        { key: "contact_preference", label: es ? "C\u00f3mo prefiere que lo contacten" : "How should we reach you", type: "text", half: "agent", section: "1", value: "phone", displayValue: es ? "Tel\u00e9fono" : "Phone" },
+        { key: "what_happened", label: es ? "Qu\u00e9 pas\u00f3" : "What happened", type: "textarea", half: "agent", section: "1", value: "The lobby bins were full at opening.", displayValue: "The lobby bins were full at opening." },
+        { key: "complaint_closed", label: es ? "Queja cerrada" : "Complaint closed", type: "signoff", half: "supervisor", section: "4", value: null },
+      ],
+      sections: [{ key: "1", title: es ? "Su inquietud" : "Your concern" }, { key: "4", title: es ? "Cierre" : "Close" }],
+      canSign: [], canWriteSupervisor: false, supervisorMissing: [], canVoid: false, canResend: false, canAcknowledge: !concernAck,
+    };
+  }
+  // The routes above, ahead of every other; base is the answer the stub gave before Step 247.
+  function step247Route(method, path, query, body, lang, base) {
+    const es = lang === "es";
+    const admin = person().role === "admin";
+    if (path === "/api/holidays" && method === "GET") {
+      const y = query.get("year") ? Number(query.get("year")) : Number(seed.NOW_ISO.slice(0, 4));
+      if (!Number.isInteger(y) || y < 2020 || y > 2100) return holidayRefusal("holidays.badYear", 400, es ? "Elija un a\u00f1o de 2020 a 2100." : "Choose a year from 2020 to 2100.");
+      const all = admin && query.get("includeRetired") === "1";
+      const office = officeHolidays.filter((h) => h.date.slice(0, 4) === String(y) && (all || h.active))
+        .map((h) => Object.assign({ date: h.date, name: h.name, kind: "office", key: null, id: h.id, note: h.note, observedFrom: null }, all ? { active: h.active } : {}));
+      const fed = federalHolidays(y, lang).map((h) => Object.assign(h, all ? { active: true } : {}));
+      const holidays = fed.concat(office).sort((a, b) => a.date.localeCompare(b.date) || (a.kind === b.kind ? 0 : a.kind === "federal" ? -1 : 1));
+      return ok({ year: y, holidays });
+    }
+    if (path === "/api/holidays" && method === "POST") {
+      if (!admin) return { status: 403, json: { error: es ? "Permisos insuficientes" : "Insufficient permissions", code: "access.insufficientPermissions" } };
+      const h = { id: null, date: String((body && body.date) || ""), name: String((body && body.name) || "").trim(), note: body && body.note != null ? String(body.note) : null, active: true };
+      const no = holidayCheck(h, lang);
+      if (no) return no;
+      holidaySeq += 1; h.id = "hol-" + holidaySeq;
+      officeHolidays.push(h);
+      return created({ holiday: { id: h.id, date: h.date, name: h.name, note: h.note, kind: "office", active: true } });
+    }
+    if (/^\/api\/holidays\/[^/]+$/.test(path) && method === "PATCH") {
+      if (!admin) return { status: 403, json: { error: es ? "Permisos insuficientes" : "Insufficient permissions", code: "access.insufficientPermissions" } };
+      const h = officeHolidays.find((x) => x.id === decodeURIComponent(path.split("/")[3]));
+      if (!h) return holidayRefusal("holidays.notFound", 404, es ? "No se encontr\u00f3 ese d\u00eda festivo." : "That holiday was not found.");
+      const next = Object.assign({}, h, body && body.date !== undefined ? { date: String(body.date) } : {}, body && body.name !== undefined ? { name: String(body.name).trim() } : {},
+        body && body.note !== undefined ? { note: body.note == null ? null : String(body.note) } : {}, body && body.active !== undefined ? { active: body.active !== false } : {});
+      const no = next.active ? holidayCheck(next, lang) : null;
+      if (no) return no;
+      Object.assign(h, next);
+      return ok({ holiday: { id: h.id, date: h.date, name: h.name, note: h.note, kind: "office", active: h.active } });
+    }
+    if (path === "/api/users/" + LEFT_ID + "/employment" && method === "GET") return ok(leftEmployment());
+    if (path === "/api/users/" + LEFT_ID + "/employment/rehire" && method === "POST") {
+      if (leftRehired) return { status: 409, json: { error: es ? "Esta persona ya est\u00e1 activa." : "This person is already active.", code: "employment.wrongState", status: "active" } };
+      if (!realDay(body && body.hireDate)) return { status: 400, json: { error: es ? "Elija una fecha v\u00e1lida." : "Choose a real date.", code: "employment.badDate", keys: ["hireDate"] } };
+      const ids = body && body.restoreAssignmentIds !== undefined ? body.restoreAssignmentIds : [];
+      const past = PAST_SITES();
+      if (!Array.isArray(ids) || ids.length > 20 || ids.some((x) => !past.some((p) => p.assignmentId === x))) return { status: 400, json: { error: es ? "Uno de los sitios no es de esta persona." : "One of those sites is not one of this person's.", code: "employment.badSites", keys: ["restoreAssignmentIds"] } };
+      if (ids.indexOf(SCHOOL_PAST) >= 0) {
+        const who = state.staff.find((p) => p.id === LEFT_ID) || {};
+        const name = [who.first_name, who.last_name].filter(Boolean).join(" ");
+        const school = past.find((p) => p.assignmentId === SCHOOL_PAST);
+        return { status: 409, json: { error: (es ? "No se puede asignar a " : "") + name + (es ? " a este sitio escolar." : " cannot be placed at this school site."), code: "schedule.clearanceMissing", missing: ["Child abuse clearance"], keys: [name], userId: LEFT_ID, siteId: school.siteId } };
+      }
+      leftRehired = true;
+      return ok({ changed: true, employment: leftEmployment(), rehireEligibleWas: true, restoredSites: past.filter((p) => ids.indexOf(p.assignmentId) >= 0).map((p) => ({ assignmentId: p.assignmentId, siteId: p.siteId, siteName: p.siteName })) });
+    }
+    if (path === "/api/forms/responses/" + CONCERN_ID + "/acknowledge" && method === "POST") {
+      if (concernAck) return { status: 409, json: { error: es ? "Esta inquietud ya se confirm\u00f3." : "This concern is already acknowledged.", code: "forms.alreadyAcknowledged" } };
+      const how = body && body.method;
+      if (["phone", "text", "email", "in_person"].indexOf(how) < 0) return { status: 400, json: { error: es ? "Elija c\u00f3mo se confirm\u00f3." : "Choose how it was acknowledged.", code: "forms.badDetails", keys: ["method"] } };
+      if (body.note != null && String(body.note).length > 500) return { status: 400, json: { error: es ? "La nota admite hasta 500 caracteres." : "A note holds up to 500 characters.", code: "forms.badDetails", keys: ["note"] } };
+      const me = person();
+      concernAck = { acknowledgedAt: seed.NOW_ISO, acknowledgedMethod: how, acknowledgedBy: { name: [me.firstName || me.first_name, me.lastName || me.last_name].filter(Boolean).join(" ") } };
+      return ok(concernAck);
+    }
+    if (path === "/api/forms/responses/" + CONCERN_ID && method === "GET") return ok(concernRead(lang));
+    const answer = base();
+    // The concern heads the submitted list, wherever the list is not narrowed to another form.
+    if (path === "/api/forms/responses" && method === "GET" && answer && answer.status === 200 && answer.json && Array.isArray(answer.json.responses)
+      && String(query.get("status") || "submitted") === "submitted" && (!query.get("formCode") || query.get("formCode") === "OCSA-FRM-009")
+      && (!query.get("siteId") || query.get("siteId") === S[0].id) && !query.get("before")) {
+      answer.json = Object.assign({}, answer.json, { responses: [concernRow(lang)].concat(answer.json.responses) });
+    }
+    return answer;
+  }
+
   function route(method, path, query, body, lang) {
     const q = (k) => query.get(k);
     const idAfter = (prefix) => path.slice(prefix.length).split("/")[0];
@@ -3724,7 +3884,9 @@ function createStubs() {
       return { status: refusal.status, json: Object.assign({ error: refusal.error, code: refusal.code }, refusal.body || {}) };
     }
 
-    const answer = route(method, path, u.searchParams, body, record.language);
+    const answer = step247
+      ? step247Route(method, path, u.searchParams, body, record.language, () => route(method, path, u.searchParams, body, record.language))
+      : route(method, path, u.searchParams, body, record.language);
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -3779,6 +3941,8 @@ function createStubs() {
     publishForm: (code) => { if (BUILDER_FORMS[code] && state.published.indexOf(code) < 0) state.published.push(code); },
     signedInAs: () => signedInAs,
     setSignedInAs: (k) => { signedInAs = k; },
+    // The routes and keys of the API's Step 247, on or off.
+    setStep247: (v) => { step247 = v !== false; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -3819,6 +3983,8 @@ function createStubs() {
       state.chatUnread = {}; state.chatSent = {}; chatSeq = 0;
       state.announcements = null; annSeq = 0;
       state.alertSettings = {};
+      // Step 247 off, and its holidays, its person and its concern as they started.
+      step247 = false; officeHolidays = OFFICE_HOLIDAYS(); holidaySeq = 2; leftRehired = false; concernAck = null;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,
