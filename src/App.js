@@ -23109,14 +23109,27 @@ const topicFormOf = (tp) => ({
 });
 
 // One topic: its details, who needs it, and, for an admin, Edit, Retire and Restore. A new topic opens
-// on its form, and once saved it is a topic like any other.
-function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showToast, onClose, onSaved }) {
+// on its form, and once saved it is a topic like any other. Since Step 257's lessons, a Lesson tab once
+// the topic's versions answer. A lesson draft with changes not saved asks before the window closes or
+// another tab opens.
+function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showToast, onClose: close, onSaved }) {
   const [tp, setTp] = useState(topic);
   const [view, setView] = useState("details");
   const [editing, setEditing] = useState(!topic);
+  const [versions, setVersions] = useState(null);
+  const guard = useRef(null);
   useEffect(() => { if (topic) setTp(topic); }, [topic]);
+  const tpId = tp ? tp.id : "";
+  const loadVersions = useCallback(async () => {
+    if (!tpId) return;
+    try { const d = await af("/api/training/lessons/" + encodeURIComponent(tpId) + "/versions"); if (d && Array.isArray(d.versions)) setVersions(d.versions); }
+    catch (e) { console.warn("Lessons:", e.message); }
+  }, [af, tpId]);
+  useEffect(() => { loadVersions(); }, [loadVersions]);
+  const leave = () => !(guard.current && guard.current()) || window.confirm(tr("Leave without saving your changes?"));
+  const onClose = () => { if (leave()) close(); };
   const saved = (next) => { setTp(next); setEditing(false); if (onSaved) onSaved(next); };
-  const views = tp ? [{ id: "details", l: tr("Details") }, { id: "who", l: tr("Who needs it") }] : [];
+  const views = tp ? [{ id: "details", l: tr("Details") }, { id: "who", l: tr("Who needs it") }].concat(versions ? [{ id: "lesson", l: tr("Lesson") }] : []) : [];
   return (<Mdl t={t} tall onClose={onClose}>
     <div data-topic-window="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 10px", borderBottom: "1px solid " + t.border }}>
@@ -23129,13 +23142,14 @@ function TrainingTopicWindow({ af, t, topic, isAdmin = false, people = [], showT
           <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
         </div>
         {views.length > 1 && <div role="tablist" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-          {views.map(v => <button key={v.id} role="tab" aria-selected={view === v.id} data-topic-tab={v.id} onClick={() => setView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (view === v.id ? GO : t.border), background: view === v.id ? t.goldBg : "transparent", color: view === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
+          {views.map(v => <button key={v.id} role="tab" aria-selected={view === v.id} data-topic-tab={v.id} onClick={() => { if (view !== v.id && leave()) setView(v.id); }} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (view === v.id ? GO : t.border), background: view === v.id ? t.goldBg : "transparent", color: view === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
         </div>}
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
         {(!tp || (view === "details" && editing)) && <TopicForm af={af} t={t} topic={tp} onCancel={() => (tp ? setEditing(false) : onClose())} onSaved={saved} />}
         {tp && view === "details" && !editing && <TopicDetails af={af} t={t} tp={tp} isAdmin={isAdmin} onEdit={() => setEditing(true)} onSaved={saved} showToast={showToast} />}
         {tp && view === "who" && <TopicWhoNeedsIt af={af} t={t} tp={tp} isAdmin={isAdmin} people={people} onSaved={saved} />}
+        {tp && view === "lesson" && versions && <TopicLesson af={af} t={t} tp={tp} isAdmin={isAdmin} versions={versions} onReload={loadVersions} showToast={showToast} guard={guard} />}
       </div>
     </div>
   </Mdl>);
@@ -23503,4 +23517,325 @@ function PersonTrainingWindow({ af, t, userId, name = "", onClose }) {
       </div>
     </div>
   </Mdl>);
+}
+
+// ===== LESSONS (Step 257, slice 2 of the API's Step 256) =====
+// STEP256_CONTRACT.md sections 7 and 8. A topic's Lesson tab (TrainingTopicWindow) is drawn once
+// GET /api/training/lessons/:topicId/versions answers: every version with its number, status, when it
+// was published and by whom, its change note, the attempts taken on it, and a Stale chip when a
+// passage it cites has changed since. An admin starts a draft from the live lesson or blank, writes
+// it, saves it, and publishes, discards or retires.
+const LESSON_STATUS = { draft: "Draft|lesson", published: "Published|lesson", retired: "Retired|lesson", discarded: "Discarded|lesson" };
+const lessonStatusWord = (s) => (LESSON_STATUS[s] ? tr(LESSON_STATUS[s]) : String(s || ""));
+const lessonStatusColor = (s) => (s === "published" ? GR : s === "draft" ? BL : s === "retired" ? OR : RD);
+const LESSON_KINDS = [{ v: "text", l: "Text|block" }, { v: "list", l: "List|block" }, { v: "warning", l: "Warning|block" }];
+const LESSON_LANGS = [{ id: "en", word: "English" }, { id: "es", word: "Spanish" }, { id: "fr", word: "French" }];
+const L3E = () => ({ en: "", es: "", fr: "" });
+// The day a moment fell on where the screen is, for a stamp such as when a version was published.
+const stampDay = (v) => (v ? new Date(v).toLocaleDateString(localeTag(), { month: "short", day: "numeric", year: "numeric" }) : "");
+// A problem's path as a field of the editor names it: content.questions[2].text.es reads
+// questions.2.text.es, and the path is matched as written when the API writes it that way already.
+const lessonPathOf = (p) => String(p || "").replace(/^content\./, "").replace(/\[(\d+)\]/g, ".$1").replace(/^\./, "");
+// A problem in the screen's language, English when the API has none in it.
+const lessonProblemText = (pr) => (pr && (pr[getLang()] || pr.en)) || "";
+// A key no other block or question in the lesson uses.
+const lessonKey = (prefix, list) => { let n = (list || []).length + 1; const used = new Set((list || []).map(x => x.key)); while (used.has(prefix + n)) n += 1; return prefix + n; };
+// A lesson's content as the editor keeps it: every part present, every text in three languages.
+const lessonContentOf = (c) => {
+  const x = c || {};
+  const l3 = (o) => ({ en: (o && o.en) || "", es: (o && o.es) || "", fr: (o && o.fr) || "" });
+  return {
+    title: l3(x.title),
+    blocks: (Array.isArray(x.blocks) ? x.blocks : []).map((b, i) => ({ key: b.key || "b" + (i + 1), kind: b.kind || "text", text: l3(b.text), items: (Array.isArray(b.items) ? b.items : []).map(l3), source: b.source && b.source.docCode ? { docCode: b.source.docCode, sectionRef: b.source.sectionRef } : null })),
+    questions: (Array.isArray(x.questions) ? x.questions : []).map((q, i) => ({ key: q.key || "q" + (i + 1), text: l3(q.text), options: (Array.isArray(q.options) ? q.options : []).map(o => ({ value: String(o.value), text: l3(o.text) })), correct: q.correct == null ? null : String(q.correct) })),
+    acknowledgement: l3(x.acknowledgement),
+  };
+};
+
+function TopicLesson({ af, t, tp, isAdmin, versions, onReload, showToast, guard }) {
+  const [draft, setDraft] = useState(null);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState("");
+  const live = (versions || []).find(v => v.status === "published") || null;
+  const open = (versions || []).find(v => v.status === "draft") || null;
+  const openDraft = async (id) => {
+    setBusy("open"); setRefusal("");
+    try { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(id)); if (d && d.draft) setDraft(d); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  const start = async (from) => {
+    setBusy("new"); setRefusal("");
+    try { const d = await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/draft", { method: "POST", body: { from } }); if (d && d.draft) { setDraft(d); onReload(); } }
+    catch (e) {
+      // A draft already open is opened rather than refused.
+      if (e && e.code === "training.draftOpen") { const id = (e.body && e.body.draftId) || (open && open.id); if (id) { await openDraft(id); onReload(); setBusy(""); return; } }
+      setRefusal(e.message || tr("Request failed"));
+    }
+    setBusy("");
+  };
+  const retire = async () => {
+    if (!window.confirm(tr("Retire the live lesson? Staff can no longer take it, and the attempts already taken stay."))) return;
+    setBusy("retire"); setRefusal("");
+    try { await af("/api/training/lessons/" + encodeURIComponent(tp.id) + "/retire", { method: "POST" }); showToast(tr("Lesson retired")); onReload(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy("");
+  };
+  if (draft) return <LessonDraftEditor af={af} t={t} tp={tp} initial={draft} showToast={showToast} guard={guard} onDone={() => { setDraft(null); onReload(); }} />;
+  const cols = [
+    { header: tr("Version"), tdStyle: { whiteSpace: "nowrap" }, render: v => <span style={{ display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ color: t.text, fontWeight: 600 }}>{v.version != null ? v.version : tr("Draft|lesson")}</span>{v.stale && <span data-lesson-stale="" title={tr("A passage this version cites has changed since it was cited.")}><Bdg l={tr("Stale")} c={OR} /></span>}</span> },
+    { header: tr("Status"), render: v => <Bdg l={lessonStatusWord(v.status)} c={lessonStatusColor(v.status)} /> },
+    { header: tr("Published"), tdStyle: { color: t.textSec, whiteSpace: "nowrap" }, render: v => stampDay(v.publishedAt) },
+    { header: tr("By"), tdStyle: { color: t.textSec }, render: v => (v.publishedBy && v.publishedBy.name) || "" },
+    { header: tr("Change note"), tdStyle: { color: t.textSec, fontSize: 12, minWidth: 140 }, render: v => v.changeNote || "" },
+    { header: tr("Attempts"), align: "right", tdStyle: { color: t.textSec }, render: v => String(Number(v.attempts) || 0) },
+  ];
+  return (<div data-topic-lesson="">
+    {!live && <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("No lesson is live for this topic.")}</div>}
+    <DataTable t={t} columns={cols} rows={versions || []} rowKey={v => v.id} onRowClick={isAdmin ? (v => { if (v.status === "draft") openDraft(v.id); }) : undefined} empty={tr("No lesson written yet.")} />
+    {refusal && <div role="alert" data-lesson-refusal="" style={{ fontSize: 13, color: RD, marginTop: 10 }}>{refusal}</div>}
+    {isAdmin && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+      {open ? <Btn t={t} data-lesson-open-draft="" disabled={!!busy} onClick={() => openDraft(open.id)}>{tr("Open the draft")}</Btn> : <>
+        {live && <Btn t={t} data-lesson-new="published" disabled={!!busy} onClick={() => start("published")}>{tr("New draft from the live lesson")}</Btn>}
+        <Btn t={t} v={live ? "ghost" : "primary"} data-lesson-new="blank" disabled={!!busy} onClick={() => start("blank")}>{tr("New blank draft")}</Btn>
+      </>}
+      {live && <Btn t={t} v="ghost" data-lesson-retire="" disabled={!!busy} onClick={retire}>{tr("Retire the live lesson")}</Btn>}
+    </div>}
+  </div>);
+}
+
+// Three texts of one thing, English first and the Spanish and French under it, each with the problems
+// the API named for it.
+function LessonText({ t, path, value, onChange, probs, multiline = false, label }) {
+  return <div data-lesson-path={path} style={{ marginBottom: 10 }}>
+    {label && <div style={{ fontSize: 11, fontWeight: 600, color: t.textSec, marginBottom: 4 }}>{label}</div>}
+    {LESSON_LANGS.map(l => {
+      const p = path + "." + l.id;
+      const input = multiline
+        ? <TArea t={t} rows={l.id === "en" ? 3 : 2} aria-label={(label ? label + ", " : "") + tr(l.word)} value={value[l.id] || ""} onChange={e => onChange({ ...value, [l.id]: e.target.value })} />
+        : <Inp t={t} aria-label={(label ? label + ", " : "") + tr(l.word)} value={value[l.id] || ""} onChange={e => onChange({ ...value, [l.id]: e.target.value })} />;
+      return <div key={l.id} data-lesson-path={p} style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 6 }}>
+        <span style={{ flex: "0 0 64px", fontSize: 11, color: l.id === "en" ? t.text : t.textMut, fontWeight: l.id === "en" ? 600 : 400, paddingTop: 13 }}>{tr(l.word)}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>{input}{probs(p)}</div>
+      </div>;
+    })}
+    {probs(path)}
+  </div>;
+}
+
+// The draft editor. Saving is explicit (Save draft); Translate, Publish and Discard save what changed
+// first; leaving the window or the draft with changes not saved asks first, and so does closing the tab.
+function LessonDraftEditor({ af, t, tp, initial, showToast, guard, onDone }) {
+  const take = (d) => ({ content: lessonContentOf(d.content), passPercent: d.passPercent != null ? d.passPercent : 80, maxAttempts: d.maxAttempts != null ? d.maxAttempts : 3, needsTrainer: !!d.needsTrainer || !!tp.safetyCritical, checkedEsBy: d.checkedEsBy || "", checkedFrBy: d.checkedFrBy || "", changeNote: d.changeNote || "" });
+  const [draft, setDraft] = useState(initial.draft);
+  const [f, setF] = useState(() => take(initial.draft));
+  const [problems, setProblems] = useState(Array.isArray(initial.problems) ? initial.problems : []);
+  const [dirty, setDirty] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState(null);
+  const [citing, setCiting] = useState(null);
+  // The docVersion of each section cited, by docCode and sectionRef, from the draft's sources and the
+  // passages picked since.
+  const versionsRef = useRef({});
+  useEffect(() => { (initial.draft.sources || []).forEach(s0 => { if (s0 && s0.docCode) versionsRef.current[s0.docCode + "|" + s0.sectionRef] = s0.docVersion; }); }, [initial]);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  useEffect(() => {
+    if (guard) guard.current = () => dirtyRef.current;
+    const warn = (e) => { if (dirtyRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => { window.removeEventListener("beforeunload", warn); if (guard) guard.current = null; };
+  }, [guard]);
+  const c = f.content;
+  const edit = (next) => { setF(next); setDirty(true); };
+  const setC = (fn) => edit({ ...f, content: fn(f.content) });
+  const setBlock = (i, b) => setC(x => ({ ...x, blocks: x.blocks.map((y, j) => (j === i ? b : y)) }));
+  const setQ = (i, q) => setC(x => ({ ...x, questions: x.questions.map((y, j) => (j === i ? q : y)) }));
+  const move = (list, i, by) => { const a = list.slice(); const j = i + by; if (j < 0 || j >= a.length) return a; const tmp = a[i]; a[i] = a[j]; a[j] = tmp; return a; };
+  const byPath = useMemo(() => { const m = {}; problems.forEach(pr => { const k = lessonPathOf(pr.path); (m[k] = m[k] || []).push(pr); }); return m; }, [problems]);
+  const probs = (path) => (byPath[path] || []).map((pr, i) => <div key={i} role="alert" data-lesson-field-problem={path} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{lessonProblemText(pr)}</div>);
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-lesson-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  // Every passage the blocks cite, once, with the version of the section cited.
+  const sourcesOf = (content) => {
+    const seen = new Map();
+    content.blocks.forEach(b => { if (b.source && b.source.docCode) { const k = b.source.docCode + "|" + b.source.sectionRef; if (!seen.has(k)) seen.set(k, { docCode: b.source.docCode, sectionRef: b.source.sectionRef, docVersion: versionsRef.current[k] || null }); } });
+    return Array.from(seen.values());
+  };
+  const body = () => ({ content: c, passPercent: Number(f.passPercent), maxAttempts: Number(f.maxAttempts), needsTrainer: !!f.needsTrainer || !!tp.safetyCritical, sources: sourcesOf(c), checkedEsBy: f.checkedEsBy.trim() || null, checkedFrBy: f.checkedFrBy.trim() || null, changeNote: f.changeNote.trim() || null });
+  const fail = (e) => {
+    const fields = trainingKeysOf(e).concat(e && e.code === "training.translationUnchecked" ? ["checkedEsBy"] : []);
+    if (e && e.body && Array.isArray(e.body.problems)) setProblems(e.body.problems);
+    setRefusal({ text: e.message || tr("Request failed"), fields });
+  };
+  const after = (d) => { if (d && d.draft) { setDraft(d.draft); setF(take(d.draft)); } if (d && Array.isArray(d.problems)) setProblems(d.problems); setDirty(false); };
+  const saveNow = async () => { const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id), { method: "PATCH", body: body() }); after(d); return d; };
+  const run = async (what, fn) => { setBusy(what); setRefusal(null); try { await fn(); } catch (e) { fail(e); } setBusy(""); };
+  const save = () => run("save", async () => { await saveNow(); showToast(tr("Draft saved")); });
+  const translate = () => run("translate", async () => {
+    if (dirty) await saveNow();
+    const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/translate", { method: "POST", body: { overwrite: false } });
+    after(d); showToast(tr("The empty Spanish and French are filled. Have them checked."));
+  });
+  const publish = () => run("publish", async () => {
+    if (dirty) await saveNow();
+    const d = await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/publish", { method: "POST" });
+    showToast(d && d.version && d.version.version != null ? tr("Published as version {0}", d.version.version) : tr("Published|lesson"));
+    onDone();
+  });
+  const discard = () => { if (!window.confirm(tr("Discard this draft? It cannot be published once discarded."))) return; run("discard", async () => { await af("/api/training/lesson-drafts/" + encodeURIComponent(draft.id) + "/discard", { method: "POST" }); setDirty(false); dirtyRef.current = false; showToast(tr("Draft discarded")); onDone(); }); };
+  const back = () => { if (dirty && !window.confirm(tr("Leave without saving your changes?"))) return; onDone(); };
+  const goTo = (path) => {
+    const root = document.querySelector("[data-lesson-editor]");
+    if (!root) return;
+    let p = lessonPathOf(path);
+    while (p) { const el = root.querySelector('[data-lesson-path="' + p + '"]'); if (el) { el.scrollIntoView({ block: "center" }); return; } p = p.indexOf(".") > 0 ? p.slice(0, p.lastIndexOf(".")) : ""; }
+  };
+  const card = { border: "1px solid " + t.border, borderRadius: R.md, padding: 12, marginBottom: 12, background: t.card };
+  const head = (s, extra) => <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "16px 0 8px" }}><div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1 }}>{s}</div>{extra}</div>;
+  const small = { minHeight: 44, padding: "0 10px", background: "none", border: "none", color: t.textSec, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" };
+  const nq = c.questions.length;
+  return (<div data-lesson-editor="">
+    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+      <button onClick={back} style={{ ...small, paddingLeft: 0, color: t.goldText }}>{tr("Back to the versions")}</button>
+      <span style={{ marginLeft: "auto", fontSize: 12, color: dirty ? OR : t.textMut }}>{dirty ? tr("Changes not saved") : tr("Saved|draft")}</span>
+    </div>
+    {draft.stale && <div style={{ fontSize: 12, color: OR, marginBottom: 10 }}>{tr("A passage this draft cites has changed since it was cited.")}</div>}
+    {problems.length > 0 && <div data-lesson-problems={problems.length} style={{ border: "1px solid " + t.redBorder, background: t.redSubtle, borderRadius: R.md, padding: 12, marginBottom: 12 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: RD, marginBottom: 6 }}>{trn("{0} problem to fix before it is published|count", problems.length)}</div>
+      {problems.map((pr, i) => <button key={i} data-lesson-problem={lessonPathOf(pr.path)} onClick={() => goTo(pr.path)} style={{ display: "block", width: "100%", textAlign: "left", minHeight: 36, padding: "4px 0", background: "none", border: "none", color: t.text, fontSize: 12, fontFamily: FONT_BODY, cursor: "pointer", overflowWrap: "anywhere" }}>{lessonProblemText(pr)}</button>)}
+      {dirty && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Save the draft to check it again.")}</div>}
+    </div>}
+
+    {head(tr("Title"))}
+    <LessonText t={t} path="title" value={c.title} onChange={v => setC(x => ({ ...x, title: v }))} probs={probs} />
+
+    {head(tr("Blocks"))}
+    <div data-lesson-path="blocks">{probs("blocks")}
+      {c.blocks.map((b, i) => <div key={b.key} data-lesson-block={i} style={card}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 }}>
+          <div style={{ width: 150 }}><Sel t={t} aria-label={tr("Kind|block")} value={b.kind} onChange={e => setBlock(i, { ...b, kind: e.target.value, items: e.target.value === "list" ? (b.items.length ? b.items : [L3E()]) : b.items })} options={LESSON_KINDS.map(k => ({ v: k.v, l: tr(k.l) }))} /></div>
+          <button style={small} disabled={i === 0} onClick={() => setC(x => ({ ...x, blocks: move(x.blocks, i, -1) }))}>{tr("Move up")}</button>
+          <button style={small} disabled={i === c.blocks.length - 1} onClick={() => setC(x => ({ ...x, blocks: move(x.blocks, i, 1) }))}>{tr("Move down")}</button>
+          <button style={{ ...small, color: RD, marginLeft: "auto" }} onClick={() => setC(x => ({ ...x, blocks: x.blocks.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+        </div>
+        <LessonText t={t} path={"blocks." + i + ".text"} value={b.text} multiline onChange={v => setBlock(i, { ...b, text: v })} probs={probs} label={b.kind === "list" ? tr("The line before the list") : b.kind === "warning" ? tr("Warning|block") : tr("Text|block")} />
+        {b.kind === "list" && <div data-lesson-path={"blocks." + i + ".items"}>
+          {b.items.map((it, j) => <div key={j} style={{ borderTop: "1px dashed " + t.border, paddingTop: 8 }}>
+            <LessonText t={t} path={"blocks." + i + ".items." + j} value={it} onChange={v => setBlock(i, { ...b, items: b.items.map((y, k) => (k === j ? v : y)) })} probs={probs} label={tr("Item {0}", j + 1)} />
+            {b.items.length > 1 && <button style={{ ...small, color: RD }} onClick={() => setBlock(i, { ...b, items: b.items.filter((y, k) => k !== j) })}>{tr("Remove the item")}</button>}
+          </div>)}
+          <button style={{ ...small, color: t.goldText }} onClick={() => setBlock(i, { ...b, items: b.items.concat([L3E()]) })}>{tr("Add an item")}</button>
+        </div>}
+        <div data-lesson-path={"blocks." + i + ".source"} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+          {b.source ? <span data-lesson-cites="" style={{ fontSize: 12, color: t.textSec }}>{tr("Cites {0}", [b.source.docCode, b.source.sectionRef].filter(Boolean).join(" "))}</span> : null}
+          <button style={{ ...small, color: BL }} data-lesson-cite={i} onClick={() => setCiting(citing === i ? null : i)}>{b.source ? tr("Cite another passage") : tr("Cite a passage")}</button>
+          {b.source && <button style={{ ...small, color: RD }} onClick={() => setBlock(i, { ...b, source: null })}>{tr("Remove the citation")}</button>}
+          {probs("blocks." + i + ".source")}
+        </div>
+        {citing === i && <LessonLibrary af={af} t={t} docCode={(b.source && b.source.docCode) || tp.docCode || ""} onPick={(sec) => { versionsRef.current[sec.docCode + "|" + sec.sectionRef] = sec.docVersion; setBlock(i, { ...b, source: { docCode: sec.docCode, sectionRef: sec.sectionRef } }); setCiting(null); }} onClose={() => setCiting(null)} />}
+      </div>)}
+      {c.blocks.length < 30 && <Btn t={t} v="ghost" data-lesson-add-block="" onClick={() => setC(x => ({ ...x, blocks: x.blocks.concat([{ key: lessonKey("b", x.blocks), kind: "text", text: L3E(), items: [], source: null }]) }))}>{tr("Add a block")}</Btn>}
+    </div>
+
+    {head(tr("Questions"), <span data-lesson-question-count={nq} style={{ fontSize: 12, color: nq < 5 || nq > 10 ? RD : t.textMut }}>{tr("{0} of 5 to 10", nq)}</span>)}
+    <div data-lesson-path="questions">{probs("questions")}
+      {c.questions.map((q, i) => <div key={q.key} data-lesson-question={i} style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Question {0}", i + 1)}</span>
+          <button style={{ ...small, color: RD, marginLeft: "auto" }} data-lesson-remove-question={i} onClick={() => setC(x => ({ ...x, questions: x.questions.filter((y, j) => j !== i) }))}>{tr("Remove")}</button>
+        </div>
+        <LessonText t={t} path={"questions." + i + ".text"} value={q.text} onChange={v => setQ(i, { ...q, text: v })} probs={probs} />
+        <div data-lesson-path={"questions." + i + ".options"} style={{ paddingLeft: 8, borderLeft: "3px solid " + t.border }}>
+          {q.options.map((o, j) => <div key={o.value} data-lesson-path={"questions." + i + ".options." + j} style={{ marginBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 12, fontWeight: 600, color: q.correct === o.value ? GR : t.textSec, cursor: "pointer" }}>
+                <input type="radio" name={"correct-" + q.key} checked={q.correct === o.value} onChange={() => setQ(i, { ...q, correct: o.value })} style={{ width: 20, height: 20, accentColor: GO }} />{q.correct === o.value ? tr("The right answer") : tr("Answer {0}", j + 1)}</label>
+              {q.options.length > 2 && <button style={{ ...small, color: RD, marginLeft: "auto" }} onClick={() => setQ(i, { ...q, options: q.options.filter((y, k) => k !== j), correct: q.correct === o.value ? null : q.correct })}>{tr("Remove the answer")}</button>}
+            </div>
+            <LessonText t={t} path={"questions." + i + ".options." + j + ".text"} value={o.text} onChange={v => setQ(i, { ...q, options: q.options.map((y, k) => (k === j ? { ...y, text: v } : y)) })} probs={probs} />
+          </div>)}
+          {probs("questions." + i + ".options")}
+          <div data-lesson-path={"questions." + i + ".correct"}>{probs("questions." + i + ".correct")}</div>
+          {q.options.length < 5 && <button style={{ ...small, color: t.goldText }} onClick={() => { const used = new Set(q.options.map(o => o.value)); const v = "abcdefghij".split("").find(x => !used.has(x)); setQ(i, { ...q, options: q.options.concat([{ value: v, text: L3E() }]) }); }}>{tr("Add an answer")}</button>}
+        </div>
+      </div>)}
+      {nq < 10 && <Btn t={t} v="ghost" data-lesson-add-question="" onClick={() => setC(x => ({ ...x, questions: x.questions.concat([{ key: lessonKey("q", x.questions), text: L3E(), options: [{ value: "a", text: L3E() }, { value: "b", text: L3E() }], correct: null }]) }))}>{tr("Add a question")}</Btn>}
+    </div>
+
+    {head(tr("Acknowledgement"))}
+    <div style={{ fontSize: 11, color: t.textMut, marginBottom: 6 }}>{tr("The line the person signs under once they pass.")}</div>
+    <LessonText t={t} path="acknowledgement" value={c.acknowledgement} onChange={v => setC(x => ({ ...x, acknowledgement: v }))} probs={probs} />
+
+    {head(tr("Taking it"))}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+      <div data-lesson-path="passPercent"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Pass mark (percent)")}</div>
+        <Inp t={t} type="number" min={50} max={100} aria-label={tr("Pass mark (percent)")} value={f.passPercent} onChange={e => edit({ ...f, passPercent: e.target.value })} />{bad("passPercent")}{probs("passPercent")}</div>
+      <div data-lesson-path="maxAttempts"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Tries")}</div>
+        <Inp t={t} type="number" min={1} max={10} aria-label={tr("Tries")} value={f.maxAttempts} onChange={e => edit({ ...f, maxAttempts: e.target.value })} />{bad("maxAttempts")}{probs("maxAttempts")}</div>
+    </div>
+    <div data-lesson-path="needsTrainer" style={{ marginTop: 8 }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, fontSize: 13, color: t.text, cursor: tp.safetyCritical ? "default" : "pointer" }}>
+        <input type="checkbox" data-lesson-needs-trainer="" checked={!!f.needsTrainer || !!tp.safetyCritical} disabled={!!tp.safetyCritical} onChange={e => edit({ ...f, needsTrainer: e.target.checked })} style={{ width: 20, height: 20, accentColor: GO }} />{tr("Needs a trainer")}</label>
+      <div style={{ fontSize: 11, color: t.textMut }}>{tp.safetyCritical ? tr("Safety topics need a trainer to watch a demonstration (OCSA-HR-016 5.5).") : tr("A trainer signs off after watching the person do it.")}</div>
+      {probs("needsTrainer")}
+    </div>
+
+    {head(tr("Languages"))}
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 10 }}>
+      <Btn t={t} v="ghost" data-lesson-translate="" disabled={!!busy} onClick={translate}>{busy === "translate" ? tr("Translating...") : tr("Translate")}</Btn>
+      <span style={{ fontSize: 11, color: t.textMut, flex: "1 1 220px" }}>{tr("Fills the empty Spanish and French. A language it changes loses its checker's name.")}</span>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      <div data-lesson-path="checkedEsBy"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Spanish checked by")}</div>
+        <Inp t={t} aria-label={tr("Spanish checked by")} data-lesson-checked="es" value={f.checkedEsBy} onChange={e => edit({ ...f, checkedEsBy: e.target.value })} />
+        {tp.safetyCritical && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("A safety lesson is published only once someone fluent has checked the Spanish.")}</div>}
+        {bad("checkedEsBy")}{probs("checkedEsBy")}</div>
+      <div data-lesson-path="checkedFrBy"><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("French checked by")}</div>
+        <Inp t={t} aria-label={tr("French checked by")} data-lesson-checked="fr" value={f.checkedFrBy} onChange={e => edit({ ...f, checkedFrBy: e.target.value })} />
+        {tp.safetyCritical && <div style={{ fontSize: 11, color: t.textMut, marginTop: 4 }}>{tr("Staff see the French of a safety lesson only once a French checker is named.")}</div>}
+        {bad("checkedFrBy")}{probs("checkedFrBy")}</div>
+    </div>
+    <div data-lesson-path="changeNote" style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: t.textMut, marginBottom: 4 }}>{tr("Change note")}</div>
+      <Inp t={t} aria-label={tr("Change note")} placeholder={tr("What changed in this version")} value={f.changeNote} onChange={e => edit({ ...f, changeNote: e.target.value })} />{bad("changeNote")}{probs("changeNote")}</div>
+
+    {refusal && refusal.fields.length === 0 && <div role="alert" data-lesson-refusal="" style={{ fontSize: 13, color: RD, marginTop: 12 }}>{refusal.text}</div>}
+    <div style={{ position: "sticky", bottom: -20, background: t.card, borderTop: "1px solid " + t.border, margin: "16px -20px -20px", padding: "12px 20px", display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+      <Btn t={t} v="ghost" data-lesson-discard="" disabled={!!busy} onClick={discard} style={{ marginRight: "auto", padding: "10px 12px", color: RD }}>{tr("Discard")}</Btn>
+      <Btn t={t} v="ghost" data-lesson-save="" disabled={!!busy || !dirty} onClick={save} style={{ padding: "10px 12px" }}>{busy === "save" ? tr("Saving...") : tr("Save draft")}</Btn>
+      <Btn t={t} data-lesson-publish="" disabled={!!busy} onClick={publish} style={{ padding: "10px 12px" }}>{busy === "publish" ? tr("Publishing...") : tr("Publish")}</Btn>
+    </div>
+  </div>);
+}
+
+// Cite a passage: the Help library's sections, by document (GET /api/training/library?docCode=), each
+// with its title, version and an opening of its text; Cite takes the section.
+function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
+  const [code, setCode] = useState(docCode);
+  const [asked, setAsked] = useState(docCode);
+  const [sections, setSections] = useState(null);
+  const [failed, setFailed] = useState("");
+  useEffect(() => {
+    let alive = true;
+    setSections(null); setFailed("");
+    af("/api/training/library" + (asked ? "?docCode=" + encodeURIComponent(asked) : "")).then(d => { if (alive) setSections(d && Array.isArray(d.sections) ? d.sections : []); }).catch(e => { if (alive) { setSections([]); setFailed(e.message || tr("This did not load.")); } });
+    return () => { alive = false; };
+  }, [af, asked]);
+  return <div data-lesson-library="" style={{ marginTop: 8, padding: 10, border: "1px solid " + t.border, borderRadius: R.sm, background: t.hover }}>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+      <div style={{ flex: "1 1 160px", minWidth: 0 }}><Inp t={t} aria-label={tr("Document")} placeholder={tr("Every document")} value={code} onChange={e => setCode(e.target.value)} onKeyDown={e => { if (e.key === "Enter") setAsked(code.trim()); }} /></div>
+      <Btn t={t} v="ghost" onClick={() => setAsked(code.trim())}>{tr("Search")}</Btn>
+      <Btn t={t} v="ghost" onClick={onClose}>{tr("Close")}</Btn>
+    </div>
+    {sections === null ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <div role="alert" style={{ fontSize: 12, color: RD }}>{failed}</div>
+      : sections.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No passage found.")}</div>
+      : <div style={{ maxHeight: 260, overflowY: "auto" }}>{sections.map(sec => <div key={sec.docCode + "|" + sec.sectionRef} data-lesson-section={sec.docCode + " " + sec.sectionRef} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", borderBottom: "1px solid " + t.border }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{[sec.docCode, sec.sectionRef].filter(Boolean).join(" ")}{sec.title ? ", " + sec.title : ""}</div>
+          <div style={{ fontSize: 11, color: t.textMut }}>{[sec.docTitle, sec.docVersion ? tr("Version {0}", sec.docVersion) : ""].filter(Boolean).join(" . ")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{String(sec.content || "").slice(0, 220)}{String(sec.content || "").length > 220 ? "..." : ""}</div>
+        </div>
+        <Btn t={t} onClick={() => onPick(sec)} style={{ minHeight: 44 }}>{tr("Cite")}</Btn>
+      </div>)}</div>}
+  </div>;
 }
