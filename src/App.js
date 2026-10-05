@@ -21988,6 +21988,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const gapsLive = useTrainingLive(af, "gaps");
   const awaitingLive = useTrainingLive(af, "awaiting");
   const sessionsLive = useTrainingLive(af, "sessions");
+  const documentsLive = useTrainingLive(af, "documents");
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -22184,7 +22185,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
 
   // The Training area's tabs that answer, and the one drawn: a tab whose route has not answered yet
   // draws the records.
-  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : []);
+  const trViews = [{ id: "records", l: tr("Records|training") }].concat(gapsLive ? [{ id: "gaps", l: tr("Gaps|training") }] : [], topicsLive ? [{ id: "catalog", l: tr("Catalog") }] : [], awaitingLive ? [{ id: "awaiting", l: tr("Awaiting sign-off") }] : [], sessionsLive ? [{ id: "sessions", l: tr("Sessions") }] : [], documentsLive ? [{ id: "documents", l: tr("Documents to sign") }] : []);
   const trCur = trViews.some(v => v.id === trView) ? trView : "records";
 
   const badge = (label, bg, color) => <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600, background: bg, color }}>{label}</span>;
@@ -22297,6 +22298,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
       {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
+      {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
       {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
@@ -22324,7 +22326,7 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
             { header: tr("Expiry"), render: r => <span>{expiryBadge(r.expiry_date)}{r.expiry_date ? <span style={{ color: t.textSec, fontSize: 11, marginLeft: 4 }}>{fmtDate(r.expiry_date)}</span> : ""}</span> },
             { header: tr("Score"), tdStyle: { color: t.textSec }, render: r => r.score || "" },
             { header: tr("Administered By"), tdStyle: { color: t.textSec }, render: r => r.administered_by || "" },
-            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}><button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
+            { header: "", align: "right", render: r => <div style={{ whiteSpace: "nowrap" }}>{recordHasCertificate(r) && <button data-open-certificate={r.id} onClick={() => openTrainingCertificate(token, r.id).catch(e => showToast(e.message, "error"))} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Open the certificate")}</button>}<button onClick={() => { setForm({ ...r, completed_date: fmtDate(r.completed_date), expiry_date: fmtDate(r.expiry_date) }); setShowModal("training"); }} style={{ background: "none", border: "none", color: BL, cursor: "pointer", marginRight: 8, fontSize: 12 }}>{tr("Edit")}</button><button onClick={() => deleteTraining(r.id)} style={{ background: "none", border: "none", color: RD, cursor: "pointer", fontSize: 12 }}>{tr("Remove from this list")}</button></div> }
           ];
           return <DataTable t={t} columns={columns} rows={items} rowKey={r => r.id} empty={training.length === 0 ? tr("No training records found.") : tr("No records match this search.")} footer={<Pagination t={t} page={cur} perPage={hrPerPage} total={searched.length} onPage={setTrPage} />} />;
         })()}
@@ -23016,6 +23018,7 @@ const TRAINING_PROBES = {
   awaiting: ["/api/training/awaiting", (d) => !!(d && Array.isArray(d.attempts))],
   // Step 263, against the API's Step 262 (STEP262_CONTRACT.md).
   sessions: ["/api/training/sessions", (d) => !!(d && Array.isArray(d.sessions))],
+  documents: ["/api/documents", (d) => !!(d && Array.isArray(d.documents))],
 };
 const trainingProbes = {};
 const probeTraining = (af, key) => {
@@ -23507,13 +23510,16 @@ function useTrainingItems(af, userId, on = true) {
 // Since the lessons, an item with a lesson says how many tries are used, and the person's list shows
 // each attempt behind an item with its Print: attemptsOf gives the attempts read for an item, onPrint
 // prints one.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null }) {
+// Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
+// id, onCertificate opens it.
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, certificateOf = null, onCertificate = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
       <div style={{ fontSize: compact ? 12 : 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{it.name}{it.siteName ? " (" + it.siteName + ")" : ""}</div>
       <div style={{ fontSize: compact ? 10 : 12, color: t.textMut, marginTop: 2 }}>{[topicDocLine(it), it.completedDate ? tr("Completed: {0}", fdLong(it.completedDate)) : "", it.expiresOn ? tr("Expires {0}", fdLong(it.expiresOn)) : ""].filter(Boolean).join(" | ")}</div>
       {courseLinkOf(it.linkUrl) && <a href={courseLinkOf(it.linkUrl)} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", marginTop: 4, color: BL, fontSize: 12, fontWeight: 600 }}>{tr("Open the course")}</a>}
+      {certificateOf && onCertificate && certificateOf(it) && <button data-open-certificate={certificateOf(it)} onClick={() => onCertificate(certificateOf(it))} style={{ display: "inline-block", minHeight: 44, marginLeft: it.linkUrl ? 12 : 0, padding: 0, background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the certificate")}</button>}
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
@@ -23530,11 +23536,18 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", sho
   // an item, read once.
   const [records, setRecords] = useState([]);
   const [attempts, setAttempts] = useState({});
+  const [again, setAgain] = useState(0);
   useEffect(() => {
     let alive = true;
     af("/api/hr/training?user_id=" + encodeURIComponent(userId)).then(r => { if (alive) setRecords(Array.isArray(r) ? r : []); }).catch(() => {});
     return () => { alive = false; };
-  }, [af, userId]);
+  }, [af, userId, again]);
+  // Step 263: Upload a certificate once the API's Step 262 answers, and a record that carries one opens
+  // it (GET /api/hr/training/:recordId/certificate).
+  const step262 = useTrainingLive(af, "sessions");
+  const [uploading, setUploading] = useState(false);
+  const certificateOf = (it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return rec && recordHasCertificate(rec) ? String(rec.id) : ""; };
+  const openCertificate = (recordId) => openTrainingCertificate(token, recordId).catch(e => { if (showToast) showToast(e.message, "error"); });
   const idsFor = useCallback((it) => { const rec = records.find(r => String(r.id) === String(it.recordId)); return [it.attemptId, rec && rec.attempt_id].filter(Boolean).map(String).filter((x, i, all) => all.indexOf(x) === i); }, [records]);
   const wanted = ((d && d.items) || []).reduce((all, it) => all.concat(idsFor(it)), []).filter((x, i, all) => all.indexOf(x) === i);
   const wantedKey = wanted.join(",");
@@ -23555,7 +23568,87 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", sho
         <button onClick={onClose} aria-label={tr("Close")} style={{ minWidth: 44, minHeight: 44, background: "none", border: "none", color: t.textSec, fontSize: 22, cursor: "pointer" }}>&times;</button>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} />}
+        {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} certificateOf={certificateOf} onCertificate={openCertificate} />}
+      </div>
+    </div>
+    {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
+  </Mdl>);
+}
+
+// ===== CERTIFICATES FROM OUTSIDE COURSES (Step 263, STEP262_CONTRACT.md section 4) =====
+// A record carries a certificate when the API's Step 262 says so: certificate_path on a training_records
+// row, or certificate on a My training row.
+const recordHasCertificate = (r) => !!(r && (r.certificate_path || r.certificatePath || r.certificate === true));
+const CERTIFICATE_TYPES = ["application/pdf", "image/jpeg", "image/png"];
+const CERTIFICATE_MAX_BYTES = 10 * 1024 * 1024;
+// A record's certificate, read with the token and opened in a new tab.
+async function openTrainingCertificate(token, recordId) {
+  const f = await apiDownload("/api/hr/training/" + encodeURIComponent(recordId) + "/certificate", token, "certificate.pdf");
+  const url = URL.createObjectURL(f.blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+// Upload a certificate from an outside course for one person: the topic, the day it was completed, the
+// expiry (left empty, the API sets it by the topic's frequency) and the file, a PDF, JPEG or PNG up to
+// 10 MB, sent as multipart to POST /api/hr/training/certificates. A refusal is drawn under the field it
+// names, the file's own under the file.
+function UploadCertificateWindow({ af, t, token, userId, name = "", items = [], onClose, onSaved }) {
+  const [topics, setTopics] = useState(null);
+  const [f, setF] = useState({ topicId: "", completedDate: todayISO(), expiryDate: "" });
+  const [file, setFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag())) : []); }).catch(() => { if (alive) setTopics([]); });
+    return () => { alive = false; };
+  }, [af]);
+  // The person's own topics first, the ones a course link points at before the rest.
+  const mine = new Set(items.map(it => String(it.topicId)));
+  const ordered = (topics || []).slice().sort((a, b) => (mine.has(String(b.id)) - mine.has(String(a.id))) || (!!b.linkUrl - !!a.linkUrl));
+  const fileWhy = (x) => (!x ? "" : CERTIFICATE_TYPES.indexOf(x.type) < 0 ? tr("Choose a PDF, JPEG or PNG file.") : x.size > CERTIFICATE_MAX_BYTES ? tr("The file is over 10 MB.") : "");
+  const bad = (k) => (refusal && refusal.fields.indexOf(k) >= 0 ? <div role="alert" data-certificate-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const ready = f.topicId && f.completedDate && file && !fileWhy(file);
+  const send = async () => {
+    if (!ready || busy) return;
+    setBusy(true); setRefusal(null);
+    const fd0 = new FormData();
+    fd0.append("file", file);
+    fd0.append("userId", String(userId));
+    fd0.append("topicId", f.topicId);
+    fd0.append("completedDate", f.completedDate);
+    if (f.expiryDate) fd0.append("expiryDate", f.expiryDate);
+    try { const d = await apiMultipart("/api/hr/training/certificates", token, fd0); onSaved(d && d.record); }
+    catch (e) {
+      const keys = trainingKeysOf(e).map(k => (k === "file" || k === "topicId" || k === "completedDate" || k === "expiryDate" ? k : ""));
+      const fields = keys.filter(Boolean).concat(e && (e.code === "training.badFile" || e.code === "training.fileTooLarge") ? ["file"] : []);
+      setRefusal({ text: e.message || tr("Request failed"), fields });
+    }
+    setBusy(false);
+  };
+  const lbl = { fontSize: 11, color: t.textMut, marginBottom: 4 };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}>
+    <div data-certificate-window="" style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Upload a certificate")}</div>
+        {name && <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div>}
+      </div>
+      <div data-certificate-field="topicId"><div style={lbl}>{tr("Topic")}</div>
+        <Sel t={t} aria-label={tr("Topic")} value={f.topicId} onChange={e => setF({ ...f, topicId: e.target.value })} options={[{ v: "", l: topics === null ? tr("Loading...") : tr("Pick a topic...") }].concat(ordered.map(tp => ({ v: String(tp.id), l: tp.name })))} />{bad("topicId")}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+        <div data-certificate-field="completedDate"><div style={lbl}>{tr("Completed Date")}</div><Inp t={t} type="date" aria-label={tr("Completed Date")} value={f.completedDate} onChange={e => setF({ ...f, completedDate: e.target.value })} />{bad("completedDate")}</div>
+        <div data-certificate-field="expiryDate"><div style={lbl}>{tr("Expiry Date (optional)")}</div><Inp t={t} type="date" aria-label={tr("Expiry Date (optional)")} value={f.expiryDate} onChange={e => setF({ ...f, expiryDate: e.target.value })} />{bad("expiryDate")}</div>
+      </div>
+      <div style={{ fontSize: 11, color: t.textMut, marginTop: -6 }}>{tr("Left empty, the expiry is set by how often the topic is taken.")}</div>
+      <div data-certificate-field="file"><div style={lbl}>{tr("The certificate, a PDF, JPEG or PNG up to 10 MB")}</div>
+        <input type="file" aria-label={tr("The certificate, a PDF, JPEG or PNG up to 10 MB")} accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={e => setFile((e.target.files && e.target.files[0]) || null)} style={{ fontSize: 13, color: t.text, minHeight: 44 }} />
+        {fileWhy(file) && <div role="alert" data-certificate-refusal="file-local" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{fileWhy(file)}</div>}
+        {bad("file")}</div>
+      {refusal && refusal.fields.length === 0 && <div role="alert" data-certificate-refusal="" style={{ fontSize: 13, color: RD }}>{refusal.text}</div>}
+      <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+        <Btn t={t} v="ghost" disabled={busy} onClick={onClose}>{tr("Cancel")}</Btn>
+        <Btn t={t} data-certificate-send="" disabled={busy || !ready} onClick={send}>{busy ? tr("Saving...") : tr("Upload")}</Btn>
       </div>
     </div>
   </Mdl>);
@@ -24339,6 +24432,257 @@ async function printSessionRoster({ af, token, session, staff = [] }) {
       { html: sigHtml(trainerSig, [trainerName, sn.closedAt ? tr("Signed {0}", irWhen(sn.closedAt)) : ""].filter(Boolean).join(", ")) },
     ] };
     keptWrite(w, tr("Attendance sheet"), [page]);
+    return true;
+  } catch (e) {
+    try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
+    return true;
+  }
+}
+
+// ===== DOCUMENTS TO SIGN (Step 263, STEP262_CONTRACT.md section 6) =====
+// The Training area's Documents to sign tab, drawn once GET /api/documents answers: each document with
+// how many people must sign it, how many signed its current version and how many have not. A document's
+// page lists the people by site, the ones who have not signed the current version first, with the
+// version they signed, when and in what language; Print gives a page per site for an assessor; a
+// signature opens when the answer names its acknowledgment. Admins set Who must sign: Everyone, roles
+// and named people, saved as one set of up to 30 rows (PUT .../requirements).
+const DOC_EVERYONE = "everyone";
+// A requirement as the answer carries it, { role }, { role: "everyone" }, { everyone: true } or
+// { userId }, as one shape, or null for a row it cannot read.
+const docReqOf = (r) => (!r ? null : r.everyone === true || r.role === DOC_EVERYONE ? { everyone: true } : r.role ? { role: String(r.role) } : r.userId != null ? { userId: String(r.userId), name: r.personName || r.name || (r.person && r.person.name) || "" } : null);
+// The acknowledgment a person's row names, when the answer names one.
+const docAckIdOf = (p) => String((p && (p.acknowledgmentId || p.acknowledgementId || (p.acknowledgment && p.acknowledgment.id))) || "");
+// A person's state against the current version: signed it, signed an older one, or never signed.
+const docStateOf = (p) => (p && p.current ? "signed" : p && p.signedVersion != null && p.signedVersion !== "" ? "older" : "none");
+const DOC_STATE = { signed: { w: "Signed|document", c: GR }, older: { w: "Signed an older version", c: OR }, none: { w: "Not signed", c: RD } };
+const docStateWord = (p) => tr(DOC_STATE[docStateOf(p)].w);
+// The sites a person's row names, each as { id, name }, for grouping and printing.
+const docSitesOf = (p) => (Array.isArray(p && p.sites) ? p.sites : []).map(s0 => (s0 && typeof s0 === "object" ? { id: String(s0.id != null ? s0.id : s0.name || ""), name: s0.name || "" } : { id: String(s0), name: String(s0) })).filter(s0 => s0.id || s0.name);
+// The people grouped by site, each site in name order and a person in every site they work at; inside
+// a site the ones who have not signed the current version come first, then by name.
+function docGroupsOf(people = [], siteId = "") {
+  const groups = [];
+  const into = (key, name, p) => { let g = groups.find(x => x.key === key); if (!g) { g = { key, name, people: [] }; groups.push(g); } g.people.push(p); };
+  people.forEach(p => {
+    const ss = docSitesOf(p).filter(s0 => !siteId || s0.id === String(siteId));
+    if (ss.length === 0) { if (!siteId) into("", "", p); return; }
+    ss.forEach(s0 => into(s0.id, s0.name, p));
+  });
+  const rank = (p) => (p.current ? 1 : 0);
+  groups.forEach(g => g.people.sort((a, b) => rank(a) - rank(b) || String(a.name || "").localeCompare(String(b.name || ""), localeTag())));
+  return groups.sort((a, b) => (!a.key) - (!b.key) || String(a.name).localeCompare(String(b.name), localeTag()));
+}
+
+function TrainingDocuments({ af, t, token, sites = [], people = [], isAdmin = false, showToast }) {
+  const [list, setList] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [openCode, setOpenCode] = useState("");
+  const load = useCallback(async () => {
+    setFailed(false);
+    try { const d = await af("/api/documents"); setList(d && Array.isArray(d.documents) ? d.documents : []); }
+    catch (e) { setList([]); setFailed(true); showToast(e.message, "error"); }
+  }, [af, showToast]);
+  useEffect(() => { load(); }, [load]);
+  const open = (list || []).find(d0 => d0.docCode === openCode);
+  if (openCode && open) return <DocumentSignaturesPage af={af} t={t} token={token} doc={open} sites={sites} people={people} isAdmin={isAdmin} showToast={showToast} onBack={() => { setOpenCode(""); load(); }} />;
+  const num = (v) => (v == null ? "" : String(v));
+  const cols = [
+    { header: tr("Document"), tdStyle: { minWidth: 160 }, render: d0 => <div><div style={{ color: t.text, fontWeight: 600 }}>{d0.title || d0.docCode}</div><div style={{ fontSize: 11, color: t.textMut }}>{d0.docCode}</div></div> },
+    { header: tr("Version"), tdStyle: { color: t.textSec }, render: d0 => num(d0.version) },
+    { header: tr("Must sign"), align: "right", tdStyle: { color: t.text }, render: d0 => <span data-doc-count="required">{num(d0.required)}</span> },
+    { header: tr("Signed|document"), align: "right", tdStyle: { color: GR }, render: d0 => <span data-doc-count="signed">{num(d0.signed)}</span> },
+    { header: tr("Not signed"), align: "right", render: d0 => <span data-doc-count="notSigned" style={{ color: Number(d0.notSigned) > 0 ? RD : t.textSec, fontWeight: Number(d0.notSigned) > 0 ? 600 : 400 }}>{num(d0.notSigned)}</span> },
+  ];
+  return (<div data-training-documents="">
+    <div style={{ fontSize: 13, color: t.textSec, marginBottom: 12 }}>{tr("Each document people must read and sign, and how many have signed its current version.")}</div>
+    {list === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : <DataTable t={t} columns={cols} rows={list} rowKey={d0 => d0.docCode} onRowClick={d0 => setOpenCode(d0.docCode)} empty={tr("No documents to sign yet.")} />}
+  </div>);
+}
+
+// One document: Who must sign, then the people by site with their signatures. The site and role filters
+// are sent to the API.
+function DocumentSignaturesPage({ af, t, token, doc, sites = [], people = [], isAdmin = false, showToast, onBack }) {
+  const [f, setF] = useState({ siteId: "", role: "" });
+  const [d, setD] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [reqs, setReqs] = useState(Array.isArray(doc.requirements) ? doc.requirements : null);
+  const path = "/api/documents/" + encodeURIComponent(doc.docCode);
+  const load = useCallback(async () => {
+    setFailed(false);
+    const q = Object.keys(f).filter(k => f[k]).map(k => k + "=" + encodeURIComponent(f[k])).join("&");
+    try {
+      const x = await af(path + "/signatures" + (q ? "?" + q : ""));
+      setD({ version: x && x.version != null ? x.version : doc.version, people: x && Array.isArray(x.people) ? x.people : [] });
+      if (x && Array.isArray(x.requirements)) setReqs(x.requirements);
+    } catch (e) { setD({ version: doc.version, people: [] }); setFailed(true); showToast(e.message, "error"); }
+  }, [af, path, f, doc.version, showToast]);
+  useEffect(() => { setD(null); load(); }, [load]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const groups = d ? docGroupsOf(d.people, f.siteId) : [];
+  const notSigned = d ? d.people.filter(p => !p.current).length : 0;
+  const openSig = (id) => openSignatureImage(token, "/api/documents/acknowledgments/" + encodeURIComponent(id) + "/signature").catch(e => showToast(e.message, "error"));
+  const print = () => printDocumentSignatures({ af, token, doc, version: d ? d.version : doc.version, groups }).then(okd => { if (!okd) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  const row = (p) => {
+    const st = docStateOf(p);
+    const ack = docAckIdOf(p);
+    return (<div key={p.id} data-doc-person={p.id} data-doc-state={st} style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 0", borderBottom: "1px solid " + t.border, flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{p.name}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{[roleWord(p.role), p.signedVersion != null && p.signedVersion !== "" ? tr("Version {0}", p.signedVersion) : "", p.signedAt ? irWhen(p.signedAt) : "", p.locale ? trainingLangWord(p.locale) : ""].filter(Boolean).join(" . ")}</div>
+      </div>
+      <Bdg l={docStateWord(p)} c={DOC_STATE[st].c} />
+      {ack && <button data-doc-signature={ack} onClick={() => openSig(ack)} style={{ minHeight: 44, padding: "0 4px", background: "none", border: "none", color: BL, fontSize: 12, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{tr("Open the signature")}</button>}
+    </div>);
+  };
+  return (<div data-document-page={doc.docCode}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <Btn t={t} v="ghost" onClick={onBack}>{tr("Back")}</Btn>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 17, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{doc.title || doc.docCode}</div>
+        <div style={{ fontSize: 12, color: t.textSec }}>{[doc.docCode, d && d.version != null ? tr("Version {0}", d.version) : ""].filter(Boolean).join(" . ")}</div>
+      </div>
+      <Btn t={t} v="ghost" data-doc-print="" disabled={!d || d.people.length === 0} onClick={print}>{tr("Print for the assessor")}</Btn>
+    </div>
+    <Crd t={t} style={{ marginBottom: 14 }}>
+      <SecT t={t}>{tr("Who must sign")}</SecT>
+      <DocumentWhoMustSign af={af} t={t} doc={doc} reqs={reqs} isAdmin={isAdmin} people={people} onSaved={(rows) => { setReqs(rows); load(); }} />
+    </Crd>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 12 }}>
+      <Sel t={t} aria-label={tr("Site")} data-doc-filter="siteId" value={f.siteId} onChange={set("siteId")} options={[{ v: "", l: tr("All sites") }].concat(sites.map(s0 => ({ v: String(s0.id), l: s0.name })))} />
+      <Sel t={t} aria-label={tr("Role")} data-doc-filter="role" value={f.role} onChange={set("role")} options={[{ v: "", l: tr("All roles") }].concat(TRAINING_ROLES.map(r => ({ v: r, l: roleWord(r) })))} />
+    </div>
+    {d && !failed && <div role="status" data-doc-summary="" style={{ fontSize: 13, color: t.textSec, marginBottom: 10 }}>{trn("{0} must sign|count", d.people.length)}{" . "}{trn("{0} not signed|count", notSigned)}</div>}
+    {d === null ? <div style={{ padding: 30, textAlign: "center", color: t.textMut }}>{tr("Loading...")}</div>
+      : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
+      : d.people.length === 0 ? <Crd t={t}><div style={{ padding: 10, color: t.textMut, fontSize: 13 }}>{tr("Nobody must sign this document here.")}</div></Crd>
+      : groups.map(g => <Crd key={g.key || "none"} t={t} style={{ marginBottom: 12 }}>
+        <div data-doc-site={g.key} style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>{g.name || tr("No site")}</div>
+        <div style={{ fontSize: 12, color: t.textMut, marginBottom: 4 }}>{trn("{0} not signed|count", g.people.filter(p => !p.current).length)}</div>
+        {g.people.map(row)}
+      </Crd>)}
+  </div>);
+}
+
+// Who must sign a document: Everyone, roles and named people. Admins change the whole set at once; a
+// refusal naming requirements[i] is drawn under the row it came from. The set in force is read from the
+// document's row or the signatures answer when the API sends it.
+function DocumentWhoMustSign({ af, t, doc, reqs = null, isAdmin = false, people = [], onSaved }) {
+  const fromRows = useCallback((rows) => {
+    const s = { everyone: false, roles: {}, named: [] };
+    (rows || []).map(docReqOf).filter(Boolean).forEach(r => {
+      if (r.everyone) s.everyone = true;
+      else if (r.role) s.roles[r.role] = true;
+      else if (r.userId && !s.named.some(n => n.id === r.userId)) s.named.push({ id: r.userId, name: r.name || ((people.find(p => String(p.id) === r.userId) || {}).name) || "" });
+    });
+    return s;
+  }, [people]);
+  const [edit, setEdit] = useState(null);
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState(null);
+  const shown = edit || fromRows(reqs);
+  const rowsOf = (s) => [].concat(s.everyone ? [{ src: "everyone", role: DOC_EVERYONE }] : [], TRAINING_ROLES.filter(r => s.roles[r]).map(role => ({ src: "role:" + role, role })), s.named.map(p => ({ src: "person:" + p.id, userId: p.id })));
+  const bad = (src) => (refusal && refusal.src === src ? <div role="alert" data-doc-who-refusal="" style={{ fontSize: 12, color: RD, marginTop: 2 }}>{refusal.text}</div> : null);
+  const save = async () => {
+    const rows = rowsOf(edit);
+    setBusy(true); setRefusal(null);
+    try {
+      const x = await af("/api/documents/" + encodeURIComponent(doc.docCode) + "/requirements", { method: "PUT", body: { requirements: rows.map(r => (r.role ? { role: r.role } : { userId: r.userId })) } });
+      setEdit(null);
+      onSaved(x && Array.isArray(x.requirements) ? x.requirements : rows.map(r => (r.role ? { role: r.role } : { userId: r.userId })));
+    } catch (e) {
+      const m = trainingKeysOf(e).map(k => /^requirements\[(\d+)\]/.exec(k)).find(Boolean);
+      setRefusal({ text: e.message || tr("Request failed"), src: m && rows[Number(m[1])] ? rows[Number(m[1])].src : "" });
+    }
+    setBusy(false);
+  };
+  const tickStyle = { width: 20, height: 20, accentColor: GO, flexShrink: 0 };
+  const line = { padding: "8px 0", borderBottom: "1px solid " + t.border, fontSize: 13, color: t.text };
+  if (!edit) {
+    const roles = TRAINING_ROLES.filter(r => shown.roles[r]);
+    return (<div data-doc-who="">
+      {reqs === null ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("The list in force is not sent with this document yet.")}</div>
+        : !shown.everyone && roles.length === 0 && shown.named.length === 0 ? <div style={{ fontSize: 13, color: t.textMut, marginBottom: 8 }}>{tr("Nobody must sign it yet.")}</div>
+        : <div>
+          {shown.everyone && <div data-doc-who-row="everyone" style={{ ...line, fontWeight: 600 }}>{tr("Everyone")}</div>}
+          {roles.map(r => <div key={r} data-doc-who-row={"role:" + r} style={line}>{roleWord(r)}</div>)}
+          {shown.named.map(p => <div key={p.id} data-doc-who-row={"person:" + p.id} style={line}>{p.name}</div>)}
+        </div>}
+      {isAdmin && <div style={{ marginTop: 12 }}><Btn t={t} v="ghost" data-doc-who-edit="" onClick={() => { setEdit(fromRows(reqs)); setRefusal(null); }}>{tr("Change who must sign")}</Btn></div>}
+    </div>);
+  }
+  const count = rowsOf(edit).length;
+  const others = people.filter(p => !edit.named.some(n => n.id === String(p.id)));
+  const addPerson = () => { const p = people.find(x => String(x.id) === pick); if (!p) return; setEdit(s => ({ ...s, named: s.named.concat([{ id: String(p.id), name: p.name }]) })); setPick(""); };
+  return (<div data-doc-who-form="">
+    <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, fontWeight: 600, color: t.text, cursor: "pointer" }}>
+      <input type="checkbox" data-doc-who-everyone="" checked={edit.everyone} onChange={() => setEdit(s => ({ ...s, everyone: !s.everyone }))} style={tickStyle} />{tr("Everyone")}</label>
+    {bad("everyone")}
+    <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, margin: "10px 0 4px" }}>{tr("Roles")}</div>
+    {TRAINING_ROLES.map(role => <div key={role}>
+      <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: t.text, cursor: "pointer" }}>
+        <input type="checkbox" data-doc-who-role={role} checked={!!edit.roles[role]} onChange={() => setEdit(s => { const roles = { ...s.roles }; if (roles[role]) delete roles[role]; else roles[role] = true; return { ...s, roles }; })} style={tickStyle} />{roleWord(role)}</label>
+      {bad("role:" + role)}
+    </div>)}
+    <div style={{ fontSize: 11, fontWeight: 600, color: t.goldText, textTransform: "uppercase", letterSpacing: 1, margin: "10px 0 4px" }}>{tr("Named people")}</div>
+    {edit.named.map(p => <div key={p.id} data-doc-who-person={p.id} style={{ borderBottom: "1px solid " + t.border }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, fontSize: 13, color: t.text }}>
+        <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{p.name}</span>
+        <button onClick={() => setEdit(s => ({ ...s, named: s.named.filter(n => n.id !== p.id) }))} style={{ minHeight: 44, minWidth: 44, background: "none", border: "none", color: RD, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT_BODY }}>{tr("Remove")}</button>
+      </div>
+      {bad("person:" + p.id)}
+    </div>)}
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0 }}><Sel t={t} aria-label={tr("Name a person")} value={pick} onChange={e => setPick(e.target.value)} options={[{ v: "", l: tr("Name a person...") }].concat(others.map(p => ({ v: String(p.id), l: p.name })))} /></div>
+      <Btn t={t} v="ghost" disabled={!pick} onClick={addPerson}>{tr("Add|person")}</Btn>
+    </div>
+    <div role="status" style={{ fontSize: 12, color: count > 30 ? RD : t.textMut, marginTop: 10 }}>{tr("{0} of 30 rows", count)}</div>
+    <div style={{ fontSize: 12, color: t.textMut, marginTop: 4 }}>{tr("Saving replaces who must sign with what is ticked here. Someone added is told once.")}</div>
+    {refusal && !refusal.src && <div role="alert" data-doc-who-refusal="" style={{ fontSize: 13, color: RD, marginTop: 8 }}>{refusal.text}</div>}
+    <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 12 }}>
+      <Btn t={t} v="ghost" disabled={busy} onClick={() => { setEdit(null); setRefusal(null); }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-doc-who-save="" disabled={busy || count > 30} onClick={save}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div>);
+}
+
+// A PNG the API keeps, read with the token and opened in a new tab.
+async function openSignatureImage(token, path) {
+  const f = await apiDownload(path, token, "signature.png");
+  const url = URL.createObjectURL(f.blob);
+  window.open(url, "_blank");
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+// The assessor's print: a page per site with the document, its current version, and each person who
+// must sign it, the ones not signed first, with the version they signed, when, in what language, and
+// the signature where the answer names it.
+async function printDocumentSignatures({ af, token, doc, version, groups = [] }) {
+  const w = keptWindow();
+  if (!w) return false;
+  try {
+    const company = await sheetCompanyFor(af);
+    const ids = [];
+    groups.forEach(g => g.people.forEach(p => { const a = docAckIdOf(p); if (a && ids.indexOf(a) < 0) ids.push(a); }));
+    const imgs = await Promise.all(ids.map(a => keptImage("/api/documents/acknowledgments/" + encodeURIComponent(a) + "/signature", token)));
+    const imgOf = (p) => { const i = ids.indexOf(docAckIdOf(p)); return i >= 0 ? imgs[i] : ""; };
+    const head = (h) => "<th>" + keptEsc(h) + "</th>";
+    const cell = (v) => "<td>" + keptEsc(v) + "</td>";
+    const title = tr("Document signatures");
+    const pages = groups.map(g => {
+      const rows = g.people.map((p, i) => '<tr><td class="n">' + (i + 1) + "</td>" + cell(p.name || "") + cell(roleWord(p.role)) + cell(docStateWord(p)) + cell(p.signedVersion != null ? String(p.signedVersion) : "") + cell(p.signedAt ? irWhen(p.signedAt) : "") + cell(p.locale ? trainingLangWord(p.locale) : "")
+        + "<td>" + (imgOf(p) ? '<img src="' + keptEsc(imgOf(p)) + '" alt="" style="height:26px;max-width:120px;object-fit:contain;display:block" />' : "") + "</td></tr>").join("");
+      return '<div class="kept"><div class="hd"><div><div class="co">' + keptEsc(company) + '</div><div class="ti">' + keptEsc(title) + '</div><div class="code">' + keptEsc([doc.docCode, doc.title, version != null ? tr("Version {0}", version) : ""].filter(Boolean).join(" . ")) + "</div></div>"
+        + '<div class="meta">' + keptEsc(tr("Site")) + ": " + keptEsc(g.name || tr("No site")) + "<br>" + keptEsc(tr("Printed on {0}", keptDay(todayISO()))) + "</div></div>"
+        + '<table class="f"><tbody><tr><th>' + keptEsc(tr("Must sign")) + "</th><td>" + g.people.length + "</td></tr><tr><th>" + keptEsc(tr("Signed the current version")) + "</th><td>" + g.people.filter(p => p.current).length + "</td></tr><tr><th>" + keptEsc(tr("Not signed")) + "</th><td>" + g.people.filter(p => !p.current).length + "</td></tr></tbody></table>"
+        + '<table class="g"><thead><tr>' + head("#") + head(tr("Name")) + head(tr("Role")) + head(tr("Status")) + head(tr("Version signed")) + head(tr("Signed at")) + head(tr("Language")) + head(tr("Signature")) + "</tr></thead><tbody>" + rows + "</tbody></table>"
+        + '<div class="ft">' + keptEsc([company, title, doc.docCode].filter(Boolean).join(" . ")) + "</div></div>";
+    });
+    w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + keptEsc(title) + "</title>" + KEPT_STYLE + "</head><body>" + pages.join("") + "</body></html>");
+    w.document.close();
+    setTimeout(() => { try { w.print(); } catch (e) {} }, 500);
     return true;
   } catch (e) {
     try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
