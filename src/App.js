@@ -1373,6 +1373,8 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     return () => { alive = false; };
   }, [af, mode, data, userId]);
   const known = data || read;
+  // Step 263: what the person still holds of the company's, listed to collect before the last day.
+  const openProp = useOpenProperty(af, userId, known, mode === "end");
   const pastSites = mode === "rehire" && known && Array.isArray(known.pastSites) ? known.pastSites.filter(p => p && p.assignmentId != null) : null;
   const [ticks, setTicks] = useState(null);
   const ticked = ticks || (pastSites ? pastSites.filter(p => p.endedWithEmployment === true).map(p => String(p.assignmentId)) : []);
@@ -1445,6 +1447,14 @@ function EmploymentWindow({ af, t, userId, name, mode, record = false, data, onC
     {mode === "end" && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: 12 }}>
       <div><Lbl>{tr("Last day")}</Lbl><Inp t={t} type="date" aria-label={tr("Last day")} value={f.lastDay} onChange={e => set("lastDay", e.target.value)} style={box("lastDay")} />{under("lastDay")}</div>
       <div><Lbl>{tr("Eligible for rehire?")}</Lbl><Sel t={t} aria-label={tr("Eligible for rehire?")} value={f.rehireEligible} onChange={e => set("rehireEligible", e.target.value)} options={[{ v: "", l: tr("Choose") }, { v: "yes", l: tr("Yes") }, { v: "no", l: tr("No") }]} style={box("rehireEligible")} />{under("rehireEligible")}</div>
+    </div>}
+    {mode === "end" && openProp && <div data-collect-property={openProp.length} style={{ marginBottom: 12 }}>
+      <Lbl>{tr("Collect before the last day")}</Lbl>
+      {openProp.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("No company property is still out.")}</div>
+        : <div style={{ border: "1px solid " + t.border, borderRadius: R.sm }}>{openProp.map((x, i) => <div key={x.id} data-collect-item={x.id} style={{ padding: "8px 10px", borderTop: i ? "1px solid " + t.border : "none" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{propertyLine(x)}</div>
+          <div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{[x.issuedOn ? tr("Issued {0}", keptDay(x.issuedOn)) : "", x.site && x.site.name].filter(Boolean).join(", ")}</div>
+        </div>)}</div>}
     </div>}
     {mode === "leave" && <div style={{ marginBottom: 12, maxWidth: 260 }}>
       <Lbl>{tr("Expected return")}</Lbl><Inp t={t} type="date" min={today} aria-label={tr("Expected return")} value={f.expectedReturn} onChange={e => set("expectedReturn", e.target.value)} style={box("expectedReturn")} />
@@ -6788,6 +6798,11 @@ const notifTarget = (link) => {
   // Issue Tracker on that ticket.
   const fin = /^\/issues\/([^/]+)\/?$/.exec(u.pathname || "");
   if (fin && fin[1] !== "requests") return { kind: "page", page: "issues", hash: "issues/" + fin[1] };
+  // The training notices (Step 263, against the API's Step 256): /training/attempts/<id> opens that
+  // attempt in HR Records' Training area, Awaiting sign-off while it waits for a trainer and else the
+  // person's list in Gaps; /training/people/<userId> opens that person's list in Gaps.
+  const trn0 = /^\/training\/(attempts|people)\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (trn0) return { kind: "page", page: "hr", hash: "hr/training/" + trn0[1] + "/" + trn0[2] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6883,6 +6898,10 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
     // Step 254: a finding's notice opens the Issue Tracker on that ticket.
     if (n.subjectType === "inspection_finding" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
+    // Step 263: a sign-off or reteach notice names its attempt and opens it; an expiring record's opens
+    // the person its link names, else Gaps.
+    if ((n.subjectType === "training_signoff" || n.subjectType === "training_reteach") && n.subjectId) { if (!canOpenPage("hr")) { refuse(); return; } onOpenHash("hr/training/attempts/" + encodeURIComponent(String(n.subjectId))); onClose(); return; }
+    if (n.subjectType === "training_expiring") { if (!canOpenPage("hr")) { refuse(); return; } const m = /\/training\/people\/([^/?#]+)/.exec(String(n.link || "")); onOpenHash(m ? "hr/training/people/" + m[1] : "hr/training/gaps"); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
@@ -21555,6 +21574,7 @@ function EmployeeFolderView({ af, token, showToast, t, userId, refreshKey, onBac
       <PersonClearances af={af} t={t} userId={userId} name={fullName.trim()} focus={focusClearances} />
       <PersonDiscipline af={af} t={t} token={token} userId={userId} name={fullName.trim()} isAdmin={isAdmin} showToast={showToast} onOpenPdf={viewPdf} />
       <PpeIssues af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
+      <PersonProperty af={af} token={token} t={t} userId={userId} sites={sites} name={fullName.trim()} showToast={showToast} />
 
       {/* Category pills */}
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -21978,10 +21998,13 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const [focusClearances, setFocusClearances] = useState(() => route[1] === "clearances");
   // The Training area's tabs (Step 257): the records as they always were, and beside them each view
   // the API's Step 256 brings, once its route answers.
-  const [trView, setTrView] = useState(() => (trainingRoute && route[1] ? String(route[1]) : "records"));
+  // Step 263: #hr/training/people/<userId> and #hr/training/attempts/<id>, where a training notice
+  // points, open Gaps until the attempt is read.
+  const trViewOf = (v) => (v === "people" || v === "attempts" ? "gaps" : v ? String(v) : "records");
+  const [trView, setTrView] = useState(() => (trainingRoute ? trViewOf(route[1]) : "records"));
   useEffect(() => {
     if (!route[0]) return;
-    if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(route[1] ? String(route[1]) : "records"); return; }
+    if (route[0] === "training") { setTab("training"); setFolderUserId(null); setTrView(trViewOf(route[1])); return; }
     setTab("employees"); setFolderUserId(String(route[0])); setSelUser(String(route[0])); setFocusClearances(route[1] === "clearances");
   }, [route]);
   const topicsLive = useTrainingLive(af, "topics");
@@ -21989,6 +22012,25 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
   const awaitingLive = useTrainingLive(af, "awaiting");
   const sessionsLive = useTrainingLive(af, "sessions");
   const documentsLive = useTrainingLive(af, "documents");
+  // The place a training notice names: a person's list in Gaps, or an attempt read first, opened in
+  // Awaiting sign-off while it waits for a trainer (and is not the reader's own), else its person's list.
+  const [trFocus, setTrFocus] = useState(null);
+  useEffect(() => {
+    if (route[0] !== "training" || !route[2]) { setTrFocus(null); return undefined; }
+    const id = String(route[2]);
+    if (route[1] === "people") { setTrFocus({ person: { id, name: "" } }); return undefined; }
+    if (route[1] !== "attempts") return undefined;
+    let alive = true;
+    af("/api/training/attempts/" + encodeURIComponent(id)).then(d => {
+      const a = d && d.attempt;
+      if (!alive || !a) return;
+      const p = (d && d.person) || {};
+      const pid = String(p.id || a.userId || "");
+      if (a.awaitingTrainer && pid !== String(selfId)) { setTrView("awaiting"); setTrFocus({ attempt: Object.assign({ person: { id: pid, name: p.name || "" } }, a) }); }
+      else if (pid) { setTrView("gaps"); setTrFocus({ person: { id: pid, name: p.name || "" } }); }
+    }).catch(e => { if (alive) showToast(e.message, "error"); });
+    return () => { alive = false; };
+  }, [route, af, selfId, showToast]);
   const openFolder = (id) => { setFolderUserId(id); setFocusClearances(false); if (onRoute) onRoute(id ? [String(id)] : []); };
   // Session 22: bump to force EmployeeFolderView to reload after modal saves
   const [folderRefresh, setFolderRefresh] = useState(0);
@@ -22296,10 +22338,10 @@ function HRRecordsPage({ af, token, showToast, t, allStaff, uf, getOpts, lkMap, 
         {trViews.map(v => <button key={v.id} role="tab" aria-selected={trCur === v.id} data-training-view={v.id} onClick={() => setTrView(v.id)} style={{ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (trCur === v.id ? GO : t.border), background: trCur === v.id ? t.goldBg : "transparent", color: trCur === v.id ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" }}>{v.l}</button>)}
       </div>}
       {tab === "training" && trCur === "catalog" && <TrainingCatalog af={af} t={t} isAdmin={isAdmin} people={activePeople} showToast={showToast} />}
-      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
+      {tab === "training" && trCur === "gaps" && <TrainingGaps af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} isAdmin={isAdmin} focusPerson={trFocus && trFocus.person} showToast={showToast} />}
       {tab === "training" && trCur === "sessions" && <TrainingSessions af={af} t={t} token={token} sites={sites} staff={allStaff} typeWords={trainingTypeMap} showToast={showToast} />}
       {tab === "training" && trCur === "documents" && <TrainingDocuments af={af} t={t} token={token} sites={sites} people={activePeople} isAdmin={isAdmin} showToast={showToast} />}
-      {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} showToast={showToast} />}
+      {tab === "training" && trCur === "awaiting" && <TrainingAwaiting af={af} t={t} token={token} sites={sites} selfId={selfId} isAdmin={isAdmin} focusAttempt={trFocus && trFocus.attempt} showToast={showToast} />}
       {tab === "training" && trCur === "records" && <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <div style={{ fontSize: 14, color: t.textSec }}>{trn("{0} record|count", training.length)}</div>
@@ -23390,13 +23432,15 @@ function GapChip({ item, withName = true }) {
 // site, role, topic and status; each topic's counts; the people with the most open first, each item a
 // chip in the status's words; a person opens their own list. With a topic picked, the days it was
 // given are listed with their rosters. Print gives a page per site.
-function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, showToast }) {
+function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, isAdmin = false, focusPerson = null, showToast }) {
   const [f, setF] = useState({ siteId: "", role: "", topicId: "", status: "" });
   const [data, setData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [topics, setTopics] = useState([]);
   const [records, setRecords] = useState(null);
-  const [person, setPerson] = useState(null);
+  const [person, setPerson] = useState(focusPerson);
+  // A notice's person (Step 263) opens their list.
+  useEffect(() => { if (focusPerson) setPerson(focusPerson); }, [focusPerson]);
   useEffect(() => {
     let alive = true;
     af("/api/training/topics").then(d => { if (alive) setTopics(d && Array.isArray(d.topics) ? d.topics : []); }).catch(() => {});
@@ -23468,7 +23512,7 @@ function TrainingGaps({ af, t, token, sites = [], staff = [], typeWords = {}, sh
           </div>)}
         </div>}
     </>}
-    {person && <PersonTrainingWindow af={af} t={t} token={token} sites={sites} userId={person.id} name={person.name} showToast={showToast} onClose={() => setPerson(null)} />}
+    {person && <PersonTrainingWindow af={af} t={t} token={token} sites={sites} userId={person.id} name={person.name} isAdmin={isAdmin} showToast={showToast} onClose={() => setPerson(null)} />}
   </div>);
 }
 
@@ -23512,7 +23556,7 @@ function useTrainingItems(af, userId, on = true) {
 // prints one.
 // Since Step 263 an item whose record carries a certificate opens it: certificateOf gives the record's
 // id, onCertificate opens it.
-function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, certificateOf = null, onCertificate = null }) {
+function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, onPrint = null, onVoid = null, certificateOf = null, onCertificate = null }) {
   if (items.length === 0) return <div style={{ fontSize: 13, color: t.textMut }}>{tr("No training is asked of this person.")}</div>;
   return <div role="list" data-training-items="">{items.map((it, i) => <div key={it.topicId + "|" + (it.siteId || "") + "|" + i} role="listitem" data-training-item={it.topicId} style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap", padding: compact ? "8px 10px" : "10px 0", marginBottom: compact ? 4 : 0, background: compact ? t.hover : "transparent", borderRadius: compact ? 6 : 0, borderBottom: compact ? "none" : "1px solid " + t.border }}>
     <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -23523,13 +23567,15 @@ function TrainingItemsList({ t, items = [], compact = false, attemptsOf = null, 
       {it.lesson && it.lesson.attemptsUsed != null && <div style={{ fontSize: compact ? 10 : 12, color: t.textSec, marginTop: 2 }}>{tr("Online lesson: {0} of {1} tries used", Number(it.lesson.attemptsUsed) || 0, (Number(it.lesson.attemptsUsed) || 0) + (Number(it.lesson.attemptsLeft) || 0))}</div>}
       {attemptsOf && attemptsOf(it).map(x => { const a = x.attempt || {}; return <div key={a.id} data-person-attempt={a.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 6, padding: "4px 8px", borderRadius: 6, background: t.hover }}>
         <span style={{ fontSize: 12, color: t.textSec, flex: "1 1 200px", minWidth: 0 }}>{[tr("Try {0}", a.attemptNo), scoreWord(a.scorePercent), a.passed === true ? tr("Passed|training") : a.passed === false ? tr("Not passed") : "", a.trainerSignedAt ? tr("Signed off by {0}, {1}", (a.trainer && a.trainer.name) || "", stampDay(a.trainerSignedAt)) : a.awaitingTrainer ? tr("Waiting for trainer") : a.acknowledgedAt ? tr("Signed {0}", stampDay(a.acknowledgedAt)) : ""].filter(Boolean).join(" . ")}</span>
+        {a.voidedAt && <Bdg l={tr("Void|status")} c={RD} />}
         {onPrint && <Btn t={t} v="ghost" data-attempt-print={a.id} onClick={() => onPrint(a.id)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Print")}</Btn>}
+        {onVoid && !a.voidedAt && <Btn t={t} v="ghost" data-attempt-void={a.id} onClick={() => onVoid(a)} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12, color: RD }}>{tr("Void|attempt")}</Btn>}
       </div>; })}
     </div>
     <GapChip item={it} withName={false} />
   </div>)}</div>;
 }
-function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", showToast, onClose }) {
+function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", isAdmin = false, showToast, onClose }) {
   const [d, failed, reload] = useTrainingItems(af, userId);
   const p = (d && d.person) || null;
   // The person's records, for the attempt a record written by a lesson names, and each attempt behind
@@ -23558,6 +23604,9 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", sho
   }, [af, wantedKey]);
   const attemptsOf = (it) => idsFor(it).map(id => attempts[id]).filter(Boolean);
   const print = (id) => printTrainingAttempt({ af, token, id, sites }).then(okd => { if (!okd && showToast) showToast(tr("Allow pop-ups to print the sheet"), "error"); });
+  // Step 263: an admin voids an attempt with a reason; the attempt is read again and the list with it.
+  const [voiding, setVoiding] = useState(null);
+  const voided = (id) => { setVoiding(null); if (showToast) showToast(tr("Attempt voided.")); af("/api/training/attempts/" + encodeURIComponent(id)).then(x => { if (x && x.attempt) setAttempts(m => ({ ...m, [id]: x })); }).catch(() => {}); setAgain(n => n + 1); reload(); };
   return (<Mdl t={t} tall onClose={onClose}>
     <div data-person-training="" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ padding: "16px 20px 12px", borderBottom: "1px solid " + t.border, display: "flex", gap: 10, alignItems: "flex-start" }}>
@@ -23569,9 +23618,10 @@ function PersonTrainingWindow({ af, t, token, sites = [], userId, name = "", sho
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 20px 20px" }}>
         {step262 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}><Btn t={t} v="ghost" data-certificate-upload="" onClick={() => setUploading(true)}>{tr("Upload a certificate")}</Btn></div>}
-        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} certificateOf={certificateOf} onCertificate={openCertificate} />}
+        {d === null ? <div style={{ padding: 20, color: t.textMut }}>{tr("Loading...")}</div> : failed ? <LoadFailed t={t} text={failed} onRetry={reload} /> : <TrainingItemsList t={t} items={d.items} attemptsOf={attemptsOf} onPrint={print} onVoid={isAdmin ? (a) => setVoiding(a) : null} certificateOf={certificateOf} onCertificate={openCertificate} />}
       </div>
     </div>
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => voided(voiding.id)} />}
     {uploading && <UploadCertificateWindow af={af} t={t} token={token} userId={userId} name={(p && p.name) || name} items={(d && d.items) || []} onClose={() => setUploading(false)} onSaved={() => { setUploading(false); setAgain(n => n + 1); reload(); if (showToast) showToast(tr("Certificate saved")); }} />}
   </Mdl>);
 }
@@ -24028,11 +24078,14 @@ function LessonLibrary({ af, t, docCode = "", onPick, onClose }) {
 // to POST /api/training/attempts/:id/signoff, and the record is written with it.
 const scoreWord = (v) => (v == null || v === "" ? "" : Math.round(Number(v)) + "%");
 const trainingLangWord = (code) => { const l = TRAINING_LANGUAGES.find(x => x.id === langCode(code)); return l ? tr(l.word) : ""; };
-function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) {
+function TrainingAwaiting({ af, t, token, sites = [], selfId = "", isAdmin = false, focusAttempt = null, showToast }) {
   const [siteId, setSiteId] = useState("");
   const [list, setList] = useState(null);
   const [failed, setFailed] = useState(false);
-  const [signing, setSigning] = useState(null);
+  const [signing, setSigning] = useState(focusAttempt);
+  const [voiding, setVoiding] = useState(null);
+  // A sign-off notice's attempt (Step 263) opens its sign-off.
+  useEffect(() => { if (focusAttempt) setSigning(focusAttempt); }, [focusAttempt]);
   const load = useCallback(async () => {
     setFailed(false);
     try { const d = await af("/api/training/awaiting" + (siteId ? "?siteId=" + encodeURIComponent(siteId) : "")); setList(d && Array.isArray(d.attempts) ? d.attempts : []); }
@@ -24052,6 +24105,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) 
     { header: "", align: "right", tdStyle: { whiteSpace: "nowrap" }, render: a => <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
       <Btn t={t} data-signoff-open={a.id} onClick={e => { e.stopPropagation(); setSigning(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Sign off")}</Btn>
       <Btn t={t} v="ghost" data-attempt-print={a.id} onClick={e => { e.stopPropagation(); print(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Print")}</Btn>
+      {isAdmin && <Btn t={t} v="ghost" data-attempt-void={a.id} onClick={e => { e.stopPropagation(); setVoiding(a); }} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12, color: RD }}>{tr("Void|attempt")}</Btn>}
     </div> },
   ];
   return (<div data-training-awaiting="">
@@ -24064,6 +24118,7 @@ function TrainingAwaiting({ af, t, token, sites = [], selfId = "", showToast }) 
       : failed ? <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>
       : <DataTable t={t} columns={cols} rows={shown} rowKey={a => a.id} empty={tr("Nobody is waiting for a sign-off.")} />}
     {signing && <SignOffWindow af={af} t={t} attempt={signing} siteName={siteName(signing.siteId)} onPrint={() => print(signing)} onClose={() => setSigning(null)} onDone={() => { load(); }} showToast={showToast} />}
+    {voiding && <VoidAttemptWindow af={af} t={t} attempt={voiding} onClose={() => setVoiding(null)} onDone={() => { setVoiding(null); showToast(tr("Attempt voided.")); load(); }} />}
   </div>);
 }
 
@@ -24688,4 +24743,192 @@ async function printDocumentSignatures({ af, token, doc, version, groups = [] })
     try { w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;padding:24px">' + keptEsc(e.message || tr("This did not load.")) + "</body></html>"); w.document.close(); } catch (x) { /* the window was closed */ }
     return true;
   }
+}
+
+// ===== COMPANY PROPERTY (Step 263, STEP262_CONTRACT.md section 7) =====
+// What the company issued a person, on their HR folder once GET /api/hr/property answers: a uniform
+// shirt or other uniform with its size, a key, a badge or a fob with its site, or something else
+// described, each with how many, the day, who issued it and the person's signature, taken on this
+// screen. Mark returned records the day it came back. The End employment window lists what is still
+// out under Collect before the last day.
+const PROPERTY_KINDS = { uniform_shirt: "Uniform shirt", uniform_other: "Other uniform", key: "Key|property", badge: "Badge|property", fob: "Fob", other: "Other|property" };
+const PROPERTY_SITED = ["key", "badge", "fob"];
+const PROPERTY_SIZED = ["uniform_shirt", "uniform_other"];
+const propertyKindWord = (k) => (PROPERTY_KINDS[k] ? tr(PROPERTY_KINDS[k]) : String(k || ""));
+// An issue as one line: the kind and its description, the size, and how many.
+const propertyLine = (x) => [x.kind === "other" ? (x.description || propertyKindWord("other")) : [propertyKindWord(x.kind), x.description].filter(Boolean).join(", "), x.size || ""].filter(Boolean).join(", ") + (Number(x.quantity) > 1 ? " x " + x.quantity : "");
+const propertyIssues = (d) => (d && Array.isArray(d.issues) ? d.issues : null);
+function PersonProperty({ af, token, t, userId, sites = [], name = "", showToast }) {
+  const [issues, setIssues] = useState(null);
+  const [win, setWin] = useState(false);
+  const [returning, setReturning] = useState(null);
+  const [shown, setShown] = useState({});
+  const load = useCallback(() => {
+    af("/api/hr/property?userId=" + encodeURIComponent(userId)).then(d => setIssues(propertyIssues(d))).catch(e => { setIssues(null); console.warn("Property:", e.message); });
+  }, [af, userId]);
+  useEffect(() => { load(); }, [load]);
+  if (issues === null) return null;
+  // Still out first, then by the day issued, newest first.
+  const list = issues.slice().sort((a, b) => (!!a.returnedOn - !!b.returnedOn) || String(b.issuedOn || "").localeCompare(String(a.issuedOn || "")));
+  const out = list.filter(x => !x.returnedOn).length;
+  return (<Crd t={t} style={{ marginBottom: 16 }}>
+    <div data-person-property="">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 14, fontWeight: 600, color: t.text }}>{tr("Company property")}</div>
+        <Btn t={t} data-property-issue="" onClick={() => setWin(true)} style={{ minHeight: 44 }}>{tr("Issue property")}</Btn>
+      </div>
+      <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Uniforms, keys, badges and fobs this person was given, each signed for when it was handed over.")}{list.length > 0 ? " " + trn("{0} still out.|count", out) : ""}</div>
+      {list.length === 0 ? <div style={{ fontSize: 12, color: t.textMut }}>{tr("Nothing issued yet.")}</div> : list.map(x => (
+        <div key={x.id} data-property-row={x.id} data-property-out={x.returnedOn ? "no" : "yes"} style={{ padding: "10px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{propertyLine(x)}</div>
+              <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[x.issuedOn ? tr("Issued {0}", keptDay(x.issuedOn)) : "", x.issuedBy && x.issuedBy.name ? tr("by {0}", x.issuedBy.name) : "", x.site && x.site.name].filter(Boolean).join(", ")}</div>
+              {x.note ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, overflowWrap: "anywhere" }}>{x.note}</div> : null}
+              {x.returnedOn ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{[tr("Returned {0}", keptDay(x.returnedOn)), x.returnedTo && x.returnedTo.name ? tr("to {0}", x.returnedTo.name) : "", x.returnNote || ""].filter(Boolean).join(", ")}</div> : null}
+            </div>
+            <Bdg l={x.returnedOn ? tr("Returned|property") : tr("Still out")} c={x.returnedOn ? GR : OR} />
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Btn t={t} v="ghost" aria-expanded={!!shown[x.id]} onClick={() => setShown(s => ({ ...s, [x.id]: !s[x.id] }))} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Signature")}</Btn>
+              {!x.returnedOn && <Btn t={t} v="ghost" data-property-return={x.id} onClick={() => setReturning(x)} style={{ minHeight: 44, padding: "8px 12px", fontSize: 12 }}>{tr("Mark returned")}</Btn>}
+            </div>
+          </div>
+          {shown[x.id] && <div style={{ marginTop: 8 }}><SignatureImage t={t} token={token} path={"/api/hr/property/" + encodeURIComponent(x.id) + "/signature"} signKey={String(x.id)} /></div>}
+        </div>))}
+    </div>
+    {win && <IssuePropertyWindow af={af} t={t} userId={userId} sites={sites} name={name} onClose={() => setWin(false)} onSaved={() => { setWin(false); if (showToast) showToast(tr("Property issue saved.")); load(); }} />}
+    {returning && <ReturnPropertyWindow af={af} t={t} issue={returning} onClose={() => setReturning(null)} onSaved={() => { setReturning(null); if (showToast) showToast(tr("Marked returned.")); load(); }} onStale={() => { setReturning(null); load(); }} />}
+  </Crd>);
+}
+// The kind, a description (needed for Other), the size for a uniform, how many (1 to 20), the site for a
+// key, a badge or a fob, the day, a note, and the person's drawing on this screen. A refusal is drawn
+// under the box its keys name, and one without keys at the top.
+const PROPERTY_FIELDS = ["kind", "description", "size", "quantity", "siteId", "issuedOn", "note", "signature"];
+function IssuePropertyWindow({ af, t, userId, sites = [], name = "", onClose, onSaved }) {
+  const [f, setF] = useState({ kind: "", description: "", size: "", quantity: "1", siteId: "", issuedOn: todayISO(), note: "" });
+  const [sig, setSig] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const set = (k, v) => setF(p => ({ ...p, [k]: v }));
+  const qty = Number(f.quantity);
+  const sited = PROPERTY_SITED.indexOf(f.kind) >= 0;
+  const sized = PROPERTY_SIZED.indexOf(f.kind) >= 0;
+  const ready = !!f.kind && (f.kind !== "other" || !!f.description.trim()) && Number.isInteger(qty) && qty >= 1 && qty <= 20 && !!f.issuedOn && !!sig;
+  const bad = (k) => refusal.keys.indexOf(k) >= 0;
+  const under = (k) => (bad(k) ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  const box = (k) => (bad(k) ? { borderColor: RD } : {});
+  const save = async () => {
+    if (busy || !ready) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    try {
+      await af("/api/hr/property", { method: "POST", body: { userId: String(userId), kind: f.kind, description: f.description.trim() || null, size: sized ? f.size.trim() || null : null, quantity: qty, siteId: sited ? f.siteId || null : null, issuedOn: f.issuedOn, note: f.note.trim() || null, signature: sig } });
+      onSaved();
+    } catch (e) {
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      setRefusal({ text: e.message || tr("Request failed"), keys });
+      if (keys.indexOf("signature") >= 0) setSig("");
+    }
+    setBusy(false);
+  };
+  const choice = (on) => ({ minHeight: 44, padding: "0 14px", borderRadius: R.sm, border: "1px solid " + (on ? GO : t.border), background: on ? t.goldBg : "transparent", color: on ? t.goldText : t.textSec, fontSize: 13, fontWeight: 600, fontFamily: FONT_BODY, cursor: "pointer" });
+  const known = refusal.keys.filter(k => PROPERTY_FIELDS.indexOf(k) >= 0);
+  return (<Mdl t={t} tall onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-window="">
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Issue property")}</div>
+        {name ? <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{name}</div> : null}
+      </div>
+      <button onClick={onClose} aria-label={tr("Close")} style={xBtn} disabled={busy}><XI sz={18} c={t.textMut} /></button>
+    </div>
+    {refusal.text && known.length === 0 && <div role="alert" data-property-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("What was issued")}</Lbl>
+      <div role="group" aria-label={tr("What was issued")} style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {Object.keys(PROPERTY_KINDS).map(k => <button key={k} type="button" data-property-kind={k} aria-pressed={f.kind === k} onClick={() => set("kind", k)} style={choice(f.kind === k)}>{propertyKindWord(k)}</button>)}
+      </div>{under("kind")}</div>
+    {f.kind && <div style={{ marginBottom: 12 }}><Lbl>{f.kind === "other" ? tr("Description") : tr("Description (optional)")}</Lbl>
+      <Inp t={t} aria-label={f.kind === "other" ? tr("Description") : tr("Description (optional)")} data-property-field="description" value={f.description} onChange={e => set("description", e.target.value)} maxLength={200} placeholder={f.kind === "key" ? tr("Which door or closet") : ""} style={box("description")} />{under("description")}</div>}
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
+      {sized && <div><Lbl>{tr("Size")}</Lbl><Inp t={t} aria-label={tr("Size")} data-property-field="size" value={f.size} onChange={e => set("size", e.target.value)} maxLength={40} style={box("size")} />{under("size")}</div>}
+      <div><Lbl>{tr("Quantity")}</Lbl><Inp t={t} type="number" min="1" max="20" step="1" aria-label={tr("Quantity")} data-property-field="quantity" value={f.quantity} onChange={e => set("quantity", e.target.value)} style={box("quantity")} />{under("quantity")}</div>
+      <div><Lbl>{tr("Date")}</Lbl><Inp t={t} type="date" aria-label={tr("Date")} data-property-field="issuedOn" value={f.issuedOn} onChange={e => set("issuedOn", e.target.value)} style={box("issuedOn")} />{under("issuedOn")}</div>
+    </div>
+    {sited && <div style={{ marginBottom: 12 }}><Lbl>{tr("Site")}</Lbl>
+      <Sel t={t} aria-label={tr("Site")} data-property-field="siteId" value={f.siteId} onChange={e => set("siteId", e.target.value)} options={[{ v: "", l: tr("Choose") }].concat((sites || []).map(s => ({ v: String(s.id), l: s.name })))} style={box("siteId")} />{under("siteId")}</div>}
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => set("note", e.target.value)} placeholder={tr("Optional.")} maxLength={2000} style={box("note")} />{under("note")}</div>
+    {sig ? <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 12 }}><ChkI sz={14} c={GR} /><span style={{ fontSize: 12, color: t.textSec }}>{tr("Signed")}</span><Btn t={t} v="ghost" onClick={() => setSig("")} disabled={busy} style={{ minHeight: 44, padding: "6px 10px", fontSize: 12 }}>{tr("Sign again")}</Btn></div>
+      : <SignatureBox t={t} label={name ? tr("{0} signs for what they received", name) : tr("The person signs for what they received")} busy={busy} refusal={bad("signature") ? refusal.text : ""} onSign={png => setSig(png)} signWord={tr("Sign")} />}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-property-save="" onClick={save} disabled={busy || !ready} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Save")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// The day it came back and a note. Returned already (property.alreadyReturned) closes the window and
+// reads the list again.
+function ReturnPropertyWindow({ af, t, issue, onClose, onSaved, onStale }) {
+  const [f, setF] = useState({ returnedOn: todayISO(), note: "" });
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState({ text: "", keys: [] });
+  const save = async () => {
+    if (busy || !f.returnedOn) return;
+    setBusy(true); setRefusal({ text: "", keys: [] });
+    try { await af("/api/hr/property/" + encodeURIComponent(issue.id) + "/return", { method: "POST", body: { returnedOn: f.returnedOn, note: f.note.trim() || null } }); onSaved(); }
+    catch (e) {
+      if (e && (e.code === "property.alreadyReturned" || e.code === "property.notFound")) { onStale(); return; }
+      setRefusal({ text: e.message || tr("Request failed"), keys: e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [] });
+    }
+    setBusy(false);
+  };
+  const under = (k) => (refusal.keys.indexOf(k) >= 0 ? <div role="alert" data-property-refusal={k} style={{ fontSize: 12, color: RD, marginTop: 4 }}>{refusal.text}</div> : null);
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-property-return-window="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Mark returned")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12, overflowWrap: "anywhere" }}>{propertyLine(issue)}</div>
+    {refusal.text && refusal.keys.filter(k => k === "returnedOn" || k === "note").length === 0 && <div role="alert" data-property-refusal="" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{refusal.text}</div>}
+    <div style={{ marginBottom: 12, maxWidth: 220 }}><Lbl>{tr("Returned on")}</Lbl><Inp t={t} type="date" aria-label={tr("Returned on")} value={f.returnedOn} onChange={e => setF(p => ({ ...p, returnedOn: e.target.value }))} />{under("returnedOn")}</div>
+    <div style={{ marginBottom: 12 }}><Lbl>{tr("Note")}</Lbl><TArea t={t} rows={2} aria-label={tr("Note")} value={f.note} onChange={e => setF(p => ({ ...p, note: e.target.value }))} placeholder={tr("Optional.")} maxLength={2000} />{under("note")}</div>
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} data-property-return-save="" onClick={save} disabled={busy || !f.returnedOn} style={{ minHeight: 44, minWidth: 96 }}>{busy ? tr("Saving...") : tr("Mark returned")}</Btn>
+    </div>
+  </div></Mdl>);
+}
+// What a person still holds, for the End employment window: the employment answer's openProperty when
+// the API sends it there, else GET /api/hr/property?userId=&open=true; null until either answers.
+function useOpenProperty(af, userId, known, on) {
+  const [read, setRead] = useState(null);
+  const given = known && Array.isArray(known.openProperty) ? known.openProperty : null;
+  useEffect(() => {
+    if (!on || given) return undefined;
+    let alive = true;
+    af("/api/hr/property?userId=" + encodeURIComponent(userId) + "&open=true").then(d => { if (alive) setRead(propertyIssues(d)); }).catch(() => { if (alive) setRead(null); });
+    return () => { alive = false; };
+  }, [af, userId, on, given]);
+  return given || read;
+}
+
+// A training attempt voided by an admin, with the reason (1 to 500 characters), at
+// POST /api/training/attempts/:id/void. The record it wrote is removed with it.
+function VoidAttemptWindow({ af, t, attempt, onClose, onDone }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [refusal, setRefusal] = useState("");
+  const send = async () => {
+    if (busy || !reason.trim()) return;
+    setBusy(true); setRefusal("");
+    try { await af("/api/training/attempts/" + encodeURIComponent(attempt.id) + "/void", { method: "POST", body: { reason: reason.trim() } }); onDone(); }
+    catch (e) { setRefusal(e.message || tr("Request failed")); }
+    setBusy(false);
+  };
+  return (<Mdl t={t} onClose={() => { if (!busy) onClose(); }}><div style={{ padding: 20 }} data-attempt-void-window={attempt.id}>
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Void this attempt")}</div>
+    <div style={{ fontSize: 12, color: t.textSec, marginTop: 2, marginBottom: 12 }}>{[attempt.topicName, attempt.attemptNo != null ? tr("Try {0}", attempt.attemptNo) : ""].filter(Boolean).join(" . ")}</div>
+    <div style={{ fontSize: 13, color: t.text, marginBottom: 8 }}>{tr("The training record written from it is removed with it. Why is it being voided?")}</div>
+    <TArea t={t} rows={3} maxLength={500} aria-label={tr("Reason")} data-attempt-void-reason="" value={reason} onChange={e => setReason(e.target.value)} />
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 3 }}>{tr("{0} of 500", reason.length)}</div>
+    {refusal && <div role="alert" data-attempt-void-refusal="" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{refusal}</div>}
+    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+      <Btn t={t} v="ghost" onClick={onClose} disabled={busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+      <Btn t={t} v="danger" data-attempt-void-send="" onClick={send} disabled={busy || !reason.trim()} style={{ minHeight: 44 }}>{busy ? tr("Saving...") : tr("Void|attempt")}</Btn>
+    </div>
+  </div></Mdl>);
 }
