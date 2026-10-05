@@ -19,7 +19,13 @@
 //     requests tab lists the waiting requests and approves one, and a second approver's 409 is drawn;
 //     at 1280 in English and in Spanish, a request QR is made and its sheet printed with the area and
 //     the title in both languages, and Print label saves a supply's labels.pdf. The two request checks
-//     run in English alone to keep the run inside its three minutes.
+//     run in English alone to keep the run inside its three minutes;
+//   - against the stub's answers for the API's Step 253 (Step 254), at 1280 in English alone for the
+//     same reason: the Issue Tracker lists the inspection findings with their times and a fixed
+//     finding is verified by someone other than its fixer; a completed inspection shows its band and
+//     its findings and asks for a corrective action, whose start names the inspection's site; the
+//     corrective action's window links the open findings at its site and tells the client; and the
+//     evidence pack prints the finding measures.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -42,7 +48,7 @@ const ADDED_HOLIDAY = { date: "2026-04-03", name: "Office closed for training" }
 // The area the request QR check makes a QR for.
 const SMOKE_AREA = "Loading dock restroom";
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true },
   { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor" },
@@ -131,10 +137,12 @@ async function recover(d, origin, p) {
   await signIn(d, p.who);
 }
 
+// The pause after an item opens was 650 ms until Step 254, whose four lines fit the three minutes
+// at 550.
 async function openNav(d, id) {
   if (d.phone) await d.openDrawer();
   await d.page.click('[data-nav-item="' + id + '"]');
-  await wait(650);
+  await wait(550);
 }
 
 // Step 248's screens, each a line.
@@ -256,10 +264,94 @@ async function step250(d, origin, p, stubs) {
   });
 }
 
+// Step 253's screens, each a line, against the stub armed with setStep253 (audit/stubs.js).
+async function step253(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  await check("the Issue Tracker lists the findings and one is verified by someone other than its fixer", async () => {
+    await d.goto("issues"); await wait(500);
+    await d.page.locator("[data-issue-source]").selectOption("inspection"); await wait(300);
+    const rows = await d.page.locator("[data-issue-row]").count();
+    if (rows < 4) return "the Source Inspection lists " + rows + " findings";
+    if ((await d.page.locator("[data-finding-fixed]").count()) === 0) return "no row draws Time to fixed";
+    await d.goto("issues", ["f-3"]); await wait(700);
+    if ((await d.page.locator("[data-verify]").count()) === 0) return "Verify is not offered on the fixed finding";
+    await d.page.locator("[data-verify] textarea").fill("Checked in person at the dock.");
+    await d.page.locator("[data-verify-save]").click(); await wait(600);
+    const verified = await d.page.locator("[data-verified]").count();
+    const still = await d.page.locator("[data-verify]").count();
+    await d.page.keyboard.press("Escape").catch(() => {});
+    return !verified ? "no line says it was verified" : still ? "Verify is still offered" : "";
+  });
+  await check("a completed inspection shows its band and findings and asks for a corrective action", async () => {
+    await d.goto("inspections"); await wait(500);
+    await d.page.getByRole("button", { name: d.say("Completed|inspections") }).first().click(); await wait(300);
+    await d.page.locator("table tbody tr").filter({ hasText: "Dock area check" }).first().click(); await wait(700);
+    if ((await d.page.locator("[data-inspection-band]").count()) === 0) return "no band is drawn";
+    const n = await d.page.locator("[data-inspection-finding]").count();
+    if (n < 1) return "the findings list " + n + " rows";
+    if ((await d.page.locator("[data-inspection-corrective-required]").count()) === 0) return "no corrective action is asked for";
+    await d.page.locator("[data-inspection-corrective-start]").click(); await wait(600);
+    const call = stubs.calls.find((c) => c.path === "/api/forms/OCSA-FRM-010/drafts" && c.method === "POST");
+    if (!call) return "no corrective action was started";
+    if (!call.body || call.body.siteId !== seed.SITES[2].id) return "the start does not name the inspection's site";
+    const drawn = (await d.page.locator("[data-inspection-corrective-refusal]").count()) + (await d.page.locator("div[style*='z-index: 500']").count());
+    await d.page.keyboard.press("Escape").catch(() => {});
+    return drawn ? "" : "neither the form nor a refusal is drawn";
+  });
+  await check("the corrective action links the open findings at its site and tells the client", async () => {
+    await d.goto("forms"); await wait(800);
+    const row = d.page.locator("table tbody tr").filter({ hasText: "Corrective Action Report" }).first();
+    if ((await row.count()) === 0) return "no corrective action on Filed forms";
+    await row.click(); await wait(800);
+    const before = await d.page.locator("[data-linked-finding]").count();
+    await d.page.locator("[data-link-findings]").click(); await wait(500);
+    const offered = await d.page.locator("[data-link-finding]").count();
+    if (offered < 2) return "Link findings offers " + offered + " findings";
+    const ticked = await d.page.locator("[data-link-findings-form] input:checked").count();
+    if (ticked !== offered) return ticked + " of " + offered + " start ticked";
+    await d.page.locator("[data-link-findings-save]").click(); await wait(500);
+    const after = await d.page.locator("[data-linked-finding]").count();
+    if (after !== before + offered) return "the window lists " + after + " linked findings after linking " + offered + " to " + before;
+    if ((await d.page.locator("[data-unlink-finding]").count()) !== after) return "Unlink is not offered on each";
+    await d.page.locator("[data-tell-client-open]").click(); await wait(300);
+    if ((await d.page.locator("[data-tell-client-form] input:checked").count()) < 1) return "no recipient starts ticked";
+    await d.page.locator('[data-tell-client-field="whatHappened"]').fill("The inspection found the dock markings worn and the glass streaked.");
+    await d.page.locator('[data-tell-client-field="whatWasDone"]').fill("The markings were repainted and the glass cleaned on both sides.");
+    await d.page.locator('[data-tell-client-field="prevention"]').fill("The dock is now on the weekly walk.");
+    await d.page.locator("[data-tell-client-send]").click(); await wait(700);
+    const told = await d.page.locator("[data-client-told]").count();
+    const call = stubs.calls.find((c) => /\/tell-client$/.test(c.path) && c.method === "POST");
+    await d.page.keyboard.press("Escape").catch(() => {});
+    if (!told) return "no line says the client was told";
+    return !call || !call.body || !Array.isArray(call.body.to) || !call.body.to.length ? "the send names no recipient" : "";
+  });
+  await check("the evidence pack prints the finding measures", async () => {
+    await d.goto("reports"); await wait(700);
+    await d.page.locator("text=OCSA-QMS-018").locator("xpath=../..").getByRole("button").first().click(); await wait(500);
+    if ((await d.page.locator("[data-management-review]").count()) === 0) return "Management review did not open";
+    const before = (await d.prints()).length;
+    await d.page.locator("[data-management-review]").getByRole("button", { name: d.say("Print the evidence pack") }).click();
+    let html = "";
+    for (let i = 0; i < 40 && !html; i++) { await wait(250); const prints = await d.prints(); if (prints.length > before) html = prints[prints.length - 1].html || ""; }
+    if (!html) return "no pack was printed";
+    const at = html.indexOf("<td>" + d.say("Findings opened") + "</td>");
+    if (at < 0) return "the pack has no Findings opened row";
+    const m = /<td>(\d+)<\/td><td>(\d+)<\/td>/.exec(html.slice(at, at + 200));
+    return m && Number(m[2]) > 0 ? "" : "the Findings opened row counts none";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
-  // Step 250 brings Step 247's answers with it; every other pass sees Step 247's alone.
-  if (p.step250) stubs.setStep250(true); else stubs.setStep247(true);
+  // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
+  // sees Step 247's alone.
+  if (p.step253) stubs.setStep253(true); else if (p.step250) stubs.setStep250(true); else stubs.setStep247(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -330,6 +422,7 @@ async function runPass(browser, origin, p) {
       }
       if (p.step248) await step248(d, origin, p);
       if (p.step250) await step250(d, origin, p, stubs);
+      if (p.step253) await step253(d, origin, p, stubs);
     }
 
     // Help, asked one question.

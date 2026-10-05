@@ -4111,13 +4111,22 @@ export const WORDS = {
   "Client told {0} by {1}.": { es: "Cliente informado el {0} por {1}." },
   "Client not told yet": { es: "Cliente sin informar" },
   "Tell the client": { es: "Informar al cliente" },
-  "Name no employee. The client hears what {0} did.": { es: "No nombre a ning\u00fan empleado. El cliente se entera de lo que hizo {0}." },
+  "Name no employee. The client hears what {0} did.": { es: "No nombre a ning\u00fan empleado. El cliente se entera de lo que {0} hizo." },
   "(survey contact)": { es: "(contacto de la encuesta)" },
   "(site contact)": { es: "(contacto del sitio)" },
   "What was done": { es: "Qu\u00e9 se hizo" },
   "What will prevent it": { es: "Qu\u00e9 lo evitar\u00e1" },
   "Sent to {0}; {1} did not go.": { es: "Enviado a {0}; {1} no salieron." },
   "Sent to {0}.": { es: "Enviado a {0}." },
+  "Inspection findings": { es: "Hallazgos de inspecci\u00f3n" },
+  "Findings opened by inspections, the median hours to their first response and to their fix, how many of the fixed were fixed by their due date, and how many were still unfixed at the end of the period, as OCSA-FRM-011 version 2 counts them.": { es: "Hallazgos abiertos por inspecciones, la mediana de horas hasta su primera respuesta y hasta su correcci\u00f3n, cu\u00e1ntos de los corregidos se corrigieron antes de su fecha de vencimiento y cu\u00e1ntos segu\u00edan sin corregir al final del per\u00edodo, tal como los cuenta OCSA-FRM-011 versi\u00f3n 2." },
+  "Measure": { es: "Medida" },
+  "This period": { es: "Este per\u00edodo" },
+  "Year to date": { es: "Acumulado del a\u00f1o" },
+  "Findings opened": { es: "Hallazgos abiertos" },
+  "Time to fixed (h, median)": { es: "Tiempo hasta la correcci\u00f3n (h, mediana)" },
+  "Fixed by due": { es: "Corregidos a tiempo" },
+  "Open at the end of the period": { es: "Abiertos al final del per\u00edodo" },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

@@ -9509,14 +9509,30 @@ const reviewBySite = (rows, idOf, nameOf) => {
   rows.forEach(r => { const id = String(idOf(r) || ""); if (!m.has(id)) m.set(id, { id, name: nameOf(r) || tr("No site"), rows: [] }); m.get(id).rows.push(r); });
   return Array.from(m.values()).sort((a, b) => String(a.name).localeCompare(String(b.name), localeTag()));
 };
-// The day a corrective action was signed closed, from the report read whole: its Closure sign-off. Since
-// the API's Step 247 (STEP247_CONTRACT.md version 2, section 6.2) each row of the list carries closedAt
-// itself, and the pack reads a report whole only when its row does not.
-const reviewClosedOn = (rep) => {
-  const f = rep && Array.isArray(rep.fields) ? rep.fields.find(x => x && x.key === "closed") : null;
-  const v = (f && f.value) || (rep && rep.draft && rep.draft.answers && rep.draft.answers.closed) || null;
-  return v && typeof v === "object" && v.at ? keptDayOf(v.at) : "";
-};
+// The day a corrective action was signed closed: since the API's Step 247 (STEP247_AS_BUILT.md) each
+// row of the list carries closedAt itself, so the pack reads no report whole for it (Step 254). A row
+// with no closedAt is still open.
+const reviewClosedDay = (r) => (r && r.closedAt ? keptDayOf(r.closedAt) : "");
+// The finding measures of OCSA-FRM-011 version 2 (STEP253_CONTRACT.md, section 3.9), from the
+// inspection tickets GET /api/issues?source=inspection lists: opened in the range, the median hours
+// to their first response and to their fix, how many of the fixed were fixed by their due date, and
+// how many were still unfixed at the range's end.
+const reviewMedian = (list) => { const v = list.filter(x => x != null && x !== "" && isFinite(Number(x))).map(Number).sort((a, b) => a - b); if (!v.length) return null; const mid = Math.floor(v.length / 2); return v.length % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2; };
+const reviewHours = (minutes) => (minutes == null ? "--" : (minutes / 60).toFixed(1));
+function reviewFindingMeasures(rows, range) {
+  const opened = rows.filter(r => keptInRange(keptDayOf(r.reported_at), range));
+  const fixed = opened.filter(r => r.resolved_at);
+  const byDue = fixed.filter(r => r.due_at && new Date(r.resolved_at) <= new Date(r.due_at)).length;
+  const openAtEnd = rows.filter(r => keptDayOf(r.reported_at) <= range.end && (!r.resolved_at || keptDayOf(r.resolved_at) > range.end)).length;
+  return {
+    opened: String(opened.length),
+    firstResponse: reviewHours(reviewMedian(opened.map(r => r.minutes_to_first_response))),
+    fixed: reviewHours(reviewMedian(opened.map(r => r.minutes_to_fixed))),
+    byDue: fixed.length ? byDue + "/" + fixed.length + " (" + Math.round(byDue / fixed.length * 100) + "%)" : "--",
+    openAtEnd: String(openAtEnd),
+  };
+}
+const REVIEW_FINDING_COLS = ["Measure", "This period", "Year to date"];
 const REVIEW_UNAVAILABLE = "The data for this was not available when the pack was printed.";
 
 // The sections the platform holds, each read on its own; a failed read leaves that section's note
@@ -9529,13 +9545,11 @@ async function reviewSections(af, value) {
   const settle = (p) => p.then(v => ({ ok: true, v }), e => { console.warn("Management review:", e.message); return { ok: false }; });
   const insp = (r) => af("/api/inspections/scheduled?status=completed&from=" + r.start + "&to=" + r.end).then(d => (Array.isArray(d) ? d : []).filter(x => !x.completed_at || keptInRange(keptDayOf(x.completed_at), r)));
   const years = keptOnce([range.start.slice(0, 4), range.end.slice(0, 4)]);
-  const [now, before, complaints, ratings, actions, safety, bio, injury, training, people, warnings, equipment, periodic] = await Promise.all([
+  const [now, before, complaints, ratings, actions, safety, bio, injury, training, people, warnings, equipment, periodic, findings] = await Promise.all([
     settle(insp(range)), settle(insp(prev)),
     settle(reviewFilings(af, "OCSA-FRM-009", range.start)),
     settle(af("/api/reports/client-ratings?from=" + range.start + "&to=" + range.end)),
-    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => Promise.all(rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => (Object.prototype.hasOwnProperty.call(r, "closedAt")
-      ? Promise.resolve({ r, closed: r.closedAt ? keptDayOf(r.closedAt) : "" })
-      : af("/api/forms/responses/" + encodeURIComponent(r.id)).then(rep => ({ r, closed: reviewClosedOn(rep) }))))))),
+    settle(reviewFilings(af, "OCSA-FRM-010", "").then(rows => rows.filter(r => keptDayOf(r.submittedAt) <= range.end).map(r => ({ r, closed: reviewClosedDay(r) })))),
     settle(reviewFilings(af, "OCSA-FRM-016", range.start)), settle(reviewFilings(af, "OCSA-FRM-017", range.start)),
     settle(Promise.all(years.map(y => af("/api/injury-log?year=" + y))).then(list => [].concat(...list.map(d => (d && Array.isArray(d.cases) ? d.cases : []))))),
     settle(af("/api/hr/training").then(d => (Array.isArray(d) ? d : []))),
@@ -9547,6 +9561,7 @@ async function reviewSections(af, value) {
     settle(af("/api/discipline?from=" + range.start + "&to=" + range.end)),
     settle(af("/api/equipment").then(d => equipmentList(d) || [])),
     settle(af("/api/periodic-work?state=overdue").then(d => (d && Array.isArray(d.items) ? d.items : []))),
+    settle(af("/api/issues?source=inspection").then(d => (Array.isArray(d) ? d : []))),
   ]);
   const S = {};
 
@@ -9592,6 +9607,13 @@ async function reviewSections(af, value) {
     const open = actions.v.filter(x => !x.closed || x.closed > range.end).length;
     S[5].push({ fields: [["Opened in the period", String(opened)], ["Closed in the period", String(closed)], ["Still open at the end of the period", String(open)]] });
   } else S[5].push({ note: REVIEW_UNAVAILABLE }, { fields: [["Opened in the period", ""], ["Closed in the period", ""], ["Still open at the end of the period", ""]] });
+  // Step 254: the finding measures OCSA-FRM-011 version 2 carries, for the period and the year to date.
+  S[5].push({ h: "Inspection findings", num: "", note: "Findings opened by inspections, the median hours to their first response and to their fix, how many of the fixed were fixed by their due date, and how many were still unfixed at the end of the period, as OCSA-FRM-011 version 2 counts them." });
+  if (findings.ok) {
+    const ytd = { start: range.end.slice(0, 4) + "-01-01", end: range.end };
+    const a = reviewFindingMeasures(findings.v, range), b = reviewFindingMeasures(findings.v, ytd);
+    S[5].push({ cols: REVIEW_FINDING_COLS, rows: [[tr("Findings opened"), a.opened, b.opened], [tr("First response (h, median)"), a.firstResponse, b.firstResponse], [tr("Time to fixed (h, median)"), a.fixed, b.fixed], [tr("Fixed by due"), a.byDue, b.byDue], [tr("Open at the end of the period"), a.openAtEnd, b.openAtEnd]] });
+  } else S[5].push({ note: REVIEW_UNAVAILABLE }, { cols: REVIEW_FINDING_COLS, rows: [], least: 5 });
   S[5].push({ h: "Overdue, reopened, and any cause appearing at more than one site", num: "", lines: 4 });
 
   // 6. Health and safety: incident reports filed, recordable cases, training sessions held.
