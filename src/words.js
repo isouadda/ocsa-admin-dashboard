@@ -4101,6 +4101,23 @@ export const WORDS = {
   "The site scored under 80 percent. Start the corrective action for the site and link its findings from the report's window.": { es: "El sitio obtuvo menos del 80 por ciento. Inicie la acci\u00f3n correctiva del sitio y vincule sus hallazgos desde la ventana del reporte." },
   "Start a corrective action": { es: "Iniciar una acci\u00f3n correctiva" },
   "This account cannot start a corrective action from here.": { es: "Esta cuenta no puede iniciar una acci\u00f3n correctiva desde aqu\u00ed." },
+  "Linked findings": { es: "Hallazgos vinculados" },
+  "No finding is linked yet.": { es: "Todav\u00eda no hay ning\u00fan hallazgo vinculado." },
+  "Verified {0}": { es: "Verificado el {0}" },
+  "Link findings": { es: "Vincular hallazgos" },
+  "The open findings at this site. Untick any that this corrective action does not cover.": { es: "Los hallazgos abiertos en este sitio. Desmarque los que esta acci\u00f3n correctiva no cubre." },
+  "No open finding at this site is waiting to be linked.": { es: "Ning\u00fan hallazgo abierto en este sitio espera ser vinculado." },
+  "Link|findings": { es: "Vincular" },
+  "Client told {0} by {1}.": { es: "Cliente informado el {0} por {1}." },
+  "Client not told yet": { es: "Cliente sin informar" },
+  "Tell the client": { es: "Informar al cliente" },
+  "Name no employee. The client hears what {0} did.": { es: "No nombre a ning\u00fan empleado. El cliente se entera de lo que hizo {0}." },
+  "(survey contact)": { es: "(contacto de la encuesta)" },
+  "(site contact)": { es: "(contacto del sitio)" },
+  "What was done": { es: "Qu\u00e9 se hizo" },
+  "What will prevent it": { es: "Qu\u00e9 lo evitar\u00e1" },
+  "Sent to {0}; {1} did not go.": { es: "Enviado a {0}; {1} no salieron." },
+  "Sent to {0}.": { es: "Enviado a {0}." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on

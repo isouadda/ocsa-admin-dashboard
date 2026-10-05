@@ -15839,6 +15839,7 @@ function SignatureImage({ t, token, responseId, signKey, path }) {
 // how, or by the receipt mail when nobody sent it by hand. A read without the keys shows none of it.
 const ACK_METHODS = [{ v: "phone", l: "Phone call", said: "phone call|acknowledged" }, { v: "text", l: "Text message", said: "text message|acknowledged" }, { v: "email", l: "Email", said: "email|acknowledged" }, { v: "in_person", l: "In person", said: "in person|acknowledged" }];
 const ACK_FIELDS = ["method", "note"];
+const TELL_FIELDS = ["whatHappened", "whatWasDone", "prevention"];
 function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], monthly = null, onVoided = null, onAcknowledged = null }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -15874,6 +15875,19 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   const [ackRefusal, setAckRefusal] = useState({ text: "", field: "" });
   const [acking, setAcking] = useState(false);
   const ackRef = useRef(false);
+  // Step 254: a corrective action's findings and Tell the client (STEP253_CONTRACT.md, sections 3.6
+  // to 3.8), drawn only when the read of an OCSA-FRM-010 carries linkedIssues. Link findings lists
+  // the open findings at the report's site from GET /api/issues?source=inspection, ticked, and sends
+  // POST /api/issues/link-corrective-action; Unlink is DELETE /api/issues/:id/corrective-action,
+  // the link alone. Tell the client, when the read says canTellClient, takes the recipients ticked
+  // from suggestedRecipients plus typed addresses, the way the monthly report's send does, and the
+  // three boxes OCSA-MGT-005 4 step 10 asks for, to POST /api/forms/responses/:id/tell-client; a
+  // refusal is drawn under the field its code or keys name.
+  const [linked, setLinked] = useState(null);
+  const [linking, setLinking] = useState(null);
+  const [unlinking, setUnlinking] = useState("");
+  const [telling, setTelling] = useState(null);
+  const tellRef = useRef(false);
 
   useEffect(() => {
     if (!id || fetchedRef.current === id) return;
@@ -15985,6 +15999,65 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
     ackRef.current = false; setAcking(false);
   };
 
+  const topKey = (k) => (data && data.draft && Object.prototype.hasOwnProperty.call(data.draft, k) ? data.draft[k] : data && Object.prototype.hasOwnProperty.call(data, k) ? data[k] : undefined);
+  useEffect(() => { const got = data ? topKey("linkedIssues") : undefined; setLinked(Array.isArray(got) ? got.slice() : null); setLinking(null); setTelling(null); }, [data]);
+  const openLink = async () => {
+    setLinking({ loading: true, rows: [], ticked: {}, refusal: "", busy: false });
+    try {
+      const list = await af("/api/issues?source=inspection");
+      const site = data && data.draft && data.draft.siteId != null ? String(data.draft.siteId) : "";
+      const already = new Set((linked || []).map(x => String(x.id)));
+      const rows = (Array.isArray(list) ? list : []).filter(i => i && i.status !== "closed" && (!site || String(i.site_id) === site) && !i.corrective_action_id && !already.has(String(i.id)));
+      setLinking({ loading: false, rows, ticked: rows.reduce((m, r) => Object.assign(m, { [r.id]: true }), {}), refusal: "", busy: false });
+    } catch (e) { setLinking({ loading: false, rows: [], ticked: {}, refusal: (e && e.message) || tr("Request failed"), busy: false }); }
+  };
+  const saveLink = async () => {
+    if (!linking || linking.busy) return;
+    const ids = linking.rows.filter(r => linking.ticked[r.id]).map(r => r.id);
+    if (!ids.length) return;
+    setLinking(l => ({ ...l, busy: true, refusal: "" }));
+    try {
+      const d = await af("/api/issues/link-corrective-action", { method: "POST", body: { issueIds: ids, responseId: id } });
+      const got = d && Array.isArray(d.issues) ? d.issues : [];
+      setLinked(prev => (prev || []).concat(ids.map(x => {
+        const row = linking.rows.find(r => String(r.id) === String(x)) || {};
+        const ans = got.find(g => String(g.id) === String(x)) || {};
+        return { id: x, title: ans.title || row.title || "", zone: row.zone || "", status: ans.status || row.status || "", dueAt: row.due_at || null, dueState: row.due_state || null, verifiedAt: row.verified_at || null };
+      })));
+      setLinking(null);
+    } catch (e) { setLinking(l => ({ ...l, busy: false, refusal: (e && e.message) || tr("Request failed") })); }
+  };
+  const unlink = async (issueId) => {
+    if (unlinking) return;
+    setUnlinking(String(issueId)); setActionError("");
+    try { await af("/api/issues/" + encodeURIComponent(issueId) + "/corrective-action", { method: "DELETE" }); setLinked(prev => (prev || []).filter(x => String(x.id) !== String(issueId))); }
+    catch (e) { setActionError((e && e.message) || tr("Request failed")); }
+    setUnlinking("");
+  };
+  const openTell = () => {
+    const got = topKey("suggestedRecipients");
+    const offered = (Array.isArray(got) ? got : []).filter(c => c && c.email).map(c => ({ name: String(c.name || ""), email: String(c.email), from: String(c.from || "") }));
+    setTelling({ offered, picked: offered.reduce((m, c) => Object.assign(m, { [c.email]: true }), {}), added: [], draft: { name: "", email: "" }, whatHappened: "", whatWasDone: "", prevention: "", refusal: { text: "", field: "", keys: [] }, busy: false });
+  };
+  const tellTo = () => (telling ? telling.offered.filter(c => telling.picked[c.email]).map(c => ({ name: c.name, email: c.email })).concat(telling.added) : []);
+  const tellClient = async () => {
+    if (tellRef.current || !telling) return;
+    const to = tellTo();
+    tellRef.current = true; setTelling(x => ({ ...x, busy: true, refusal: { text: "", field: "", keys: [] } }));
+    try {
+      const d = await af("/api/forms/responses/" + encodeURIComponent(id) + "/tell-client", { method: "POST", body: { to, whatHappened: telling.whatHappened.trim(), whatWasDone: telling.whatWasDone.trim(), prevention: telling.prevention.trim() } });
+      const told = { clientToldAt: (d && d.clientToldAt) || new Date().toISOString(), clientToldBy: (d && d.clientToldBy) || null, canTellClient: false };
+      setData(prev => (prev ? Object.assign({}, prev, told, { draft: Object.assign({}, prev.draft, told) }) : prev));
+      setSentLine(d && Number(d.failed) > 0 ? tr("Sent to {0}; {1} did not go.", Number(d.sent) || 0, Number(d.failed)) : tr("Sent to {0}.", d && d.sent != null ? Number(d.sent) : to.length));
+    } catch (e) {
+      const code = String((e && e.code) || "");
+      const keys = e && e.body && Array.isArray(e.body.keys) ? e.body.keys.map(String) : [];
+      const field = code === "forms.noRecipients" || code === "forms.badEmail" ? "to" : keys.find(k => TELL_FIELDS.indexOf(k) >= 0) || "";
+      setTelling(x => (x ? { ...x, busy: false, refusal: { text: (e && e.message) || tr("Request failed"), field, keys } } : x));
+    }
+    tellRef.current = false;
+  };
+
   const doVoid = async () => {
     if (voidRef.current) return;
     voidRef.current = true; setVoidBusy(true); setActionError(""); setSentLine("");
@@ -16007,6 +16080,10 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
   // The acknowledgement keys, read off the report, or off the read where the API puts them there.
   const ackKey = (k) => (draft && Object.prototype.hasOwnProperty.call(draft, k) ? draft[k] : data && Object.prototype.hasOwnProperty.call(data, k) ? data[k] : undefined);
   const canAcknowledge = ackKey("canAcknowledge") === true;
+  const isCorrective = !!(draft && draft.formCode === "OCSA-FRM-010");
+  const canTellClient = isCorrective && topKey("canTellClient") === true;
+  const toldAt = isCorrective ? topKey("clientToldAt") : undefined;
+  const toldBy = isCorrective ? topKey("clientToldBy") : undefined;
   const ackMethod = ackKey("acknowledgedMethod");
   const ackAt = ackKey("acknowledgedAt");
   const ackBy = ackKey("acknowledgedBy");
@@ -16354,6 +16431,69 @@ function IncidentReportWindow({ af, token, t, id, row, onClose, people = [], mon
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <Btn t={t} v="ghost" onClick={() => { setAckOpen(false); setAckRefusal({ text: "", field: "" }); }} disabled={acking} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
             <Btn t={t} onClick={acknowledge} disabled={acking || !ack.method} style={{ minHeight: 44 }}>{acking ? tr("Saving...") : tr("Mark acknowledged")}</Btn>
+          </div>
+        </div>}
+      </div>}
+      {isCorrective && linked && <div data-linked-findings="" style={{ marginBottom: 18, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + t.border }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 6 }}>{tr("Linked findings")}</div>
+        {linked.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginBottom: 8 }}>{tr("No finding is linked yet.")}</div>}
+        {linked.map(f => (<div key={f.id} data-linked-finding={f.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0", borderTop: "1px solid " + t.border }}>
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            <div style={{ fontSize: 13, color: t.text, fontWeight: 600, wordBreak: "break-word" }}>{f.title || "--"}</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 11, color: t.textSec, marginTop: 2 }}>{f.zone ? <span>{f.zone}</span> : null}<Bdg l={findingStateWord(f.status)} c={findingStateColor(f.status, t)} /><span>{tr("Due")}: <ClockCell t={t} cell={requestClock(f.dueState, f.dueAt, tr("Fixed|finding"))} name="linked-due" /></span>{f.verifiedAt ? <span style={{ color: GR, fontWeight: 600 }}>{tr("Verified {0}", irDay(f.verifiedAt))}</span> : null}</div>
+          </div>
+          {!isVoid && <Btn t={t} v="ghost" onClick={() => unlink(f.id)} disabled={!!unlinking} data-unlink-finding={f.id} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{unlinking === String(f.id) ? tr("Saving...") : tr("Unlink")}</Btn>}
+        </div>))}
+        {!isVoid && !linking && <div style={{ marginTop: 8 }}><Btn t={t} v="ghost" onClick={openLink} data-link-findings="" style={{ minHeight: 44 }}>{tr("Link findings")}</Btn></div>}
+        {linking && <div data-link-findings-form="" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid " + t.border }}>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 8, lineHeight: 1.5 }}>{tr("The open findings at this site. Untick any that this corrective action does not cover.")}</div>
+          {linking.loading && <div style={{ fontSize: 12, color: t.textMut }}>{tr("Loading...")}</div>}
+          {!linking.loading && linking.rows.length === 0 && !linking.refusal && <div style={{ fontSize: 12, color: t.textMut }}>{tr("No open finding at this site is waiting to be linked.")}</div>}
+          {linking.rows.map(r => (<label key={r.id} data-link-finding={r.id} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <span style={chkWrap}><input type="checkbox" checked={!!linking.ticked[r.id]} onChange={() => setLinking(l => ({ ...l, ticked: Object.assign({}, l.ticked, { [r.id]: !l.ticked[r.id] }) }))} style={{ width: 22, height: 22 }} /></span>
+            <span style={{ minWidth: 0, wordBreak: "break-word" }}>{r.title}{r.zone ? " (" + r.zone + ")" : ""}</span>
+            <Bdg l={findingStateWord(r.status)} c={findingStateColor(r.status, t)} />
+          </label>))}
+          {linking.refusal && <div data-link-findings-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{linking.refusal}</div>}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => setLinking(null)} disabled={linking.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={saveLink} disabled={linking.busy || linking.loading || !linking.rows.some(r => linking.ticked[r.id])} data-link-findings-save="" style={{ minHeight: 44 }}>{linking.busy ? tr("Saving...") : tr("Link|findings")}</Btn>
+          </div>
+        </div>}
+      </div>}
+      {isCorrective && (toldAt || canTellClient) && <div data-tell-client="" style={{ marginBottom: 18, padding: "10px 12px", borderRadius: 8, background: t.hover, border: "1px solid " + (canTellClient ? t.orangeBorder : t.border) }}>
+        {toldAt && <div data-client-told="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5 }}>{tr("Client told {0} by {1}.", irWhen(toldAt), nameOf(toldBy) || "--")}</div>}
+        {canTellClient && !telling && <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <Bdg l={tr("Client not told yet")} c={OR} />
+          <Btn t={t} v="ghost" onClick={openTell} data-tell-client-open="" style={{ minHeight: 44 }}>{tr("Tell the client")}</Btn>
+        </div>}
+        {canTellClient && telling && <div data-tell-client-form="">
+          <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text, marginBottom: 4 }}>{tr("Tell the client")}</div>
+          <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("Name no employee. The client hears what {0} did.", clientConfig.company.name)}</div>
+          {telling.refusal.text && !telling.refusal.field && <div data-tell-client-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginBottom: 10 }}>{telling.refusal.text}</div>}
+          <Lbl>{tr("Recipients")}</Lbl>
+          {telling.offered.map((c, i) => (<label key={"o" + i} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer", fontSize: 13, color: t.text }}>
+            <span style={chkWrap}><input type="checkbox" checked={!!telling.picked[c.email]} onChange={() => setTelling(x => ({ ...x, picked: Object.assign({}, x.picked, { [c.email]: !x.picked[c.email] }) }))} style={{ width: 22, height: 22 }} /></span>
+            <span style={{ minWidth: 0, wordBreak: "break-word" }}>{c.name ? c.name + " (" + c.email + ")" : c.email}{c.from === "survey" ? <span style={{ color: t.textMut }}>{" " + tr("(survey contact)")}</span> : c.from === "site" ? <span style={{ color: t.textMut }}>{" " + tr("(site contact)")}</span> : null}</span>
+          </label>))}
+          {telling.added.map((c, i) => (<div key={"a" + i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", background: t.card, borderRadius: 8, marginTop: 6 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: t.text, wordBreak: "break-word" }}>{c.name ? c.name + " (" + c.email + ")" : c.email}</span>
+            <Btn t={t} v="ghost" onClick={() => setTelling(x => ({ ...x, added: x.added.filter((y, j) => j !== i) }))} aria-label={tr("Remove") + ": " + c.email} style={{ minHeight: 44, minWidth: 44, padding: "10px 12px", fontSize: 12 }}>{tr("Remove")}</Btn>
+          </div>))}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+            <div style={{ flex: "1 1 140px", minWidth: 0 }}><Inp t={t} aria-label={tr("Name")} placeholder={tr("Name")} value={telling.draft.name} onChange={e => setTelling(x => ({ ...x, draft: { ...x.draft, name: e.target.value } }))} /></div>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}><Inp t={t} type="email" aria-label={tr("Email")} placeholder={tr("Email")} value={telling.draft.email} onChange={e => setTelling(x => ({ ...x, draft: { ...x.draft, email: e.target.value } }))} /></div>
+            <Btn t={t} v="ghost" onClick={() => setTelling(x => (x.draft.email.trim() ? { ...x, added: x.added.concat([{ name: x.draft.name.trim(), email: x.draft.email.trim() }]), draft: { name: "", email: "" } } : x))} disabled={!telling.draft.email.trim()} style={{ minHeight: 44 }}>{tr("Add an address")}</Btn>
+          </div>
+          {telling.refusal.text && telling.refusal.field === "to" && <div data-tell-client-refusal="to" role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{telling.refusal.text}</div>}
+          {[["whatHappened", "What happened"], ["whatWasDone", "What was done"], ["prevention", "What will prevent it"]].map(([k, l]) => (<div key={k} style={{ marginTop: 12 }}>
+            <Lbl>{tr(l)}</Lbl>
+            <TArea t={t} rows={3} maxLength={2000} aria-label={tr(l)} data-tell-client-field={k} value={telling[k]} onChange={e => setTelling(x => ({ ...x, [k]: e.target.value }))} style={telling.refusal.field === k ? { borderColor: RD } : {}} />
+            {telling.refusal.text && telling.refusal.field === k && <div data-tell-client-refusal={k} role="alert" style={{ fontSize: 12, color: RD, marginTop: 4 }}>{telling.refusal.text}</div>}
+          </div>))}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+            <Btn t={t} v="ghost" onClick={() => setTelling(null)} disabled={telling.busy} style={{ minHeight: 44 }}>{tr("Cancel")}</Btn>
+            <Btn t={t} onClick={tellClient} disabled={telling.busy || tellTo().length === 0 || !telling.whatHappened.trim() || !telling.whatWasDone.trim() || !telling.prevention.trim()} data-tell-client-send="" style={{ minHeight: 44, minWidth: 96 }}>{telling.busy ? tr("Sending...") : tr("Send")}</Btn>
           </div>
         </div>}
       </div>}
