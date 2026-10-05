@@ -2862,7 +2862,7 @@ function createStubs() {
     const v = versions().find((x) => x.id === a.versionId);
     const tr0 = a.trainerId ? tPerson(a.trainerId) : null;
     return { id: a.id, versionId: a.versionId, topicId: a.topicId, topicName: tp ? tp.names[lang] || tp.names.en : "", attemptNo: a.attemptNo, locale: a.locale, startedAt: a.startedAt, scoredAt: a.scoredAt,
-      scorePercent: a.scorePercent, passed: a.passed, missed: a.missed.slice(), acknowledgedAt: a.acknowledgedAt, awaitingTrainer: !!(a.acknowledgedAt && !a.trainerSignedAt && v && v.needsTrainer),
+      scorePercent: a.scorePercent, passed: a.passed, missed: a.missed.slice(), acknowledgedAt: a.acknowledgedAt, awaitingTrainer: !!(a.acknowledgedAt && !a.trainerSignedAt && !a.voidedAt && v && v.needsTrainer),
       trainerSignedAt: a.trainerSignedAt, trainer: tr0 ? { name: tr0.name } : null, trainerNote: a.trainerNote, demonstrated: a.demonstrated, siteId: a.siteId, voidedAt: a.voidedAt };
   };
 
@@ -2938,6 +2938,15 @@ function createStubs() {
     const has = (o, l) => !!(o && String(o[l] || "").trim());
     const langs = (o, path) => { ["en", "es", "fr"].forEach((l) => { if (!has(o, l)) out.push(problem(path + "." + l, l === "en" ? "Write the English." : l === "es" ? "Write the Spanish, or use Translate." : "Write the French, or use Translate.", l === "en" ? "Escriba el inglés." : l === "es" ? "Escriba el español o use Traducir." : "Escriba el francés o use Traducir.")); }); };
     langs(c.title, "content.title");
+    // Step 262: an observation checklist is checked by its own rules, 1 to 30 steps and no questions.
+    if (draft.kind === "observation") {
+      const st = Array.isArray(c.steps) ? c.steps : [];
+      if (st.length < 1 || st.length > 30) out.push(problem("content.steps", "A checklist has 1 to 30 steps.", "Una lista de verificaci\u00f3n tiene de 1 a 30 pasos."));
+      st.forEach((x, i) => langs(x.text, "content.steps[" + i + "].text"));
+      langs(c.acknowledgement, "content.acknowledgement");
+      if (tp && tp.safetyCritical && !String(draft.checkedEsBy || "").trim()) out.push(problem("checkedEsBy", "Name who checked the Spanish before this safety lesson is published.", "Indique qui\u00e9n revis\u00f3 el espa\u00f1ol antes de publicar esta lecci\u00f3n de seguridad."));
+      return out;
+    }
     const blocks = Array.isArray(c.blocks) ? c.blocks : [];
     if (blocks.length < 1 || blocks.length > 30) out.push(problem("content.blocks", "A lesson has 1 to 30 blocks.", "Una lección tiene de 1 a 30 bloques."));
     blocks.forEach((b, i) => { langs(b.text, "content.blocks[" + i + "].text"); (b.items || []).forEach((it, j) => langs(it, "content.blocks[" + i + "].items[" + j + "]")); });
@@ -2955,9 +2964,9 @@ function createStubs() {
     return out;
   };
   const BLANK_LESSON = () => ({ title: L3("", "", ""), blocks: [], questions: [], acknowledgement: L3("", "", "") });
-  const draftView = (v) => ({ id: v.id, topicId: v.topicId, content: clone(v.content), passPercent: v.passPercent, maxAttempts: v.maxAttempts, needsTrainer: v.needsTrainer, sources: clone(v.sources || []), checkedEsBy: v.checkedEsBy, checkedFrBy: v.checkedFrBy, changeNote: v.changeNote, stale: false });
+  const draftView = (v) => Object.assign({ id: v.id, topicId: v.topicId, content: clone(v.content), passPercent: v.passPercent, maxAttempts: v.maxAttempts, needsTrainer: v.needsTrainer, sources: clone(v.sources || []), checkedEsBy: v.checkedEsBy, checkedFrBy: v.checkedFrBy, changeNote: v.changeNote, stale: false }, step262 ? { kind: v.kind || "quiz" } : {});
   const draftAnswer = (v) => ({ draft: draftView(v), problems: lessonProblems(v, topics().find((x) => x.id === v.topicId)) });
-  const versionRow = (v) => ({ id: v.id, version: v.version, status: v.status, publishedAt: v.publishedAt, publishedBy: v.publishedBy, changeNote: v.changeNote, stale: !!v.stale, attempts: attempts().filter((a) => a.versionId === v.id && !a.voidedAt).length });
+  const versionRow = (v) => Object.assign({ id: v.id, version: v.version, status: v.status, publishedAt: v.publishedAt, publishedBy: v.publishedBy, changeNote: v.changeNote, stale: !!v.stale, attempts: attempts().filter((a) => a.versionId === v.id && !a.voidedAt).length }, step262 ? { kind: v.kind || "quiz" } : {});
 
   // The routes above, ahead of Step 253's; base is the answer the stub gave before Step 256.
   function step256Route(method, path, query, body, said, base) {
@@ -3078,7 +3087,9 @@ function createStubs() {
         state.lessonSeq += 1;
         const v = { id: "lv-" + state.lessonSeq, topicId: tp.id, version: null, status: "draft", publishedAt: null, publishedBy: null, changeNote: "",
           content: b.from === "published" ? clone(live.content) : BLANK_LESSON(), passPercent: b.from === "published" ? live.passPercent : 80, maxAttempts: b.from === "published" ? live.maxAttempts : 3,
-          needsTrainer: tp.safetyCritical || (b.from === "published" && live.needsTrainer), sources: b.from === "published" ? clone(live.sources) : [], checkedEsBy: null, checkedFrBy: null, stale: false };
+          needsTrainer: tp.safetyCritical || (b.from === "published" && live.needsTrainer), sources: b.from === "published" ? clone(live.sources) : [], checkedEsBy: null, checkedFrBy: null, stale: false,
+          kind: b.from === "published" ? live.kind || "quiz" : b.kind === "observation" ? "observation" : "quiz" };
+        if (v.kind === "observation") v.needsTrainer = true;
         versions().push(v);
         return created(draftAnswer(v));
       }
@@ -3100,7 +3111,8 @@ function createStubs() {
         if (b.content !== undefined) v.content = clone(b.content);
         ["passPercent", "maxAttempts"].forEach((k) => { if (b[k] !== undefined) v[k] = Number(b[k]); });
         if (b.needsTrainer !== undefined) v.needsTrainer = b.needsTrainer === true;
-        if (tp && tp.safetyCritical) v.needsTrainer = true;
+        if (step262 && b.kind !== undefined) { if (["quiz", "observation"].indexOf(b.kind) < 0) return tRefusal("training.badDetails", 400, lang, { keys: ["kind"] }); v.kind = b.kind; }
+        if ((tp && tp.safetyCritical) || v.kind === "observation") v.needsTrainer = true;
         if (b.sources !== undefined) v.sources = clone(b.sources || []);
         ["checkedEsBy", "checkedFrBy", "changeNote"].forEach((k) => { if (b[k] !== undefined) v[k] = b[k] == null ? null : String(b[k]); });
         const bad = [];
@@ -3113,7 +3125,7 @@ function createStubs() {
         const changed = { es: false, fr: false };
         const fill = (o) => { if (!o || !String(o.en || "").trim()) return; ["es", "fr"].forEach((l) => { if (b.overwrite || !String(o[l] || "").trim()) { o[l] = o.en + " (" + l + ")"; changed[l] = true; } }); };
         const c = v.content;
-        fill(c.title); (c.blocks || []).forEach((bl) => { fill(bl.text); (bl.items || []).forEach(fill); });
+        fill(c.title); (c.blocks || []).forEach((bl) => { fill(bl.text); (bl.items || []).forEach(fill); }); (c.steps || []).forEach((x) => fill(x.text));
         (c.questions || []).forEach((q) => { fill(q.text); (q.options || []).forEach((o) => fill(o.text)); }); fill(c.acknowledgement);
         if (changed.es) v.checkedEsBy = null;
         if (changed.fr) v.checkedFrBy = null;
@@ -3161,6 +3173,300 @@ function createStubs() {
           site_id: a.siteId, topic_id: a.topicId, attempt_id: a.id, trainer_id: me.id, locale: a.locale };
         lessonRecords().push(rec);
         return ok({ attempt: attemptView(a, lang), record: trainingTableRow(rec) });
+      }
+    }
+    return base();
+  }
+  // ---- Step 262 (STEP262_CONTRACT.md) ----------------------------------------------------------------
+  // Everything else for training in the app, answered only once a run arms it with setStep262, over
+  // Step 256's answers, which it reads (the topics, the records, the attempts) and to which it adds a
+  // lesson's kind and an attempt's void. Sessions signed on phones (section 2): one open with three
+  // sign-ins, one closed and one cancelled. Certificates (section 4), documents to sign (section 6) and
+  // company property (section 7) follow. Every value is invented.
+  let step262 = false;
+  const S262_WORDS = {
+    "training.sessionNotFound": ["That session was not found, or it is no longer open.", "No se encontró esa sesión, o ya no está abierta."],
+    "training.sessionClosed": ["This session is no longer open.", "Esta sesión ya no está abierta."],
+    "training.noSignins": ["Nobody has signed in to this session.", "Nadie ha firmado en esta sesión."],
+    "training.signatureRequired": ["Sign first.", "Firme primero."],
+    "training.badDetails": ["Check the fields marked.", "Revise los campos marcados."],
+    "training.badFile": ["Choose a PDF, JPEG or PNG file.", "Elija un archivo PDF, JPEG o PNG."],
+    "training.fileTooLarge": ["The file is over 10 MB.", "El archivo pasa de 10 MB."],
+    "training.recordNotFound": ["That record was not found.", "No se encontr\u00f3 ese registro."],
+    "documents.notFound": ["That document was not found.", "No se encontr\u00f3 ese documento."],
+    "documents.badRequirement": ["Check who must sign.", "Revise qui\u00e9n debe firmar."],
+    "property.badDetails": ["Check the fields marked.", "Revise los campos marcados."],
+    "property.notFound": ["That item was not found.", "No se encontr\u00f3 ese art\u00edculo."],
+    "property.alreadyReturned": ["That item was already returned.", "Ese art\u00edculo ya se devolvi\u00f3."],
+  };
+  const r262 = (code, status, lang, extra) => ({ status, json: Object.assign({ code, error: S262_WORDS[code] ? S262_WORDS[code][lang === "es" ? 1 : 0] : code }, extra || {}) });
+  const SESSIONS = () => [
+    { id: "ses-1", title: "Spill response refresher", day: seed.TODAY, siteId: "s-1", locale: "es", trainerId: seed.PEOPLE.admin.id, topicIds: ["tp-1", "tp-3"], joinCode: "K7Q4PZ", status: "open", closedAt: null, note: "Bring gloves.",
+      signins: [{ id: "si-1", userId: "u-staff-5", signedAt: at(0, "13:05") }, { id: "si-2", userId: "u-staff-6", signedAt: at(0, "13:06") }, { id: "si-3", userId: "u-staff-7", signedAt: at(0, "13:07") }] },
+    { id: "ses-2", title: "Site orientation", day: seed.shift(-7), siteId: "s-2", locale: "en", trainerId: seed.PEOPLE.supervisor.id, topicIds: ["tp-2"], joinCode: "M3X8RD", status: "closed", closedAt: at(-7, "15:40"), note: null,
+      signins: [{ id: "si-4", userId: "u-staff-8", signedAt: at(-7, "15:10") }] },
+    { id: "ses-3", title: "Ladder use", day: seed.shift(-3), siteId: "s-3", locale: "en", trainerId: seed.PEOPLE.supervisor.id, topicIds: ["tp-3"], joinCode: "P9T2WB", status: "cancelled", closedAt: null, note: null, signins: [] },
+  ];
+  const sessions = () => { if (!state.sessions) { state.sessions = SESSIONS(); state.sessionSeq = 3; } return state.sessions; };
+  const sessionView = (sn, lang, withSignins) => {
+    const site = sn.siteId ? state.sites.find((s0) => s0.id === sn.siteId) : null;
+    const trainer = tPerson(sn.trainerId) || {};
+    const out = {
+      id: sn.id, title: sn.title, day: sn.day, site: site ? { id: site.id, name: site.name } : null, locale: sn.locale, trainer: { id: sn.trainerId, name: trainer.name || "" },
+      topics: sn.topicIds.map((id) => topics().find((x) => x.id === id)).filter(Boolean).map((tp) => ({ id: tp.id, name: tp.names[lang] || tp.names.en, docCode: tp.docCode, docSection: tp.docSection })),
+      joinCode: sn.joinCode, joinUrl: "https://portal.example.invalid/join/" + sn.joinCode, status: sn.status, closedAt: sn.closedAt, note: sn.note,
+    };
+    if (withSignins) out.signins = sn.signins.filter((x) => !x.removedAt).map((x) => ({ id: x.id, person: { id: x.userId, name: tPersonName(x.userId) }, signedAt: x.signedAt }));
+    return out;
+  };
+
+  // Documents read and signed (section 6): the handbook for everyone and a hazard program for two roles
+  // and one person, with four signatures, one of them on an older version. Each person's row carries
+  // acknowledgmentId and each document its requirements, the two fields the contract leaves out and the
+  // pull request asks for, so a signature opens and Who must sign shows the set in force.
+  const DOCS = () => [
+    { docCode: "OCSA-HR-002", title: "Employee Handbook", version: 3, requirements: [{ role: "everyone" }] },
+    { docCode: "OCSA-HS-004", title: "Hazard Communication Program", version: 2, requirements: [{ role: "custodial_lead" }, { role: "custodial_laborer" }, { userId: "u-staff-10" }] },
+  ];
+  const ACKS = () => [
+    { id: "ack-1", docCode: "OCSA-HR-002", version: 3, userId: "u-staff-5", locale: "es", signedAt: at(-2, "08:12") },
+    { id: "ack-2", docCode: "OCSA-HR-002", version: 2, userId: "u-staff-6", locale: "en", signedAt: at(-90, "07:40") },
+    { id: "ack-3", docCode: "OCSA-HR-002", version: 3, userId: "u-sup-1", locale: "en", signedAt: at(-1, "09:03") },
+    { id: "ack-4", docCode: "OCSA-HS-004", version: 2, userId: "u-staff-9", locale: "en", signedAt: at(-4, "10:30") },
+  ];
+  const docs262 = () => { if (!state.docs262) { state.docs262 = DOCS(); state.acks262 = ACKS(); } return state.docs262; };
+  const docPeople = (doc) => state.staff.filter((s0) => (s0.status || "active") === "active" && doc.requirements.some((r) => r.role === "everyone" || r.role === s0.role || r.userId === s0.id));
+  const docAckOf = (doc, userId) => state.acks262.filter((a) => a.docCode === doc.docCode && a.userId === userId && !a.voidedAt).sort((a, c) => c.version - a.version)[0] || null;
+  const docRow = (doc) => {
+    const ppl = docPeople(doc);
+    const signed = ppl.filter((p) => { const a = docAckOf(doc, p.id); return a && a.version === doc.version; }).length;
+    return { docCode: doc.docCode, title: doc.title, version: doc.version, required: ppl.length, signed, notSigned: ppl.length - signed, requirements: clone(doc.requirements) };
+  };
+  // Company property issued (section 7): one person holds two shirts and a key, and returned a badge.
+  const PROPERTY = () => [
+    { id: "pi-1", userId: "u-staff-5", kind: "uniform_shirt", description: null, size: "L", quantity: 2, siteId: null, issuedOn: seed.shift(-60), issuedById: seed.PEOPLE.supervisor.id, note: null, returnedOn: null, returnedToId: null, returnNote: null },
+    { id: "pi-2", userId: "u-staff-5", kind: "key", description: "Supply closet B", size: null, quantity: 1, siteId: "s-2", issuedOn: seed.shift(-58), issuedById: seed.PEOPLE.supervisor.id, note: "For the night shift.", returnedOn: null, returnedToId: null, returnNote: null },
+    { id: "pi-3", userId: "u-staff-5", kind: "badge", description: null, size: null, quantity: 1, siteId: "s-1", issuedOn: seed.shift(-200), issuedById: seed.PEOPLE.admin.id, note: null, returnedOn: seed.shift(-90), returnedToId: seed.PEOPLE.admin.id, returnNote: "Moved sites." },
+  ];
+  const property = () => { if (!state.property) { state.property = PROPERTY(); state.propertySeq = 3; } return state.property; };
+  const propertyView = (x) => {
+    const site = x.siteId ? state.sites.find((s0) => s0.id === x.siteId) : null;
+    return { id: x.id, person: { id: x.userId, name: tPersonName(x.userId) }, kind: x.kind, description: x.description, size: x.size, quantity: x.quantity, site: site ? { id: site.id, name: site.name } : null,
+      issuedOn: x.issuedOn, issuedBy: { name: tPersonName(x.issuedById) }, note: x.note, returnedOn: x.returnedOn, returnedTo: x.returnedToId ? { name: tPersonName(x.returnedToId) } : null, returnNote: x.returnNote };
+  };
+  // A multipart body as the browser sends it, its text fields by name and the file's name and type.
+  const multipartOf = (raw) => {
+    const out = { fields: {}, file: null };
+    String(raw || "").split(/-{2,}[^\r\n]*\r\n/).forEach((part) => {
+      const name = /name="([^"]+)"/.exec(part);
+      if (!name) return;
+      const fileName = /filename="([^"]*)"/.exec(part);
+      const type = /Content-Type:\s*([^\r\n]+)/i.exec(part);
+      const value = part.split("\r\n\r\n").slice(1).join("\r\n\r\n").replace(/\r\n$/, "");
+      if (fileName) out.file = { name: fileName[1], type: type ? type[1].trim() : "", size: value.length };
+      else out.fields[name[1]] = value;
+    });
+    return out;
+  };
+
+  // The routes above, ahead of Step 256's; base is the answer the stub gave before Step 262.
+  function step262Route(method, path, query, body, said, base) {
+    const lang = query.get("locale") === "es" || query.get("locale") === "en" ? query.get("locale") : said;
+    const b = body || {};
+    const me = person();
+    const mgmt = me.role === "admin" || me.role === "supervisor";
+    // The bell holds a sign-off notice and an expiring record's notice, linked the way the API links
+    // them (helpers/trainingNotices.js), on a dashboard address that is not this one.
+    if (/^\/api\/notifications/.test(path) && !state.notif262) {
+      state.notif262 = true;
+      if (!state.notifications) state.notifications = clone(NOTIFICATIONS);
+      state.notifications.unshift(
+        { id: "n-262-1", title: "Training waiting for a sign-off", body: "Spill response, an attempt waits for a trainer.", subjectType: "training_signoff", subjectId: "at-1", link: "https://dashboard.example.invalid/training/attempts/at-1", createdAt: seed.shift(0) + "T23:00:00Z", readAt: null },
+        { id: "n-262-2", title: "Training expiring", body: "A record expires within 30 days.", subjectType: "training_expiring", subjectId: "ht-91", link: "https://dashboard.example.invalid/training/people/u-staff-7", createdAt: seed.shift(0) + "T22:30:00Z", readAt: null });
+    }
+    // One record has a certificate on file from the start.
+    if (!state.cert262) { state.cert262 = true; const r0 = trainingRows().find((r) => r.id === "ht-5"); if (r0) r0.certificate_path = "certificates/ht-5.pdf"; }
+    if (path === "/api/hr/training/certificates" && method === "POST") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const m = multipartOf(typeof body === "string" ? body : "");
+      if (!m.file || ["application/pdf", "image/jpeg", "image/png"].indexOf(m.file.type) < 0) return r262("training.badFile", 400, lang, { keys: ["file"] });
+      if (m.file.size > 10 * 1024 * 1024) return r262("training.fileTooLarge", 400, lang, { keys: ["file"] });
+      const tp = topics().find((x) => x.id === m.fields.topicId);
+      const bad = [];
+      if (!tPerson(m.fields.userId)) bad.push("userId");
+      if (!tp) bad.push("topicId");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(m.fields.completedDate || "")) bad.push("completedDate");
+      if (m.fields.expiryDate && !/^\d{4}-\d{2}-\d{2}$/.test(m.fields.expiryDate)) bad.push("expiryDate");
+      if (bad.length) return r262("training.badDetails", 400, lang, { keys: bad });
+      const row = {
+        id: "ht-" + trainingNext, user_id: m.fields.userId, training_name: tp.names.en, training_type: tp.safetyCritical ? "safety" : "onboarding", completed_date: m.fields.completedDate,
+        expiry_date: m.fields.expiryDate || (T_FREQ[tp.frequency] ? addMonths(m.fields.completedDate, T_FREQ[tp.frequency]) : null), score: null, administered_by: null, notes: null, document_id: null,
+        created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: null, topic_id: tp.id, attempt_id: null, trainer_id: null, locale: null, session_id: null, certificate_path: "certificates/ht-" + trainingNext + ".pdf",
+      };
+      trainingNext += 1;
+      trainingRows().push(row);
+      return created({ record: clone(row) });
+    }
+    const cert = /^\/api\/hr\/training\/([^/]+)\/certificate$/.exec(path);
+    if (cert && method === "GET") {
+      const r0 = trainingRows().find((r) => r.id === decodeURIComponent(cert[1]) && !r.removed_at);
+      if (!r0 || !r0.certificate_path) return r262("training.recordNotFound", 404, lang);
+      return imageAnswer();
+    }
+    if (path === "/api/hr/property" && method === "GET") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const uid = query.get("userId") || "";
+      const open = query.get("open") === "true";
+      return ok({ issues: property().filter((x) => (!uid || x.userId === uid) && (!open || !x.returnedOn)).slice().sort((a, c) => c.issuedOn.localeCompare(a.issuedOn)).map(propertyView) });
+    }
+    if (path === "/api/hr/property" && method === "POST") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const kinds = ["uniform_shirt", "uniform_other", "key", "badge", "fob", "other"];
+      const bad = [];
+      if (!tPerson(String(b.userId || ""))) bad.push("userId");
+      if (kinds.indexOf(b.kind) < 0) bad.push("kind");
+      if (b.kind === "other" && !String(b.description || "").trim()) bad.push("description");
+      if (!Number.isInteger(b.quantity) || b.quantity < 1 || b.quantity > 20) bad.push("quantity");
+      if (b.siteId && !state.sites.some((s0) => s0.id === b.siteId)) bad.push("siteId");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.issuedOn || ""))) bad.push("issuedOn");
+      if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) bad.push("signature");
+      if (bad.length) return r262("property.badDetails", 400, lang, { keys: bad });
+      state.propertySeq += 1;
+      const x = { id: "pi-" + state.propertySeq, userId: String(b.userId), kind: b.kind, description: b.description || null, size: b.size || null, quantity: b.quantity, siteId: b.siteId || null, issuedOn: b.issuedOn, issuedById: me.id, note: b.note || null, returnedOn: null, returnedToId: null, returnNote: null };
+      property().push(x);
+      return created({ issue: propertyView(x) });
+    }
+    const prop = /^\/api\/hr\/property\/([^/]+)\/(return|signature)$/.exec(path);
+    if (prop) {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const x = property().find((y) => y.id === decodeURIComponent(prop[1]));
+      if (!x) return r262("property.notFound", 404, lang);
+      if (prop[2] === "signature" && method === "GET") return imageAnswer();
+      if (prop[2] === "return" && method === "POST") {
+        if (x.returnedOn) return r262("property.alreadyReturned", 409, lang);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.returnedOn || ""))) return r262("property.badDetails", 400, lang, { keys: ["returnedOn"] });
+        x.returnedOn = b.returnedOn; x.returnedToId = me.id; x.returnNote = b.note || null;
+        return ok({ issue: propertyView(x) });
+      }
+    }
+    // The person holding property is still employed; their employment answer carries openProperty, what
+    // they still hold, which the End employment window lists to collect.
+    if (path === "/api/users/u-staff-5/employment" && method === "GET") {
+      const p0 = tPerson("u-staff-5");
+      return ok({ status: "active", hireDate: p0.hire_date, terminationDate: null, current: null, events: [], pastSites: [], openProperty: property().filter((x) => x.userId === "u-staff-5" && !x.returnedOn).map(propertyView) });
+    }
+    // Step 256's attempts gain a void (STEP256_CONTRACT.md), answered here with the attempt.
+    const voidOf = /^\/api\/training\/attempts\/([^/]+)\/void$/.exec(path);
+    if (voidOf && method === "POST") {
+      if (me.role !== "admin") return tRefusal("training.noAccess", 403, lang);
+      const a = attempts().find((x) => x.id === decodeURIComponent(voidOf[1]));
+      if (!a) return tRefusal("training.attemptNotFound", 404, lang);
+      if (a.voidedAt) return tRefusal("training.notReady", 409, lang);
+      const reason = String(b.reason || "").trim();
+      if (!reason || reason.length > 500) return r262("training.badDetails", 400, lang, { keys: ["reason"] });
+      a.voidedAt = seed.NOW_ISO;
+      lessonRecords().filter((r) => r.attempt_id === a.id).forEach((r) => { r.removed_at = seed.NOW_ISO; });
+      return ok({ attempt: attemptView(a, lang) });
+    }
+    if (path === "/api/documents" && method === "GET") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      return ok({ documents: docs262().map(docRow) });
+    }
+    const ackSig = /^\/api\/documents\/acknowledgments\/([^/]+)\/signature$/.exec(path);
+    if (ackSig && method === "GET") { docs262(); return state.acks262.some((a) => a.id === decodeURIComponent(ackSig[1])) ? imageAnswer() : r262("documents.notFound", 404, lang); }
+    const docOne = /^\/api\/documents\/([^/]+)\/(signatures|requirements)$/.exec(path);
+    if (docOne) {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const doc = docs262().find((x) => x.docCode === decodeURIComponent(docOne[1]));
+      if (!doc) return r262("documents.notFound", 404, lang);
+      if (docOne[2] === "signatures" && method === "GET") {
+        const siteId = query.get("siteId") || "";
+        const role = query.get("role") || "";
+        const ppl = docPeople(doc).filter((p) => (!siteId || p.site_id === siteId) && (!role || p.role === role));
+        return ok({ version: doc.version, people: ppl.map((p) => {
+          const a = docAckOf(doc, p.id);
+          const site = state.sites.find((s0) => s0.id === p.site_id);
+          return { id: p.id, name: p.name, role: p.role, sites: site ? [{ id: site.id, name: site.name }] : [], signedVersion: a ? a.version : null, signedAt: a ? a.signedAt : null, locale: a ? a.locale : null, current: !!(a && a.version === doc.version), acknowledgmentId: a ? a.id : null };
+        }) });
+      }
+      if (docOne[2] === "requirements" && method === "PUT") {
+        if (me.role !== "admin") return tRefusal("training.noAccess", 403, lang);
+        const rows = Array.isArray(b.requirements) ? b.requirements : null;
+        if (!rows || rows.length > 30) return r262("documents.badRequirement", 400, lang, { keys: ["requirements"] });
+        const badAt = rows.findIndex((r) => !(r && ((r.role && (r.role === "everyone" || ["admin", "supervisor", "custodial_lead", "custodial_laborer", "day_porter", "contractor"].indexOf(r.role) >= 0)) || (r.userId && tPerson(String(r.userId))))));
+        if (badAt >= 0) return r262("documents.badRequirement", 400, lang, { keys: ["requirements[" + badAt + "]"] });
+        doc.requirements = rows.map((r) => (r.role ? { role: r.role } : { userId: String(r.userId) }));
+        return ok({ requirements: clone(doc.requirements) });
+      }
+    }
+    if (path === "/api/training/sessions" && method === "GET") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const st = query.get("status") || "";
+      const siteId = query.get("siteId") || "";
+      const from = query.get("from") || "";
+      const to = query.get("to") || "";
+      return ok({ sessions: sessions().filter((sn) => (!st || sn.status === st) && (!siteId || sn.siteId === siteId) && (!from || sn.day >= from) && (!to || sn.day <= to))
+        .slice().sort((a, c) => c.day.localeCompare(a.day)).map((sn) => sessionView(sn, lang, false)) });
+    }
+    if (path === "/api/training/sessions" && method === "POST") {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const bad = [];
+      if (!String(b.title || "").trim() || String(b.title).length > 120) bad.push("title");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(b.day || ""))) bad.push("day");
+      if (b.siteId && !state.sites.some((s0) => s0.id === b.siteId)) bad.push("siteId");
+      if (["en", "es", "fr"].indexOf(b.locale) < 0) bad.push("locale");
+      const ids = Array.isArray(b.topicIds) ? b.topicIds.map(String) : [];
+      if (!ids.length || ids.length > 10 || ids.some((id) => !topics().some((tp) => tp.id === id && tp.active))) bad.push("topicIds");
+      if (bad.length) return r262("training.badDetails", 400, lang, { keys: bad });
+      state.sessionSeq += 1;
+      const sn = { id: "ses-" + state.sessionSeq, title: String(b.title).trim(), day: b.day, siteId: b.siteId || null, locale: b.locale, trainerId: me.id, topicIds: ids, joinCode: "N" + String(4000 + state.sessionSeq) + "QK", status: "open", closedAt: null, note: b.note || null, signins: [] };
+      sessions().push(sn);
+      return created({ session: sessionView(sn, lang, true) });
+    }
+    const one = /^\/api\/training\/sessions\/([^/]+)(?:\/(qr\.png|signins\/[^/]+|close|cancel|signature))?$/.exec(path);
+    if (one) {
+      if (!mgmt) return tRefusal("training.noAccess", 403, lang);
+      const sn = sessions().find((x) => x.id === decodeURIComponent(one[1]));
+      if (!sn) return r262("training.sessionNotFound", 404, lang);
+      const what = one[2] || "";
+      if (!what && method === "GET") return ok({ session: sessionView(sn, lang, true) });
+      if (what === "qr.png" && method === "GET") return imageAnswer();
+      if (what === "signature" && method === "GET") return imageAnswer();
+      if (what.indexOf("signins/") === 0 && method === "DELETE") {
+        if (sn.status !== "open") return r262("training.sessionClosed", 409, lang);
+        const si = sn.signins.find((x) => x.id === decodeURIComponent(what.slice(8)) && !x.removedAt);
+        if (!si) return r262("training.sessionNotFound", 404, lang);
+        si.removedAt = seed.NOW_ISO;
+        return ok({ session: sessionView(sn, lang, true) });
+      }
+      if (what === "cancel" && method === "POST") {
+        if (sn.status !== "open") return r262("training.sessionClosed", 409, lang);
+        sn.status = "cancelled";
+        return ok({ session: sessionView(sn, lang, true) });
+      }
+      if (what === "close" && method === "POST") {
+        if (sn.status !== "open") return r262("training.sessionClosed", 409, lang);
+        const live = sn.signins.filter((x) => !x.removedAt);
+        if (!live.length) return r262("training.noSignins", 400, lang);
+        if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return r262("training.signatureRequired", 400, lang, { keys: ["signature"] });
+        const saved = [];
+        const already = [];
+        live.forEach((si) => sn.topicIds.forEach((tid) => {
+          const tp = topics().find((x) => x.id === tid);
+          const had = allRecords().some((r) => r.user_id === si.userId && String(r.completed_date || "").slice(0, 10) === sn.day && (r.topic_id === tid || (tp && tp.recordNames.some((n) => tKey(n) === tKey(r.training_name)))));
+          if (had) { already.push({ userId: si.userId, topicId: tid }); return; }
+          const row = {
+            id: "ht-" + trainingNext, user_id: si.userId, training_name: tp.names.en, training_type: tp.safetyCritical ? "safety" : "onboarding", completed_date: sn.day,
+            expiry_date: T_FREQ[tp.frequency] ? addMonths(sn.day, T_FREQ[tp.frequency]) : null, score: null, administered_by: tPersonName(sn.trainerId),
+            notes: { en: "Given in English", es: "Given in Spanish", fr: "Given in French" }[sn.locale] + "\nSigned in on the app.", document_id: null,
+            created_at: new Date(Date.parse(seed.NOW_ISO) + trainingNext * 1000).toISOString(), site_id: sn.siteId, topic_id: tid, attempt_id: null, trainer_id: sn.trainerId, locale: sn.locale, session_id: sn.id,
+          };
+          trainingNext += 1;
+          trainingRows().push(row);
+          saved.push({ userId: si.userId, topicId: tid, recordId: row.id });
+        }));
+        sn.status = "closed"; sn.closedAt = seed.NOW_ISO;
+        return ok({ session: sessionView(sn, lang, true), saved, already });
       }
     }
     return base();
@@ -4806,7 +5112,8 @@ function createStubs() {
       : route(method, path, u.searchParams, body, record.language));
     const over250 = () => (step250 ? step250Route(method, path, u.searchParams, body, record.language, under) : under());
     const over253 = () => (step253 ? step253Route(method, path, u.searchParams, body, record.language, over250) : over250());
-    const answer = step256 ? step256Route(method, path, u.searchParams, body, record.language, over253) : over253();
+    const over256 = () => (step256 ? step256Route(method, path, u.searchParams, body, record.language, over253) : over253());
+    const answer = step262 ? step262Route(method, path, u.searchParams, body, record.language, over256) : over256();
     if (answer) {
       // The status the call was answered with, refusals the routes make on their own included.
       record.status = answer.status;
@@ -4869,6 +5176,8 @@ function createStubs() {
     setStep253: (v) => { step253 = v !== false; if (step253) { step250 = true; step247 = true; } },
     // The routes and keys of the API's Step 256, on or off, laid over whichever earlier step the run arms.
     setStep256: (v) => { step256 = v !== false; },
+    // The routes and keys of the API's Step 262, on or off; on brings Step 256's with it, which it reads.
+    setStep262: (v) => { step262 = v !== false; if (step262) step256 = true; },
     reset: () => {
       calls.length = 0;
       refusals = [];
@@ -4917,6 +5226,8 @@ function createStubs() {
       step253 = false; state.findings = null; caTold = null;
       // Step 256 off, and its topics, lessons, attempts and records as they started.
       step256 = false; state.topics = null; state.lessonVersions = null; state.attempts = null; state.lessonRecords = null;
+      // Step 262 off, and its sessions as they started.
+      step262 = false; state.sessions = null; state.docs262 = null; state.acks262 = null; state.cert262 = false; state.property = null; state.notif262 = false;
     },
     fixtures: {
       LOOKUPS, SUPPLIES, SUPPLY_REQUESTS, VENDORS, SERVICES, PICKUPS, PICKUP_ANALYTICS,

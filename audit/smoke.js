@@ -35,6 +35,14 @@
 //     their own, and its record prints with both signatures. At 390 in English the catalog and Gaps
 //     lines run again, and at 1280 in English a supervisor reads the catalog with no Add a topic and
 //     is never offered their own attempt to sign off.
+//   - against the stub's answers for the API's Step 262 (Step 263), at 1280 in English and in Spanish:
+//     a session's page shows its QR and code and its sign-ins, a wrong one is removed, the session is
+//     closed with the trainer's signature and says who was saved and who already had a topic, and its
+//     roster prints every signature; an observation checklist draft is saved with its steps and no
+//     questions, Needs a trainer locked on, and the versions list says its kind; a document's
+//     signatures list the people by site, the ones not signed first, a signature opens and the print
+//     gives a page per site; a shirt is issued with the person's signature and marked returned; and the
+//     End employment window lists what is still out. At 390 in English the document line runs again.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -61,10 +69,15 @@ const SMOKE_AREA = "Loading dock restroom";
 const SMOKE_TOPIC = { key: "glass_care", en: "Glass care", es: "Cuidado del vidrio" };
 const SESSION_TOPIC = "tp-1";
 const SESSION_PEOPLE = ["u-staff-7", "u-staff-5", "u-staff-6"];
+// Step 262's stub (audit/stubs.js): the open session's join code, the topic the checklist is written
+// for, and the person who holds company property.
+const SESSION_CODE = "K7Q4PZ";
+const CHECKLIST_TOPIC = { en: "Ladder use", es: "Uso de escaleras" };
+const PROPERTY_PERSON = "u-staff-5";
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all" },
-  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all" },
-  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone" },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true, step253: true, step256: "all", step262: "all" },
+  { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true, step256: "all", step262: "all" },
+  { name: "390 en admin", viewport: "phone", lang: "en", who: "admin", step256: "phone", step262: "phone" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor", step256: "supervisor" },
 ];
 
@@ -555,6 +568,127 @@ async function step256(d, origin, p, stubs) {
   });
 }
 
+// Step 262's screens, each a line, against the stub armed with setStep262 (audit/stubs.js). The phone
+// pass runs the document line.
+async function step262(d, origin, p, stubs) {
+  const check = async (what, fn) => {
+    const mark = d.pageErrors.length;
+    let why = "";
+    try { why = (await fn()) || (await trouble(d, mark)); } catch (e) { why = e.message.split("\n")[0]; }
+    say(!why, p.name, what, why);
+    await recover(d, origin, p);
+  };
+  const printed = async (before) => { for (let i = 0; i < 40; i++) { const pr = await d.prints(); if (pr.length > before && pr[pr.length - 1].html) return pr[pr.length - 1].html; await wait(100); } return ""; };
+  const opened = async (before) => { for (let i = 0; i < 30; i++) { const pr = await d.prints(); if (pr.length > before) return String(pr[pr.length - 1].url || ""); await wait(100); } return ""; };
+  if (p.step262 === "all") {
+    await check("a session is closed with the trainer's signature and its roster prints every signature", async () => {
+      await go(d, "hr", ["training", "sessions"], "[data-training-sessions] tbody tr");
+      await d.page.locator("[data-training-sessions] tbody tr").first().click();
+      await until(d, "[data-session-signin]");
+      if ((await d.page.locator("[data-session-qr]").count()) === 0) return "the page draws no QR";
+      if ((await d.page.locator("[data-session-code]").innerText()).trim() !== SESSION_CODE) return "the page does not draw the join code";
+      const signins = await settledCount(d, "[data-session-signin]");
+      if (signins !== 3) return "the page lists " + signins + " sign-ins";
+      await d.page.locator("[data-session-remove]").last().click();
+      await d.page.locator("[data-session-signin]").nth(2).waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+      if ((await d.page.locator("[data-session-signin]").count()) !== 2) return "the wrong sign-in was not removed";
+      await d.page.locator("[data-session-close]").click();
+      const pad = d.page.locator("[data-session-closing] canvas").first();
+      await pad.scrollIntoViewIfNeeded();
+      const b = await pad.boundingBox();
+      await d.page.mouse.move(b.x + b.width * 0.15, b.y + b.height * 0.55); await d.page.mouse.down();
+      await d.page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.3, { steps: 6 }); await d.page.mouse.up();
+      await d.page.locator("[data-session-closing] [data-signature-box] button").first().click();
+      await until(d, "[data-session-close-saved]");
+      const call = stubs.calls.filter((c) => /\/close$/.test(c.path) && c.method === "POST").pop();
+      if (!call || !/^data:image\/png/.test(String((call.body || {}).signature || ""))) return "the close was not sent with the trainer's signature";
+      const saved = Number(await d.page.locator("[data-session-close-saved]").getAttribute("data-session-close-saved"));
+      const already = (await d.page.locator("[data-session-close-already]").count()) ? Number(await d.page.locator("[data-session-close-already]").getAttribute("data-session-close-already")) : 0;
+      if (saved + already !== 4 || already < 1) return "the page says " + saved + " saved and " + already + " already had it";
+      const before = (await d.prints()).length;
+      await d.page.locator("[data-session-roster]").click();
+      const html = await printed(before);
+      if (html.indexOf("OCSA-FRM-033") < 0 || html.indexOf("OCSA-TRN-901") < 0) return "the roster does not name its form and the topic's document";
+      return (html.match(/<img/g) || []).length >= 3 ? "" : "the roster does not print every signature";
+    });
+    await check("an observation checklist draft is saved with its steps and no questions", async () => {
+      await go(d, "hr", ["training", "catalog"], "[data-training-catalog] table tbody tr");
+      await d.page.locator("[data-training-catalog] table tbody tr").filter({ hasText: CHECKLIST_TOPIC[p.lang] }).first().click();
+      await d.page.locator('[data-topic-tab="lesson"]').click();
+      await until(d, "[data-topic-lesson]");
+      await d.page.locator('[data-lesson-new="blank"]').click();
+      await until(d, "[data-lesson-editor]");
+      await d.page.locator('[data-lesson-kind="observation"]').click();
+      if (!(await d.page.locator("[data-lesson-needs-trainer]").isDisabled()) || !(await d.page.locator("[data-lesson-needs-trainer]").isChecked())) return "Needs a trainer is not locked on";
+      if ((await d.page.locator("[data-lesson-add-question]").count()) > 0) return "the checklist offers questions";
+      await d.page.locator('[data-lesson-path="title.en"] input').fill("Ladder check on the job");
+      for (let i = 0; i < 2; i++) await d.page.locator("[data-lesson-add-step]").click();
+      await d.page.locator('[data-lesson-path="steps.0.text.en"]').locator("textarea, input").first().fill("Checks the feet and the rungs");
+      await d.page.locator('[data-lesson-path="steps.1.text.en"]').locator("textarea, input").first().fill("Keeps three points of contact");
+      const patches = () => stubs.calls.filter((c) => /lesson-drafts\/[^/]+$/.test(c.path) && c.method === "PATCH");
+      const sent = patches().length;
+      await d.page.locator("[data-lesson-save]").click();
+      for (let i = 0; i < 30 && patches().length === sent; i++) await wait(100);
+      await d.page.locator("[data-lesson-editor]").getByText(d.say("Changes not saved")).waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+      const call = patches().length > sent ? patches().pop() : null;
+      const content = (call && call.body && call.body.content) || {};
+      if (!call || call.body.kind !== "observation" || (content.steps || []).length !== 2 || "questions" in content) return "the draft was not sent as a checklist with two steps and no questions";
+      await d.page.locator("[data-lesson-editor] button").filter({ hasText: d.say("Back to the versions") }).click();
+      await d.page.locator('[data-lesson-version-kind="observation"]').first().waitFor({ timeout: 3000 }).catch(() => {});
+      const kinds = await d.page.locator("[data-lesson-version-kind]").evaluateAll((es) => es.map((e) => e.getAttribute("data-lesson-version-kind")));
+      await d.page.locator('[data-topic-window] button[aria-label="' + d.say("Close") + '"]').click();
+      return kinds.indexOf("observation") >= 0 ? "" : "the versions list does not say the draft's kind";
+    });
+  }
+  await check("a document's signatures list the people by site, the ones not signed first", async () => {
+    await go(d, "hr", ["training", "documents"], "[data-training-documents] tbody tr");
+    if ((await d.page.locator("[data-training-documents] tbody tr").count()) !== 2) return "the list does not hold the two documents";
+    await d.page.locator("[data-training-documents] tbody tr").first().click();
+    await until(d, "[data-doc-person]");
+    const groups = await d.page.locator("[data-doc-site]").count();
+    if (groups < 2) return "the people are not grouped by site";
+    const order = await d.page.locator("[data-document-page] [data-doc-site]").evaluateAll((es) => es.map((e) => Array.from(e.parentElement.querySelectorAll("[data-doc-state]")).map((x) => x.getAttribute("data-doc-state"))));
+    if (order.some((st) => st.indexOf("signed") >= 0 && st.slice(st.indexOf("signed")).some((x) => x !== "signed"))) return "someone who has not signed is listed after someone who has";
+    if ((await d.page.locator('[data-doc-state="older"]').count()) === 0) return "nobody reads Signed an older version";
+    let before = (await d.prints()).length;
+    await d.page.locator("[data-doc-signature]").first().click();
+    if ((await opened(before)).indexOf("blob:") !== 0) return "a signature does not open";
+    before = (await d.prints()).length;
+    await d.page.locator("[data-doc-print]").click();
+    const html = await printed(before);
+    return (html.match(/class="kept"/g) || []).length === groups ? "" : "the print is not a page per site";
+  });
+  if (p.step262 !== "all") return;
+  await check("a shirt is issued with the person's signature and marked returned", async () => {
+    await go(d, "hr", [PROPERTY_PERSON], "[data-person-property] [data-property-row]");
+    const before = await settledCount(d, "[data-property-row]");
+    await d.page.locator("[data-property-issue]").click();
+    await d.page.locator('[data-property-kind="uniform_shirt"]').click();
+    await d.page.locator('[data-property-field="size"]').fill("M");
+    await d.drawSignature();
+    await d.page.locator("[data-property-window] [data-signature-box] button").first().click();
+    await d.page.locator("[data-property-save]").click();
+    await d.page.locator("[data-property-window]").waitFor({ state: "detached" });
+    const call = stubs.calls.filter((c) => c.path === "/api/hr/property" && c.method === "POST").pop();
+    if (!call || call.body.kind !== "uniform_shirt" || !/^data:image\/png/.test(String(call.body.signature || ""))) return "the issue was not sent with the kind and the signature";
+    await d.page.locator("[data-property-row]").nth(before).waitFor({ timeout: 3000 }).catch(() => {});
+    if ((await d.page.locator("[data-property-row]").count()) !== before + 1) return "the list does not hold the shirt";
+    const id = call.status === 201 && stubs.state.property ? stubs.state.property[stubs.state.property.length - 1].id : "";
+    await d.page.locator('[data-property-return="' + id + '"]').click();
+    await d.page.locator("[data-property-return-save]").click();
+    await d.page.locator('[data-property-row="' + id + '"][data-property-out="no"]').waitFor({ timeout: 3000 }).catch(() => {});
+    return (await d.page.locator('[data-property-row="' + id + '"][data-property-out="no"]').count()) === 1 ? "" : "the shirt is not marked returned";
+  });
+  await check("the End employment window lists what is still out", async () => {
+    await go(d, "staff", [PROPERTY_PERSON], '[data-employment-action="end"]');
+    await d.page.locator('[data-employment-action="end"]').click();
+    await until(d, "[data-collect-item]");
+    const out = await settledCount(d, "[data-collect-item]");
+    await d.page.locator("[data-employment-window] button").filter({ hasText: d.say("Cancel") }).click();
+    return out === 2 ? "" : "the window lists " + out + " items to collect";
+  });
+}
+
 async function runPass(browser, origin, p) {
   const stubs = createStubs();
   // Step 253 brings Step 250's and 247's answers with it, Step 250 brings Step 247's; every other pass
@@ -562,6 +696,8 @@ async function runPass(browser, origin, p) {
   if (p.step253) stubs.setStep253(true); else if (p.step250) stubs.setStep250(true); else stubs.setStep247(true);
   // Step 256's answers are laid over whichever of those the pass arms.
   if (p.step256) stubs.setStep256(true);
+  // Step 262's answers are laid over Step 256's.
+  if (p.step262) stubs.setStep262(true);
   if (p.secondStep) armSecondStep(stubs);
   const d = await createDriver({ browser, origin, stubs, viewport: p.viewport, lang: p.lang });
   // A control that is not there fails its line in seconds, not in the driver's thirty.
@@ -642,6 +778,7 @@ async function runPass(browser, origin, p) {
       if (p.step253) await step253(d, origin, p, stubs);
     }
     if (p.step256) await step256(d, origin, p, stubs);
+    if (p.step262) await step262(d, origin, p, stubs);
 
     // Help, asked one question.
     {

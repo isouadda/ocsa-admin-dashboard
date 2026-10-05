@@ -1148,10 +1148,11 @@ Who can do this: admins who manage staff, for anyone but themselves
 2. Click **End employment** (**Terminar el empleo**).
 3. Choose the **Reason** (**Motivo**): they quit, they were let go, they stopped coming, they were laid off, they retired, or other.
 4. Fill in the **Last day** (**Último día**) and answer **Eligible for rehire?** (**¿Elegible para recontratación?**). Add a **Note** (**Nota**) if needed.
-5. Click **End employment** (**Terminar el empleo**). They can no longer sign in, and every site they are assigned to ends with it.
-6. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
-Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, despedir.
-Last checked: 2026-10-01
+5. Under **Collect before the last day** (**Recoger antes del último día**), the window lists the company property the person still holds: uniforms, keys, badges and fobs. Collect each one, and click **Mark returned** (**Marcar como devuelto**) on it in their **HR Records** (**Expedientes de personal**) folder.
+6. Click **End employment** (**Terminar el empleo**). They can no longer sign in, and every site they are assigned to ends with it.
+7. When they were let go, the window reads **Record the termination letter in HR Records, under Disciplinary.** (**Registre la carta de despido en Expedientes de personal, en Disciplinario.**) Click **Open in HR Records** (**Abrir en Expedientes de personal**), then **+ Add Document** (**+ Agregar documento**), and choose the category **Disciplinary** (**Disciplinario**).
+Words people use for this: terminate, fire, let go, quit, resigned, dismiss, last day, deactivate, end employment, collect uniform, return keys, despedir.
+Last checked: 2026-10-05
 
 ## Bring someone back from leave (admin dashboard)
 Who can do this: admins who manage staff, for anyone but themselves
@@ -1779,7 +1780,7 @@ Who can do this: admins and supervisors
 2. Narrow it with **All sites** (**Todos los sitios**), **All roles** (**Todos los roles**), **All topics** (**Todos los temas**) and **All statuses** (**Todos los estados**). The line above the table names the day the list is as of.
 3. The table counts each topic's people as **Current** (**Vigente**), **Due soon** (**Vence pronto**), **Expired** (**Vencida**), **Missing** (**Falta**), **Refresher due** (**Repaso pendiente**), **In progress** (**En curso**) and **Waiting for trainer** (**Espera al instructor**). Click a topic to narrow the list to it; **Sessions** (**Sesiones**) then lists the days it was given, each with its attendance sheet.
 4. Below the table, the people with the most open items come first, each item a chip in its status's words. An online lesson with no tries left reads **Needs an in-person session** (**Necesita una sesión en persona**).
-5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**).
+5. Click a person to open their own list: each item with when it was done, when it expires and its course link, the tries a lesson has used, and each attempt with its **Print** (**Imprimir**). An item whose record holds a certificate has **Open the certificate** (**Abrir el certificado**), and **Upload a certificate** (**Subir un certificado**) adds one. An admin can **Void** (**Anular**) an attempt, with the reason; the record it wrote is removed with it. A notice that a person's training is expiring opens their list here.
 6. **Print** (**Imprimir**) at the top gives a page per site.
 7. The same items show in **Staff Management** (**Gestión de personal**), on a person's **HR Files** (**Archivos de personal**) tab.
 If it does not work: Gaps shows once the system answers it; until then **Who has no record** (**Quién no tiene registro**) stays.
@@ -1788,17 +1789,17 @@ Last checked: 2026-10-05
 
 ## Write and publish a training lesson (admin dashboard)
 Who can do this: admins write and publish; admins and supervisors read the versions
-1. Open the topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). Each version shows its status, when it was published and by whom, its **Change note** (**Nota del cambio**) and the **Attempts** (**Intentos**) taken on it. **Stale** (**Desactualizada**) means a passage it cites has changed since.
+1. Open the topic from **Catalog** (**Catálogo**) and click **Lesson** (**Lección**). Each version shows its status, its **Kind** (**Tipo**), when it was published and by whom, its **Change note** (**Nota del cambio**) and the **Attempts** (**Intentos**) taken on it. **Stale** (**Desactualizada**) means a passage it cites has changed since.
 2. Click **New draft from the live lesson** (**Nuevo borrador a partir de la lección vigente**) or **New blank draft** (**Nuevo borrador en blanco**). A draft already started opens with **Open the draft** (**Abrir el borrador**).
-3. Write the **Title** (**Título**) in English, with the Spanish and the French under it.
-4. Under **Blocks** (**Bloques**), click **Add a block** (**Agregar un bloque**) and pick **Text** (**Texto**), **List** (**Lista**) or **Warning** (**Advertencia**), and write it in all three languages. **Cite a passage** (**Citar un pasaje**) finds the section of the procedure it comes from; click **Cite** (**Citar**) beside it.
+3. Pick the **Kind** (**Tipo**): **Quiz** (**Cuestionario**), a lesson read and answered, or **Observation checklist** (**Lista de observación**), steps a trainer watches the person do on the job. Write the **Title** (**Título**) in English, with the Spanish and the French under it.
+4. For an observation checklist, write 1 to 30 **Steps** (**Pasos**) with **Add a step** (**Agregar un paso**), each in all three languages, then go on to step 6. It has no questions, and **Needs a trainer** (**Necesita un instructor**) stays ticked. For a quiz, under **Blocks** (**Bloques**), click **Add a block** (**Agregar un bloque**) and pick **Text** (**Texto**), **List** (**Lista**) or **Warning** (**Advertencia**), and write it in all three languages. **Cite a passage** (**Citar un pasaje**) finds the section of the procedure it comes from; click **Cite** (**Citar**) beside it.
 5. Write 5 to 10 questions with **Add a question** (**Agregar una pregunta**), each with 2 to 5 answers through **Add an answer** (**Agregar una respuesta**), and tick the right answer.
-6. Write the **Acknowledgement** (**Declaración**) the person signs once they pass. Set the **Pass mark (percent)** (**Nota para aprobar (porcentaje)**), 80 to start, and the **Tries** (**Intentos**), 3 to start. **Needs a trainer** (**Necesita un instructor**) is ticked and locked for a safety topic.
+6. Write the **Acknowledgement** (**Declaración**) the person signs once they pass, or, for a checklist, once the trainer has watched every step. For a quiz, set the **Pass mark (percent)** (**Nota para aprobar (porcentaje)**), 80 to start, and the **Tries** (**Intentos**), 3 to start. **Needs a trainer** (**Necesita un instructor**) is ticked and locked for a safety topic.
 7. **Translate** (**Traducir**) fills the Spanish and the French left empty. Have someone fluent check them and type their name under **Spanish checked by** (**Español revisado por**) and **French checked by** (**Francés revisado por**). A safety lesson is published only with its Spanish checker named, and its French reaches staff once a French checker is named.
 8. Click **Save draft** (**Guardar borrador**). The problems still to fix are listed at the top, and each one is drawn under its field; click one to go to it.
 9. Click **Publish** (**Publicar**). The version live until then is retired and staff take the new one. **Discard** (**Descartar**) drops the draft, and **Retire the live lesson** (**Dar de baja la lección vigente**) stops the lesson being offered.
 If it does not work: a refusal is shown at the top or under the field it names. Leaving the draft with changes not saved asks first.
-Words people use for this: write a lesson, online training, training quiz, training questions, publish a lesson, translate a lesson, lección en línea.
+Words people use for this: write a lesson, online training, training quiz, training questions, publish a lesson, translate a lesson, observation checklist, on the job sign-off, lección en línea.
 Last checked: 2026-10-05
 
 ## Sign off training after a demonstration (admin dashboard)
@@ -1809,6 +1810,7 @@ OCSA-HR-016 5.5 has a trainer watch the person do a safety task before the train
 3. Click **Sign off** (**Firmar como instructor**). Sign in the box and click **Sign** (**Firmar**).
 4. Tick **I watched them do it** (**Vi a la persona hacerlo**), which is required, and add a note on what they showed you.
 5. Click **Sign off** (**Firmar como instructor**). The training record is saved, and **Print the record** (**Imprimir el registro**) prints it.
+6. A notice that someone waits for a sign-off opens this tab on their attempt. An admin can **Void** (**Anular**) an attempt here instead, with the reason.
 If it does not work: a refusal is shown under the signature or the tick. The tab shows once the system answers it.
 Words people use for this: sign off training, trainer sign-off, demonstration, watched them do it, safety sign-off, firmar capacitación.
 Last checked: 2026-10-05
@@ -1819,4 +1821,53 @@ Who can do this: admins and supervisors
 2. One page prints the **Training record** (**Registro de capacitación**): the lesson's title and version, the person, the score and the pass mark, the day, the language, the person's signature and, once signed off, the trainer's name, signature and note.
 If it does not work: allow pop-ups for the dashboard in the browser, then click **Print** (**Imprimir**) again.
 Words people use for this: training record, print a training record, assessor, proof of training, training certificate, quiz result, registro de capacitación.
+Last checked: 2026-10-05
+
+## Run a training session people sign on their phones (admin dashboard)
+Who can do this: admins and supervisors
+The signed record in the app takes the place of the paper OCSA-FRM-033 sign-in sheet.
+1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Sessions** (**Sesiones**). Sessions are listed newest first; narrow them with **All statuses** (**Todos los estados**), **All sites** (**Todos los sitios**) and the days.
+2. Click **Start a session** (**Iniciar una sesión**). Type the **Title** (**Título**), pick the **Day** (**Día**), the **Site** (**Sitio**) and the **Language it is given in** (**Idioma en que se imparte**), tick the **Topics, 1 to 10** (**Temas, de 1 a 10**), add **Notes (optional)** (**Notas (opcional)**), and click **Start the session** (**Iniciar la sesión**). You are the trainer.
+3. The session's page shows the QR code and the join code, large enough to read across the room. Each person scans the code or types it in the staff app, ticks that they understood, and signs on their phone.
+4. The sign-ins appear as they arrive; the list is read again every 5 seconds. To take a wrong one off, click **Remove** (**Quitar**).
+5. When everyone has signed, sign in **Your signature, as the trainer** (**Su firma, como instructor**) and click **Close the session** (**Cerrar la sesión**). A training record is saved for each person and topic, and the page lists who was saved and, under **Already had it that day** (**Ya la tenía ese día**), who already had a topic.
+6. **Cancel the session** (**Cancelar la sesión**) ends it and saves nothing.
+7. Click **Print the roster** (**Imprimir la lista de asistencia**) for the OCSA-FRM-033 roster: the topics and their documents, each person's name, the time they signed and their signature, and the trainer's attestation and signature.
+If it does not work: the tab shows once the system answers it. A session that is closed or cancelled takes no more sign-ins.
+Words people use for this: training session, sign-in sheet, sign in on the phone, QR code, join code, attendance, roster, toolbox talk, sesión de capacitación.
+Last checked: 2026-10-05
+
+## Upload a training certificate from an outside course (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Gaps** (**Brechas**), and click the person.
+2. Click **Upload a certificate** (**Subir un certificado**).
+3. Pick the **Topic** (**Tema**) and fill in the **Completed Date** (**Fecha de finalización**). Leave the **Expiry Date (optional)** (**Fecha de vencimiento (opcional)**) empty to have it set by how often the topic is taken.
+4. Choose the certificate, a PDF, JPEG or PNG up to 10 MB.
+5. Click **Upload** (**Subir**). The training record is saved with the certificate on file, and **Open the certificate** (**Abrir el certificado**) shows beside it in the person's list and in **Records** (**Registros**).
+If it does not work: a file of another kind, or one over 10 MB, is refused under the file. The button shows once the system answers it.
+Words people use for this: upload a certificate, outside course, external training, certificate on file, proof of training, subir certificado.
+Last checked: 2026-10-05
+
+## See who signed a document, and say who must sign it (admin dashboard)
+Who can do this: admins and supervisors read it; admins change who must sign
+1. Click **HR Records** (**Expedientes de personal**), then the **Training** (**Capacitación**) tab, then **Documents to sign** (**Documentos por firmar**). Each document shows its version, how many **Must sign** (**Deben firmar**), how many **Signed** (**Firmado**) its current version, and how many have **Not signed** (**Sin firmar**).
+2. Click a document. **Who must sign** (**Quién debe firmar**) lists **Everyone** (**Todos**), the roles and the people named.
+3. Below it, the people are listed by site, the ones who have not signed the current version first, each with the version they signed, when and in what language. **Signed an older version** (**Firmó una versión anterior**) means they must sign the new one. Narrow the list with **All sites** (**Todos los sitios**) and **All roles** (**Todos los roles**).
+4. **Open the signature** (**Abrir la firma**) shows the signature a person drew.
+5. **Print for the assessor** (**Imprimir para el auditor**) prints a page per site.
+6. Admins: click **Change who must sign** (**Cambiar quién debe firmar**), tick **Everyone** (**Todos**) or the roles, name people with **Name a person...** (**Nombrar a una persona...**) and **Add** (**Agregar**), and click **Save** (**Guardar**). The whole list is saved at once, up to 30 rows, and each person added is told once.
+If it does not work: the tab shows once the system answers it. A refusal is shown under the row it names.
+Words people use for this: documents to sign, handbook, acknowledgment, who signed, read and sign, signature list, firmar documentos.
+Last checked: 2026-10-05
+
+## Issue company property and mark it returned (admin dashboard)
+Who can do this: admins and supervisors
+1. Click **HR Records** (**Expedientes de personal**) and open the person's folder. **Company property** (**Propiedad de la empresa**) lists what they were given, what is **Still out** (**Sin devolver**) first.
+2. Click **Issue property** (**Entregar propiedad**) and pick what was issued: **Uniform shirt** (**Camisa de uniforme**), **Other uniform** (**Otro uniforme**), **Key** (**Llave**), **Badge** (**Credencial**), **Fob** (**Llavero electrónico**) or **Other** (**Otro**), which needs a description.
+3. Fill in the **Size** (**Talla**) for a uniform, the **Quantity** (**Cantidad**), the **Site** (**Sitio**) for a key, a badge or a fob, the **Date** (**Fecha**), and a **Note** (**Nota**) if needed.
+4. Hand the screen to the person. They sign in the box and tap **Sign** (**Firmar**). Click **Save** (**Guardar**).
+5. When it comes back, click **Mark returned** (**Marcar como devuelto**), set **Returned on** (**Fecha de devolución**), add a note if needed, and click **Mark returned** (**Marcar como devuelto**) again.
+6. **Signature** (**Firma**) shows what the person signed.
+If it does not work: a refusal is shown under the field it names. The block shows once the system answers it.
+Words people use for this: uniform, shirt, keys, badge, fob, company property, return a uniform, hand out keys, entregar uniforme.
 Last checked: 2026-10-05

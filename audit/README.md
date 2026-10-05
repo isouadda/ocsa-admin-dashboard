@@ -53,12 +53,21 @@ Then it checks, one line a check:
   and a trainer signs off an attempt they watched, never their own, and its record prints with both
   signatures. At 390 in English the catalog and Gaps lines run again, and at 1280 in English a
   supervisor reads the catalog with no Add a topic and is never offered their own attempt.
+- against the stub's answers for the API's Step 262, which the smoke check arms with `setStep262` over
+  Step 256's: at 1280 in English and in Spanish, a session's page shows its QR, its join code and its
+  sign-ins, a wrong one is removed, the session is closed with the trainer's signature and says who was
+  saved and who already had a topic, and its roster prints every signature; an observation checklist
+  draft is saved with its steps and no questions, Needs a trainer locked on, and the versions list says
+  its kind; a document's signatures list the people by site, the ones not signed first, a signature
+  opens and the print gives a page per site; a shirt is issued with the person's signature and marked
+  returned; and the End employment window lists what is still out. At 390 in English the document line
+  runs again.
 
 Since Step 257 a check opens a page by its hash and waits for the thing it reads to be drawn, rather
 than for the network to go quiet for half a second and then a fixed pause, and the phone's drawer is
 opened by its button with no such wait: the stub answers in the same process, so a page has drawn what
 it read once that thing is there. The run went from 171 to 93 seconds with every check still in it, in
-every language it ran in, and is 108 with Step 257's sixteen lines. The pause after a side panel item opens stays at 550 milliseconds, since an
+every language it ran in, and is 108 with Step 257's sixteen lines and 119 with Step 263's eleven. The pause after a side panel item opens stays at 550 milliseconds, since an
 item has no one thing to wait for.
 
 A check that leaves the app behind its error boundary is reloaded and signed back in, so the checks
@@ -70,7 +79,11 @@ and `data-supply-print-label`, and Step 257's by `data-training-catalog`, `data-
 `data-topic-field`, `data-topic-refusal`, `data-who-role`, `data-gaps-person`, `data-gap-word`,
 `data-gaps-print`, `data-session-field`, `data-session-saved`, `data-session-already`,
 `data-lesson-new`, `data-lesson-publish`, `data-lesson-refusal`, `data-signoff-open` and
-`data-signoff-watched`.
+`data-signoff-watched`, and Step 263's by `data-session-signin`, `data-session-code`,
+`data-session-remove`, `data-session-closing`, `data-session-close-saved`, `data-session-roster`,
+`data-lesson-kind`, `data-lesson-version-kind`, `data-doc-site`, `data-doc-state`,
+`data-doc-signature`, `data-doc-print`, `data-property-row`, `data-property-kind`,
+`data-property-return` and `data-collect-item`.
 
 ## What comes out
 
