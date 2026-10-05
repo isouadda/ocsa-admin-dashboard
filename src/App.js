@@ -1085,7 +1085,7 @@ export default function AdminDashboard() {
         {page === "sites" && <SitesPage af={af} token={token} showToast={showToast} canManageSites={hasCap("manage_sites")} canManageTasks={hasCap("manage_tasks")} canManageSettings={canManageSettings} canBuildQuotes={hasCap("build_quotes")} t={t} sites={sites} allStaff={allStaff} loadSites={loadSites} uf={uf} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} route={route} onRoute={replaceRoute} onOpenLinks={canOpenPage("forms") ? (id => { window.location.hash = "forms/links/site/" + encodeURIComponent(id); }) : null} />}
         {page === "assigned" && <AssignedTasksAdminPage af={af} showToast={showToast} canManageTasks={hasCap("manage_tasks")} t={t} sites={sites} allStaff={allStaff} uf={uf} getOpts={getOpts} />}
         {page === "operations" && <OpsPage af={af} t={t} allStaff={allStaff} />}
-        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} />}
+        {page === "issues" && <IssuesPage af={af} showToast={showToast} t={t} allStaff={allStaff} sites={sites} canViewReports={hasCap("view_reports")} route={route} onRoute={replaceRoute} />}
         {page === "supplies" && <SuppliesAdminPage af={af} token={token} showToast={showToast} canManageSupplies={hasCap("manage_supplies")} t={t} getOpts={getOpts} lkMap={lkMap} lkHasOther={lkHasOther} />}
         {page === "vendors" && <VendorsPage af={af} showToast={showToast} canManageVendors={hasCap("manage_vendors")} t={t} />}
         {page === "inspections" && <InspectionsPage af={af} token={token} showToast={showToast} canManageInspections={hasCap("manage_inspections")} t={t} sites={sites} allStaff={allStaff} getOpts={getOpts} lkMap={lkMap} lkColorMap={lkColorMap} />}
@@ -3569,7 +3569,349 @@ function OpsPage({ af, t, allStaff }) {
   </div>);
 }
 
-function IssuesPage({ af, showToast, t, allStaff }) {
+// ===== CLIENT REQUESTS (Step 251, against the API's Step 250) =====
+// Anyone in a building scans a request QR and asks for help; each request waits for approval by an
+// admin or one of the site's supervisors, the first to approve and assign takes it, and a decline
+// carries a reason that is emailed to the person who asked (STEP250_CONTRACT.md, sections 3 to 9).
+// The Client requests tab draws GET /api/issues/requests, one request opens in a window from its
+// single read, and nothing here is drawn until the list route answers. The API judges every clock
+// and every permission; this side only draws what the view says.
+const REQUEST_STATUS_WORDS = { awaiting_approval: "Waiting for approval", open: "Open|request", in_progress: "In progress|request", resolved: "Done|request", closed: "Closed|request", declined: "Declined|request", escalated: "Needs someone else" };
+const requestStatusWord = (st) => (REQUEST_STATUS_WORDS[st] ? tr(REQUEST_STATUS_WORDS[st]) : String(st || "").replace(/_/g, " "));
+const requestStatusColor = (st, t) => ({ awaiting_approval: OR, open: RD, in_progress: OR, resolved: GR, closed: t.textMut, declined: t.textMut, escalated: PU })[st] || t.textMut;
+// How a request was routed, OCSA-SVC-005's recording of what the office did with it.
+const REQUEST_ROUTES = [["within_scope", "Within scope"], ["minor_extra", "Minor extra, absorbed"], ["chargeable", "Chargeable"], ["out_of_scope", "Out of scope"], ["change_of_service", "Change of service"], ["declined", "Declined|request"]];
+const requestRouteWord = (code) => { const hit = REQUEST_ROUTES.find(x => x[0] === code); return hit ? tr(hit[1]) : String(code || ""); };
+const isWaiting = (r) => !!r && r.status === "awaiting_approval";
+// A clock cell, drawn as Step 248's Due cell draws a concern's: answered clears it, late is red,
+// dueSoon orange, onTime the time itself, and no target reads No target.
+function requestClock(state, at, doneWord) {
+  if (state === "answered") return { text: doneWord, color: GR, state };
+  if (state === "late") return { text: tr("Past due {0}", irWhen(at)), color: RD, state };
+  if (state === "dueSoon") return { text: irWhen(at), color: OR, state };
+  if (state === "onTime") return { text: irWhen(at), color: null, state };
+  return { text: at ? irWhen(at) : tr("No target"), color: null, state: state || "none" };
+}
+const ClockCell = ({ t, cell, name }) => <span data-request-clock={name} data-due-state={cell.state} style={{ color: cell.color || t.textSec, fontWeight: cell.color ? 600 : 400, whiteSpace: "nowrap" }}>{cell.text}</span>;
+const requestRespond = (r) => requestClock(r.respondState, r.respondBy, tr("Responded|request"));
+const requestDue = (r) => requestClock(r.dueState, r.dueAt, tr("Done|request"));
+const requestWhere = (r) => [r.categoryTitle || r.category, r.area].filter(Boolean).join(", ");
+const nameOf = (p) => (p && p.name ? String(p.name) : "");
+// The activity's words. A mail the API sent reads Emailed: and what it was.
+const REQUEST_ACTIVITY_WORDS = { filed: "Filed|request", joined: "Asked again", approved: "Approved|request", declined: "Declined|request", started: "Started|request", start: "Started|request", done: "Done|request", resolved: "Done|request", cannot: "Needs someone else", escalated: "Needs someone else", note: "Note|request", routed: "Routed|request", reopened: "Reopened|request", closed: "Closed|request", status_changed: "Status Changed" };
+const REQUEST_MAIL_WORDS = { received: "received|mail", assigned: "assigned|mail", done: "done|mail", declined: "declined|mail", note: "note|mail", joined: "joined|mail" };
+function requestActivityWord(a) {
+  if (a.action === "client_mailed") return tr("Emailed: {0}", REQUEST_MAIL_WORDS[a.details] ? tr(REQUEST_MAIL_WORDS[a.details]) : String(a.details || ""));
+  return REQUEST_ACTIVITY_WORDS[a.action] ? tr(REQUEST_ACTIVITY_WORDS[a.action]) : String(a.action || "").replace(/_/g, " ");
+}
+// A refusal's words, its code and the keys it names.
+const refusalOf = (e) => ({ text: (e && e.message) || tr("Request failed"), code: e && e.code, keys: Array.isArray(e && e.body && e.body.keys) ? e.body.keys.map(String) : [], body: (e && e.body) || {} });
+// The 409 when another approver got there first: who, which way, and when.
+const alreadyDecidedLine = (body) => tr("{0} already {1} this at {2}.", nameOf(body.decidedBy) || tr("Someone"), body.status === "declined" ? tr("declined|decided") : tr("approved|decided"), irWhen(body.decidedAt));
+const requestsQuery = (parts) => { const q = parts.filter(p => p[1]).map(p => p[0] + "=" + encodeURIComponent(p[1])); return q.length ? "?" + q.join("&") : ""; };
+// Open requests, waiting rows first, then the oldest first.
+const requestOrder = (a, b) => (isWaiting(a) !== isWaiting(b) ? (isWaiting(a) ? -1 : 1) : String(a.reportedAt || "").localeCompare(String(b.reportedAt || "")));
+
+// The small panel for view_reports holders: what was asked for three or more times at one site this
+// quarter, from GET /api/issues/requests/patterns, which OCSA-SVC-005 9 says raises a change of
+// service. Drawn once the route answers, with its own empty line.
+function RequestPatternsPanel({ af, t, siteId }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setRows(null);
+    af("/api/issues/requests/patterns" + requestsQuery([["siteId", siteId]]))
+      .then(d => { if (alive) setRows(d && Array.isArray(d.patterns) ? d.patterns : null); })
+      .catch(e => { console.warn("Request patterns:", e.message); });
+    return () => { alive = false; };
+  }, [af, siteId]);
+  if (!rows) return null;
+  return (<Crd t={t} style={{ marginBottom: 14, padding: 14 }}><div data-request-patterns="">
+    <div style={{ fontFamily: FONT_HEAD, fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Asked three or more times this quarter")}</div>
+    <div style={{ fontSize: 11, color: t.textMut, marginTop: 2, marginBottom: rows.length ? 8 : 0, lineHeight: 1.5 }}>{tr("The same request three or more times at one site in a quarter raises a change of service.")}</div>
+    {rows.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("Nothing yet this quarter.")}</div>}
+    {rows.map((p, i) => (<div key={i} style={{ fontSize: 12, color: t.text, padding: "6px 0", borderTop: i ? "1px solid " + t.border : "none", lineHeight: 1.5 }}>
+      <span style={{ fontWeight: 600 }}>{p.siteName}</span>{": "}{[p.categoryTitle || p.category, p.area].filter(Boolean).join(", ")}{", "}{trn("{0} times|count", Number(p.count) || 0)}
+      {Array.isArray(p.references) && p.references.length > 0 && <span style={{ color: t.textMut }}>{" (" + p.references.join(", ") + ")"}</span>}
+    </div>))}
+  </div></Crd>);
+}
+
+// One request in a window: what was asked, where, its clock, who approved and who has it, the
+// requester's note and photos, the decline reason, and the activity with each mail sent. Approve and
+// assign, Decline, Start, Done, Needs someone else, a note with Send to the person who asked, and
+// the route, each offered only where the view's can flags say so. onChanged is handed the request
+// as the API answers it, or null when the row should be read again.
+function RequestWindow({ af, t, id, canViewReports = false, onClose, onChanged }) {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState("");
+  const [mode, setMode] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const [reason, setReason] = useState("");
+  const [note, setNote] = useState("");
+  const [sendToClient, setSendToClient] = useState(false);
+  const [routeDraft, setRouteDraft] = useState({ route: "", absorbedMinutes: "" });
+  const [busy, setBusy] = useState("");
+  const [refusal, setRefusal] = useState({ at: "", text: "", keys: [] });
+  const [said, setSaid] = useState("");
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const load = useCallback(() => {
+    setFailed("");
+    af("/api/issues/requests/" + encodeURIComponent(id))
+      .then(d => {
+        if (!mounted.current) return;
+        if (!d || !d.request) { setFailed(tr("This did not load.")); return; }
+        setData(d);
+        setRouteDraft({ route: d.request.route || "", absorbedMinutes: d.request.absorbedMinutes == null ? "" : String(d.request.absorbedMinutes) });
+      })
+      .catch(e => { if (mounted.current) setFailed(e.message || tr("This did not load.")); });
+  }, [af, id]);
+  useEffect(() => { load(); }, [load]);
+  useEscape(onClose);
+  const r = data ? data.request : null;
+  const assignees = data && Array.isArray(data.assignees) ? data.assignees : [];
+  const activity = data && Array.isArray(data.activity) ? data.activity : [];
+  useEffect(() => { if (mode === "approve" && !assignee && assignees[0]) setAssignee(String(assignees[0].id)); }, [mode, assignee, assignees]);
+  const send = async (name, path, method, body, after) => {
+    if (busy) return;
+    setBusy(name); setRefusal({ at: "", text: "", keys: [] }); setSaid("");
+    try {
+      const d = await af(path, { method, body });
+      if (!mounted.current) return;
+      if (after) after(d);
+      if (d && d.request && onChanged) onChanged(d.request);
+      setMode(""); load();
+    } catch (e) {
+      if (!mounted.current) return;
+      const f = refusalOf(e);
+      if (f.code === "issues.request.alreadyDecided") { setSaid(alreadyDecidedLine(f.body)); setMode(""); load(); if (onChanged) onChanged(null); }
+      else setRefusal({ at: name, text: f.text, keys: f.keys });
+    }
+    if (mounted.current) setBusy("");
+  };
+  const base = "/api/issues/" + encodeURIComponent(id);
+  const approve = () => send("approve", base + "/approve", "POST", { assignedTo: assignee });
+  const decline = () => send("decline", base + "/decline", "POST", { reason: reason.trim() });
+  const progress = (action) => send(action, base + "/progress", "POST", { action, note: note.trim() || undefined }, () => setNote(""));
+  const addNote = () => send("note", base + "/notes", "POST", { note: note.trim(), sendToClient: !!sendToClient }, (d) => { setNote(""); setSendToClient(false); setSaid(d && d.emailed ? tr("Note saved and emailed to the person who asked.") : tr("Note saved.")); });
+  const saveRoute = () => send("route", base + "/request", "PATCH", { route: routeDraft.route || null, absorbedMinutes: routeDraft.absorbedMinutes === "" ? null : Number(routeDraft.absorbedMinutes) });
+  const under = (name) => (refusal.at === name && refusal.text ? <div data-request-refusal={name} role="alert" style={{ fontSize: 12, color: RD, marginTop: 6 }}>{refusal.text}</div> : null);
+  const small = { minHeight: 44, padding: "10px 14px", fontSize: 12 };
+  const cellSt = { fontSize: 11, color: t.textMut };
+  const valSt = { color: t.text, fontWeight: 500, marginTop: 2, fontSize: 13 };
+  const who = (p, at) => (p || at ? [nameOf(p), at ? irWhen(at) : ""].filter(Boolean).join(", ") : "--");
+  const yesNo = (v) => (v === true ? tr("Yes") : v === false ? tr("No") : "--");
+  const timeStr = (iso) => (iso ? new Date(iso).toLocaleString(localeTag(), { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) : "");
+  return (<Mdl t={t} onClose={onClose}><div data-request-window="" style={{ padding: 20 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ ...WINDOW_HEAD, color: t.text, overflowWrap: "anywhere" }}>{r ? requestWhere(r) : tr("Client request")}</div>
+        <div style={{ fontSize: 12, color: t.textSec, marginTop: 2 }}>{r ? [r.siteName, r.reference].filter(Boolean).join(" | ") : ""}</div>
+      </div>
+      <WindowX t={t} onClose={onClose} />
+    </div>
+    {failed && <LoadFailed t={t} text={failed} onRetry={load} />}
+    {!failed && !r && <div style={{ padding: 20, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("Loading...")}</div>}
+    {r && <>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+        <Bdg l={requestStatusWord(r.status)} c={requestStatusColor(r.status, t)} />
+        <Bdg l={tr("Client request")} c={BL} />
+        {Number(r.reportsCount) > 1 && <Bdg l={trn("Asked {0} times|count", Number(r.reportsCount))} c={OR} />}
+      </div>
+      {r.note && <div data-request-note="" style={{ fontSize: 13, color: t.text, lineHeight: 1.5, padding: "10px 12px", background: t.hover, borderRadius: 8, marginBottom: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{r.note}</div>}
+      {Array.isArray(r.photos) && r.photos.length > 0 && <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>{r.photos.map((p, i) => <a key={p.id || i} href={p.url} target="_blank" rel="noopener noreferrer"><img src={p.url} alt={tr("Photo {0}", i + 1)} style={{ width: 120, height: 90, objectFit: "cover", borderRadius: 8, border: "1px solid " + t.borderSolid }} /></a>)}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+        <div style={cellSt}>{tr("Site")}<div style={valSt}>{r.siteName || "--"}</div></div>
+        <div style={cellSt}>{tr("Area")}<div style={valSt}>{r.area || tr("Whole site|request QR")}</div></div>
+        <div style={cellSt}>{tr("Filed|request")}<div style={valSt}>{r.reportedAt ? irWhen(r.reportedAt) : "--"}</div></div>
+        <div style={cellSt}>{tr("Attended at filing")}<div style={valSt}>{yesNo(r.attendedAtReport)}</div></div>
+        <div style={cellSt}>{tr("Respond by")}<div style={valSt}><ClockCell t={t} cell={requestRespond(r)} name="respond" /></div></div>
+        <div style={cellSt}>{tr("Due")}<div style={valSt}><ClockCell t={t} cell={requestDue(r)} name="due" /></div></div>
+        <div style={cellSt}>{tr("Approved|request")}<div style={valSt}>{who(r.approvedBy, r.approvedAt)}</div></div>
+        <div style={cellSt}>{tr("Assigned to")}<div style={valSt}>{nameOf(r.assignedTo) || "--"}</div></div>
+        <div style={cellSt}>{tr("First response")}<div style={valSt}>{who(r.firstResponseBy, r.firstResponseAt)}</div></div>
+        <div style={cellSt}>{tr("Done|request")}<div style={valSt}>{who(r.resolvedBy, r.resolvedAt)}</div></div>
+        {Number(r.reportsCount) > 1 && <div style={cellSt}>{tr("Last asked")}<div style={valSt}>{r.lastReportedAt ? irWhen(r.lastReportedAt) : "--"}</div></div>}
+        {(r.route || r.absorbedMinutes != null) && <div style={cellSt}>{tr("Route|request")}<div style={valSt}>{[requestRouteWord(r.route), r.absorbedMinutes != null ? trn("{0} minutes absorbed|count", Number(r.absorbedMinutes)) : ""].filter(Boolean).join(", ")}</div></div>}
+      </div>
+      {r.status === "declined" && <div data-request-declined="" style={{ padding: "8px 12px", borderRadius: 6, background: t.redSubtle, border: "1px solid " + t.redBorder, fontSize: 12, color: RD, marginBottom: 12, lineHeight: 1.5 }}>{tr("Declined by {0}: {1}", nameOf(r.declinedBy) || tr("Someone"), r.declineReason || "")}</div>}
+      {canViewReports && Object.prototype.hasOwnProperty.call(r, "requesterEmail") && <div data-request-contact="" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: t.textSec, wordBreak: "break-all" }}>{r.requesterEmail ? tr("Email: {0}", r.requesterEmail) : tr("No email was left")}</div>
+        {r.contactLogId && <Btn t={t} v="ghost" onClick={() => { window.location.hash = "forms/reports/" + encodeURIComponent(String(r.contactLogId)); }} style={small}>{tr("Open the contact log entry")}</Btn>}
+      </div>}
+      {said && <div data-request-said="" role="status" style={{ fontSize: 12, color: t.textSec, marginBottom: 10 }}>{said}</div>}
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+        {r.canApprove && <Btn t={t} data-request-approve="" onClick={() => setMode(mode === "approve" ? "" : "approve")} style={small}>{tr("Approve and assign")}</Btn>}
+        {r.canDecline && <Btn t={t} v="ghost" data-request-decline="" onClick={() => setMode(mode === "decline" ? "" : "decline")} style={small}>{tr("Decline")}</Btn>}
+        {r.canStart && <Btn t={t} v="ghost" onClick={() => progress("start")} disabled={!!busy} style={small}>{tr("Start|work")}</Btn>}
+        {r.canFinish && <Btn t={t} v="ghost" onClick={() => setMode(mode === "done" ? "" : "done")} style={small}>{tr("Done|request")}</Btn>}
+        {r.canCannot && <Btn t={t} v="ghost" onClick={() => setMode(mode === "cannot" ? "" : "cannot")} style={small}>{tr("Needs someone else")}</Btn>}
+        {r.canNote && <Btn t={t} v="ghost" data-request-note-button="" onClick={() => setMode(mode === "note" ? "" : "note")} style={small}>{tr("Add a note")}</Btn>}
+        <Btn t={t} v="ghost" onClick={onClose} style={small}>{tr("Close")}</Btn>
+      </div>
+      {under("start")}
+      {mode === "approve" && <div data-request-approve-form="" style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 12 }}>
+        <Lbl>{tr("Assign to")}</Lbl>
+        <Sel t={t} aria-label={tr("Assign to")} value={assignee} onChange={e => setAssignee(e.target.value)} options={assignees.map(a => ({ v: String(a.id), l: a.name + (a.onShift ? " (" + tr("On shift") + ")" : "") }))} />
+        {assignees.length === 0 && <div style={{ fontSize: 12, color: t.textMut, marginTop: 6 }}>{tr("Nobody is assigned to this site yet.")}</div>}
+        {under("approve")}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setMode("")} style={small}>{tr("Cancel")}</Btn>
+          <Btn t={t} data-request-approve-save="" onClick={approve} disabled={!!busy || !assignee} style={small}>{busy === "approve" ? tr("Saving...") : tr("Approve and assign")}</Btn>
+        </div>
+      </div>}
+      {mode === "decline" && <div data-request-decline-form="" style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, color: t.text, marginBottom: 8, lineHeight: 1.5 }}>{tr("This reason is emailed to the person who asked, if they left an email.")}</div>
+        <Lbl>{tr("Reason")}</Lbl>
+        <TArea t={t} aria-label={tr("Reason")} value={reason} maxLength={500} rows={3} onChange={e => setReason(e.target.value)} />
+        {under("decline")}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setMode("")} style={small}>{tr("Cancel")}</Btn>
+          <Btn t={t} v="danger" data-request-decline-save="" onClick={decline} disabled={!!busy || !reason.trim()} style={small}>{busy === "decline" ? tr("Saving...") : tr("Decline")}</Btn>
+        </div>
+      </div>}
+      {(mode === "done" || mode === "cannot") && <div style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 12 }}>
+        <Lbl>{mode === "cannot" ? tr("Why it needs someone else") : tr("Note|request")}</Lbl>
+        <TArea t={t} aria-label={tr("Note|request")} value={note} maxLength={500} rows={3} onChange={e => setNote(e.target.value)} />
+        {under(mode)}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setMode("")} style={small}>{tr("Cancel")}</Btn>
+          <Btn t={t} onClick={() => progress(mode)} disabled={!!busy || (mode === "cannot" && !note.trim())} style={small}>{busy === mode ? tr("Saving...") : mode === "cannot" ? tr("Needs someone else") : tr("Done|request")}</Btn>
+        </div>
+      </div>}
+      {mode === "note" && <div data-request-note-form="" style={{ padding: 12, background: t.hover, borderRadius: 8, marginBottom: 12 }}>
+        <Lbl>{tr("Note|request")}</Lbl>
+        <TArea t={t} aria-label={tr("Note|request")} value={note} maxLength={500} rows={3} onChange={e => setNote(e.target.value)} />
+        {r.canSendToClient && <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, color: r.hasEmail ? t.text : t.textMut, cursor: r.hasEmail ? "pointer" : "default" }}>
+          <input type="checkbox" data-request-send-client="" checked={!!sendToClient && !!r.hasEmail} disabled={!r.hasEmail} onChange={e => setSendToClient(e.target.checked)} style={{ width: 18, height: 18, accentColor: GO }} />
+          {tr("Send to the person who asked")}{r.hasEmail ? "" : " (" + tr("No email was left") + ")"}
+        </label>}
+        {under("note")}
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+          <Btn t={t} v="ghost" onClick={() => setMode("")} style={small}>{tr("Cancel")}</Btn>
+          <Btn t={t} data-request-note-save="" onClick={addNote} disabled={!!busy || !note.trim()} style={small}>{busy === "note" ? tr("Saving...") : tr("Save note")}</Btn>
+        </div>
+      </div>}
+      {r.canRoute && <div data-request-route="" style={{ padding: 12, border: "1px solid " + t.border, borderRadius: 8, marginBottom: 12 }}>
+        <div style={{ fontFamily: FONT_HEAD, fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>{tr("Route|request")}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div><Lbl>{tr("Route|request")}</Lbl><Sel t={t} aria-label={tr("Route|request")} value={routeDraft.route} onChange={e => setRouteDraft({ ...routeDraft, route: e.target.value })} options={[{ v: "", l: tr("Not routed yet") }].concat(REQUEST_ROUTES.map(x => ({ v: x[0], l: tr(x[1]) })))} /></div>
+          <div><Lbl>{tr("Absorbed minutes")}</Lbl><Inp t={t} type="number" min={0} max={600} aria-label={tr("Absorbed minutes")} value={routeDraft.absorbedMinutes} onChange={e => setRouteDraft({ ...routeDraft, absorbedMinutes: e.target.value })} /></div>
+        </div>
+        {under("route")}
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+          <Btn t={t} v="ghost" onClick={saveRoute} disabled={!!busy} style={small}>{busy === "route" ? tr("Saving...") : tr("Save")}</Btn>
+        </div>
+      </div>}
+      {activity.length > 0 && <div data-request-activity="" style={{ marginBottom: 4 }}>
+        <div style={{ fontSize: 10, color: t.goldText, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, marginBottom: 8 }}>{tr("Activity Timeline")}</div>
+        {activity.map((a, i) => (<TimelineRow key={a.id || i} t={t} last={i === activity.length - 1} node={<div style={{ width: 32, height: 32, borderRadius: "50%", border: "2px solid " + (a.action === "client_mailed" ? BL : a.action === "declined" ? RD : a.action === "approved" ? GO : t.textSec), padding: 1, boxSizing: "border-box", flexShrink: 0 }}><Ini name={nameOf(a.by) || tr("System")} sz={26} /></div>}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+            <div style={{ minWidth: 0 }}><span style={{ fontSize: 11, fontWeight: 600, color: t.text }}>{requestActivityWord(a)}</span>{nameOf(a.by) ? <span style={{ fontSize: 10, color: t.textMut, marginLeft: 8 }}>{tr("by {0}", nameOf(a.by))}</span> : null}</div>
+            <span style={{ fontSize: 9, color: t.textMut, flexShrink: 0 }}>{timeStr(a.at)}</span>
+          </div>
+          {a.details && a.action !== "client_mailed" && <div style={{ fontSize: 11, color: t.textSec, marginTop: 3, lineHeight: 1.4, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{a.details}</div>}
+          {a.sentToClientAt && <div style={{ fontSize: 10, color: BL, marginTop: 2 }}>{tr("Sent to the person who asked {0}", irWhen(a.sentToClientAt))}</div>}
+        </TimelineRow>))}
+      </div>}
+    </>}
+  </div></Mdl>);
+}
+
+// The Client requests tab: the site, Waiting, Open, Closed or All, and the days, over the list the
+// API answers, waiting rows first and the oldest first. A row opens its window; #issues/requests/<id>
+// opens it from a notice, and #issues/requests/site/<id> opens the list on one site. onWaiting is
+// handed how many wait for approval whenever a list that holds them is read.
+function ClientRequestsTab({ af, t, sites = [], canViewReports = false, route = [], onRoute, onWaiting }) {
+  const phone = usePhoneWidth();
+  const routeSite = route[1] === "site" && route[2] ? String(route[2]) : "";
+  const routeId = route[1] && route[1] !== "site" ? String(route[1]) : "";
+  const [site, setSite] = useState(routeSite);
+  useEffect(() => { if (routeSite) setSite(routeSite); }, [routeSite]);
+  const [state, setState] = useState("open");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [rows, setRows] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [openId, setOpenId] = useState(routeId);
+  useEffect(() => { setOpenId(routeId); }, [routeId]);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const load = useCallback(() => {
+    setFailed(false);
+    af("/api/issues/requests" + requestsQuery([["siteId", site], ["state", state], ["from", from], ["to", to]]))
+      .then(d => {
+        if (!mounted.current) return;
+        const list = (d && Array.isArray(d.requests) ? d.requests : []).slice().sort(requestOrder);
+        setRows(list);
+        if (onWaiting && state !== "closed") onWaiting(list.filter(isWaiting).length);
+      })
+      .catch(e => { console.warn("Client requests:", e.message); if (mounted.current) { setRows([]); setFailed(true); } });
+  }, [af, site, state, from, to, onWaiting]);
+  useEffect(() => { load(); }, [load]);
+  const openOne = (r) => { setOpenId(String(r.id)); if (onRoute) onRoute(["requests", String(r.id)]); };
+  const closeOne = () => { setOpenId(""); if (onRoute) onRoute(site ? ["requests", "site", site] : ["requests"]); };
+  const changed = (req) => { if (!req) { load(); return; } setRows(prev => (prev ? prev.map(x => (x.id === req.id ? req : x)).sort(requestOrder) : prev)); if (onWaiting && state !== "closed") setRows(prev => { if (prev) onWaiting(prev.filter(isWaiting).length); return prev; }); };
+  const pickSite = (v) => { setSite(v); if (onRoute && !openId) onRoute(v ? ["requests", "site", v] : ["requests"]); };
+  const siteOptions = [{ v: "", l: tr("All sites") }].concat(sites.map(x => ({ v: String(x.id), l: x.name })));
+  if (site && !siteOptions.some(o => o.v === site)) siteOptions.push({ v: site, l: ((rows || []).find(x => String(x.siteId) === site) || {}).siteName || site });
+  const stateTabs = [{ id: "waiting", label: tr("Waiting|requests") }, { id: "open", label: tr("Open|requests") }, { id: "closed", label: tr("Closed|requests") }, { id: "all", label: tr("All|requests") }];
+  const list = rows || [];
+  const columns = [
+    { header: tr("Respond"), render: r => <ClockCell t={t} cell={requestRespond(r)} name="respond" /> },
+    { header: tr("Due"), render: r => <ClockCell t={t} cell={requestDue(r)} name="due" /> },
+    { header: tr("Request"), tdStyle: { minWidth: 220 }, render: r => <span style={{ fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{requestWhere(r)}</span> },
+    { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.siteName || "--" },
+    { header: tr("Status"), render: r => <Bdg l={requestStatusWord(r.status)} c={requestStatusColor(r.status, t)} /> },
+    { header: tr("Reports|requests"), align: "right", tdStyle: { color: t.textSec }, render: r => (Number(r.reportsCount) > 1 ? Number(r.reportsCount) : "") },
+    { header: tr("Assigned to"), tdStyle: { color: t.textSec }, render: r => nameOf(r.assignedTo) || "--" },
+    { header: tr("Reference"), tdStyle: { color: t.textMut, whiteSpace: "nowrap", fontFamily: "monospace", fontSize: 12 }, render: r => r.reference || "" },
+  ];
+  const card = (r) => (<Crd key={r.id} t={t} style={{ marginBottom: 8, padding: 14 }} onClick={() => openOne(r)}><div data-client-request={r.id}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 600, color: t.text, overflowWrap: "anywhere" }}>{requestWhere(r)}</div><div style={{ fontSize: 11, color: t.textSec, marginTop: 2 }}>{[r.siteName, r.reference].filter(Boolean).join(" | ")}</div></div>
+      <Bdg l={requestStatusWord(r.status)} c={requestStatusColor(r.status, t)} />
+    </div>
+    <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11, color: t.textMut, marginTop: 6 }}>
+      <span>{tr("Respond")}: <ClockCell t={t} cell={requestRespond(r)} name="respond" /></span>
+      <span>{tr("Due")}: <ClockCell t={t} cell={requestDue(r)} name="due" /></span>
+      {Number(r.reportsCount) > 1 && <span>{trn("Asked {0} times|count", Number(r.reportsCount))}</span>}
+      {nameOf(r.assignedTo) && <span>{tr("Assigned to: {0}", nameOf(r.assignedTo))}</span>}
+    </div>
+  </div></Crd>);
+  return (<div data-client-requests="">
+    {canViewReports && <RequestPatternsPanel af={af} t={t} siteId={site} />}
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ flex: "1 1 200px", minWidth: 0, maxWidth: phone ? "none" : 320 }}><Sel t={t} aria-label={tr("Site")} data-requests-site="" value={site} onChange={e => pickSite(e.target.value)} options={siteOptions} /></div>
+      <div style={{ flex: "1 1 140px", minWidth: 0, maxWidth: phone ? "none" : 190 }}><Inp t={t} type="date" aria-label={tr("From")} value={from} max={to || undefined} onChange={e => setFrom(e.target.value)} /></div>
+      <div style={{ flex: "1 1 140px", minWidth: 0, maxWidth: phone ? "none" : 190 }}><Inp t={t} type="date" aria-label={tr("To")} value={to} min={from || undefined} onChange={e => setTo(e.target.value)} /></div>
+    </div>
+    <FilterTabs t={t} value={state} onChange={setState} tabs={stateTabs} />
+    {rows === null && !failed && <div style={{ padding: 30, textAlign: "center", color: t.textMut, fontSize: 13 }}>{tr("Loading...")}</div>}
+    {failed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
+    {rows !== null && !failed && (phone
+      ? (list.length === 0 ? <div style={{ padding: 24, textAlign: "center", fontSize: 13, color: t.textMut }}>{tr("No client requests here.")}</div> : <div role="list" aria-label={tr("Client requests")}>{list.map(card)}</div>)
+      : <DataTable t={t} columns={columns} rows={list} rowKey={r => r.id} onRowClick={openOne} empty={tr("No client requests here.")} />)}
+    {openId && <RequestWindow af={af} t={t} id={openId} canViewReports={canViewReports} onClose={closeOne} onChanged={changed} />}
+  </div>);
+}
+
+function IssuesPage({ af, showToast, t, allStaff, sites = [], canViewReports = false, route = [], onRoute }) {
+  // Since the API's Step 250 the page has two tabs, Staff issues and Client requests, the second with
+  // a count of those waiting for approval, drawn once GET /api/issues/requests answers.
+  const requestsOn = useRequestsLive(af);
+  const [tab, setTab] = useState(() => (route[0] === "requests" ? "requests" : "staff"));
+  useEffect(() => { if (route[0] === "requests") setTab("requests"); }, [route]);
+  const [waiting, setWaiting] = useState(null);
+  useEffect(() => {
+    if (!requestsOn) return undefined;
+    let alive = true;
+    af("/api/issues/requests?state=waiting").then(d => { if (alive && d && Array.isArray(d.requests)) setWaiting(d.requests.length); }).catch(e => { console.warn("Client requests:", e.message); });
+    return () => { alive = false; };
+  }, [af, requestsOn]);
+  const pickTab = (id) => { setTab(id); if (onRoute) onRoute(id === "requests" ? ["requests"] : []); };
+  const onRequests = requestsOn && tab === "requests";
   const [issues, setIssues] = useState([]); const [filter, setFilter] = useState("all"); const [sel, setSel] = useState(null);
   const staffList = allStaff; const [assignTask, setAssignTask] = useState(null);
   const [activity, setActivity] = useState([]); const [allPhotos, setAllPhotos] = useState([]);
@@ -3589,6 +3931,9 @@ function IssuesPage({ af, showToast, t, allStaff }) {
   const upd = async (id, s) => { try { await af("/api/issues/" + id, { method: "PATCH", body: { status: s } }); showToast(tr("Updated")); load(); setSel(null); } catch (e) { showToast(e.message, "error"); } };
   const submitAssignTask = async () => { if (!assignTask.userId) { showToast(tr("Select a staff member"), "error"); return; } try { const d = await af("/api/issues/" + assignTask.issueId + "/assign-as-task", { method: "POST", body: { userId: assignTask.userId, note: assignTask.note || undefined } }); showToast(d.message); setAssignTask(null); load(); } catch (e) { showToast(e.message, "error"); } };
   return (<div><SecT t={t}>{tr("Issue Tracker")}</SecT>
+    {requestsOn && <FilterTabs t={t} value={tab} onChange={pickTab} tabs={[{ id: "staff", label: tr("Staff issues") }, { id: "requests", label: tr("Client requests"), count: waiting == null ? undefined : waiting, color: OR }]} />}
+    {onRequests && <ClientRequestsTab af={af} t={t} sites={sites} canViewReports={canViewReports} route={route} onRoute={onRoute} onWaiting={setWaiting} />}
+    {!onRequests && <>
     <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>{["all", "open", "in_progress", "escalated", "resolved"].map(f => <button key={f} onClick={() => setFilter(f)} style={{ padding: "5px 12px", borderRadius: 6, background: filter === f ? t.goldBg : "transparent", color: filter === f ? t.goldText : t.textMut, fontSize: 11, fontWeight: filter === f ? 700 : 500, cursor: "pointer", border: filter === f ? "1px solid " + t.goldBorder : "1px solid transparent" }}>{filterWord[f]}</button>)}</div>
     {issuesFailed && <Crd t={t}><LoadFailed t={t} onRetry={load} /></Crd>}
     {!issuesFailed && issues.length === 0 && <div style={{ padding: 40, textAlign: "center", color: t.textMut }}>{tr("No problems reported yet.")}</div>}
@@ -3633,6 +3978,7 @@ function IssuesPage({ af, showToast, t, allStaff }) {
       {assignTask.isReassign && <div style={{ marginBottom: 12 }}><Lbl>{tr("Note to previous assignee (optional)")}</Lbl><TArea t={t} value={assignTask.note} onChange={e => setAssignTask({ ...assignTask, note: e.target.value })} placeholder={tr("Explain why this is being reassigned...")} rows={3} /></div>}
       <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAssignTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitAssignTask}>{assignTask.isReassign ? tr("Reassign") : tr("Assign Task")}</Btn></div>
     </div></Mdl>}
+    </>}
   </div>);
 }
 
@@ -6233,6 +6579,10 @@ const notifTarget = (link) => {
   if (!link) return { kind: "none" };
   let u; try { u = new URL(link, window.location.href); } catch { return { kind: "none" }; }
   if (u.origin !== window.location.origin) return { kind: "external", href: u.href };
+  // A client request's notice links /requests/<id>, a path the portal serves (Step 251, STEP250_CONTRACT.md
+  // section 9); here it opens the Issue Tracker's Client requests tab on that request.
+  const req = /^\/requests\/([^/]+)\/?$/.exec(u.pathname || "");
+  if (req) return { kind: "page", page: "issues", hash: "issues/requests/" + req[1] };
   // A hash with more after the page, #forms/reports/<id>, opens that page on that report (Step 185).
   const parts = (u.hash || "").replace(/^#/, "").split("/").filter(Boolean);
   const id = parts[0] || "";
@@ -6324,6 +6674,8 @@ function NotificationPanel({ af, t, lang, unread, onClose, onUnread, onOpenPage,
     }
     // Step 243: a client's concern names its report, the Customer Complaint Log, and opens it.
     if (n.subjectType === "customer_concern" && n.subjectId) { if (!canOpenPage("forms")) { refuse(); return; } onOpenHash("forms/reports/" + n.subjectId); onClose(); return; }
+    // Step 251: a client request's notice opens the Issue Tracker's Client requests tab on that request.
+    if (n.subjectType === "client_request" && n.subjectId) { if (!canOpenPage("issues")) { refuse(); return; } onOpenHash("issues/requests/" + n.subjectId); onClose(); return; }
     const target = notifTarget(n.link);
     if (target.kind === "page") { if (!canOpenPage(target.page)) { refuse(); return; } if (target.hash) onOpenHash(target.hash); else onOpenPage(target.page); }
     else if (target.kind === "external") window.open(target.href, "_blank", "noopener");
