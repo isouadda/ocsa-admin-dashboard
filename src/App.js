@@ -2568,6 +2568,9 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const [st, setSt] = useState([]);
   // Step 239: the Touchpoint switch, once the site's items answer a touchpoint of their own.
   const touchLive = st.some(tk => tk && typeof tk.touchpoint === "boolean");
+  // Step 248: the Critical switch under it, once the items answer a critical of their own. The API
+  // stores critical only on a touchpoint, so turning Touchpoint off turns Critical off on screen too.
+  const critLive = touchLive && st.some(tk => tk && typeof tk.critical === "boolean");
   const [addSite, setAddSite] = useState(null);
   const [addTask, setAddTask] = useState(null);
   const [editTask, setEditTask] = useState(null);
@@ -2803,7 +2806,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
   const submitTask = async () => {
     if (!addTask.label || !addTask.zone) { showToast(tr("Label and zone required"), "error"); return; }
     try {
-      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}) } });
+      await af("/api/sites/" + addTask.siteId + "/tasks", { method: "POST", body: { label: addTask.label, zone: addTask.zone, cimsCategory: addTask.cims, priority: addTask.pri, assignToUsers: addTask.assign ? [addTask.assign] : [], description: addTask.desc || undefined, mediaUrl: addTask.mediaUrl || undefined, mediaType: addTask.mediaType || undefined, dueDate: addTask.dueDate || undefined, dueTime: addTask.dueTime || undefined, buildingName: addTask.building || undefined, floorNumber: addTask.floor || undefined, taskType: addTask.taskType || "standard", ...(touchLive ? { touchpoint: !!addTask.touch } : {}), ...(critLive ? { critical: !!(addTask.touch && addTask.crit) } : {}) } });
       showToast(tr("Task created")); setAddTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
       refreshProfile();
@@ -2812,7 +2815,7 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
 
   const submitEditTask = async () => {
     try {
-      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}) } });
+      await af("/api/sites/" + editTask.siteId + "/tasks/" + editTask.id, { method: "PATCH", body: { label: editTask.label, zone: editTask.zone, priority: editTask.pri, cimsCategory: editTask.cims, description: editTask.desc, mediaUrl: editTask.mediaUrl, mediaType: editTask.mediaType, dueDate: editTask.dueDate, dueTime: editTask.dueTime, buildingName: editTask.building, floorNumber: editTask.floor, taskType: editTask.taskType, ...(touchLive ? { touchpoint: !!editTask.touch } : {}), ...(critLive ? { critical: !!(editTask.touch && editTask.crit) } : {}) } });
       const fixed = await saveTaskSpanish();
       showToast(fixed ? tr("Saved. People see this wording from now on.") : tr("Task updated")); setEditTask(null);
       const tasks = await af("/api/sites/" + selectedSite + "/tasks" + EVERY_ITEM); setSt(tasks);
@@ -3127,12 +3130,12 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
         </div>
         {st.map((tk, i) => <Crd key={i} t={t} style={{ marginBottom: 6, padding: "10px 14px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })}>
-              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}</div>
+            <div style={{ flex: 1, cursor: "pointer" }} onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })}>
+              <div style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6, color: t.text, fontWeight: 500 }}>{tk.label}{tk.has_details && <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: BL }} title={tr("Has details")} />}{tk.task_type === "assigned" && <Bdg l={tr("assigned|task")} c={BL} />}{tk.touchpoint === true && <Bdg l={tr("Touchpoint")} c={PU} />}{tk.critical === true && <Bdg l={tr("Critical|touchpoint")} c={RD} />}</div>
               <div style={{ fontSize: 10, color: t.textMut, marginTop: 3 }}>{tk.building_name ? tk.building_name + " | " : ""}{tk.floor_number ? tr("Fl {0}", tk.floor_number) + " | " : ""}{tk.zone} | {serviceCategoryWord(tk.cims_category, cimsLabels)} | {priOf(tk.priority)}{tk.due_date ? " | " + tr("Due: {0}", fdDay(tk.due_date)) : ""}{tk.assigned_to?.length > 0 ? " | " + tk.assigned_to.map(a => a.name).join(", ") : ""}</div>
             </div>
             {canManageTasks && <div style={{ display: "flex", gap: 4, flexShrink: 0, marginLeft: 8 }}>
-              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
+              <button onClick={() => setEditTask({ id: tk.id, siteId: selectedSite, label: tk.label, zone: tk.zone, pri: tk.priority, cims: tk.cims_category, desc: tk.description || "", mediaUrl: tk.media_url || "", mediaType: tk.media_type || "", dueDate: tk.due_date ? String(tk.due_date).slice(0, 10) : "", dueTime: tk.due_time || "", building: tk.building_name || "", floor: tk.floor_number || "", taskType: tk.task_type || "standard", touch: tk.touchpoint === true, crit: tk.critical === true })} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + GO, background: "transparent", color: t.goldText, fontSize: 9, cursor: "pointer" }}>{tr("Edit")}</button>
               <button onClick={() => delTask(selectedSite, tk.id)} style={{ padding: "3px 8px", borderRadius: 4, border: "1px solid " + RD, background: "transparent", color: RD, fontSize: 9, cursor: "pointer" }}>{tr("Remove")}</button>
             </div>}
           </div>
@@ -3384,7 +3387,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
           <div style={{ marginTop: 6 }}><input type="file" accept="image/*,video/*" onChange={async (e) => { const f = e.target.files?.[0]; if (!f) return; if (f.size > 50 * 1024 * 1024) { showToast(tr("File must be under 50MB"), "error"); return; } try { showToast(tr("Uploading...")); const r = await uf(f, "task-media"); setAddTask(prev => ({ ...prev, mediaUrl: r.url, mediaType: r.type })); showToast(tr("Uploaded")); } catch (err) { showToast(tr("Upload failed"), "error"); } }} style={{ fontSize: 11, color: t.textSec }} /><div style={{ fontSize: 9, color: t.textMut, marginTop: 3 }}>{tr("Upload a photo or video (up to 50MB), or paste a YouTube link above")}</div></div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={addTask.dueDate || ""} onChange={e => setAddTask({ ...addTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={addTask.dueTime || ""} onChange={e => setAddTask({ ...addTask, dueTime: e.target.value })} /></div></div>
-        {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v })} />}
+        {touchLive && <TouchpointToggle t={t} on={addTask.touch} onChange={v => setAddTask({ ...addTask, touch: v, crit: v ? addTask.crit : false })} />}
+        {critLive && addTask.touch && <CriticalToggle t={t} on={addTask.crit} onChange={v => setAddTask({ ...addTask, crit: v })} />}
         <div style={{ marginBottom: 16 }}><Lbl>{tr("Assign To")}</Lbl><Sel t={t} value={addTask.assign} onChange={e => setAddTask({ ...addTask, assign: e.target.value })} options={[{ v: "", l: tr("Select (optional)") }, ...staffList.map(s => ({ v: s.id, l: s.name }))]} /></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setAddTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitTask}>{tr("Create")}</Btn></div></div></Mdl>}
 
@@ -3407,7 +3411,8 @@ function SitesPage({ af, token, showToast, canManageSites = false, canManageTask
             <TArea t={t} value={taskEs.description} onChange={e => setTaskEs({ ...taskEs, description: e.target.value })} aria-label={tr("Detailed Instructions")} placeholder={tr("Detailed Instructions")} rows={2} />
           </>}
         </div>}
-        {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v })} />}
+        {touchLive && <TouchpointToggle t={t} on={editTask.touch} onChange={v => setEditTask({ ...editTask, touch: v, crit: v ? editTask.crit : false })} />}
+        {critLive && editTask.touch && <CriticalToggle t={t} on={editTask.crit} onChange={v => setEditTask({ ...editTask, crit: v })} />}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><div><Lbl>{tr("Due Date")}</Lbl><Inp t={t} type="date" value={editTask.dueDate} onChange={e => setEditTask({ ...editTask, dueDate: e.target.value })} /></div><div><Lbl>{tr("Due Time")}</Lbl><Inp t={t} type="time" value={editTask.dueTime} onChange={e => setEditTask({ ...editTask, dueTime: e.target.value })} /></div></div>
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}><Btn t={t} v="ghost" onClick={() => setEditTask(null)}>{tr("Cancel")}</Btn><Btn t={t} onClick={submitEditTask}>{tr("Save Changes")}</Btn></div>
       </div></Mdl>}
@@ -8005,9 +8010,11 @@ function keptZonePages(rec, site, range) {
 }
 
 // OCSA-FRM-021, one log for each day and shift, from the touchpoint items of the checklist record. An
-// item of high, critical or urgent priority is a critical touchpoint; the rest are standard. Pass 1 is
-// the day's first check and Pass 2 its second, where there is one.
-const keptCritical = (i) => ["critical", "high", "urgent"].indexOf(i.priority) >= 0;
+// item is a critical touchpoint when the record says so: since the API's Step 247 each item carries
+// critical, set in the checklist editor, and the log reads it whenever it is true or false. An item
+// without it is critical when its priority is high, critical or urgent, as before. The rest are
+// standard. Pass 1 is the day's first check and Pass 2 its second, where there is one.
+const keptCritical = (i) => (typeof i.critical === "boolean" ? i.critical : ["critical", "high", "urgent"].indexOf(i.priority) >= 0);
 // The form's response levels, each with what triggers it and what the log must then show.
 const KEPT_LEVELS = [
   ["Level 1", "Normal conditions", "Critical and standard touchpoints treated daily, recorded item by item in Sections 3 and 4"],
@@ -8785,6 +8792,15 @@ const TouchpointToggle = ({ t, on, onChange }) => (<div data-touchpoint-toggle="
     <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Touchpoint")}</span>
   </label>
   <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("High-touch surfaces disinfected on schedule. They print on the Disinfection Coverage Log.")}</div>
+</div>);
+// The Critical switch under Touchpoint (Step 248), drawn the way the Touchpoint switch is and set in
+// under it, shown while the item is a touchpoint.
+const CriticalToggle = ({ t, on, onChange }) => (<div data-critical-toggle="" style={{ marginBottom: 12, marginLeft: 30 }}>
+  <label style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 44, cursor: "pointer" }}>
+    <span style={chkWrap}><input type="checkbox" checked={!!on} onChange={e => onChange(e.target.checked)} style={{ width: 20, height: 20, accentColor: GO, cursor: "pointer" }} /></span>
+    <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{tr("Critical|touchpoint")}</span>
+  </label>
+  <div style={{ fontSize: 12, color: t.textSec, lineHeight: 1.5, marginLeft: 30 }}>{tr("A critical touchpoint is treated twice a day at Level 2 and on every round at Level 3.")}</div>
 </div>);
 
 // ===== THE MANAGEMENT REVIEW EVIDENCE PACK (Step 245) =====
@@ -17442,8 +17458,19 @@ function workingDaysUntil(due, now) {
   return n;
 }
 // The Due cell's words and color: answered clears it, past the time is late in red, one working day
-// or less left is orange, and anything further off is the day it is due.
+// or less left is orange, and anything further off is the day it is due. Since the API's Step 247
+// (STEP247_CONTRACT.md version 2, section 1) a 009 row carries dueState, counted by the API on
+// OCSA's working days with its holidays, and the cell reads that: answered, late, dueSoon, onTime,
+// or null for a row with no deadline. A row without the key keeps the count below, Monday to Friday.
+const hasDueState = (r) => !!r && Object.prototype.hasOwnProperty.call(r, "dueState");
 function complaintDue(r) {
+  if (hasDueState(r)) {
+    if (r.dueState === "answered") return { text: tr("Answered {0}", irDay(r.answeredAt)), color: null };
+    if (r.dueState === "late") return { text: tr("Past due {0}", irDay(r.dueAt)), color: RD };
+    if (r.dueState === "dueSoon") return { text: irDay(r.dueAt), color: OR };
+    if (r.dueState === "onTime") return { text: irDay(r.dueAt), color: null };
+    return { text: "--", color: null };
+  }
   if (r.answeredAt) return { text: tr("Answered {0}", irDay(r.answeredAt)), color: null };
   if (!r.dueAt) return { text: "--", color: null };
   if (new Date(r.dueAt).getTime() < Date.now()) return { text: tr("Past due {0}", irDay(r.dueAt)), color: RD };
@@ -17610,8 +17637,8 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
       ? <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>{complaintFromLink(r) && <Bdg l={tr("From a client")} c={BL} />}{complaintForController(r) && <Bdg l={tr("For the Controller")} c={PU} />}</div>
       : r.source ? <div style={{ fontSize: 10, color: t.textMut }}>{formSourceWord(r.source)}</div> : null}</span>);
   // A complaint's deadline, on a list that holds one the API times.
-  const timed = rows.some(complaintTimed);
-  const dueCell = (r) => { if (!complaintTimed(r)) return null; const d = complaintDue(r); return <span data-complaint-due="" style={{ color: d.color || t.textSec, fontWeight: d.color ? 600 : 400 }}>{d.text}</span>; };
+  const timed = rows.some(r => complaintTimed(r) || hasDueState(r));
+  const dueCell = (r) => { if (!complaintTimed(r) && !hasDueState(r)) return null; const d = complaintDue(r); return <span data-complaint-due="" data-due-state={hasDueState(r) ? String(r.dueState) : undefined} style={{ color: d.color || t.textSec, fontWeight: d.color ? 600 : 400 }}>{d.text}</span>; };
   const submittedCols = [
     { header: tr("Filed"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => irWhen(r.submittedAt) },
     { header: tr("Form"), render: formCell },
@@ -17626,6 +17653,7 @@ function IncidentReportsTab({ af, token, t, user, sites = [], allStaff = [], can
     { header: tr("Started by"), tdStyle: { color: t.textSec }, render: r => r.userName || "--" },
     { header: tr("Answered"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => tr("{0} of {1}", Number(r.answered) || 0, (Number(r.answered) || 0) + (Number(r.remaining) || 0)) },
     { header: tr("Due"), tdStyle: { whiteSpace: "nowrap" }, render: r => {
+      if (hasDueState(r)) return dueCell(r);
       if (!r.dueAt) return <span style={{ color: t.textSec }}>--</span>;
       const past = new Date(r.dueAt).getTime() < Date.now();
       return past ? <span style={{ color: RD, fontWeight: 600 }}>{tr("Past due {0}", irDay(r.dueAt))}</span> : <span style={{ color: t.textSec }}>{irDay(r.dueAt)}</span>;
