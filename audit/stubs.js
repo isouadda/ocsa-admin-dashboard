@@ -2513,12 +2513,13 @@ function createStubs() {
       if (a && a.json) {
         const nul = { first_response_minutes: null, resolution_minutes: null };
         a.json.sla_targets = { high: Object.assign({}, nul), medium: Object.assign({}, nul), low: Object.assign({}, nul) };
-        a.json.rows = requests().filter((r) => !requestOpen(r) || r.firstResponseAt).map((r) => { const v = requestView(r, lang); return {
-          id: r.id, reference: r.reference, title: v.categoryTitle, site_name: v.siteName, source: "client_request", severity: r.severity, reported_at: r.reportedAt,
-          respondBy: r.respondBy, dueAt: r.dueAt,
+        // The issues the report judged, under issues as the API's Step 250 answers them, with no title.
+        a.json.issues = requests().filter((r) => !requestOpen(r) || r.firstResponseAt).map((r) => { const v = requestView(r, lang); return {
+          id: r.id, reference: r.reference, source: "client_request", siteId: r.siteId, siteName: v.siteName, severity: r.severity, status: r.status,
+          reportedAt: r.reportedAt, firstResponseAt: r.firstResponseAt, resolvedAt: r.resolvedAt, respondBy: r.respondBy, dueAt: r.dueAt,
           metResponse: r.firstResponseAt ? new Date(r.firstResponseAt) <= new Date(r.respondBy) : null,
-          metResolution: r.resolvedAt ? new Date(r.resolvedAt) <= new Date(r.dueAt) : (r.status === "declined" ? null : null),
-        }; }).concat(state.issues.slice(0, 2).map((i) => ({ id: i.id, reference: null, title: i.title, site_name: i.site_name, source: "staff", severity: i.severity, reported_at: i.reported_at, respondBy: null, dueAt: null, metResponse: null, metResolution: null })));
+          metResolution: r.resolvedAt ? new Date(r.resolvedAt) <= new Date(r.dueAt) : null,
+        }; }).concat(state.issues.slice(0, 2).map((i) => ({ id: i.id, reference: null, source: "staff", siteId: i.site_id, siteName: i.site_name, severity: i.severity, status: i.status, reportedAt: i.reported_at, firstResponseAt: null, resolvedAt: null, respondBy: null, dueAt: null, metResponse: null, metResolution: null })));
       }
       return a;
     }

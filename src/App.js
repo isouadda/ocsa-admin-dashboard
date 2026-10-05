@@ -7049,13 +7049,15 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     : tr("Targets, response then resolution. High {0} and {1}. Medium {2} and {3}. Low {4} and {5}. Aging means open past its resolution target.",
       targetOf(tgt.high.first_response_minutes), targetOf(tgt.high.resolution_minutes), targetOf(tgt.medium.first_response_minutes),
       targetOf(tgt.medium.resolution_minutes), targetOf(tgt.low.first_response_minutes), targetOf(tgt.low.resolution_minutes));
-  // The rows the API judges, each with respondBy, dueAt, metResponse and metResolution: true reads
-  // Met, false Missed, and null, no target, reads nothing. Drawn only when the API answers them.
-  const judged = timing && Array.isArray(timing.rows) ? timing.rows : null;
+  // The issues the API judges, under issues as the API's Step 250 answers them (rows is kept as a
+  // fallback), each with respondBy, dueAt, metResponse and metResolution: true reads Met, false
+  // Missed, and null, no target, reads nothing. Each is named by its reference, then its site; the
+  // API sends no title. Drawn only when the API answers them.
+  const judged = timing && Array.isArray(timing.issues) ? timing.issues : timing && Array.isArray(timing.rows) ? timing.rows : null;
   const metWord = (v) => (v === true ? { text: tr("Met|target"), color: GR } : v === false ? { text: tr("Missed|target"), color: RD } : { text: "--", color: null });
   const MetCell = ({ v }) => { const w = metWord(v); return <span data-met={v === true ? "met" : v === false ? "missed" : "none"} style={{ color: w.color || t.textMut, fontWeight: w.color ? 600 : 400 }}>{w.text}</span>; };
   const judgedColumns = [
-    { header: tr("Issue"), render: r => <span><span style={{ fontWeight: 600, color: t.text }}>{r.title || r.reference || r.id}</span>{r.reference ? <div style={{ fontSize: 11, color: t.textMut, fontFamily: "monospace" }}>{r.reference}</div> : null}</span> },
+    { header: tr("Issue"), render: r => <span style={{ fontWeight: 600, color: t.text, fontFamily: "monospace", fontSize: 12 }}>{r.reference || r.id}</span> },
     { header: tr("Site"), tdStyle: { color: t.textSec }, render: r => r.site_name || r.siteName || "--" },
     { header: tr("Respond by"), tdStyle: { whiteSpace: "nowrap", color: t.textSec }, render: r => (r.respondBy ? irWhen(r.respondBy) : tr("No target")) },
     { header: tr("Response|target"), render: r => <MetCell v={r.metResponse} /> },
@@ -7102,7 +7104,7 @@ function IssueTimingReport({ af, t, sites, settings, config, showToast }) {
     const slaTable = slaRows ? ('<h2>' + esc(tr("SLA compliance by period")) + '</h2><table><thead><tr>' + heads(tr("Period"), tr("Resolution SLA"), tr("Response SLA"), tr("Resolution breaches"), tr("Response breaches")) + '</tr></thead><tbody>' + slaRows + '</tbody></table>') : "";
     const targetsLine = tgt ? ('<p class="meta">' + esc(targetsSaid) + '</p>') : "";
     const judgedRows = judged ? judged.map(r =>
-      '<tr><td>' + esc(r.title || r.reference || r.id) + (r.reference ? ' (' + esc(r.reference) + ')' : '') + '</td><td>' + esc(r.site_name || r.siteName || '') + '</td><td>' + esc(r.respondBy ? irWhen(r.respondBy) : tr("No target")) + '</td><td>' + esc(metWord(r.metResponse).text) + '</td><td>' + esc(r.dueAt ? irWhen(r.dueAt) : tr("No target")) + '</td><td>' + esc(metWord(r.metResolution).text) + '</td></tr>'
+      '<tr><td>' + esc(r.reference || r.id) + '</td><td>' + esc(r.site_name || r.siteName || '') + '</td><td>' + esc(r.respondBy ? irWhen(r.respondBy) : tr("No target")) + '</td><td>' + esc(metWord(r.metResponse).text) + '</td><td>' + esc(r.dueAt ? irWhen(r.dueAt) : tr("No target")) + '</td><td>' + esc(metWord(r.metResolution).text) + '</td></tr>'
     ).join("") : "";
     const judgedTable = judgedRows ? ('<h2>' + esc(tr("Against their targets")) + '</h2><table><thead><tr>' + heads(tr("Issue"), tr("Site"), tr("Respond by"), tr("Response|target"), tr("Due"), tr("Resolution|target")) + '</tr></thead><tbody>' + judgedRows + '</tbody></table>') : "";
     const einLine = showEin ? ('<div>' + esc(tr("EIN {0}", settings.ein)) + '</div>') : "";

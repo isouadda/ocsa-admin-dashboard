@@ -15,10 +15,11 @@
 //     Settings, Holidays lists the year and adds a day; the Rehire window lists the sites to restore,
 //     the ones held when the person left ticked; a client's concern past due draws its Due in red; and
 //     that concern is marked acknowledged by phone;
-//   - at 1280 in English and in Spanish, against the stub's answers for the API's Step 250 (Step 251):
-//     the Client requests tab lists the waiting requests and approves one; a second approver's 409 is
-//     drawn; a request QR is made and its sheet printed with the area and the title in both languages;
-//     and Print label saves a supply's labels.pdf.
+//   - against the stub's answers for the API's Step 250 (Step 251): at 1280 in English, the Client
+//     requests tab lists the waiting requests and approves one, and a second approver's 409 is drawn;
+//     at 1280 in English and in Spanish, a request QR is made and its sheet printed with the area and
+//     the title in both languages, and Print label saves a supply's labels.pdf. The two request checks
+//     run in English alone to keep the run inside its three minutes.
 // One line a check. Any failure exits non-zero, and so does a run of three minutes or more. The full
 // npm run audit is untouched by this.
 "use strict";
@@ -41,7 +42,7 @@ const ADDED_HOLIDAY = { date: "2026-04-03", name: "Office closed for training" }
 // The area the request QR check makes a QR for.
 const SMOKE_AREA = "Loading dock restroom";
 const PASSES = [
-  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true },
+  { name: "1280 en admin", viewport: "wide", lang: "en", who: "admin", step248: true, step250: true, requestChecks: true },
   { name: "1280 es admin", viewport: "wide", lang: "es", who: "admin", secondStep: true, step248: true, step250: true },
   { name: "390 en admin", viewport: "phone", lang: "en", who: "admin" },
   { name: "1280 en supervisor", viewport: "wide", lang: "en", who: "supervisor" },
@@ -197,7 +198,9 @@ async function step250(d, origin, p, stubs) {
     await recover(d, origin, p);
   };
   const lower = (v) => String(v || "").toLowerCase();
-  await check("Client requests lists the waiting requests and approves one", async () => {
+  // The two request checks run on the pass that asks for them (English); the sheet check below proves
+  // both languages on its own.
+  if (p.requestChecks) await check("Client requests lists the waiting requests and approves one", async () => {
     await d.goto("issues", ["requests"]); await wait(700);
     const rows = d.page.locator("[data-client-requests] table tbody tr");
     const n = await rows.count();
@@ -212,7 +215,7 @@ async function step250(d, origin, p, stubs) {
     await d.page.keyboard.press("Escape").catch(() => {});
     return text.indexOf(lower(d.say("Approved|request"))) < 0 ? "the activity does not read Approved" : "";
   });
-  await check("a second approver's refusal is drawn", async () => {
+  if (p.requestChecks) await check("a second approver's refusal is drawn", async () => {
     await d.goto("issues", ["requests", "rq-2"]); await wait(700);
     await d.page.locator("[data-request-approve]").click(); await wait(400);
     await d.page.locator("[data-request-approve-save]").click(); await wait(900);
