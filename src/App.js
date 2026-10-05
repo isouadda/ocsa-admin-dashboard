@@ -3949,6 +3949,11 @@ const bandOf = (pct) => (pct == null || pct === "" || !isFinite(Number(pct)) ? "
 const bandWord = (band) => (BAND_WORDS[band] ? tr(BAND_WORDS[band]) : String(band || ""));
 const bandColor = (band) => ({ meets: GR, below: OR, failed: RD, serious: RD })[band] || null;
 const openFinding = (id) => { window.location.hash = "issues/" + encodeURIComponent(String(id)); };
+// Whether an inspection's read carries its findings (STEP253_CONTRACT.md, section 3.1).
+const findingsIn = (d) => !!d && Array.isArray(d.findings);
+const FINDING_STATE_WORDS = { open: "open|issue", in_progress: "in progress", escalated: "escalated|issue", resolved: "resolved|issue", closed: "closed|issue" };
+const findingStateWord = (st) => (FINDING_STATE_WORDS[st] ? tr(FINDING_STATE_WORDS[st]) : String(st || "").replace(/_/g, " "));
+const findingStateColor = (st, t) => ({ open: RD, in_progress: OR, escalated: PU, resolved: GR, closed: t.textMut })[st] || t.textMut;
 const openFiledReport = (id) => { window.location.hash = "forms/reports/" + encodeURIComponent(String(id)); };
 // The single read's camelCase view laid over the list's snake_case row, so the window draws one shape.
 const issueOfView = (v) => ({
@@ -12351,6 +12356,26 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
   const [scheduleForm, setScheduleForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
   const [detailView, setDetailView] = useState(null);
   const [expandedItems, setExpandedItems] = useState(new Set());
+  // Step 254: a completed inspection under 80 percent with no corrective action offers to start one
+  // for its site, the way Filed forms starts a form: OCSA-FRM-010 from the catalog this account may
+  // start, POST /api/forms/OCSA-FRM-010/drafts with the site, and the form window every desk form
+  // uses. A refusal is drawn under the button.
+  const [caStart, setCaStart] = useState({ busy: false, refusal: "" });
+  const [caFill, setCaFill] = useState(null);
+  const startCorrectiveAction = async (d) => {
+    if (caStart.busy) return;
+    setCaStart({ busy: true, refusal: "" });
+    try {
+      const list = await af("/api/forms?app=dashboard");
+      const form = (list && Array.isArray(list.forms) ? list.forms : []).find(f => f && String(f.code) === "OCSA-FRM-010" && formStartable(f)) || null;
+      if (!form) { setCaStart({ busy: false, refusal: tr("This account cannot start a corrective action from here.") }); return; }
+      const body = { source: "admin" };
+      if (d && d.site_id != null && d.site_id !== "") body.siteId = String(d.site_id);
+      const r = await af("/api/forms/OCSA-FRM-010/drafts", { method: "POST", body });
+      setCaFill({ form, draft: formDraftOf(r) });
+      setCaStart({ busy: false, refusal: "" });
+    } catch (e) { setCaStart({ busy: false, refusal: (e && e.message) || tr("Request failed") }); }
+  };
   const [editInspModal, setEditInspModal] = useState(null);
   const [editInspForm, setEditInspForm] = useState({ template_id: "", site_id: "", assigned_to: "", scheduled_date: "" });
   const [schedQ, setSchedQ] = useState(""); const [schedStatus, setSchedStatus] = useState("all"); const [schedPage, setSchedPage] = useState(1);
@@ -12541,6 +12566,8 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
     const isComplete = !!d.result;
     const pct = isComplete && d.result.max_possible_score > 0 ? Math.round((d.result.total_score / d.result.max_possible_score) * 100) : null;
     const scoreColor = pct === null ? t.textMut : pct >= 80 ? GR : pct >= 60 ? OR : RD;
+    // The band by QMS-014 5.2, from the exact percent, as the API judges it at completion.
+    const band = isComplete && d.result.max_possible_score > 0 ? bandOf((d.result.total_score / d.result.max_possible_score) * 100) : "";
 
     return (
       <div>
@@ -12582,6 +12609,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed At")}</div><div style={{ fontFamily: FONT_HEAD, fontWeight: 600, color: t.text, fontSize: 13 }}>{fmtDT(d.result.completed_at)}</div></Crd>
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Completed By")}</div><div style={{ fontWeight: 600, color: t.text }}>{d.result.completed_by_name}</div></Crd>
             <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Overall Score")}</div><div style={{ fontFamily: FONT_HEAD, fontSize: 26, fontWeight: 600, color: scoreColor, lineHeight: 1 }}>{pct}%</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("{0}/{1} pts", d.result.total_score, d.result.max_possible_score)}</div></Crd>
+            {findingsIn(d) && band && <Crd t={t}><div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 4 }}>{tr("Band")}</div><div data-inspection-band={band} style={{ fontFamily: FONT_HEAD, fontSize: 15, fontWeight: 600, color: bandColor(band) || t.text, lineHeight: 1.3 }}>{bandWord(band)}</div><div style={{ fontSize: 10, color: t.textMut }}>{tr("OCSA-QMS-014 5.2")}</div></Crd>}
           </>}
         </div>
 
@@ -12591,6 +12619,38 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
             <div style={{ fontSize: 13, color: t.textSec, lineHeight: 1.5 }}>{d.result.overall_notes}</div>
           </Crd>
         )}
+
+        {/* Step 254: the findings the API opened as tickets, and the corrective action, once the answer carries findings. */}
+        {isComplete && findingsIn(d) && <Crd t={t} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Findings")}</div>
+          {d.findings.length === 0 && <div data-inspection-findings="" style={{ fontSize: 13, color: t.textMut }}>{tr("No deficient item. No finding was opened.")}</div>}
+          {d.findings.length > 0 && <div data-inspection-findings="" style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead><tr>{[tr("Finding"), tr("Zone"), tr("Owner|finding"), tr("Due"), tr("Fixed|finding"), tr("Checked|finding"), tr("Status")].map((h, i) => <th key={i} style={{ textAlign: "left", fontSize: 10, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", fontWeight: 600, padding: "6px 8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+            <tbody>{d.findings.map((f, i) => <tr key={f.issueId || i} data-inspection-finding={f.issueId || ""} onClick={() => { if (f.issueId != null) openFinding(f.issueId); }} style={{ cursor: f.issueId != null ? "pointer" : "default" }}>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.text, fontWeight: 600 }}>{f.label || "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec }}>{f.zone || "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: f.owner && f.owner.name ? t.text : t.textMut }}>{f.owner && f.owner.name ? f.owner.name : tr("Unassigned")}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, whiteSpace: "nowrap" }}><ClockCell t={t} cell={requestClock(f.dueState, f.dueAt, tr("Fixed|finding"))} name="finding-due" /></td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec, whiteSpace: "nowrap" }}>{f.resolvedAt ? fmtDT(f.resolvedAt) : "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border, color: t.textSec, whiteSpace: "nowrap" }}>{f.verifiedAt ? fmtDT(f.verifiedAt) : "--"}</td>
+              <td style={{ padding: "8px", borderBottom: "1px solid " + t.border }}><Bdg l={findingStateWord(f.status)} c={findingStateColor(f.status, t)} /></td>
+            </tr>)}</tbody>
+          </table></div>}
+          <div style={{ fontSize: 11, color: t.textMut, marginTop: 8 }}>{tr("A finding opens in the Issue Tracker, where it is verified.")}</div>
+        </Crd>}
+        {isComplete && findingsIn(d) && Object.prototype.hasOwnProperty.call(d, "correctiveAction") && (d.correctiveAction || pct < 80) && <Crd t={t} style={{ marginBottom: 16, border: "1px solid " + (d.correctiveAction ? t.border : t.orangeBorder) }}>
+          <div style={{ fontSize: 9, color: t.textMut, textTransform: "uppercase", letterSpacing: "1px", marginBottom: 8 }}>{tr("Corrective action")}</div>
+          {d.correctiveAction && <div data-inspection-corrective="" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 13, color: t.text }}>{d.correctiveAction.closedAt ? tr("OCSA-FRM-010, closed {0}.", irDay(d.correctiveAction.closedAt)) : tr("OCSA-FRM-010, still open.")}</span>
+            <Btn t={t} v="ghost" onClick={() => openFiledReport(d.correctiveAction.id)} style={{ minHeight: 44, padding: "10px 14px", fontSize: 12 }}>{tr("Open the corrective action")}</Btn>
+          </div>}
+          {!d.correctiveAction && <div data-inspection-corrective-required="">
+            <div style={{ fontSize: 13, color: OR, fontWeight: 600, marginBottom: 8 }}>{tr("A corrective action (OCSA-FRM-010) is required")}</div>
+            <div style={{ fontSize: 12, color: t.textSec, marginBottom: 10, lineHeight: 1.5 }}>{tr("The site scored under 80 percent. Start the corrective action for the site and link its findings from the report's window.")}</div>
+            <Btn t={t} onClick={() => startCorrectiveAction(d)} disabled={caStart.busy} data-inspection-corrective-start="" style={{ minHeight: 44 }}>{caStart.busy ? tr("Opening...") : tr("Start a corrective action")}</Btn>
+            {caStart.refusal && <div data-inspection-corrective-refusal="" role="alert" style={{ fontSize: 12, color: RD, marginTop: 8 }}>{caStart.refusal}</div>}
+          </div>}
+        </Crd>}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {(d.items || []).map(item => {
@@ -12692,6 +12752,7 @@ function InspectionsPage({ af, token, showToast, canManageInspections = false, t
           {d.lines.map(ln => <InspectionReviewLine key={ln.line} af={af} t={t} token={token} resultId={inspectionResultIdOf(d)} line={ln} signature={(Array.isArray(d.signatures) ? d.signatures : []).find(sg => sg && sg.line === ln.line) || null} fmtDT={fmtDT} onSigned={() => { openDetail(d.id); loadScheduled(); }} />)}
         </Crd>}
 
+        {caFill && <FormFillWindow af={af} token={token} t={t} form={caFill.form} draft={caFill.draft} onLeave={() => { setCaFill(null); openDetail(d.id); }} people={allStaff} />}
         {editInspModal && <Mdl t={t} onClose={() => setEditInspModal(null)}><div style={{ padding: 24 }}>
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}><div style={{ fontFamily: FONT_HEAD, fontSize: 16, fontWeight: 600, color: t.text }}>{tr("Edit Scheduled Inspection")}</div><button onClick={() => setEditInspModal(null)} aria-label={tr("Close")} style={xBtn}><XI sz={18} c={t.textMut} /></button></div>
           <div style={{ marginBottom: 14 }}><Lbl>{tr("Template *")}</Lbl><Sel t={t} value={editInspForm.template_id} onChange={e => setEditInspForm({ ...editInspForm, template_id: e.target.value })} options={[{ v: "", l: tr("Select template...") }, ...templates.map(tp => ({ v: tp.id, l: tp.name }))]} /></div>

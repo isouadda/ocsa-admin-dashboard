@@ -4088,6 +4088,19 @@ export const WORDS = {
   "Someone other than the person who fixed it checks it.": { es: "Alguien distinto de quien lo corrigi\u00f3 lo revisa." },
   "Verifying closes the finding.": { es: "Al verificar, el hallazgo se cierra." },
   "Verified": { es: "Verificado" },
+  "Band": { es: "Banda" },
+  "OCSA-QMS-014 5.2": { es: "OCSA-QMS-014 5.2" },
+  "Findings": { es: "Hallazgos" },
+  "Finding": { es: "Hallazgo" },
+  "Owner|finding": { es: "Responsable" },
+  "Fixed|finding": { es: "Corregido" },
+  "Checked|finding": { es: "Verificado" },
+  "No deficient item. No finding was opened.": { es: "Ning\u00fan punto deficiente. No se abri\u00f3 ning\u00fan hallazgo." },
+  "A finding opens in the Issue Tracker, where it is verified.": { es: "Un hallazgo se abre en Incidencias, donde se verifica." },
+  "A corrective action (OCSA-FRM-010) is required": { es: "Se requiere una acci\u00f3n correctiva (OCSA-FRM-010)" },
+  "The site scored under 80 percent. Start the corrective action for the site and link its findings from the report's window.": { es: "El sitio obtuvo menos del 80 por ciento. Inicie la acci\u00f3n correctiva del sitio y vincule sus hallazgos desde la ventana del reporte." },
+  "Start a corrective action": { es: "Iniciar una acci\u00f3n correctiva" },
+  "This account cannot start a corrective action from here.": { es: "Esta cuenta no puede iniciar una acci\u00f3n correctiva desde aqu\u00ed." },
 };
 
 // The language the screen is being drawn in. The app sets it before anything renders and again on
